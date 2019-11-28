@@ -3,6 +3,14 @@ uuid = "bbd6fb29-c32f-42b9-b45f-607587a4a52f"
 authors = ["Julian Stobbe <Atomtomate@gmx.de>"]
 version = "0.1.0"
 
+[deps]
+DistributedArrays = "aaf54ef3-cdf8-58ed-94cc-d582ad619b94"
+IntervalRootFinding = "d2bf35a9-74e0-55ec-b149-d360ff49b807"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+SharedArrays = "1a1011a3-84de-559e-8e89-a11a2f7dc383"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+TOML = "191fdcea-f9f2-43e0-b922-d33f71e2abc3"
+
 [compat]
 julia = "1"
 

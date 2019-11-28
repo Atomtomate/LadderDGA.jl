@@ -1,0 +1,23 @@
+# input TOML for ladderDGA
+
+[Model]
+U    = 0.5
+mu   = 1.0
+beta = 26.1
+nden = 1.0
+Dimensions = 2
+
+[Simulation]
+nFermFreq = 40
+nBoseFreq = 40
+shift     = 0       # shift of center of bosonic frequency range
+
+Nk        = 50      # TODO: adaptiv mesh
+Nint      = 30      # TODO: implement
+Nq        = 30      # TODO: adaptiv mesh
+
+inputVars = "vars.jld"
+
+chis_omega = false          # Should only chis_omega and chich_omega be calculated?
+lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?
+force_full_bosonic_sum = false  # Should the summation over the bosonic frequency in the charge-/spin-channel be done for all bosonic Matsubara frequencies?
