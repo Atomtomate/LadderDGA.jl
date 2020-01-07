@@ -138,3 +138,30 @@ function calc_DΓA_Σ_naive(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpD
     end
     return Σ_ladder
 end
+
+
+function calc_χ_trilex_parallel(Γ::Array{Complex{Float64},3}, bubble::Array{Complex{Float64},3},
+                              U::Float64, β::Float64, simParams::SimulationParameters)
+    Nω = simParams.n_iω
+    Nν = simParams.n_iν
+    Nq = size(bubble, 3)
+    γres = SharedArray{Complex{Float64}}( 2*Nω+1, 2*Nν, Nq)
+    χ = SharedArray{Complex{Float64}}( 2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
+
+    @sync @distributed for qi in 1:Nq
+        χ_ladder = zeros(Complex{Float64}, 2*Nν, 2*Nν)
+        for (ωi,ωₙ) in enumerate((-Nω):Nω)
+            @inbounds χ_ladder = Γ[ωi, :, :]
+            for (νi,νₙ) in enumerate((-Nν):(Nν-1))
+                @inbounds χ_ladder[νi, νi] = χ_ladder[νi, νi] + 1.0 / get_symm_χ(bubble,ωₙ, νₙ, qi) 
+            end
+            @inbounds χ_ladder = inv(χ_ladder)
+            @inbounds χ[ωi, qi] = sum(χ_ladder)/(β^2)
+            @inbounds tmpSum = sum(χ_ladder, dims=2) 
+            for (νi,νₙ) in enumerate((-Nν):(Nν-1))
+                @inbounds γres[ωi, νi, qi] = tmpSum[νi] / (get_symm_χ(bubble, ωₙ, νₙ,  qi) * (1 - U*χ[ωi, qi]))
+            end
+        end
+    end
+    return sdata(χ), sdata(γres)
+end

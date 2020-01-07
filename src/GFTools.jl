@@ -63,14 +63,3 @@ function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)
     end
     return FUpDo
 end
-
-#TODO: this should be a macro
-@inbounds get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = @inbounds if i < 0 conj(f[-i]) else f[i+1] end
-
-# This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
-# TODO: For now a fixed order of axis is assumed
-function get_symm_f(f::Array{Complex{Float64},3}, ωₙ::Int64, νₙ::Int64, k::Int64) 
-    @inbounds n_iωₙ = Int((size(f,1)-1)/2)
-    #@printf("%d %d -> %d %d \n", ωₙ, νₙ, n_iωₙ - ωₙ + 1, - νₙ)
-    @inbounds if νₙ < 0 conj(f[n_iωₙ - ωₙ + 1, -νₙ, k]) else f[ωₙ + n_iωₙ + 1,νₙ + 1, k] end
-end

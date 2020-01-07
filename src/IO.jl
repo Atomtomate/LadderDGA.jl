@@ -1,7 +1,3 @@
-import TOML
-using Printf
-
-include("./Config.jl")
 
 function readConfig(file)
     tml = TOML.parsefile(file)
@@ -93,6 +89,9 @@ function readFortranΓ(dirName::String)
     return freqBox, Γcharge, Γspin
 end
 
+"""
+    Returns χ_DMFT[ω, ν, ν']
+"""
 function readFortranχDMFT(dirName::String)
     files = readdir(dirName)
     _, _, χup, χdown = readFortran3FreqFile(dirName * "/" * files[1], 1.0, false)
@@ -152,8 +151,7 @@ function print_chi_bubble(qList, res, simParams)
     end
 end
 
-function convert_from_fortran()
-    const dir = "../ladderDGA/"
+function convert_from_fortran(simParams)
     g0 = zeros(Complex{Float64}, simParams.n_iν+simParams.n_iω)
     gImp = zeros(Complex{Float64},  simParams.n_iν+simParams.n_iω)
     readFortranSymmGF!(g0, dir*"g0mand", storedInverse=true)

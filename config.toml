@@ -8,13 +8,13 @@ nden = 1.0
 Dimensions = 2
 
 [Simulation]
-nFermFreq = 3
-nBoseFreq = 2
+nFermFreq = 50
+nBoseFreq = 6
 shift     = 0       # shift of center of bosonic frequency range
 
-Nk        = 3      # TODO: adaptiv mesh
-NkInt     = 20     # TODO: implement
-Nq        = 3      # TODO: adaptiv mesh
+Nk        = 50      # TODO: adaptiv mesh
+NkInt     = 50     # TODO: implement
+Nq        = 8      # TODO: adaptiv mesh
 
 inputVars = "vars.jld"
 
