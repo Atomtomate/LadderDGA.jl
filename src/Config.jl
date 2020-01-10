@@ -13,7 +13,12 @@ struct SimulationParameters
     Nk::Int64               # Number of k-space integration steps
     Nint::Int64
     Nq::Int64               # Number of k-space integration steps for Q grid
-    inputVars::String       # path to Γ Input
+    tail_corrected::Bool    # use correction for finite ν and ω sums.
 end
 
+struct EnvironmentVars
+    loadFortran::Bool
+    inputDir::String
+    inputVars::String
+end
 # TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp

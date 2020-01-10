@@ -14,8 +14,11 @@ function readConfig(file)
                                tml["Simulation"]["Nk"],
                                tml["Simulation"]["NkInt"],
                                tml["Simulation"]["Nq"],
-                               tml["Simulation"]["inputVars"])
-    return (model, sim)
+                               tml["Simulation"]["tail_corrected"])
+    env = EnvironmentVars(   tml["Environment"]["loadFortran"],
+                             tml["Environment"]["inputDir"],
+                             tml["Environment"]["inputVars"])
+    return (model, sim, env)
 end
 
 function readFortranSymmGF!(GF, filename; storedInverse, storeFull=false)
@@ -48,7 +51,7 @@ function readFortranSymmGF!(GF, filename; storedInverse, storeFull=false)
     return GF
 end
 
-function readFortran3FreqFile(filename, sign = 1.0, freqInteger = true)
+function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
     InString = open(filename, "r") do f
         readlines(f)
     end
@@ -151,13 +154,13 @@ function print_chi_bubble(qList, res, simParams)
     end
 end
 
-function convert_from_fortran(simParams)
+function convert_from_fortran(simParams, env)
     g0 = zeros(Complex{Float64}, simParams.n_iν+simParams.n_iω)
     gImp = zeros(Complex{Float64},  simParams.n_iν+simParams.n_iω)
-    readFortranSymmGF!(g0, dir*"g0mand", storedInverse=true)
-    readFortranSymmGF!(gImp, dir*"gm_wim", storedInverse=false)
-    freqBox, Γcharge, Γspin = readFortranΓ(dir*"gamma_dir")
-    χDMFTCharge, χDMFTSpin = readFortranχDMFT(dir*"chi_dir")
+    readFortranSymmGF!(g0, env.inputDir*"g0mand", storedInverse=true)
+    readFortranSymmGF!(gImp, env.inputDir*"gm_wim", storedInverse=false)
+    freqBox, Γcharge, Γspin = readFortranΓ(env.inputDir*"gamma_dir")
+    χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"chi_dir")
     Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
     Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
     χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)

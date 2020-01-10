@@ -16,9 +16,12 @@ function convert_to_real(f; eps=10E-12)
 end
 
 sum_limits(a, b, e) = if (ndims(a) == 1) sum(a[b:e]) else sum(mapslices(x -> sum_limits(x,b,e), a; dims=2:ndims(a))[b:e]) end
+        
+sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else 
+                        sum(mapslices(x -> sum_inner(x,cut), a; dims=2:ndims(a))[cut:(end-cut+1)]) end
 
 """
     Sums first νmax entries of any array along given dimension.
     Warning: This has NOT been tested for multiple dimensions.
 """
-sum_νmax(a, to; dims) = mapslices(x -> sum_limits(x, 1, to), a; dims=dims)
+sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)

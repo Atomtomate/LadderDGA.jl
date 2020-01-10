@@ -1,3 +1,6 @@
 *.jld
+*.dat
 bak*
 fortran_out
+.ipynb_checkpoints/
+nohub.out

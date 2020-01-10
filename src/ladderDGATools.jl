@@ -15,7 +15,7 @@ function calc_bubble_parallel(Σ::Array{Complex{Float64},1}, qGrid,
     ϵkIntList   = squareLattice_ekGrid(kIntGrid)
     ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid)
 
-    res= SharedArray{Complex{Float64}}(  2*simParams.n_iω+1, simParams.n_iν, Nq)
+    res = SharedArray{Complex{Float64}}(  2*simParams.n_iω+1, simParams.n_iν, Nq)
     @sync @distributed for qi in 1:Nq
         @simd for ki in 1:length(ϵkIntList)
             @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
@@ -30,24 +30,25 @@ function calc_bubble_parallel(Σ::Array{Complex{Float64},1}, qGrid,
             end
         end
     end
-    #print_chi_bubble(qList, modelParams.β*sdata(res)/((2*length(ϵkIntList))^2), simParams)
     return modelParams.β*sdata(res)/((2*simParams.Nint)^2)
 end
+
 
 """
     Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
 """
-function calc_χ_trilex_approx(Γ::Array{Complex{Float64},3}, bubble::Array{Complex{Float64},3},
+function calc_χ_trilex(Γ::Array{Complex{Float64},3}, bubble::Array{Complex{Float64},3},
                               U::Float64, β::Float64, simParams::SimulationParameters)
     Nω = simParams.n_iω
     Nν = simParams.n_iν
     Nq = size(bubble, 3)
     γres = SharedArray{Complex{Float64}}( 2*Nω+1, 2*Nν, Nq)
     χ = SharedArray{Complex{Float64}}( 2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
-    γres_approx = SharedArray{Complex{Float64}}( 2*Nω+1, 2*Nν, Nq)
-    χ_approx = SharedArray{Complex{Float64}}( 2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
+    if simParams.tail_corrected
+        W = build_weights(Int(floor(Nν/2))-20, Int(floor(Nν/2)), 7)
+    end
 
     @sync @distributed for qi in 1:Nq
         χ_ladder = zeros(Complex{Float64}, 2*Nν, 2*Nν)
@@ -57,22 +58,20 @@ function calc_χ_trilex_approx(Γ::Array{Complex{Float64},3}, bubble::Array{Comp
                 @inbounds χ_ladder[νi, νi] = χ_ladder[νi, νi] + 1.0 / get_symm_χ(bubble,ωₙ, νₙ, qi) 
             end
             @inbounds χ_ladder = inv(χ_ladder)
-            # Endliche  ν ν' Summe
-            # Sollten lokal == DMFT χ, γ
-            @inbounds χ[ωi, qi] = sum(χ_ladder)/(β^2)
-            @inbounds tmpSum = sum(χ_ladder, dims=2) 
 
-            #TODO: find start
-            @inbounds χ_approx[ωi, qi] = approx_full_sum(χ_ladder, Int(floor(Nν*3/4)), modelParams, simParams, [1,2], ω_shift = ωi)[1]
-            @inbounds tmpSum_approx = approx_full_sum(χ_ladder, Int(floor(Nν*3/4)), modelParams, simParams, [2], ω_shift = ωi)[:,1]
+            @inbounds χ[ωi, qi] = if simParams.tail_corrected
+                    approx_full_sum(χ_ladder, Int(floor(Nν*3/4)), modelParams, simParams, [1,2], W=W)[1]
+                else sum(χ_ladder)/(β^2) end
+            @time @inbounds tmpSum    = if simParams.tail_corrected
+                    approx_full_sum(χ_ladder, Int(floor(Nν*3/4)), modelParams, simParams, [2], W=W)[:,1]
+                else sum(χ_ladder, dims=2) end
             for (νi,νₙ) in enumerate((-Nν):(Nν-1))
-                @inbounds γres[ωi, νi, qi] = tmpSum[νi] / (get_symm_χ(bubble, ωₙ, νₙ,  qi) * (1 - U*χ[ωi, qi]))
-                γres_approx[ωi, νi, qi] = tmpSum_approx[νi] / 
-                            (get_symm_χ(bubble, ωₙ, νₙ,  qi) * (1 - U*χ_approx[ωi, qi]))
+                @inbounds γres[ωi, νi, qi] = tmpSum[νi] / 
+                            (get_symm_χ(bubble, ωₙ, νₙ,  qi) * (1 - U*χ[ωi, qi]))
             end
         end
     end
-    return sdata(χ), sdata(γres), sdata(χ_approx), sdata(γres_approx)
+    return sdata(χ), sdata(γres)
 end
 
 

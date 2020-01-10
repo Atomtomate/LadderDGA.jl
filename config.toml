@@ -1,7 +1,7 @@
 # input TOML for ladderDGA
 
 [Model]
-U    = 0.5
+U    = 2.0
 mu   = 1.0
 beta = 26.1
 nden = 1.0
@@ -15,7 +15,11 @@ shift     = 0       # shift of center of bosonic frequency range
 Nk        = 50      # TODO: adaptiv mesh
 NkInt     = 50     # TODO: implement
 Nq        = 8      # TODO: adaptiv mesh
+tail_corrected = true
 
+[Environment]
+loadFortran = false
+inputDir = "../ladderDGA"
 inputVars = "vars.jld"
 
 [legacy]

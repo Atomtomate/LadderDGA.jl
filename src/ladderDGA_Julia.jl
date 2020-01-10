@@ -1,10 +1,10 @@
     using Printf 
 
     const PARALLEL = true
-    const LOAD_FORTRAN = false
-    const dir = "../ladderDGA/"
     using Distributed
     using SharedArrays
+    using LinearAlgebra
+    using GenericLinearAlgebra
     using JLD
     using Optim
     using TOML
@@ -46,11 +46,11 @@
 
     #function calculate_Σ_ladder(configFile)
 
-        print("Reading Inputs...")
-        modelParams, simParams = readConfig(configFile)#
-        if LOAD_FORTRAN
-            convert_from_fortran(simParams)
-        end
+    print("Reading Inputs...")
+    modelParams, simParams, env = readConfig(configFile)#
+    if env.loadFortran
+        convert_from_fortran(simParams, env)
+    end
 
         vars    = load(simParams.inputVars) 
         G0      = vars["g0"]
@@ -84,19 +84,19 @@
         print("Calculating χ and γ in the charge channel: ")
         #@time χch, trilexch = calc_χ_trilex_parallel(Γch, bubble, modelParams.U, modelParams.β, simParams)
         @time χch, trilexch, χch_approx, trilexch_approx  = 
-            calc_χ_trilex_approx(Γch, bubble, modelParams.U, modelParams.β, simParams)
-        #= print("Calculating χ and γ in the spin channel: ") =#
-        #= @time χsp, trilexsp, χsp_approx, trilexsp_approx = =# 
-        #=     calc_χ_trilex_approx(Γsp, bubble, -modelParams.U, modelParams.β, simParams) =#
-        #= print("Calculating λ correction in the charge channel: ") =#
-        #= @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, modelParams) =#
-        #= print("Calculating λ correction in the spin channel: ") =#
-        #= @time λsp, χsp_λ = calc_λ_correction(χsp, χLocsp, qMultiplicity, modelParams) =#
+            calc_χ_trilex(Γch, bubble, modelParams.U, modelParams.β, simParams)
+        print("Calculating χ and γ in the spin channel: ")
+        @time χsp, trilexsp, χsp_approx, trilexsp_approx = 
+            calc_χ_trilex(Γsp, bubble, -modelParams.U, modelParams.β, simParams)
+        print("Calculating λ correction in the charge channel: ")
+        @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, modelParams)
+        print("Calculating λ correction in the spin channel: ")
+        @time λsp, χsp_λ = calc_λ_correction(χsp, χLocsp, qMultiplicity, modelParams)
 
-        #= print("TODO: replace chisp by chisp_lambda\n") =#
-        #= print("Calculating Σ ladder: ") =#
-        #= @time Σ_ladder = calc_DΓA_Σ_parallel(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo, =#
-        #=                                   qMultiplicity, qGrid, kGrid, modelParams, simParams) =#
+        print("TODO: replace chisp by chisp_lambda\n")
+        print("Calculating Σ ladder: ")
+        @time Σ_ladder = calc_DΓA_Σ_parallel(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
+                                          qMultiplicity, qGrid, kGrid, modelParams, simParams)
 
         save("res.jld", "kGrid", kGrid, "qGrid", qGrid, "qMult", qMultiplicity,
                         "bubble", bubble, "chi_ch", χch, "chi_sp", χsp, "chi_ch_lambda", χch_λ, "chi_sp_lambda", χsp_λ, 
