@@ -33,10 +33,11 @@ Helper function that build the matrix ``M`` used to fit data obtained in a
 The coefficients ``c_n`` are obtained by solving ``M c = b``. 
 ``b`` can be constructed from the data using [`build_rhs`](@ref).
 """
-function build_design_matrix(imin, imax, ncoeffs)
+function build_design_matrix(imin, imax, coeff_exp_list::Array)
+    ncoeffs = length(coeff_exp_list)
     M = zeros(BigFloat, (ncoeffs, ncoeffs))
-    for i = imin:imax, k = 0:(ncoeffs-1), l in 0:(ncoeffs-1)
-        M[l+1,k+1] += 1.0 / ((BigFloat(i)^(k+l)))
+    for i = imin:imax, (ki,k) = enumerate(coeff_exp_list), (li,l) in enumerate(coeff_exp_list)
+        M[li,ki] += 1.0 / ((BigFloat(i)^(k+l)))
     end
     return M
 end
@@ -73,20 +74,20 @@ Build weight matrix i.e. ``W = M^{-1} R`` with M from [`build_design_matrix`](@r
 and ``R_{ij} = \\frac{1}{j^i}``.
 Fit coefficients can be obtained by multiplying `w` with data: ``a_k = W_{kj} g_j``
 """
-function build_weights(imin, imax, ncoeffs)
-    M = build_design_matrix(imin, imax, ncoeffs)
+function build_weights(imin, imax, coeff_exp_list::Array)
+    M = build_design_matrix(imin, imax, coeff_exp_list)
     Minv = inv(M)
+    ncoeffs = length(coeff_exp_list)
     w = zeros(Float64, (ncoeffs, length(imin:imax)))
-    for k=1:ncoeffs, l = 0:(ncoeffs-1), (ii,i) = enumerate(imin:imax)
-        w[k,ii] += Float64(Minv[k, l+1] / (BigFloat(i)^l), RoundDown)
+    for k=1:ncoeffs, (li,l) = enumerate(coeff_exp_list), (ii,i) = enumerate(imin:imax)
+        w[k,ii] += Float64(Minv[k, li] / (BigFloat(i)^l), RoundDown)
     end
     return w
 end
 
-function fit_νsum(νmax_start, νmax_end, ncoeffs, data; W = nothing, precision = 100000)
+function fit_νsum(W, data; precision = 100000)
     result = zeros((size(data,1)))
     setprecision(precision) do
-        W = if W == nothing build_weights(νmax_start, νmax_end, ncoeffs) else W end
         if ndims(data) == 1
             result = dot(real(data) , W[1,:])
         else
@@ -102,46 +103,83 @@ end
 """
     Sums first νmax entries of any array along given dim for νmax = 1:size(arr,dim).
 """
-function fit_ν_sum(f, νmax_start, modelParams, simParams, dims; W = nothing, ω_shift = 0,  n_tail = 6)
+function build_fνmax(f, W, dims; ω_shift = 0)
     n_iν   = minimum(size(f)[dims])
+    νmax_end = floor(Int64,n_iν/2)
+    νmax_start =  νmax_end - size(W, 2) + 1
+    if νmax_start < 1
+        throw(BoundsError("ERROR: negative range for summ approximation!"))
+    end
     dims   = Tuple(dims)
-    νmax_end = Int(n_iν/2)
     ν_cut  = νmax_end - νmax_start
 
     #TODO: keep dins as singleton dims?
-    f_νmax = dropdims(sum_νmax(f, ν_cut+1, dims=dims); dims=dims)/(modelParams.β^length(dims))
+    f_νmax = dropdims(sum_νmax(f, ν_cut+1, dims=dims); dims=dims)
     νdim   = ndims(f_νmax) + 1
     for ν_cut_i in (ν_cut):-1:1
-        f_νmax = cat(f_νmax, dropdims(sum_νmax(f, ν_cut_i; dims=dims); dims=dims)/(modelParams.β^length(dims)); dims=νdim)
+        f_νmax = cat(f_νmax, dropdims(sum_νmax(f, ν_cut_i; dims=dims); dims=dims); dims=νdim)
     end
 
     #TODO: allow numeric fit and use method = :analytic_lsq,
     #fit_internal(arr) = fit_tail(arr, iν_arr, tail_func, n_tail)
     #tail = mapslices(fit_internal, f_νmax; dims=νdim)
-    @time tail = fit_νsum(νmax_start, νmax_end, n_tail, f_νmax, W = W)
-    return f_νmax, tail
+    return f_νmax
 end
 
-function approx_full_sum(f, start, modelParams, simParams, dims; W = nothing, ω_shift = 0,  n_tail = 6)
-    _, tail_c = fit_ν_sum(f, start, modelParams, simParams, dims, W = W, ω_shift = ω_shift, n_tail = n_tail)
-    ax = collect(collect.(axes(tail_c)))
-    ax[end] = [1]
-    sum_approx = tail_c[ax...]
-    return sum_approx
-end
+#TODO: test for square arrays
+"""
+    Faster version for build_νmax. WARNING: only tested for square arrays
+"""
+function build_fνmax_fast(f, W)
+    n_iν       = minimum(size(f))
+    νmax_end   = floor(Int64,n_iν/2)
+    νmax_start =  νmax_end - size(W, 2) + 1
+    ν_cut  = νmax_end - νmax_start + 1
+    f_νmax  = Array{eltype(f)}(undef, ν_cut)
+    if νmax_start < 1
+        throw(BoundsError("ERROR: negative range for summ approximation!"))
+    end
+    lo = ν_cut-0
+    up = n_iν-ν_cut+0+1
 
-function fit_bubble_test(χ, modelParams, simParams)
-    iν_arr = iν_array(modelParams.β, simParams.n_iν)
-    c0 = zeros(length(1:(size(χ,2)-3)), size(χ,1), size(χ,3))
-    start = 25
-    qi = 1
-    ωi = 3
-    for start in 15:(size(χ,2)-3)
-        for ωi in 1:size(χ,1)
-            for qi in 1:size(χ,3)
-                c0[start, ωi, qi] = fit_tail(-χ[ωi,start:end,qi], iν_arr[start:end], tail_func_full, 6)[1]
-            end
+    if ndims(f) == 1
+        f_νmax[1] = sum(f[lo:up])
+        for i in 2:length(f_νmax)
+            lo = lo - 1
+            up = up + 1
+            f_νmax[i] = f_νmax[i-1] + f[lo] + f[up]
+        end
+    elseif ndims(f) == 2
+        f_νmax[1] = sum(f[lo:up, lo:up])
+        for i in 2:length(f_νmax)
+            lo = lo - 1
+            up = up + 1
+            #println("$(i): $(lo), $(lo:up), $(up), $(lo:up), $(lo), $((lo+1):(up-1)), $(up), $((lo+1):(up-1))")
+            f_νmax[i] = f_νmax[i-1] + sum(f[lo, lo:up]) + sum(f[up, lo:up]) + 
+                        sum(f[(lo+1):(up-1),lo]) + sum(f[(lo+1):(up-1),up]) 
         end
     end
-    return c0
+    return f_νmax
+end
+
+"""
+    Computes an approximation for the infinite sum over f, by fitting to
+    a function g = c_0 + c_1/x + c_2/x^2 ... 
+    arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
+    and the dimensions over which to fit.
+"""
+function approx_full_sum(f, W, modelParams, dims; fast=true)
+    if fast
+        if !all(dims .== 1:ndims(f))
+            throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
+        end
+        f_νmax = build_fνmax_fast(f, W)
+    else
+        f_νmax = build_fνmax(f, W, dims)
+    end
+    tail_c = fit_νsum(W, f_νmax)
+    #ax = collect(collect.(axes(tail_c)))
+    #ax[end] = [1]
+    sum_approx = tail_c/(modelParams.β^length(dims))#tail_c[ax...]
+    return sum_approx
 end

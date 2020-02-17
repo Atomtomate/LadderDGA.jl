@@ -1,5 +1,9 @@
 *.jld
 *.dat
+*.txt
+*.out
+config_bak.toml
+*.pdf
 bak*
 fortran_out
 .ipynb_checkpoints/

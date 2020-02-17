@@ -3,10 +3,6 @@
 
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
-@inline function get_symm_χ(f::Array, ωₙ::Int64, νₙ::Int64, k::Int64) 
-    @inbounds n_iωₙ = Int((size(f,1)-1)/2)
-    @inbounds if νₙ < 0 f[n_iωₙ - ωₙ + 1, -νₙ, k] else f[ωₙ + n_iωₙ + 1,νₙ + 1, k] end
-end
 
 function convert_to_real(f; eps=10E-12)
     if maximum(imag.(f)) > eps
@@ -25,3 +21,74 @@ sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else
     Warning: This has NOT been tested for multiple dimensions.
 """
 sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
+
+"""
+    Returns index of the maximum which is closest to the mid point of the array
+"""
+function find_inner_maximum(arr)
+    darr = diff(arr; dims=1)
+    mid_index = Int(floor(size(arr,1)/2))
+    intervall_range = 1
+
+    # find interval
+    while (intervall_range < mid_index) &&
+        (darr[(mid_index-intervall_range)] * darr[(mid_index+intervall_range-1)] > 0)
+            intervall_range = intervall_range+1
+    end
+
+    index_maximum = mid_index-intervall_range+1
+    # find index
+    while darr[(mid_index-intervall_range)]*darr[index_maximum] > 0
+        index_maximum = index_maximum + 1
+    end
+    return index_maximum
+end
+
+"""
+    Returns rang of indeces that are usable under 2 conditions.
+    TODO: This is temporary and should be replace with a function accepting general predicates.
+"""
+function find_usable_interval(arr; reduce_range_prct = 0.1)
+    darr = diff(arr; dims=1)
+    index_maximum = find_inner_maximum(arr)
+    mid_index = Int(floor(size(arr,1)/2))
+
+    # interval for condition 1 (positive values)
+    cond1_intervall_range = 1
+    # find range for positive values
+    while (cond1_intervall_range < mid_index) &&
+        (arr[(mid_index-cond1_intervall_range)] > 0) &&
+        (arr[(mid_index+cond1_intervall_range)] > 0)
+        cond1_intervall_range = cond1_intervall_range + 1
+    end
+
+    # interval for condition 2 (monotonicity)
+    cond2_intervall_range = 1
+    # find range for first turning point
+    while (cond2_intervall_range < mid_index) &&
+        (darr[(mid_index-cond2_intervall_range)] > 0) &&
+        (darr[(mid_index+cond2_intervall_range)] < 0)
+        cond2_intervall_range = cond2_intervall_range + 1
+    end
+
+    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
+    range = floor(Int64, intervall_range*(1-reduce_range_prct))
+    return ((mid_index-range):(mid_index+range) .+ 1)
+end
+
+function compute_Ekin(iνₙ, ϵₖ, Vₖ, GImp, β; full=true)
+    Ekin = 0.0 + 0.0*1im
+    fak = if full sum(Vₖ .^ 2)*(β^2)/4 else sum(Vₖ .^ 2)*(β^2)/8 end
+    for n in 1:length(GImp)
+        for l in 1:length(Vₖ)
+            Ekin += (GImp[n] * (Vₖ[l]^2) / (iνₙ[n] - ϵₖ[l])) - (Vₖ[l] ^ 2)/(iνₙ[n]^2)
+        end
+    end
+    if (full)
+        return  ((Ekin - fak)/(2*β))
+    else
+        return (Ekin - fak)/β
+    end
+end
+
+iω(n) = 1im*2*n*π/(modelParams.β);

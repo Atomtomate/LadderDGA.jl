@@ -3,23 +3,24 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 26.1
+beta = 40.0
 nden = 1.0
 Dimensions = 2
 
 [Simulation]
-nFermFreq = 50
-nBoseFreq = 6
+nFermFreq = 120
+nBoseFreq = 119
 shift     = 0       # shift of center of bosonic frequency range
 
-Nk        = 50      # TODO: adaptiv mesh
-NkInt     = 50     # TODO: implement
-Nq        = 8      # TODO: adaptiv mesh
+Nk        = 10      # TODO: adaptiv mesh
+NkInt     = 10     # TODO: implement
+Nq        = 10      # TODO: adaptiv mesh
 tail_corrected = true
 
 [Environment]
-loadFortran = false
-inputDir = "../ladderDGA"
+loadFortran = true
+loadAsymptotics = true
+inputDir = "../full_calc_001/data"
 inputVars = "vars.jld"
 
 [legacy]

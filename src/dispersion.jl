@@ -81,7 +81,7 @@ kGrid_to_array(kGrid::Array{Float64}) = kGrid
 Computes 0.5 [cos(k_x) + ... + cos(k_D)] and returns a grid with Nk points.
 """
 function squareLattice_ekGrid(kgrid)
-    ek(k) = -0.5*sum([cos(kᵢ) for kᵢ in k])
+    ek(k) = 0.5*sum([cos(kᵢ) for kᵢ in k])
     res = [ek(k) for k in kgrid]
 end
 
@@ -93,7 +93,7 @@ function gen_squareLattice_ekq_grid(kList::Array, qList::Array)
     res = zeros(length(kList),length(qList))
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi] = -0.5.*sum(cos.(k .+ q))
+            @inbounds res[ki,qi] = 0.5.*sum(cos.(k .+ q))
         end
     end
     return res
@@ -104,14 +104,14 @@ function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1},
     res = zeros(length(kList),length(qList), 8) # There are 8 additional 
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi,1] = -0.5*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,2] = -0.5*(cos(k[1] + q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,3] = -0.5*(cos(k[1] - q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,4] = -0.5*(cos(k[1] - q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,5] = -0.5*(cos(k[1] + q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,6] = -0.5*(cos(k[1] + q[2]) + cos(k[2] - q[1]))
-            @inbounds res[ki,qi,7] = -0.5*(cos(k[1] - q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,8] = -0.5*(cos(k[1] - q[2]) + cos(k[2] - q[1]))
+            @inbounds res[ki,qi,1] = 0.5*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
+            @inbounds res[ki,qi,2] = 0.5*(cos(k[1] + q[1]) + cos(k[2] - q[2]))
+            @inbounds res[ki,qi,3] = 0.5*(cos(k[1] - q[1]) + cos(k[2] + q[2]))
+            @inbounds res[ki,qi,4] = 0.5*(cos(k[1] - q[1]) + cos(k[2] - q[2]))
+            @inbounds res[ki,qi,5] = 0.5*(cos(k[1] + q[2]) + cos(k[2] + q[1]))
+            @inbounds res[ki,qi,6] = 0.5*(cos(k[1] + q[2]) + cos(k[2] - q[1]))
+            @inbounds res[ki,qi,7] = 0.5*(cos(k[1] - q[2]) + cos(k[2] + q[1]))
+            @inbounds res[ki,qi,8] = 0.5*(cos(k[1] - q[2]) + cos(k[2] - q[1]))
         end
     end
     return res

@@ -9,6 +9,7 @@
     using Optim
     using TOML
     using Printf
+    using DelimitedFiles
     include("$(@__DIR__)/Config.jl")
     include("$(@__DIR__)/helpers.jl")
     include("$(@__DIR__)/IO.jl")
@@ -24,6 +25,8 @@
     @everywhere using Distributed
     @everywhere using SharedArrays
     @everywhere using JLD
+    @everywhere using LinearAlgebra
+    @everywhere using GenericLinearAlgebra
     @everywhere using Optim
     @everywhere using TOML
     @everywhere using Printf
@@ -51,8 +54,11 @@
     if env.loadFortran
         convert_from_fortran(simParams, env)
     end
+    if env.loadAsymptotics
+        readEDAsymptotics(env)
+    end
 
-        vars    = load(simParams.inputVars) 
+        vars    = load(env.inputVars) 
         G0      = vars["g0"]
         GImp    = vars["gImp"]
         Γch     = vars["GammaCharge"]
@@ -67,14 +73,18 @@
         Σ_loc = Σ_Dyson(G0, GImp)
         FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
 
-        #TODO: determine max bosonic freq and cut off there
+        #TODO: use fit for sum here
         χLocch = sum(χDMFTch)/(modelParams.β^3)
         χLocsp = sum(χDMFTsp)/(modelParams.β^3)
+        
+        _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false)
+        χchED = χup .+ χdo
+        χspED = χup .- χdo
 
         _, kGrid   = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
         kList = collect(kGrid)
         qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
-        qMultiplicity    =  kGrid_multiplicity(qIndices)
+        qMultiplicity    = kGrid_multiplicity(qIndices)
 
         #TODO: remove ~5s overhead (precompile)
         print("Calculating bubble: ")
@@ -83,10 +93,10 @@
 
         print("Calculating χ and γ in the charge channel: ")
         #@time χch, trilexch = calc_χ_trilex_parallel(Γch, bubble, modelParams.U, modelParams.β, simParams)
-        @time χch, trilexch, χch_approx, trilexch_approx  = 
+        @time χch, trilexch  = 
             calc_χ_trilex(Γch, bubble, modelParams.U, modelParams.β, simParams)
         print("Calculating χ and γ in the spin channel: ")
-        @time χsp, trilexsp, χsp_approx, trilexsp_approx = 
+        @time χsp, trilexsp = 
             calc_χ_trilex(Γsp, bubble, -modelParams.U, modelParams.β, simParams)
         print("Calculating λ correction in the charge channel: ")
         @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, modelParams)
@@ -98,15 +108,13 @@
         @time Σ_ladder = calc_DΓA_Σ_parallel(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
                                           qMultiplicity, qGrid, kGrid, modelParams, simParams)
 
-        save("res.jld", "kGrid", kGrid, "qGrid", qGrid, "qMult", qMultiplicity,
+        save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity,
                         "bubble", bubble, "chi_ch", χch, "chi_sp", χsp, "chi_ch_lambda", χch_λ, "chi_sp_lambda", χsp_λ, 
                         "trilex_ch", trilexch, "trilex_sp", trilexsp,
                         "lambda_ch", λch, "lambda_sp", λsp, "Sigma_ladder", Σ_ladder)
-        print("\n\n-----------\n\n")
-            for (ki,k) in enumerate(kList)
-                for vi in 1:size(Σ_ladder, 2)
-                    @printf("%d %f %f %f %f \n",  vi, kList[ki][1], kList[ki][2],
-                            real(Σ_ladder[ki,vi]), imag(Σ_ladder[ki,vi]))
-                end
-            end
+        #print("\n\n-----------\n\n")
     #calculate_Σ_ladder(configFile)
+    #
+    if PARALLEL
+        rmprocs()
+    end
