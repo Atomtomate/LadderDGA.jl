@@ -86,13 +86,13 @@ function build_weights(imin, imax, coeff_exp_list::Array)
 end
 
 function fit_νsum(W, data; precision = 100000)
-    result = zeros((size(data,1)))
+    result = Array{eltype(data)}(undef, (size(data,1)))
     setprecision(precision) do
         if ndims(data) == 1
-            result = dot(real(data) , W[1,:])
+            result = dot(data, W[1,:])
         else
             for ωi in 1:size(data,1)
-                result[ωi] = dot(real(data)[ωi,:] , W[1,:])
+                result[ωi] = dot(data[ωi,:] , W[1,:])
             end
         end
     end
@@ -120,9 +120,6 @@ function build_fνmax(f, W, dims; ω_shift = 0)
         f_νmax = cat(f_νmax, dropdims(sum_νmax(f, ν_cut_i; dims=dims); dims=dims); dims=νdim)
     end
 
-    #TODO: allow numeric fit and use method = :analytic_lsq,
-    #fit_internal(arr) = fit_tail(arr, iν_arr, tail_func, n_tail)
-    #tail = mapslices(fit_internal, f_νmax; dims=νdim)
     return f_νmax
 end
 
@@ -180,6 +177,63 @@ function approx_full_sum(f, W, modelParams, dims; fast=true)
     tail_c = fit_νsum(W, f_νmax)
     #ax = collect(collect.(axes(tail_c)))
     #ax[end] = [1]
-    sum_approx = tail_c/(modelParams.β^length(dims))#tail_c[ax...]
+    sum_approx = tail_c#tail_c[ax...]
     return sum_approx
+end
+
+
+function find_inner_maximum(arr)
+    darr = diff(arr; dims=1)
+    mid_index = Int(floor(size(arr,1)/2))
+    intervall_range = 1
+
+    # find interval
+    while (intervall_range < mid_index) &&
+        (darr[(mid_index-intervall_range)] * darr[(mid_index+intervall_range-1)] > 0)
+            intervall_range = intervall_range+1
+    end
+
+    index_maximum = mid_index-intervall_range+1
+    if (mid_index-intervall_range) < 1 || index_maximum >= length(arr)
+        return 1
+    end
+    # find index
+    while darr[(mid_index-intervall_range)]*darr[index_maximum] > 0
+        index_maximum = index_maximum + 1
+    end
+    return index_maximum
+end
+
+function find_usable_interval(arr; reduce_range_prct = 0.1)
+    darr = diff(arr; dims=1)
+    index_maximum = find_inner_maximum(arr)
+    mid_index = Int(floor(size(arr,1)/2))
+    if (index_maximum == 1)
+        println("no maximum found")
+        return 1:1
+    end
+    # interval for condition 1 (positive values)
+    #TODO: implement min-max
+    cond1_intervall_range_min = 1
+    cond1_intervall_range_max = 1
+    # find range for positive values
+    while (cond1_intervall_range < mid_index) &&
+        (arr[(mid_index-cond1_intervall_range)] > 0) &&
+        (arr[(mid_index+cond1_intervall_range)] > 0)
+        cond1_intervall_range = cond1_intervall_range + 1
+    end
+
+    # interval for condition 2 (monotonicity)
+    cond2_intervall_range_min = 1
+    cond2_intervall_range_max = 1
+    # find range for first turning point
+    while (cond2_intervall_range < mid_index) &&
+        (darr[(mid_index-cond2_intervall_range)] > 0) &&
+        (darr[(mid_index+cond2_intervall_range)] < 0)
+        cond2_intervall_range = cond2_intervall_range + 1
+    end
+
+    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
+    range = floor(Int64, intervall_range*(1-reduce_range_prct))
+    return (((mid_index-range):(mid_index+range)) .+ 0)
 end

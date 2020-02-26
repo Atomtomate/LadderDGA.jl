@@ -21,5 +21,6 @@ struct EnvironmentVars
     loadAsymptotics::Bool
     inputDir::String
     inputVars::String
+    asymptVars::String
 end
 # TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp

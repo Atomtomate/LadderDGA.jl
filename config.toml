@@ -1,15 +1,15 @@
 # input TOML for ladderDGA
 
 [Model]
-U    = 2.0
+U    = 4.0
 mu   = 1.0
 beta = 40.0
 nden = 1.0
 Dimensions = 2
 
 [Simulation]
-nFermFreq = 120
-nBoseFreq = 119
+nFermFreq = 50
+nBoseFreq = 49
 shift     = 0       # shift of center of bosonic frequency range
 
 Nk        = 10      # TODO: adaptiv mesh
@@ -18,10 +18,11 @@ Nq        = 10      # TODO: adaptiv mesh
 tail_corrected = true
 
 [Environment]
-loadFortran = true
+loadFortran = false
 loadAsymptotics = true
 inputDir = "../full_calc_001/data"
 inputVars = "vars.jld"
+asymptVars = "vars_asympt.jld"
 
 [legacy]
 chis_omega = false          # Should only chis_omega and chich_omega be calculated?
