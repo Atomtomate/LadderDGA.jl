@@ -214,8 +214,8 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
     end
     # interval for condition 1 (positive values)
     #TODO: implement min-max
-    cond1_intervall_range_min = 1
-    cond1_intervall_range_max = 1
+    cond1_intervall_range = 1
+    #cond1_intervall_range_max = 1
     # find range for positive values
     while (cond1_intervall_range < mid_index) &&
         (arr[(mid_index-cond1_intervall_range)] > 0) &&
@@ -224,8 +224,8 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
     end
 
     # interval for condition 2 (monotonicity)
-    cond2_intervall_range_min = 1
-    cond2_intervall_range_max = 1
+    cond2_intervall_range = 1
+    #cond2_intervall_range_max = 1
     # find range for first turning point
     while (cond2_intervall_range < mid_index) &&
         (darr[(mid_index-cond2_intervall_range)] > 0) &&

@@ -6,6 +6,9 @@
     using LinearAlgebra
     using GenericLinearAlgebra
     using JLD
+    using ParquetFiles
+    using DataFrames
+    using Query
     using Optim
     using TOML
     using Printf
@@ -51,10 +54,15 @@
 
     print("Reading Inputs...")
     modelParams, simParams, env = readConfig(configFile)#
-    if env.loadFortran
+    if env.loadFortran == "text"
         convert_from_fortran(simParams, env)
         if env.loadAsymptotics
             readEDAsymptotics(env)
+        end
+    elseif env.loadFortran == "parquet"
+        convert_from_fortran_pq(simParams, env)
+        if env.loadAsymptotics
+            readEDAsymptotics_parquet(env)
         end
     end
     vars    = load(env.inputVars) 

@@ -8,8 +8,8 @@ nden = 1.0
 Dimensions = 2
 
 [Simulation]
-nFermFreq = 50
-nBoseFreq = 49
+nFermFreq = 5
+nBoseFreq = 4
 shift     = 0       # shift of center of bosonic frequency range
 
 Nk        = 10      # TODO: adaptiv mesh
@@ -18,9 +18,9 @@ Nq        = 10      # TODO: adaptiv mesh
 tail_corrected = true
 
 [Environment]
-loadFortran = false
+loadFortran = "parquet"    # false, text, parquet, TODO: implement hdf5
 loadAsymptotics = true
-inputDir = "../full_calc_001/data"
+inputDir = "/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt.jld"
 

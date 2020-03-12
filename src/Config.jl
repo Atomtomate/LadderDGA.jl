@@ -17,7 +17,7 @@ struct SimulationParameters
 end
 
 struct EnvironmentVars
-    loadFortran::Bool
+    loadFortran::String
     loadAsymptotics::Bool
     inputDir::String
     inputVars::String
