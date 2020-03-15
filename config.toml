@@ -18,7 +18,7 @@ Nq        = 10      # TODO: adaptiv mesh
 tail_corrected = true
 
 [Environment]
-loadFortran = "parquet"    # false, text, parquet, TODO: implement hdf5
+loadFortran = "text"    # false, text, parquet, TODO: implement hdf5
 loadAsymptotics = true
 inputDir = "/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
 inputVars = "vars.jld"

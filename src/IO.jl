@@ -68,9 +68,9 @@ function readFortranSymmGF_pq(nFreq, filename; storedInverse, storeFull=false)
 end
 
 function readFortranΓ_pq(fileName::String)
-    in = redirect_stdout(open("/dev/null","w")) do
-        load(filename) |> @orderby(_.__index_level_0__, _.__index_level_1__)
-    end
+    #in = redirect_stdout(open("/dev/null","w")) do
+        #load(filename) |> @orderby(_.__index_level_0__, _.__index_level_1__)
+    #end
     #ωₙ, freqBox, Γcharge0, Γspin0
     Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
