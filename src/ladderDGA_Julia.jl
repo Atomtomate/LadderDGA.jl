@@ -3,15 +3,17 @@
     const PARALLEL = false
     using Distributed
     using SharedArrays
+    #TODO: move to JLD2
+    using JLD
     using LinearAlgebra
     using GenericLinearAlgebra
-    using JLD
-    using ParquetFiles
-    using DataFrames
-    using Query
     using Optim
     using TOML
     using Printf
+    using ParquetFiles
+    using DataFrames
+    using Query
+    using NLsolve
     using DelimitedFiles
     include("$(@__DIR__)/Config.jl")
     include("$(@__DIR__)/helpers.jl")
@@ -20,11 +22,12 @@
     include("$(@__DIR__)/GFTools.jl")
     include("$(@__DIR__)/ladderDGATools.jl")
     include("$(@__DIR__)/GFFit.jl")
+    include("$(@__DIR__)/lambdaCorrection.jl")
     #include("$(@__DIR__)/../test/old_ladderDGATools.jl")
 
-    if PARALLEL
-        addprocs(8)
-    end
+    #if PARALLEL
+    #    addprocs(960)
+    #end
     @everywhere using Distributed
     @everywhere using SharedArrays
     @everywhere using JLD
@@ -33,6 +36,11 @@
     @everywhere using Optim
     @everywhere using TOML
     @everywhere using Printf
+    @everywhere using ParquetFiles
+    @everywhere using DataFrames
+    @everywhere using Query
+    @everywhere using NLsolve
+    @everywhere using DelimitedFiles
     @everywhere include("$(@__DIR__)/Config.jl")
     @everywhere include("$(@__DIR__)/helpers.jl")
     @everywhere include("$(@__DIR__)/IO.jl")
@@ -40,6 +48,7 @@
     @everywhere include("$(@__DIR__)/GFTools.jl")
     @everywhere include("$(@__DIR__)/ladderDGATools.jl")
     @everywhere include("$(@__DIR__)/GFFit.jl")
+    @everywhere include("$(@__DIR__)/lambdaCorrection.jl")
     #@everywhere include("$(@__DIR__)/../test/old_ladderDGATools.jl")
     export calculate_Σ_ladder
 
@@ -49,13 +58,14 @@
     #TODO: don't fix type to complex
 
     const configFile = "config.toml"#ARGS[1]
+    const loadFromBak = false
 
     #function calculate_Σ_ladder(configFile)
 
     print("Reading Inputs...")
     modelParams, simParams, env = readConfig(configFile)#
     if env.loadFortran == "text"
-        convert_from_fortran(simParams, env)
+        convert_from_fortran(simParams, env, loadFromBak)
         if env.loadAsymptotics
             readEDAsymptotics(env)
         end
@@ -79,8 +89,6 @@
         asympt_vars = load(env.asymptVars)
         χchAsympt = asympt_vars["chi_ch_asympt"]
         χspAsympt = asympt_vars["chi_sp_asympt"]
-        χchED = asympt_vars["chi_ch_ED"]
-        χspED = asympt_vars["chi_sp_ED"]
     end
 
     print("\rInputs Read. Starting Computation                                          \n")
@@ -109,10 +117,10 @@
 
         print("Calculating naiive χ and γ in the charge channel: ")
         @time χch, trilexch  = 
-            calc_χ_trilex(Γch, bubble, modelParams.U, modelParams.β, simParams, approx_full_sum_flag = false)
+            calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = false)
         print("Calculating naiive χ and γ in the spin channel: ")
         @time χsp, trilexsp = 
-            calc_χ_trilex(Γsp, bubble, -modelParams.U, modelParams.β, simParams, approx_full_sum_flag = false)
+            calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=(-1), approx_full_sum_flag = false)
         print("Calculating λ correction in the charge channel: ")
         @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, modelParams)
         print("Calculating λ correction in the spin channel: ")
@@ -125,26 +133,34 @@
 
         print("Calculating χ and γ in the charge channel: ")
         @time χch_impr, trilexch_impr  = 
-            calc_χ_trilex(Γch, bubble, modelParams.U, modelParams.β, simParams,approx_full_sum_flag = true)
+            calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = true)
         print("Calculating χ and γ in the spin channel: ")
         @time χsp_impr, trilexsp_impr = 
-            calc_χ_trilex(Γsp, bubble, -modelParams.U, modelParams.β, simParams, approx_full_sum_flag = true)
+            calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=-1, approx_full_sum_flag = true)
         #= print("Calculating λ correction in the charge channel: ") =#
         #= @time λch_impr, χch_λ_impr = calc_λ_correction(χch_impr, χLocch, qMultiplicity, modelParams) =#
         #= print("Calculating λ correction in the spin channel: ") =#
         #= @time λsp_impr, χsp_λ_impr = calc_λ_correction(χsp_impr, χLocsp, qMultiplicity, modelParams) =#
-        print("Calculating Σ ladder: ")
-        @time Σ_ladder_impr = calc_DΓA_Σ_impr(χch_impr, χsp_impr, trilexch_impr, trilexsp_impr, bubble, Σ_loc, FUpDo,
-                                          qMultiplicity, qGrid, kGrid, modelParams, simParams)
+        #print("Calculating Σ ladder: ")
+        #@time Σ_ladder_impr = calc_DΓA_Σ_impr(χch_impr, χsp_impr, trilexch_impr, trilexsp_impr, bubble, Σ_loc, FUpDo,
+        #                                  qMultiplicity, qGrid, kGrid, modelParams, simParams)
 
         print("TODO: replace chisp by chisp_lambda\n")
         save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity,
-                        "bubble", bubble, "chi_ch", χch, "chi_sp", χsp, "chi_ch_lambda", χch_λ, "chi_sp_lambda", χsp_λ, 
+                        "bubble", bubble, "chi_ch", χch, "chi_sp", χsp,
                         "trilex_ch", trilexch, "trilex_sp", trilexsp,
-                        "lambda_ch", λch, "lambda_sp", λsp, "Sigma_ladder", Σ_ladder)
+                        "lambda_ch", λch, "lambda_sp", λsp, "Sigma_ladder", Σ_ladder, compress=true, compatible=true)
         #print("\n\n-----------\n\n")
     #calculate_Σ_ladder(configFile)
     #
-    if PARALLEL
-        rmprocs()
-    end
+
+	#= const ll = [(x1,x2) for x1 in range(-5,stop=5,length=100) for x2 in range(-5,stop=5,length=100)] =#
+	#= res = SharedArray{Float64}(length(ll)) =#
+	#= @sync @distributed for lli in 1:length(ll) =#
+	#= 	res[lli] = eval_f(ll[lli], G0, χch_impr, χsp_impr, trilexch_impr, trilexsp_impr, bubble, Σ_loc, FUpDo, =#
+	#= 		qMultiplicity, qGrid, kGrid, modelParams, simParams) =#
+	#= end =#
+	#= save("grid.jld", sdata(res)) =#
+    #if PARALLEL
+    #    rmprocs()
+    #end

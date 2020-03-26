@@ -18,6 +18,7 @@ end
 
 struct EnvironmentVars
     loadFortran::String
+    writeFortran::Bool
     loadAsymptotics::Bool
     inputDir::String
     inputVars::String

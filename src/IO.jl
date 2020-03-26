@@ -20,6 +20,7 @@ function readConfig(file)
                                tml["Simulation"]["Nq"],
                                tml["Simulation"]["tail_corrected"])
     env = EnvironmentVars(   tml["Environment"]["loadFortran"],
+                             tml["Environment"]["writeFortran"],
                              tml["Environment"]["loadAsymptotics"],
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
@@ -123,8 +124,8 @@ function convert_from_fortran_pq(simParams, env)
     println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
     writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
     writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
-    save("vars.jld", "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
-         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox)
+    save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
+         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
 end
 
 
@@ -209,37 +210,22 @@ function readFortranΓ(dirName::String)
 end
 
 
-
-function readFortranEDχ(dirName::String; freqInteger = true)
-    files = readdir(dirName)
-    _, _, Γcharge, Γspin = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger = freqInteger)
-
-    for file in files[2:end]
-        _, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger = freqInteger)
-        Γcharge = cat(Γcharge, Γcharge_new, dims=3)
-        Γspin = cat(Γspin, Γspin_new, dims=3)
-    end
-    Γcharge = permutedims(Γcharge, [3,1,2])
-    Γspin   = permutedims(Γspin, [3,1,2])
-    return [], Γcharge, Γspin
-end
-
 """
     Returns χ_DMFT[ω, ν, ν']
 """
 function readFortranχDMFT(dirName::String)
     files = readdir(dirName)
-    _, _, χup, χdown = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger=false)
+    _, _, χupup, χupdo = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger=false)
 
     for file in files[2:end]
-        _, _, χup_new, χdown_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger=false)
-        χup = cat(χup, χup_new, dims=3)
-        χdown = cat(χdown, χdown_new, dims=3)
+        _, _, χup_new, χupdo_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger=false)
+        χupup = cat(χupup, χup_new, dims=3)
+        χupdo = cat(χupdo, χupdo_new, dims=3)
     end
-    χup = permutedims(χup, [3,1,2])
-    χdown   = permutedims(χdown, [3,1,2])
-    χCharge = χup .+ χdown
-    χSpin   = χup .- χdown
+    χupup = permutedims(χupup, [3,1,2])
+    χupdo   = permutedims(χupdo, [3,1,2])
+    χCharge = χupup .+ χupdo
+    χSpin   = χupup .- χupdo
     return χCharge, χSpin 
 end
 
@@ -273,23 +259,6 @@ function reduce_3Freq(inp, freqBox, simParams)
 end
 reduce_3Freq!(inp, freqBox, simParams) = inp = reduce_3Freq(inp, freqBox, simParams)
 
-
-function convert_from_fortran(simParams, env)
-    println("Reading Fortran Input, this can take several minutes.")
-    g0 = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/g0mand", storedInverse=true)
-    gImp = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/gm_wim", storedInverse=false)
-    freqBox, Γcharge, Γspin = readFortranΓ(env.inputDir*"/gamma_dir")
-    χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"/chi_dir")
-    Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
-    Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
-    χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)
-    χDMFTSpin = reduce_3Freq(χDMFTSpin, freqBox, simParams)
-    println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
-    writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
-    writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
-    save("vars.jld", "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
-         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox)
-end
 
 function read_anderson_parameters(file)
     content = open(file) do f
@@ -362,7 +331,8 @@ function readEDAsymptotics(env)
     _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false)
     χchED = χup .+ χdo
     χspED = χup .- χdo
-    save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt, "chi_ch_ED", χchED, "chi_sp_ED", χspED)
+    save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt, 
+         compress=true, compatible=true)
 end
 
 function readFortranSymmGF(nFreq, filename; storedInverse, storeFull=false)
@@ -396,12 +366,33 @@ function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
     InString = open(filename, "r") do f
         readlines(f)
     end
-    InArr = sign .* parse.(Float64,hcat(split.(InString)...)[2:end,:])
-    N = Int(sqrt(size(InArr,2)))
+    NCols = 7
+    NRows = length(InString)
+    lineLen = length(InString[1])
+    splitLength = floor(Int64,lineLen/NCols)
+    if lineLen%NCols != 0
+        println("Warning!! Could not find fixed column width!")
+    end
+    #InArr = sign .* parse.(Float64,hcat(split.(InString)...)[2:end,:])
+    InArr = zeros(Float64, NRows, NCols-1)
+    N = Int(sqrt(NRows))
+    ErrorLine = []
+    for i in 1:NRows
+        row =  split_n(InString[i], splitLength, lineLen)[2:end]
+        for j in 1:(NCols-1)
+            InArr[i,j] = try
+                sign * parse(Float64,row[j])
+            catch e
+                NaN
+            end
+        end
+    end
     if freqInteger
         ωₙ = Int(parse(Float64, split(InString[1])[1]))
-        middleFreqBox = Int64.([minimum(InArr[1,:]),maximum(InArr[1,:])])
-        innerFreqBox  = Int64.([minimum(InArr[2,:]),maximum(InArr[2,:])])
+        tmpArr1 = filter(!isnan,InArr[:,1])
+        tmpArr2 = filter(!isnan,InArr[:,2])
+        middleFreqBox = Int64.([minimum(tmpArr1),maximum(tmpArr1)])
+        innerFreqBox  = Int64.([minimum(tmpArr2),maximum(tmpArr2)])
         freqBox = permutedims([middleFreqBox innerFreqBox], [2,1])
     else
         #print("\rWarning, non integer frequencies in "*filename*" ignored!")
@@ -409,85 +400,42 @@ function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
         freqBox = []
     end
 
-    InCol1  = reshape(InArr[3,:] .+ InArr[4,:].*1im, (N, N))
-    InCol2  = reshape(InArr[5,:] .+ InArr[6,:].*1im, (N, N))
+    InCol1  = reshape(InArr[:,3] .+ InArr[:,4].*1im, (N, N))
+    InCol2  = reshape(InArr[:,5] .+ InArr[:,6].*1im, (N, N))
     return ωₙ, freqBox, InCol1, InCol2
 end
 
-function readFortranΓ(dirName::String)
-    files = readdir(dirName)
-    ωₙ, freqBox, Γcharge0, Γspin0 = readFortran3FreqFile(dirName * "/" * files[1], sign=-1.0)
-    Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
-    Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
-    Γcharge[1,:,:] = Γcharge0
-    Γspin[1,:,:]   = Γspin0 
-    ω_min = ωₙ
-    ω_max = ωₙ
-    
-    for (i,file) in enumerate(files[2:end])
-        ωₙ, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=-1.0)
-        ω_min = if ωₙ < ω_min ωₙ else ω_min end
-        ω_max = if ωₙ > ω_max ωₙ else ω_max end
-        Γcharge[i,:,:] = Γcharge_new
-        Γspin[i,:,:] = Γspin_new
+function convert_from_fortran(simParams, env, loadFromBak=false)
+    println("Reading Fortran Input, this can take several minutes.")
+    if loadFromBak
+        vars = load("fortran_files_bak") 
+        g0 = vars["g0"]
+        gImp = vars["gImp"]
+        FreqBox = vars["freqBox"]
+        Γcharge = vars["Gcharge"]
+        Γspin = vars["Gspin"]
+        χDMFTCharge = vars["cDMFTCharge"]
+        χDMFTSpin = vars["cDMFTSpin"]
+    else
+        g0 = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/g0mand", storedInverse=true)
+        gImp = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/gm_wim", storedInverse=false)
+        freqBox, Γcharge, Γspin = readFortranΓ(env.inputDir*"/gamma_dir")
+        println("Done Reading Gamma")
+        χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"/chi_dir")
+        println("Done Reading chi")
+        save("fortran_files_bak.jld", "g0", g0, "gImp", gImp, "FreqBox", freqBox, 
+             "Gcharge", Γcharge, "Gspin", Γspin, "cDMFTCharge", χDMFTCharge,
+             "cDMFTSpin", χDMFTSpin, compress=true, compatible=true)
     end
-    freqBox = [ω_min ω_max; freqBox[1,1] freqBox[1,2]; freqBox[2,1] freqBox[2,2]]
-    #Γcharge = permutedims(Γcharge, [3,1,2])
-    #Γspin   = permutedims(Γspin, [3,1,2])
-    return freqBox, Γcharge, Γspin
+    Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
+    Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
+    χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)
+    χDMFTSpin = reduce_3Freq(χDMFTSpin, freqBox, simParams)
+    if env.writeFortran
+        println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
+        writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
+        writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
+    end
+    save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
+         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
 end
-
-
-
-function readFortranEDχ(dirName::String; freqInteger = true)
-    files = readdir(dirName)
-    _, _, Γcharge, Γspin = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger = freqInteger)
-
-    for file in files[2:end]
-        _, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger = freqInteger)
-        Γcharge = cat(Γcharge, Γcharge_new, dims=3)
-        Γspin = cat(Γspin, Γspin_new, dims=3)
-    end
-    Γcharge = permutedims(Γcharge, [3,1,2])
-    Γspin   = permutedims(Γspin, [3,1,2])
-    return [], Γcharge, Γspin
-end
-
-"""
-    Returns χ_DMFT[ω, ν, ν']
-"""
-function readFortranχDMFT(dirName::String)
-    files = readdir(dirName)
-    _, _, χup, χdown = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger=false)
-
-    for file in files[2:end]
-        _, _, χup_new, χdown_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger=false)
-        χup = cat(χup, χup_new, dims=3)
-        χdown = cat(χdown, χdown_new, dims=3)
-    end
-    χup = permutedims(χup, [3,1,2])
-    χdown   = permutedims(χdown, [3,1,2])
-    χCharge = χup .+ χdown
-    χSpin   = χup .- χdown
-    return χCharge, χSpin 
-end
-
-function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, inCol2)
-    simParams.n_iν+simParams.n_iω
-    if !isdir(dirName)
-        mkdir(dirName)
-    end
-    for (ωi,ωₙ) in enumerate(-simParams.n_iω:simParams.n_iω)
-        filename = dirName * "/" * fileName * lpad(ωi-1,3,"0")
-        open(filename, "w") do f
-            for (νi,νₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
-                for (ν2i,ν2ₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
-                    @printf(f, "%8d %8d %8d %18.10f %18.10f %18.10f %18.10f\n", ωₙ, νₙ, ν2ₙ,
-                            real(inCol1[ωi, νi, ν2i]), imag(inCol1[ωi, νi, ν2i]), 
-                            real(inCol2[ωi, νi, ν2i]), imag(inCol2[ωi, νi, ν2i]))
-                end
-            end
-        end
-    end
-end
-

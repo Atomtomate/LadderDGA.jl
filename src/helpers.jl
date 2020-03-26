@@ -92,3 +92,7 @@ function compute_Ekin(iνₙ, ϵₖ, Vₖ, GImp, β; full=true)
 end
 
 iω(n) = 1im*2*n*π/(modelParams.β);
+
+
+split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
+split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
