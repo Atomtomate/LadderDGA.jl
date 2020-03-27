@@ -70,8 +70,8 @@ function calc_χ_trilex(Γ::Array{Complex{Float64},3}, bubble::Array{Complex{Flo
 
             #TODO: HUGE bottleneck here. this needs to be optimized
             if approx_full_sum_flag
-                for i in size(χ_tmp, 1)
-                    tmpSum[i] = approx_full_sum(χ_tmp[i,:], W, modelParams, [1], fast=true)/(modelParams.β)
+                for νi in 1:length(tmpSum)
+                    tmpSum[νi] = approx_full_sum(χ_tmp[νi,:], W, modelParams, [1], fast=true)/(modelParams.β)
                 end
             else
                 χ[ωi, qi] = sum(χ_tmp)/(modelParams.β^2) 

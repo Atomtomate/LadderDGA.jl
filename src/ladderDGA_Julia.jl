@@ -132,11 +132,11 @@
 
 
         print("Calculating χ and γ in the charge channel: ")
-        @time χch_impr, trilexch_impr  = 
-            calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = true)
-        print("Calculating χ and γ in the spin channel: ")
-        @time χsp_impr, trilexsp_impr = 
-            calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=-1, approx_full_sum_flag = true)
+        #= @time χch_impr, trilexch_impr  = =# 
+        #=     calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = true) =#
+        #= print("Calculating χ and γ in the spin channel: ") =#
+        #= @time χsp_impr, trilexsp_impr = =# 
+        #=     calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=-1, approx_full_sum_flag = true) =#
         #= print("Calculating λ correction in the charge channel: ") =#
         #= @time λch_impr, χch_λ_impr = calc_λ_correction(χch_impr, χLocch, qMultiplicity, modelParams) =#
         #= print("Calculating λ correction in the spin channel: ") =#

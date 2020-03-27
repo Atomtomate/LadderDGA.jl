@@ -1,9 +1,9 @@
 # input TOML for ladderDGA
 
 [Model]
-U    = 1.0
-mu   = 0.5
-beta = 15.0
+U    = 2.0
+mu   = 1.0
+beta = 25.0
 nden = 1.0
 Dimensions = 2
 
@@ -12,16 +12,16 @@ nFermFreq = 41
 nBoseFreq = 40
 shift     = 0       # shift of center of bosonic frequency range
 
-Nk        = 25      # TODO: adaptiv mesh
-NkInt     = 25     # TODO: implement
-Nq        = 25      # TODO: adaptiv mesh
+Nk        = 6      # TODO: adaptiv mesh
+NkInt     = 6     # TODO: implement
+Nq        = 36      # TODO: adaptiv mesh
 tail_corrected = true
 
 [Environment]
 loadFortran = "julia"    # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
-loadAsymptotics = true
-inputDir = "/home/julian/Hamburg/ED_Data/b25.0_U2.0" #"/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
+loadAsymptotics = false
+inputDir = "/home/julian/Hamburg/ED_Data/b25_U2.0" #"/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
 inputVars = "vars_sums.jld"
 asymptVars = "vars_asympt_sums.jld"
 

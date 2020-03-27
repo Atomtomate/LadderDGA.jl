@@ -328,9 +328,9 @@ function readEDAsymptotics(env)
     χ_asympt = readdlm(env.inputDir * "/chi_asympt")   
     χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
     χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
-    _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false)
-    χchED = χup .+ χdo
-    χspED = χup .- χdo
+    #= _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false) =#
+    #= χchED = χup .+ χdo =#
+    #= χspED = χup .- χdo =#
     save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt, 
          compress=true, compatible=true)
 end

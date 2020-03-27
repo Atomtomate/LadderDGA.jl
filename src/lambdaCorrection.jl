@@ -13,10 +13,12 @@ function calc_λ_correction(χ, χloc, qMult, modelParams)
     qNorm      = sum(qMult)*modelParams.β
     χ_new(λ)  = (1.0 + 0.0im) ./ (1 ./ χ .+ λ)
     println("aa")
-    f(λ)  = abs2(sum(qMult_tmp ./ (1 ./ χ .+ λ))/qNorm - χloc)
-    #df(λ) = -1 / (1+λ[1])^2#-2*((sum(qMult_tmp ./ (1 ./ χ .+ λ))/qNorm)^2)
-    start_val = -1.0#maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0
-    λ    = Optim.minimizer(Optim.optimize(f, -100, 100))
+    println(size(sum([sum((1 ./ χ[i,:] .+ 1).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm))
+    f(λ)  = real(sum([sum((1 ./ χ[i,:] .+ λ).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc)
+    df(λ) = -1*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-2) .* qMult) for i in 1:size(χ,1)])/qNorm) 
+    ddf(λ) = 2*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-3) .* qMult) for i in 1:size(χ,1)])/qNorm) 
+    start_val = -1.0 #maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0
+    λ    = Optim.minimizer(Optim.optimize(f, -10, 10))
     return λ, χ_new(λ)
 end
 
