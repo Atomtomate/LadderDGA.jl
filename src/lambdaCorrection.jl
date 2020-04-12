@@ -9,16 +9,20 @@ dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* 
 
 #TODO: compute start point according to fortran code
 function calc_λ_correction(χ, χloc, qMult, modelParams)
-    qMult_tmp = reshape(qMult, 1, (size(qMult)...))
     qNorm      = sum(qMult)*modelParams.β
     χ_new(λ)  = (1.0 + 0.0im) ./ (1 ./ χ .+ λ)
-    println("aa")
-    println(size(sum([sum((1 ./ χ[i,:] .+ 1).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm))
-    f(λ)  = real(sum([sum((1 ./ χ[i,:] .+ λ).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc)
-    df(λ) = -1*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-2) .* qMult) for i in 1:size(χ,1)])/qNorm) 
-    ddf(λ) = 2*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-3) .* qMult) for i in 1:size(χ,1)])/qNorm) 
-    start_val = -1.0 #maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0
-    λ    = Optim.minimizer(Optim.optimize(f, -10, 10))
+    #= qMult_tmp = reshape(qMult, 1, (size(qMult)...)) =#
+    #= println(size(sum([sum((1 ./ χ[i,:] .+ 1).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm)) =#
+    #= f(λ)  = real(sum([sum((1 ./ χ[i,:] .+ λ).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc) =#
+    #= df(λ) = -1*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-2) .* qMult) for i in 1:size(χ,1)])/qNorm) =# 
+    #= ddf(λ) = 2*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-3) .* qMult) for i in 1:size(χ,1)])/qNorm) =# 
+    #= start_val = -1.0 #maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0 =#
+    #= λ    = Optim.minimizer(Optim.optimize(f, -10, 10)) =#
+    f(λint)  = real(sum([sum(((1 ./ χ[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc)
+    nh  =ceil(Int64, size(χch,1)/2)
+    χ_min =  - minimum(1 ./ real(χ[nh,:])) #TODO ??????
+    r = find_zeros(f, χ_min-2, χ_min+2)
+    λ = r[findmin(abs.(r .- χsp_min))[2]]
     return λ, χ_new(λ)
 end
 

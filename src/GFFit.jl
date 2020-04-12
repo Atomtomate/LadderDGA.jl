@@ -165,7 +165,7 @@ end
     arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
     and the dimensions over which to fit.
 """
-function approx_full_sum(f, W, modelParams, dims; fast=true)
+function approx_full_sum(f, W, dims; fast=true)
     if fast
         if !all(dims .== 1:ndims(f))
             throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))

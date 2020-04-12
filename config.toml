@@ -8,24 +8,27 @@ nden = 1.0
 Dimensions = 2
 
 [Simulation]
-nFermFreq = 41
-nBoseFreq = 40
+nFermFreq = 11
+nBoseFreq = 10
 shift     = 0       # shift of center of bosonic frequency range
 
-Nk        = 6      # TODO: adaptiv mesh
+Nk        = 6     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 NkInt     = 6     # TODO: implement
-Nq        = 36      # TODO: adaptiv mesh
+Nq        = 2     # TODO: adaptiv mesh
 tail_corrected = true
+chi_only = true          # Should only chis_omega and chich_omega be calculated?
 
 [Environment]
-loadFortran = "julia"    # julia, text, parquet, TODO: implement hdf5
+loadFortran = "text"    # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
-inputDir = "/home/julian/Hamburg/ED_Data/b25_U2.0" #"/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
+inputDir = "/home/julian/Hamburg/ladderDGA_2/ladderDGA" #"/home/julian/Hamburg/data/scan1_from_metal/b15.0_U1.0"
 inputVars = "vars_sums.jld"
 asymptVars = "vars_asympt_sums.jld"
 
 [legacy]
-chis_omega = false          # Should only chis_omega and chich_omega be calculated?
 lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?
 force_full_bosonic_sum = false  # Should the summation over the bosonic frequency in the charge-/spin-channel be done for all bosonic Matsubara frequencies?
+
+[Debug]
+read_bubble = true

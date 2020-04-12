@@ -2,7 +2,7 @@
 #TODO: nw and niv grid as parameters? 
 #TODO: define GF type that knows about which dimension stores which variable
 
-@inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::Complex{Float64}) =
+@inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 @inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
                     ((π/β)*(2*n + 1)*1im + μ - Σ)
@@ -14,28 +14,28 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
     _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
     ϵkIntList   = squareLattice_ekGrid(kIntGrid)
     ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid)
-
-    res = SharedArray{Complex{Float64}}(  2*simParams.n_iω+1, simParams.n_iν, Nq)
-    #res = zeros(Complex{Float64}, 2*simParams.n_iω+1, simParams.n_iν, Nq)
+    res = SharedArray{Complex{Float64}}( Nq, simParams.n_iν, 2*simParams.n_iω+1)
     @sync @distributed for qi in 1:Nq
-        @simd for ki in 1:length(ϵkIntList)
-            @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
-            @simd for νₙ in 0:simParams.n_iν-1
-                Σν = get_symm_f(Σ,νₙ)
-                Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
-                for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
-                    Σων = get_symm_f(Σ,νₙ + ωₙ)
+        @simd for νₙ in 0:simParams.n_iν-1
+            Σν = get_symm_f(Σ,νₙ)
+            for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
+                Σων = get_symm_f(Σ,νₙ + ωₙ)
+                res[qi,  νₙ+1, ωi] = 0.0 #[ωi, νₙ+1, qi] = 0.0
+                @simd for ki in 1:length(ϵkIntList)
+                    @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
+                    Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
                     Gνω = GF_from_Σ(νₙ + ωₙ, modelParams.β, modelParams.μ, ϵₖ₂, Σων)
-                    @inbounds res[ωi, νₙ+1, qi] -= 4*Gν*Gνω
-       #if ωi == 1
-       #println("$(ωi), $(νₙ) $(collect(qGrid)[qi][1]) $(collect(qGrid)[qi][2]) $(ϵkIntList[ki]) $(ϵₖ₂) $(Σν) $(Σων) $(Gν) $(Gνω)")
-       #end
+                    @inbounds res[qi,  νₙ+1, ωi] -= 4*Gν*Gνω
                 end
             end
         end
     end
-    res = modelParams.β .* sdata(res) ./ ((2*simParams.Nint)^2)
+    res = sdata(res)
+   
+    res = modelParams.β .* res ./ ((2*simParams.Nint)^2)
+    res = permutedims(res, [3,2,1])
     res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
+    res = convert(Array{Complex{Float64}}, res)
     return res
 end
 
@@ -43,51 +43,56 @@ end
 """
     Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
+    TODO: use 4.123 with B.6+B.7 instead of inversion
 """
-function calc_χ_trilex(Γ::Array{Complex{Float64},3}, bubble::Array{Complex{Float64},3},
-                              modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1, approx_full_sum_flag = true)
+function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
+                              modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1, approx_full_sum_flag = true) where T
     Nω = simParams.n_iω
     Nν = simParams.n_iν
     Nq = size(bubble, 3)
-    γres = SharedArray{Complex{Float64}}( 2*Nω+1, 2*Nν, Nq)
-    χ = SharedArray{Complex{Float64}}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
+    #γres = zeros(Complex{Float64}, 2*Nω+1, 2*Nν, Nq)
+    #χ = zeros(Complex{Float64},2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
+    #Shared#
+    γres = SharedArray{eltype(bubble)}(2*Nω+1, 2*Nν, Nq)
+    χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
     if simParams.tail_corrected
         numin = Int(floor((Nν/2)*3/4))
         numax = Int(floor(Nν/2))
+        println(numin)
+        println(numax)
         W = build_weights(numin, numax, [0,1,2,3])
     end
 
+    #bak = Array{eltype(Γ)}(undef, 2*Nω + 1, Nq, size(Γ,2), size(Γ,3))
     @sync @distributed for qi in 1:Nq
-        χ_tmp = Array{eltype(Γ)}(undef, size(Γ,2), size(Γ,3))
         for (ωi,ωₙ) in enumerate((-Nω):Nω)
-            χ_tmp = Γ[ωi, :, :]
+            tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
+            χ_tmp = copy(Γ[ωi, :, :])
             for νi in 1:size(Γ,2)
-                χ_tmp[νi, νi] = χ_tmp[νi, νi] + 1.0 / bubble[ωi, νi, qi] 
+                @inbounds χ_tmp[νi, νi] += 1.0 / bubble[ωi, νi, qi] 
+                #println(ωₙ, " ", νi, " ", χ_tmp[νi, νi], " = ", Γ[ωi, νi, νi], " + 1/",  bubble[ωi, νi, qi])
             end
             χ_tmp = inv(χ_tmp)
-            tmpSum = Array{eltype(χ_tmp)}(undef, size(χ_tmp,1))
 
             #TODO: HUGE bottleneck here. this needs to be optimized
             if approx_full_sum_flag
+                @inbounds χ[ωi, qi] = approx_full_sum(χ_tmp, W, [1,2], fast=true)/(modelParams.β^2)
                 for νi in 1:length(tmpSum)
-                    tmpSum[νi] = approx_full_sum(χ_tmp[νi,:], W, modelParams, [1], fast=true)/(modelParams.β)
+                    @inbounds tmpSum[νi] = approx_full_sum(χ_tmp[νi,:], W, [1], fast=true)/(modelParams.β)
                 end
             else
-                χ[ωi, qi] = sum(χ_tmp)/(modelParams.β^2) 
+                @inbounds χ[ωi, qi] = sum(χ_tmp)/(modelParams.β^2) 
                 tmpSum = sum(χ_tmp, dims=[2])/(modelParams.β)
             end
-            #println(size(γres))
-            #println(size(tmpSum))
-            #println(size(bubble))
-            #println(size(χ))
-            for νi in 1:length(tmpSum) #enumerate((-Nν):(Nν-1))
-                γres[ωi, νi, qi] = tmpSum[νi] ./ 
+            for νi in 1:size(tmpSum,1) #enumerate((-Nν):(Nν-1))
+                @inbounds γres[ωi, νi, qi] = tmpSum[νi] ./ 
                        (bubble[ωi, νi, qi]  * (1.0 - Usign*modelParams.U * χ[ωi, qi]))
             end
         end
     end
-    return sdata(χ), sdata(γres)
+    #sdata
+    return χ, γres
 end
 
 function calc_DΓA_Σ(χch, χsp,
@@ -160,7 +165,7 @@ function calc_DΓA_Σ_impr(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex
                 for (νpi, νpₙ) in enumerate((-Nν):(Nν-1))
                     tmp_νp[νpi] = bubble[ωi, νpi, qi]*FUpDo[ωi, νi+Nν, νpi]
                 end
-                tmp_ω_1 = approx_full_sum(tmp_νp[cut:(end-cut)], W2, modelParams, [1], fast=true)
+                tmp_ω_1 = approx_full_sum(tmp_νp[cut:(end-cut)], W2, [1], fast=true)
                 tmp_ω_2 = sum(tmp_νp[cut:(end-cut)]) 
                 #= println("----") =#
                 #= println(tmp_ω_1) =#
@@ -181,7 +186,7 @@ function calc_DΓA_Σ_impr(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex
     end
     Σ_ladder_tmp = Σ_ladder_tmp[:,:,cut:(end-cut)]
     Σ_ladder_1 = sum((Σ_ladder_tmp), dims=[3])[:,:,1]
-    Σ_ladder_2 = [approx_full_sum(Σ_ladder_tmp[i,j,:], W1, modelParams, [1], fast=true) for j in 1:size(Σ_ladder_tmp,2) for i in 1:size(Σ_ladder_tmp,1)];
+    Σ_ladder_2 = [approx_full_sum(Σ_ladder_tmp[i,j,:], W1, [1], fast=true) for j in 1:size(Σ_ladder_tmp,2) for i in 1:size(Σ_ladder_tmp,1)];
     Σ_ladder_2 = reshape(Σ_ladder_2, size(Σ_ladder_1))
     #println(Σ_ladder_1)
     #println(Σ_ladder_2)

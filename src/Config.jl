@@ -14,6 +14,7 @@ struct SimulationParameters
     Nint::Int64
     Nq::Int64               # Number of k-space integration steps for Q grid
     tail_corrected::Bool    # use correction for finite ν and ω sums.
+    chi_only::Bool    # skip computation of self energy
 end
 
 struct EnvironmentVars
