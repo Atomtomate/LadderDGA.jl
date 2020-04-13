@@ -19,11 +19,16 @@ function calc_λ_correction(χ, χloc, qMult, modelParams)
     #= start_val = -1.0 #maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0 =#
     #= λ    = Optim.minimizer(Optim.optimize(f, -10, 10)) =#
     f(λint)  = real(sum([sum(((1 ./ χ[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc)
-    nh  =ceil(Int64, size(χch,1)/2)
+    nh  =ceil(Int64, size(χ,1)/2)
     χ_min =  - minimum(1 ./ real(χ[nh,:])) #TODO ??????
     r = find_zeros(f, χ_min-2, χ_min+2)
-    λ = r[findmin(abs.(r .- χsp_min))[2]]
-    return λ, χ_new(λ)
+    if isempty(r)
+       println(STDERR, "WARNING: no lambda roots found!!!")
+       return 0, χ_new(0)
+    else
+        λ = r[findmin(abs.(r .- χ_min))[2]]
+        return λ, χ_new(λ)
+    end
 end
 
 

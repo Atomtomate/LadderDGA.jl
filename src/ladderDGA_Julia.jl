@@ -61,10 +61,10 @@
     #TODO: implement generic indexing: https://docs.julialang.org/en/v1/devdocs/offset-arrays/
     #TODO: don't fix type to complex
 
-    #const configFile = "/home/julian/Hamburg/ladderDGA_Julia/config.toml"#ARGS[1]
+    const configFile = "/home/julian/Hamburg/ladderDGA_Julia/config.toml"#ARGS[1]
     const loadFromBak = false
 
-#function calculate_Σ_ladder(configFile)
+function calculate_Σ_ladder(configFile)
 
     print("Reading Inputs...")
     modelParams, simParams, env = readConfig(configFile)#
@@ -154,15 +154,15 @@
         @time Σ_ladder_impr = calc_DΓA_Σ_impr(χch_impr, χsp_impr, trilexch_impr, trilexsp_impr, bubble, Σ_loc, FUpDo,
                                           qMultiplicity, qGrid, kGrid, modelParams, simParams)
     end
-    save("chi.jld", "chi_ch", χch, "chi_ch_lamda", χch_λ, "chi_sp", χsp, "chi_sp_lamda", χsp_λ, 
-         "chi_ch_impr", χch_impr, "chi_ch_lamda_impr", χch_λ_impr, "chi_sp_impr", χsp_impr,
-         "chi_sp_lamda_impr", χsp_λ_impr, compatible=true)
+    save("chi.jld", "chi_ch", χch, "chi_ch_lambda", χch_λ, "chi_sp", χsp, "chi_sp_lambda", χsp_λ, 
+         "chi_ch_impr", χch_impr, "chi_ch_lamdba_impr", χch_λ_impr, "chi_sp_impr", χsp_impr,
+         "chi_sp_lambda_impr", χsp_λ_impr, compatible=true)
     save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity,
                     "bubble", bubble, "chi_ch", χch, "chi_sp", χsp,
                     "trilex_ch", trilexch, "trilex_sp", trilexsp,
-                    "lambda_ch", λch, "lambda_sp", λsp, "Sigma_ladder", Σ_ladder, compress=true, compatible=true)
+                    "lambda_ch", λch, compress=true, compatible=true)
     #print("\n\n-----------\n\n")
-#end
+end
 #calculate_Σ_ladder(configFile)
 #
 
