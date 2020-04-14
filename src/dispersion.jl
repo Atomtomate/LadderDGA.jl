@@ -44,7 +44,6 @@ function kGrid_multiplicity(kIndices)
     if length(min_ind) == 2
         res = map(el -> borderFactor(el)*8/((el[2]==el[1]) + 1), kIndices)
     elseif length(min_ind) == 3
-        print("Warning! 3D for kGrid multiplicity not tested yet!\n")
         res = map(el -> borderFactor(el)*48/( (el[2]==el[1]) + (el[3]==el[2]) + 3*(el[3]==el[1]) + 1), kIndices)
     else
         res = []
@@ -80,20 +79,20 @@ kGrid_to_array(kGrid::Array{Float64}) = kGrid
 
 Computes 0.5 [cos(k_x) + ... + cos(k_D)] and returns a grid with Nk points.
 """
-function squareLattice_ekGrid(kgrid)
-    ek(k) = 0.5*sum([cos(kᵢ) for kᵢ in k])
+function squareLattice_ekGrid(kgrid, tsc)
+    ek(k) = tsc*sum([cos(kᵢ) for kᵢ in k])
     res = [ek(k) for k in kgrid]
 end
 
-function gen_squareLattice_ekq_grid(kList::Any, qList::Any)
-    gen_squareLattice_ekq_grid(collect.(kList), collect.(qList))
+function gen_squareLattice_ekq_grid(kList::Any, qList::Any, tsc)
+    gen_squareLattice_ekq_grid(collect.(kList), collect.(qList), tsc)
 end
 
-function gen_squareLattice_ekq_grid(kList::Array, qList::Array)
+function gen_squareLattice_ekq_grid(kList::Array, qList::Array, tsc)
     res = zeros(length(kList),length(qList))
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi] = 0.5.*sum(cos.(k .+ q))
+            @inbounds res[ki,qi] = tsc.*sum(cos.(k .+ q))
         end
     end
     return res

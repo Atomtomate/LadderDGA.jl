@@ -10,11 +10,11 @@
     using Optim
     using TOML
     using Printf
-    using ParquetFiles
-    using DataFrames
+    #using ParquetFiles
+    #using DataFrames
     using Query
-    using NLsolve
-    using DelimitedFiles
+    #using NLsolve
+    #using DelimitedFiles
     using Roots
     include("$(@__DIR__)/Config.jl")
     include("$(@__DIR__)/helpers.jl")
@@ -38,11 +38,11 @@
     @everywhere using Optim
     @everywhere using TOML
     @everywhere using Printf
-    @everywhere using ParquetFiles
-    @everywhere using DataFrames
+    #@everywhere using ParquetFiles
+    #@everywhere using DataFrames
     @everywhere using Query
-    @everywhere using NLsolve
-    @everywhere using DelimitedFiles
+    #@everywhere using NLsolve
+    #@everywhere using DelimitedFiles
     @everywhere using Roots
     @everywhere include("$(@__DIR__)/Config.jl")
     @everywhere include("$(@__DIR__)/helpers.jl")
@@ -61,7 +61,7 @@
     #TODO: implement generic indexing: https://docs.julialang.org/en/v1/devdocs/offset-arrays/
     #TODO: don't fix type to complex
 
-    const configFile = "/home/julian/Hamburg/ladderDGA_Julia/config.toml"#ARGS[1]
+    const configFile = "./config.toml"#ARGS[1]
     const loadFromBak = false
 
 function calculate_Σ_ladder(configFile)
@@ -102,7 +102,6 @@ function calculate_Σ_ladder(configFile)
     #TODO: use fit for sum here
     χLocch = sum(χDMFTch)/(modelParams.β^3)
     χLocsp = sum(χDMFTsp)/(modelParams.β^3)
-
     #= println("-------") =#
     #= println(G0) =#
     #= println(GImp) =#
@@ -163,7 +162,7 @@ function calculate_Σ_ladder(configFile)
                     "lambda_ch", λch, compress=true, compatible=true)
     #print("\n\n-----------\n\n")
 end
-#calculate_Σ_ladder(configFile)
+calculate_Σ_ladder(configFile)
 #
 
 #= const ll = [(x1,x2) for x1 in range(-5,stop=5,length=100) for x2 in range(-5,stop=5,length=100)] =#

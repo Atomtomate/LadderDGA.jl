@@ -12,8 +12,13 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
     #TODO: this is slower, than having this as a parameter. Check again after conversion to module
     Nq   = size(collect(qGrid),1)
     _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
-    ϵkIntList   = squareLattice_ekGrid(kIntGrid)
-    ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid)
+    if modelParams.D == 3
+        tsc = 0.40824829046386301636
+    elseif modelParams.D == 2
+        tsc = 0.5
+    end
+    ϵkIntList   = squareLattice_ekGrid(kIntGrid, tsc)
+    ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid, tsc)
     res = SharedArray{Complex{Float64}}( Nq, simParams.n_iν, 2*simParams.n_iω+1)
     @sync @distributed for qi in 1:Nq
         @simd for νₙ in 0:simParams.n_iν-1
@@ -25,17 +30,16 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
                     @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
                     Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
                     Gνω = GF_from_Σ(νₙ + ωₙ, modelParams.β, modelParams.μ, ϵₖ₂, Σων)
-                    @inbounds res[qi,  νₙ+1, ωi] -= 4*Gν*Gνω
+                    @inbounds res[qi,  νₙ+1, ωi] -= Gν*Gνω
                 end
             end
         end
     end
     res = sdata(res)
-   
-    res = modelParams.β .* res ./ ((2*simParams.Nint)^2)
+    res = (2^modelParams.D) * modelParams.β .* res ./ ((2*simParams.Nint)^modelParams.D)
     res = permutedims(res, [3,2,1])
     res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
-    res = convert(Array{Complex{Float64}}, res)
+    #res = convert(Array{Complex{Float64}}, res)
     return res
 end
 
@@ -56,7 +60,7 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
     γres = SharedArray{eltype(bubble)}(2*Nω+1, 2*Nν, Nq)
     χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
-    if simParams.tail_corrected
+    if approx_full_sum_flag
         numin = Int(floor((Nν/2)*3/4))
         numax = Int(floor(Nν/2))
         println(numin)
@@ -102,7 +106,12 @@ function calc_DΓA_Σ(χch, χsp,
     qList = collect(qGrid)
     Nν = simParams.n_iν
     kList = collect(kGrid)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList)
+    if modelParams.D == 3
+        tsc = 0.40824829046386301636
+    elseif modelParams.D == 2
+        tsc = 0.5
+    end
+    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, tsc)
 
     Σ_ladder = SharedArray{eltype(χch)}(length(kList), Nν)
     #TODO: qifactor??
@@ -141,7 +150,12 @@ function calc_DΓA_Σ_impr(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex
     Nν = simParams.n_iν
     Nq = simParams.Nq
     kList = collect(kGrid)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList)
+    if modelParams.D == 3
+        tsc = 0.40824829046386301636
+    elseif modelParams.D == 2
+        tsc = 0.5
+    end
+    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, tsc)
     Σ_ladder_tmp = zeros(Complex{Float64}, length(kList), Nν, size(bubble, 1))
     tmp_νp = Array{Complex{Float64}}(undef, size(bubble, 2))
 
@@ -203,7 +217,12 @@ function calc_DΓA_Σ_noise(χch::Array{Complex{Float64}, 2}, χsp::Array{Comple
     qList = collect(qGrid)
     Nν = simParams.n_iν
     kList = collect(kGrid)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList)
+    if modelParams.D == 3
+        tsc = 0.40824829046386301636
+    elseif modelParams.D == 2
+        tsc = 0.5
+    end
+    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, tsc)
     noiseVarArr = zeros(Complex{Float64}, 7)
     noiseVarArr[1] = mean(γch)/2
     noiseVarArr[2] = mean(γsp)/2
