@@ -44,13 +44,16 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
 end
 
 
+#function χ_γ_helper()
+#end
+
 """
     Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
     TODO: use 4.123 with B.6+B.7 instead of inversion
 """
 function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
-                              modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1, approx_full_sum_flag = true) where T
+                              modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1) where T
     Nω = simParams.n_iω
     Nν = simParams.n_iν
     Nq = size(bubble, 3)
@@ -60,12 +63,13 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
     γres = SharedArray{eltype(bubble)}(2*Nω+1, 2*Nν, Nq)
     χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
-    if approx_full_sum_flag
-        numin = Int(floor((Nν/2)*3/4))
-        numax = Int(floor(Nν/2))
-        println(numin)
-        println(numax)
-        W = build_weights(numin, numax, [0,1,2,3])
+    if simParams.tail_corrected
+        #= r = floor(Int64, Nν*1/4) =#
+        #= ωmin = Int(Nν-r) =#
+        #= ωmax = Int(Nν+r) =#
+        ωmin = Int(floor((Nν/2)*3/4))
+        ωmax = Int(floor(Nν/2))
+        W = build_weights(ωmin, ωmax, [0,1,2,3])
     end
 
     #bak = Array{eltype(Γ)}(undef, 2*Nω + 1, Nq, size(Γ,2), size(Γ,3))
@@ -80,7 +84,7 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
             χ_tmp = inv(χ_tmp)
 
             #TODO: HUGE bottleneck here. this needs to be optimized
-            if approx_full_sum_flag
+            if simParams.tail_corrected
                 @inbounds χ[ωi, qi] = approx_full_sum(χ_tmp, W, [1,2], fast=true)/(modelParams.β^2)
                 for νi in 1:length(tmpSum)
                     @inbounds tmpSum[νi] = approx_full_sum(χ_tmp[νi,:], W, [1], fast=true)/(modelParams.β)
@@ -96,7 +100,7 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
         end
     end
     #sdata
-    return χ, γres
+    return sdata(χ), sdata(γres)
 end
 
 function calc_DΓA_Σ(χch, χsp,
@@ -159,7 +163,7 @@ function calc_DΓA_Σ_impr(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex
     Σ_ladder_tmp = zeros(Complex{Float64}, length(kList), Nν, size(bubble, 1))
     tmp_νp = Array{Complex{Float64}}(undef, size(bubble, 2))
 
-    cut = 22
+    cut = 0
     if simParams.tail_corrected
         ωmin = Int(floor((Nω-cut)*3/4))
         ωmax = Int(floor(Nω)-cut)

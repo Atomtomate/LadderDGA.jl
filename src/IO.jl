@@ -408,7 +408,7 @@ function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
     lineLen = length(InString[1])
     splitLength = floor(Int64,lineLen/NCols)
     if lineLen%NCols != 0
-        println("Warning!! Could not find fixed column width!")
+        println(stderr, "   ---> Warning!! Could not find fixed column width!")
     end
     #InArr = sign .* parse.(Float64,hcat(split.(InString)...)[2:end,:])
     InArr = zeros(Float64, NRows, NCols-1)

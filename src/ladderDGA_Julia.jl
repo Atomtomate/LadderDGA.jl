@@ -10,6 +10,7 @@
     using Optim
     using TOML
     using Printf
+    using ForwardDiff
     #using ParquetFiles
     #using DataFrames
     using Query
@@ -64,7 +65,7 @@
     const configFile = "./config.toml"#ARGS[1]
     const loadFromBak = false
 
-function calculate_Σ_ladder(configFile)
+#function calculate_Σ_ladder(configFile)
 
     print("Reading Inputs...")
     modelParams, simParams, env = readConfig(configFile)#
@@ -95,74 +96,81 @@ function calculate_Σ_ladder(configFile)
         χspAsympt = asympt_vars["chi_sp_asympt"]
     end
 
-    print("\rInputs Read. Starting Computation                                          \n")
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
 
     #TODO: use fit for sum here
-    χLocch = sum(χDMFTch)/(modelParams.β^3)
-    χLocsp = sum(χDMFTsp)/(modelParams.β^3)
-    #= println("-------") =#
-    #= println(G0) =#
-    #= println(GImp) =#
-    #= println(Σ_loc) =#
-    #= println("-------") =#
+    if simParams.tail_corrected
+        χLocsp_ω = [approx_full_sum(χDMFTsp[i,:,:], [1,2]) for i in 1:size(χDMFTsp,1)]/(modelParams.β^2)
+        χLocch_ω = [approx_full_sum(χDMFTch[i,:,:], [1,2]) for i in 1:size(χDMFTch,1)]/(modelParams.β^2)
+        usable_loc_sp = find_usable_interval(real(χLocsp_ω))
+        usable_loc_ch = find_usable_interval(real(χLocch_ω))
+        χLocsp = approx_full_sum(χLocsp_ω[usable_loc_sp], [1])[1]/(modelParams.β)
+        χLocch = approx_full_sum(χLocch_ω[usable_loc_ch], [1])[1]/(modelParams.β)
+    else
+        χLocsp_ω = sum(χDMFTsp,dims=[2,3])[:,1,1]/(modelParams.β^2)
+        χLocch_ω = sum(χDMFTch,dims=[2,3])[:,1,1]/(modelParams.β^2)
+        usable_loc_sp = find_usable_interval(real(χLocsp_ω))
+        usable_loc_ch = find_usable_interval(real(χLocch_ω))
+        χLocsp = sum(χLocsp_ω[usable_loc_sp])/(modelParams.β)
+        χLocch = sum(χLocch_ω[usable_loc_ch])/(modelParams.β)
+    end
+    println("\rInputs Read. Starting Computation.
+          Found usable intervals for local susceptibility of length 
+          sp: $(length(usable_loc_sp))
+          ch: $(length(usable_loc_ch)) 
+          χLoc_sp = $(χLocsp), χLoc_ch = $(χLocch)")
 
-    _, kGrid   = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
-    kList = collect(kGrid)
+    _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
+    kList            = collect(kGrid)
     qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
     qMultiplicity    = kGrid_multiplicity(qIndices)
+    qNorm            = (simParams.Nq-1)^(modelParams.D) #sum(qMultiplicity)
 
     #TODO: remove ~5s overhead (precompile)
-    print("Calculating bubble: ")
+    println("Calculating bubble: ")
     @time bubble = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
-    # DEBUG:
-    #@time bubble_exact = calc_bubble_ap(Σ_loc, qGrid, modelParams, simParams);
-    #bubble_ed = readFortranBubble(env.inputDir*"/chi_bubble", 5, 6, 3)
-    # END DEBUG
 
-    print("Calculating naiive χ and γ in the charge channel: ")
-    @time χch, trilexch = 
-        calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = false)
-    print("Calculating naiive χ and γ in the spin channel: ")
+    println("Calculating naiive χ and γ in the spin channel: ")
     @time χsp, trilexsp = 
-        calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=(-1), approx_full_sum_flag = false)
-    print("Calculating λ correction in the charge channel: ")
-    @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, modelParams)
-    print("Calculating λ correction in the spin channel: ")
-    @time λsp, χsp_λ = calc_λ_correction(χsp, χLocsp, qMultiplicity, modelParams)
+        calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=(-1))
+    println("Calculating naiive χ and γ in the charge channel: ")
+    @time χch, trilexch = 
+        calc_χ_trilex(Γch, bubble, modelParams, simParams)
+        
+    χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
+    χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
+    usable_ω_sp = find_usable_interval(real(χsp_ω))
+    usable_ω_ch = find_usable_interval(real(χch_ω))
+    if simParams.tail_corrected
+        χsp_sum = approx_full_sum(χsp_ω[usable_ω_sp], [1])/(modelParams.β)
+        χch_sum = approx_full_sum(χch_ω[usable_ω_ch], [1])/(modelParams.β)
+    else
+        χsp_sum = sum(χsp_ω[usable_ω_sp])/(modelParams.β)
+        χch_sum = sum(χch_ω[usable_ω_ch])/(modelParams.β)
+    end
 
-
-    print("Calculating χ and γ in the charge channel: ")
-    @time χch_impr, trilexch_impr  = 
-        calc_χ_trilex(Γch, bubble, modelParams, simParams, approx_full_sum_flag = true)
-    print("Calculating χ and γ in the spin channel: ")
-    @time χsp_impr, trilexsp_impr = 
-        calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=-1, approx_full_sum_flag = true)
-    print("Calculating λ correction in the charge channel: ")
-    @time λch_impr, χch_λ_impr = calc_λ_correction(χch_impr, χLocch, qMultiplicity, modelParams)
-    print("Calculating λ correction in the spin channel: ")
-    @time λsp_impr, χsp_λ_impr = calc_λ_correction(χsp_impr, χLocsp, qMultiplicity, modelParams)
-
+    println("Calculating λ correction in the spin channel: ")
+    @time λsp, χsp_λ = calc_λ_correction(χsp, χLocsp, qMultiplicity, usable_loc_sp, modelParams)
+    println("Found λsp = ", λsp)
+    println("Calculating λ correction in the charge channel: ")
+    @time λch, χch_λ = calc_λ_correction(χch, χLocch, qMultiplicity, usable_loc_ch, modelParams)
+    println("Found λch = ", λch)
 
     if !simParams.chi_only
-        print("Calculating naiive Σ ladder: ")
+        println("Calculating naiive Σ ladder: ")
         @time Σ_ladder = calc_DΓA_Σ(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
                                       qMultiplicity, qGrid, kGrid, modelParams, simParams)
-        print("Calculating Σ ladder: ")
-        @time Σ_ladder_impr = calc_DΓA_Σ_impr(χch_impr, χsp_impr, trilexch_impr, trilexsp_impr, bubble, Σ_loc, FUpDo,
-                                          qMultiplicity, qGrid, kGrid, modelParams, simParams)
     end
-    save("chi.jld", "chi_ch", χch, "chi_ch_lambda", χch_λ, "chi_sp", χsp, "chi_sp_lambda", χsp_λ, 
-         "chi_ch_impr", χch_impr, "chi_ch_lamdba_impr", χch_λ_impr, "chi_sp_impr", χsp_impr,
-         "chi_sp_lambda_impr", χsp_λ_impr, compatible=true)
+    save("chi.jld", "chi_ch", χch, "chi_ch_lambda", χch_λ, "chi_sp", χsp, 
+         "chi_sp_lambda", sdata(χsp_λ), compatible=true)
     save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity,
                     "bubble", bubble, "chi_ch", χch, "chi_sp", χsp,
                     "trilex_ch", trilexch, "trilex_sp", trilexsp,
                     "lambda_ch", λch, compress=true, compatible=true)
     #print("\n\n-----------\n\n")
-end
-calculate_Σ_ladder(configFile)
+#end
+#calculate_Σ_ladder(configFile)
 #
 
 #= const ll = [(x1,x2) for x1 in range(-5,stop=5,length=100) for x2 in range(-5,stop=5,length=100)] =#

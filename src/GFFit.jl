@@ -159,6 +159,23 @@ function build_fνmax_fast(f, W)
     return f_νmax
 end
 
+
+function approx_full_sum(f, dims; fast=true)
+    N = floor(Int64, size(f,dims[1])/4)
+    if N < 5
+        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.")
+        return sum(f, dims=dims)
+    end
+    ωmin = Int(floor(N*3/4))
+    ωmax = N 
+    #= r = floor(Int64, N*1/4) =#
+    #= ωmin = Int(N-r) =#
+    #= ωmax = Int(N+r) =#
+    #println("dbg: ωmin/max: ", ωmin, " : ", ωmax, ". arr size: ", size(f), ". dims = ", dims)
+    W = build_weights(ωmin, ωmax, [0,1,2,3])
+    approx_full_sum(f, W, dims, fast=fast)
+end
+
 """
     Computes an approximation for the infinite sum over f, by fitting to
     a function g = c_0 + c_1/x + c_2/x^2 ... 

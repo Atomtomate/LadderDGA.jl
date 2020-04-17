@@ -47,7 +47,7 @@ function kGrid_multiplicity(kIndices)
         res = map(el -> borderFactor(el)*48/( (el[2]==el[1]) + (el[3]==el[2]) + 3*(el[3]==el[1]) + 1), kIndices)
     else
         res = []
-        print("Warning! arbitrary dimensions for kGrid multiplicity not implemented!\n")
+        print(stderr, "   ---> Warning! arbitrary dimensions for kGrid multiplicity not implemented!\n")
     end
     return res
 end

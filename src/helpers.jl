@@ -51,7 +51,7 @@ end
 function find_usable_interval(arr; reduce_range_prct = 0.1)
     darr = diff(arr; dims=1)
     index_maximum = find_inner_maximum(arr)
-    mid_index = Int(floor(size(arr,1)/2))
+    mid_index = Int(ceil(size(arr,1)/2))
 
     # interval for condition 1 (positive values)
     cond1_intervall_range = 1
@@ -73,7 +73,13 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
 
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
     range = floor(Int64, intervall_range*(1-reduce_range_prct))
-    return ((mid_index-range):(mid_index+range) .+ 1)
+    res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
+    println("res: $(res) = $(mid_index) +- $(range)")
+    if length(res) < 1
+        println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
+        res = [mid_index]
+    end
+    return res
 end
 
 function compute_Ekin(iνₙ, ϵₖ, Vₖ, GImp, β; full=true)

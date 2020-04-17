@@ -8,25 +8,32 @@ dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* 
 
 
 #TODO: compute start point according to fortran code
-function calc_λ_correction(χ, χloc, qMult, modelParams)
+function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
     qNorm      = sum(qMult)*modelParams.β
-    χ_new(λ)  = (1.0 + 0.0im) ./ (1 ./ χ .+ λ)
-    #= qMult_tmp = reshape(qMult, 1, (size(qMult)...)) =#
-    #= println(size(sum([sum((1 ./ χ[i,:] .+ 1).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm)) =#
-    #= f(λ)  = real(sum([sum((1 ./ χ[i,:] .+ λ).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc) =#
-    #= df(λ) = -1*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-2) .* qMult) for i in 1:size(χ,1)])/qNorm) =# 
-    #= ddf(λ) = 2*real(sum([sum((1 ./ χ[i,:] .+ λ).^(-3) .* qMult) for i in 1:size(χ,1)])/qNorm) =# 
-    #= start_val = -1.0 #maximum(real(χ[ceil(Int64, size(χ,1)/2), :])) - 1.0 =#
-    #= λ    = Optim.minimizer(Optim.optimize(f, -10, 10)) =#
-    f(λint)  = real(sum([sum(((1 ./ χ[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χ,1)])/qNorm - χloc)
+    deltino = 0.1
+    χ_new(λ)  = 1.0  ./ (1 ./ χ .+ λ)
+    χr = real.(χ[usable,:])
+    χlocr = real(χloc)
+    f(λint)  = sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr
+    af(λint)  = abs(sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr)
+    df(λint)  = sum([sum(-((1 ./ χr[i,:]) .+ λint).^(-2) .* qMult) for i in 1:size(χr,1)])/qNorm
+    ddf(λint)  = sum([sum(2 .* ((1 ./ χr[i,:]) .+ λint).^(-3) .* qMult) for i in 1:size(χr,1)])/qNorm
     nh  =ceil(Int64, size(χ,1)/2)
-    χ_min =  - minimum(1 ./ real(χ[nh,:])) #TODO ??????
-    r = find_zeros(f, χ_min-2, χ_min+2)
+    if !(nh in usable)
+        println(stderr, "  ---> WARNING: ω=0 not in usable range!")
+    end
+    χ_min =  -minimum(1 ./ real(χ)[nh,:]) #TODO ??????
+    println("found χ_min = ", -χ_min, ", 1/χ_min = ", -1/χ_min)
+    #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
+    r = find_zeros(f, χ_min-0.2, χ_min+0.2)
+    #println("possible roots: ", r)
+    println("possible roots: ", r)
+    #println("possible roots: ", Optim.minimizer(r))
     if isempty(r)
-       println(STDERR, "WARNING: no lambda roots found!!!")
+       println(stderr, "   ---> WARNING: no lambda roots found!!!")
        return 0, χ_new(0)
     else
-        λ = r[findmin(abs.(r .- χ_min))[2]]
+        λ = r[findmin(abs.(r .- (χ_min + deltino)))[2]]
         return λ, χ_new(λ)
     end
 end
