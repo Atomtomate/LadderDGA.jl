@@ -161,9 +161,11 @@ end
 
 
 function approx_full_sum(f, dims; fast=true)
-    N = floor(Int64, size(f,dims[1])/4)
+    N = floor(Int64, size(f,dims[1])/2)
     if N < 5
         println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.")
+        println(size(f))
+        println(find_usable_interval(real(f)))
         return sum(f, dims=dims)
     end
     ωmin = Int(floor(N*3/4))
@@ -219,38 +221,4 @@ function find_inner_maximum(arr)
         index_maximum = index_maximum + 1
     end
     return index_maximum
-end
-
-function find_usable_interval(arr; reduce_range_prct = 0.1)
-    darr = diff(arr; dims=1)
-    index_maximum = find_inner_maximum(arr)
-    mid_index = Int(floor(size(arr,1)/2))
-    if (index_maximum == 1)
-        println("no maximum found")
-        return 1:1
-    end
-    # interval for condition 1 (positive values)
-    #TODO: implement min-max
-    cond1_intervall_range = 1
-    #cond1_intervall_range_max = 1
-    # find range for positive values
-    while (cond1_intervall_range < mid_index) &&
-        (arr[(mid_index-cond1_intervall_range)] > 0) &&
-        (arr[(mid_index+cond1_intervall_range)] > 0)
-        cond1_intervall_range = cond1_intervall_range + 1
-    end
-
-    # interval for condition 2 (monotonicity)
-    cond2_intervall_range = 1
-    #cond2_intervall_range_max = 1
-    # find range for first turning point
-    while (cond2_intervall_range < mid_index) &&
-        (darr[(mid_index-cond2_intervall_range)] > 0) &&
-        (darr[(mid_index+cond2_intervall_range)] < 0)
-        cond2_intervall_range = cond2_intervall_range + 1
-    end
-
-    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    range = floor(Int64, intervall_range*(1-reduce_range_prct))
-    return (((mid_index-range):(mid_index+range)) .+ 0)
 end

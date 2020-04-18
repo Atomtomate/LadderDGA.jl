@@ -10,6 +10,7 @@
 function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid, 
                               modelParams::ModelParameters, simParams::SimulationParameters)
     #TODO: this is slower, than having this as a parameter. Check again after conversion to module
+    #
     Nq   = size(collect(qGrid),1)
     _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
     if modelParams.D == 3
@@ -100,7 +101,9 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
         end
     end
     #sdata
-    return sdata(χ), sdata(γres)
+    χ = sdata(χ) 
+    γres = sdata(γres)
+    return χ, γres
 end
 
 function calc_DΓA_Σ(χch, χsp,

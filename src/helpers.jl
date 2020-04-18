@@ -65,15 +65,24 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
     # interval for condition 2 (monotonicity)
     cond2_intervall_range = 1
     # find range for first turning point
-    while (cond2_intervall_range < mid_index) &&
+    println(cond1_intervall_range)
+    while (cond2_intervall_range < mid_index-1) &&
         (darr[(mid_index-cond2_intervall_range)] > 0) &&
         (darr[(mid_index+cond2_intervall_range)] < 0)
         cond2_intervall_range = cond2_intervall_range + 1
     end
 
+    println(cond2_intervall_range)
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    range = floor(Int64, intervall_range*(1-reduce_range_prct))
-    res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
+    println(intervall_range)
+    range = ceil(Int64, intervall_range*(1-reduce_range_prct))
+    println(range)
+    if length(arr)%2 == 1
+        res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
+    else
+        res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
+    end
+
     println("res: $(res) = $(mid_index) +- $(range)")
     if length(res) < 1
         println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
