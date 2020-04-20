@@ -50,9 +50,13 @@ end
 """
 function find_usable_interval(arr; reduce_range_prct = 0.1)
     darr = diff(arr; dims=1)
-    index_maximum = find_inner_maximum(arr)
+    #index_maximum = find_inner_maximum(arr)
     mid_index = Int(ceil(size(arr,1)/2))
 
+    if arr[mid_index] < 0.0
+        res = []
+        return res
+    end
     # interval for condition 1 (positive values)
     cond1_intervall_range = 1
     # find range for positive values
@@ -65,28 +69,29 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
     # interval for condition 2 (monotonicity)
     cond2_intervall_range = 1
     # find range for first turning point
-    println(cond1_intervall_range)
+    #println(cond1_intervall_range)
     while (cond2_intervall_range < mid_index-1) &&
         (darr[(mid_index-cond2_intervall_range)] > 0) &&
         (darr[(mid_index+cond2_intervall_range)] < 0)
         cond2_intervall_range = cond2_intervall_range + 1
     end
 
-    println(cond2_intervall_range)
+    #println(cond2_intervall_range)
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    println(intervall_range)
+    #println(intervall_range)
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
-    println(range)
+    #println(range)
     if length(arr)%2 == 1
         res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
     else
         res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
     end
 
-    println("res: $(res) = $(mid_index) +- $(range)")
+    #println("res: $(res) = $(mid_index) +- $(range)")
     if length(res) < 1
         println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
         res = [mid_index]
+        println(res)
     end
     return res
 end

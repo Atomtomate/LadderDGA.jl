@@ -18,14 +18,14 @@ function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
     af(λint)  = abs(sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr)
     df(λint)  = sum([sum(-((1 ./ χr[i,:]) .+ λint).^(-2) .* qMult) for i in 1:size(χr,1)])/qNorm
     ddf(λint)  = sum([sum(2 .* ((1 ./ χr[i,:]) .+ λint).^(-3) .* qMult) for i in 1:size(χr,1)])/qNorm
-    nh  =ceil(Int64, size(χ,1)/2)
-    if !(nh in usable)
+    nh  =ceil(Int64, size(χr,1)/2)
+    if length(usable) < 1
         println(stderr, "  ---> WARNING: ω=0 not in usable range!")
     end
-    χ_min =  -minimum(1 ./ real(χ)[nh,:]) #TODO ??????
+    χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
     println("found χ_min = ", -χ_min, ", 1/χ_min = ", -1/χ_min)
     #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
-    r = find_zeros(f, χ_min-2.2, χ_min+2.2)
+    r = find_zeros(f, χ_min-2.8, χ_min+2.8)
     #println("possible roots: ", r)
     println("possible roots: ", r)
     #println("possible roots: ", Optim.minimizer(r))

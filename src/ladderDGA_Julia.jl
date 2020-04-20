@@ -131,7 +131,7 @@
 
     #TODO: remove ~5s overhead (precompile)
     println("Calculating bubble: ")
-    @time bubble = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
+    @time bubble,tmp = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
 
     println("Calculating χ and γ in the spin channel: ")
     @time χsp, trilexsp = 
@@ -142,10 +142,8 @@
         
     χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
     χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
-    println(size(χch_ω))
-    println(size(χsp_ω))
-    usable_ω_sp = find_usable_interval(real(χsp_ω))
-    usable_ω_ch = find_usable_interval(real(χch_ω))
+    #usable_ω_sp = find_usable_interval(real(χsp_ω))
+    #usable_ω_ch = find_usable_interval(real(χch_ω))
     if simParams.tail_corrected
         χsp_sum = approx_full_sum(χsp_ω, [1])[1]/(modelParams.β)
         χch_sum = approx_full_sum(χch_ω, [1])[1]/(modelParams.β)
@@ -153,8 +151,8 @@
         println(χch_sum)
         rhs = 0.25 - χch_sum
     else
-        χsp_sum = sum(χsp_ω[usable_ω_sp])/(modelParams.β)
-        χch_sum = sum(χch_ω[usable_ω_ch])/(modelParams.β)
+        χsp_sum = sum(χsp_ω[usable_loc_sp])/(modelParams.β)
+        χch_sum = sum(χch_ω[usable_loc_ch])/(modelParams.β)
         rhs = χLocsp + χLocch - χch_sum
         #println("rhs = $(rhs) =  $(χLocsp) + $(χLocch) - $(χch_sum)")
     end

@@ -21,6 +21,7 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
     ϵkIntList   = squareLattice_ekGrid(kIntGrid, tsc)
     ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid, tsc)
     res = SharedArray{Complex{Float64}}( Nq, simParams.n_iν, 2*simParams.n_iω+1)
+    tmp = SharedArray{Complex{Float64}}( 2*simParams.n_iω+1, simParams.n_iν,length(ϵkIntList),Nq,4)
     @sync @distributed for qi in 1:Nq
         @simd for νₙ in 0:simParams.n_iν-1
             Σν = get_symm_f(Σ,νₙ)
@@ -32,6 +33,10 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
                     Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
                     Gνω = GF_from_Σ(νₙ + ωₙ, modelParams.β, modelParams.μ, ϵₖ₂, Σων)
                     @inbounds res[qi,  νₙ+1, ωi] -= Gν*Gνω
+                    tmp[ωi, νₙ+1, ki, qi, 1] = ϵkIntList[ki] 
+                    tmp[ωi, νₙ+1, ki, qi, 2] = ϵₖ₂ 
+                    tmp[ωi, νₙ+1, ki, qi, 3] = Gν
+                    tmp[ωi, νₙ+1, ki, qi, 4] = Gνω 
                 end
             end
         end
@@ -41,7 +46,7 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
     res = permutedims(res, [3,2,1])
     res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
     #res = convert(Array{Complex{Float64}}, res)
-    return res
+    return res, tmp
 end
 
 
