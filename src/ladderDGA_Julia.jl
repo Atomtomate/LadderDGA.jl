@@ -17,6 +17,7 @@
     #using NLsolve
     #using DelimitedFiles
     using Roots
+    using FFTW
     include("$(@__DIR__)/Config.jl")
     include("$(@__DIR__)/helpers.jl")
     include("$(@__DIR__)/IO.jl")
@@ -32,25 +33,13 @@
     #end
     @everywhere using Distributed
     @everywhere using SharedArrays
-    @everywhere using JLD
     @everywhere using LinearAlgebra
     @everywhere using GenericLinearAlgebra
-    @everywhere using Optim
-    @everywhere using TOML
-    @everywhere using Printf
-    #@everywhere using ParquetFiles
-    #@everywhere using DataFrames
-    @everywhere using Query
-    #@everywhere using NLsolve
-    #@everywhere using DelimitedFiles
-    @everywhere using Roots
+    @everywhere using FFTW
     @everywhere include("$(@__DIR__)/Config.jl")
     @everywhere include("$(@__DIR__)/helpers.jl")
-    @everywhere include("$(@__DIR__)/IO.jl")
-    @everywhere include("$(@__DIR__)/dispersion.jl")
     @everywhere include("$(@__DIR__)/GFTools.jl")
     @everywhere include("$(@__DIR__)/ladderDGATools.jl")
-    @everywhere include("$(@__DIR__)/dbg_ladderDGATools.jl")
     @everywhere include("$(@__DIR__)/GFFit.jl")
     @everywhere include("$(@__DIR__)/lambdaCorrection.jl")
     #@everywhere include("$(@__DIR__)/../test/old_ladderDGATools.jl")
@@ -121,8 +110,6 @@
           χLoc_sp = $(χLocsp), χLoc_ch = $(χLocch)")
 
     println("Setting up and calculating local quantitites: ")
-    println(χLocsp_ω[usable_loc_sp])
-    println(χLocch_ω[usable_loc_ch])
     _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
     kList            = collect(kGrid)
     qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
@@ -131,14 +118,19 @@
 
     #TODO: remove ~5s overhead (precompile)
     println("Calculating bubble: ")
-    @time bubble,tmp = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
+    #Σ_loc = convert(SharedArray,Σ_loc)
+    if simParams.kInt == "FFT"
+        @time bubble = calc_bubble_fft(Σ_loc, modelParams, simParams);
+    else
+        @time bubble = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
+    end
 
     println("Calculating χ and γ in the spin channel: ")
     @time χsp, trilexsp = 
         calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=(-1))
     println("Calculating χ and γ in the charge channel: ")
     @time χch, trilexch = 
-        calc_χ_trilex(Γch, bubble, modelParams, simParams)
+        calc_χ_trilex(Γch, bubble, modelParams, simParams, Usign=(+1))
         
     χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
     χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
@@ -168,13 +160,15 @@
         println("Calculating Σ ladder: ")
         @time Σ_ladder = calc_DΓA_Σ(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
                                       qMultiplicity, qGrid, kGrid, modelParams, simParams)
+        save("Sigma", Σ_ladder, "kGrid", kGrid,
+              compress=true, compatible=true)
     end
     save("chi.jld", "chi_ch", χch, "chi_sp", χsp, 
-         "chi_sp_lambda", χsp_λ, compatible=true)
-    save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity,
-                    "bubble", bubble,
-                    "trilex_ch", trilexch, "trilex_sp", trilexsp,
-                    "lambda_ch", λsp, compress=true, compatible=true)
+         "chi_sp_lambda", χsp_λ, compress=true, compatible=true)
+    #= save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity, =#
+    #=                 "bubble", bubble, =#
+    #=                 "trilex_ch", trilexch, "trilex_sp", trilexsp, =#
+    #=                 "lambda_ch", λsp, compress=true, compatible=true) =#
     #print("\n\n-----------\n\n")
 #end
 #calculate_Σ_ladder(configFile)

@@ -26,8 +26,22 @@ for any (x_1, x_2, ...) the condition x_1 >= x_2 >= x_3 ...
 is fulfilled.
 """
 function reduce_kGrid(kGrid) 
-    isMonotonic(x) = all(sort(collect(x), rev=true) .≈ collect(x))        # A list is monotonic, iff sorting does not change the order
-    grid = Iterators.filter(isMonotonic, kGrid)
+    kGrid_arr = collect(kGrid)
+    Nk = size(kGrid_arr,1)
+    if ndims(kGrid_arr) == 2
+        index = [[x,y] for x=1:Nk for y=1:x]
+    elseif ndims(kGrid_arr) == 3
+        index = [[x,y,z] for x=1:Nk for y=1:x for z = 1:y]
+    else
+        throw(BoundsError("Number of dimensions for grid must be 2 or 3"))
+    end
+    grid_red = Array{eltype(kGrid_arr)}(undef, length(index))
+    for (i,ti) in enumerate(index)
+        grid_red[i] = kGrid_arr[ti...]
+    end
+    #isMonotonic(x) = all(sort(collect(x), rev=true) .≈ collect(x))        # A list is monotonic, iff sorting does not change the order
+    #grid = Iterators.filter(isMonotonic, kGrid)
+    return grid_red
 end
 
 function kGrid_multiplicity(kIndices)

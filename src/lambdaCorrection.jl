@@ -10,7 +10,7 @@ dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* 
 #TODO: compute start point according to fortran code
 function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
     qNorm      = sum(qMult)*modelParams.β
-    deltino = 0.1
+    deltino = 0.0
     χ_new(λ)  = 1.0  ./ (1 ./ χ .+ λ)
     χr = real.(χ[usable,:])
     χlocr = real(χloc)
@@ -25,7 +25,7 @@ function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
     χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
     println("found χ_min = ", -χ_min, ", 1/χ_min = ", -1/χ_min)
     #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
-    r = find_zeros(f, χ_min-2.8, χ_min+2.8)
+    r = find_zeros(f, χ_min-2.8/length(qMult), χ_min+2.8/length(qMult))
     #println("possible roots: ", r)
     println("possible roots: ", r)
     #println("possible roots: ", Optim.minimizer(r))
@@ -33,7 +33,7 @@ function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
        println(stderr, "   ---> WARNING: no lambda roots found!!!")
        return 0, χ_new(0)
     else
-        λ = r[findmin(abs.(r .- (χ_min + deltino)))[2]]
+        λ = r[end]#r[findin(abs.(r .- (χ_min + deltino)))[2]]
         return λ, χ_new(λ)
     end
 end

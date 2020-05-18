@@ -19,7 +19,8 @@ function readConfig(file)
                                tml["Simulation"]["NkInt"],
                                tml["Simulation"]["Nq"],
                                tml["Simulation"]["tail_corrected"],
-                               tml["Simulation"]["chi_only"])
+                               tml["Simulation"]["chi_only"],
+                               tml["Simulation"]["kInt"])
     env = EnvironmentVars(   tml["Environment"]["loadFortran"],
                              tml["Environment"]["writeFortran"],
                              tml["Environment"]["loadAsymptotics"],
@@ -85,9 +86,6 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
         println("Done Reading Gamma")
         χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"/chi_dir")
         println("Done Reading chi")
-        save("fortran_files_bak.jld", "g0", g0, "gImp", gImp, "FreqBox", freqBox, 
-             "Gcharge", Γcharge, "Gspin", Γspin, "cDMFTCharge", χDMFTCharge,
-             "cDMFTSpin", χDMFTSpin, compress=true, compatible=true)
     end
     Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
     Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
@@ -98,8 +96,10 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
         writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
         writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
     end
-    save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
-         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
+    if length(env.inputVars) > 0
+        save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
+             "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
+    end
 end
 
 # ==================================================================================================== # 

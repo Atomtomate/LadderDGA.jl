@@ -2,9 +2,9 @@
 #TODO: nw and niv grid as parameters? 
 #TODO: define GF type that knows about which dimension stores which variable
 
-@inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T =
+@everywhere @inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
-@inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
+@everywhere @inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
                     ((π/β)*(2*n + 1)*1im + μ - Σ)
 
 function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid, 
@@ -13,40 +13,64 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
     #
     Nq   = size(collect(qGrid),1)
     _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
-    if modelParams.D == 3
-        tsc = 0.40824829046386301636
-    elseif modelParams.D == 2
-        tsc = 0.5
-    end
+    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
     ϵkIntList   = squareLattice_ekGrid(kIntGrid, tsc)
     ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid, tsc)
-    res = SharedArray{Complex{Float64}}( Nq, simParams.n_iν, 2*simParams.n_iω+1)
-    tmp = SharedArray{Complex{Float64}}( 2*simParams.n_iω+1, simParams.n_iν,length(ϵkIntList),Nq,4)
-    @sync @distributed for qi in 1:Nq
+    res = zeros(Complex{Float64}, Nq, simParams.n_iν, 2*simParams.n_iω+1)
+    @simd for qi in 1:Nq
         @simd for νₙ in 0:simParams.n_iν-1
             Σν = get_symm_f(Σ,νₙ)
             for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
                 Σων = get_symm_f(Σ,νₙ + ωₙ)
-                res[qi,  νₙ+1, ωi] = 0.0 #[ωi, νₙ+1, qi] = 0.0
+                #res[qi,  νₙ+1, ωi] = 0.0 #[ωi, νₙ+1, qi] = 0.0
                 @simd for ki in 1:length(ϵkIntList)
                     @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
                     Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
                     Gνω = GF_from_Σ(νₙ + ωₙ, modelParams.β, modelParams.μ, ϵₖ₂, Σων)
                     @inbounds res[qi,  νₙ+1, ωi] -= Gν*Gνω
-                    tmp[ωi, νₙ+1, ki, qi, 1] = ϵkIntList[ki] 
-                    tmp[ωi, νₙ+1, ki, qi, 2] = ϵₖ₂ 
-                    tmp[ωi, νₙ+1, ki, qi, 3] = Gν
-                    tmp[ωi, νₙ+1, ki, qi, 4] = Gνω 
                 end
             end
         end
     end
-    res = sdata(res)
+    #res = sdata(res)
     res = (2^modelParams.D) * modelParams.β .* res ./ ((2*simParams.Nint)^modelParams.D)
     res = permutedims(res, [3,2,1])
     res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
     #res = convert(Array{Complex{Float64}}, res)
-    return res, tmp
+    return res
+end
+
+function calc_bubble_fft_internal(ind::Int64, Σ::Array{Complex{Float64},1}, 
+                                  ϵkIntGrid::Array{Float64}, β::Float64, μ::Float64, 
+                                  phasematrix::Array{Complex{Float64}})
+    Σν = get_symm_f(Σ,ind)
+    Gν  = map(ϵk -> GF_from_Σ(ind, β, μ, ϵk, Σν), ϵkIntGrid)
+    return fft!(Gν) .* phasematrix
+end
+
+function calc_bubble_fft(Σ::Array{Complex{Float64},1}, 
+                              modelParams::ModelParameters, simParams::SimulationParameters)
+    kIndices, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
+
+    println("TODO: why cut the qGrid for bubble?")
+    qIndices, qGrid = gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = 2π, include_min = false) 
+    qReduced_tmp = reduce_kGrid(qGrid)
+    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
+    ϵkIntGrid   = squareLattice_ekGrid(kIntGrid, tsc)
+    phasematrix = map(x -> exp(-2π*1im*(sum(x)-modelParams.D)/simParams.Nint)*(-1)^(sum(x)-modelParams.D), kIndices)
+    res = Array{Complex{Float64}}(undef, 2*simParams.n_iω+1, simParams.n_iν, length(qReduced_tmp))
+    bw_plan = plan_ifft(ϵkIntGrid,[1,2,3])
+    for νₙ in 0:simParams.n_iν-1
+        Gν = calc_bubble_fft_internal(νₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
+        for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
+            Gνω = calc_bubble_fft_internal(νₙ + ωₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
+            tmp = reshape(bw_plan * (Gν  .* Gνω), (repeat([simParams.Nint], modelParams.D)...))
+            res[ωi, νₙ+1, :] = reduce_kGrid(tmp)[1:length(qReduced_tmp)]
+        end
+    end
+    res = - modelParams.β .* res ./ (simParams.Nint^modelParams.D)
+    res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
+    return res
 end
 
 
@@ -79,7 +103,7 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
     end
 
     #bak = Array{eltype(Γ)}(undef, 2*Nω + 1, Nq, size(Γ,2), size(Γ,3))
-    @sync @distributed for qi in 1:Nq
+    for qi in 1:Nq
         for (ωi,ωₙ) in enumerate((-Nω):Nω)
             tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
             χ_tmp = copy(Γ[ωi, :, :])

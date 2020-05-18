@@ -1,5 +1,5 @@
 #TODO: this should be a macro
-@inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = @inbounds if i < 0 conj(f[-i]) else f[i+1] end
+@everywhere @inline @inbounds get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = @inbounds if i < 0 conj(f[-i]) else f[i+1] end
 
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
