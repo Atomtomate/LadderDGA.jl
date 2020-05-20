@@ -25,7 +25,7 @@ function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
     χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
     println("found χ_min = ", -χ_min, ", 1/χ_min = ", -1/χ_min)
     #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
-    r = find_zeros(f, χ_min-2.8/length(qMult), χ_min+2.8/length(qMult))
+    r = find_zeros(f, χ_min-1.0, χ_min + 1.0)
     #println("possible roots: ", r)
     println("possible roots: ", r)
     #println("possible roots: ", Optim.minimizer(r))
