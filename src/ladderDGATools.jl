@@ -86,29 +86,20 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
     Nω = simParams.n_iω
     Nν = simParams.n_iν
     Nq = size(bubble, 3)
-    #γres = zeros(Complex{Float64}, 2*Nω+1, 2*Nν, Nq)
-    #χ = zeros(Complex{Float64},2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
-    #Shared#
     γres = SharedArray{eltype(bubble)}(2*Nω+1, 2*Nν, Nq)
     χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
     if simParams.tail_corrected
-        #= r = floor(Int64, Nν*1/4) =#
-        #= ωmin = Int(Nν-r) =#
-        #= ωmax = Int(Nν+r) =#
         ωmin = Int(floor((Nν/2)*3/4))
         ωmax = Int(floor(Nν/2))
         W = build_weights(ωmin, ωmax, [0,1,2,3])
     end
-
-    #bak = Array{eltype(Γ)}(undef, 2*Nω + 1, Nq, size(Γ,2), size(Γ,3))
     for qi in 1:Nq
         for (ωi,ωₙ) in enumerate((-Nω):Nω)
             tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
             χ_tmp = copy(Γ[ωi, :, :])
             for νi in 1:size(Γ,2)
                 @inbounds χ_tmp[νi, νi] += 1.0 / bubble[ωi, νi, qi] 
-                #println(ωₙ, " ", νi, " ", χ_tmp[νi, νi], " = ", Γ[ωi, νi, νi], " + 1/",  bubble[ωi, νi, qi])
             end
             χ_tmp = inv(χ_tmp)
 

@@ -113,8 +113,7 @@
     _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
     kList            = collect(kGrid)
     qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
-    qMultiplicity    = kGrid_multiplicity(qIndices)
-    qNorm            = (simParams.Nq-1)^(modelParams.D)
+    qNorm            = 8*(simParams.Nq-1)^(modelParams.D)
 
     #TODO: remove ~5s overhead (precompile)
     println("Calculating bubble: ")
