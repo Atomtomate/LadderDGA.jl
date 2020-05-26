@@ -18,6 +18,11 @@ struct SimulationParameters
     kInt::String            # Type of k=space integration: naive summation or FFT
 end
 
+struct FreqGrid
+    ω::Array{Float64,1}
+    ν::Array{Float64,1}
+end
+
 struct EnvironmentVars
     loadFortran::String
     writeFortran::Bool

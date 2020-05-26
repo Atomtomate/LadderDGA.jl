@@ -163,17 +163,12 @@ end
 function approx_full_sum(f, dims; fast=true)
     N = floor(Int64, size(f,dims[1])/2)
     if N < 5
-        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.")
-        println(size(f))
-        println(find_usable_interval(real(f)))
+        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
+                " Falling back to naive sum.")
         return sum(f, dims=dims)
     end
     ωmin = Int(floor(N*3/4))
     ωmax = N 
-    #= r = floor(Int64, N*1/4) =#
-    #= ωmin = Int(N-r) =#
-    #= ωmax = Int(N+r) =#
-    #println("dbg: ωmin/max: ", ωmin, " : ", ωmax, ". arr size: ", size(f), ". dims = ", dims)
     W = build_weights(ωmin, ωmax, [0,1,2,3])
     approx_full_sum(f, W, dims, fast=fast)
 end
@@ -185,18 +180,23 @@ end
     and the dimensions over which to fit.
 """
 function approx_full_sum(f, W, dims; fast=true)
-    if fast
-        if !all(dims .== 1:ndims(f))
-            throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
-        end
-        f_νmax = build_fνmax_fast(f, W)
+    N = floor(Int64, size(f,dims[1])/2)
+    if N < size(W,1)
+        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
+                " Falling back to naive sum.")
+        sum_approx = sum(f, dims=dims)
     else
-        f_νmax = build_fνmax(f, W, dims)
+        if fast
+            if !all(dims .== 1:ndims(f))
+                throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
+            end
+            f_νmax = build_fνmax_fast(f, W)
+        else
+            f_νmax = build_fνmax(f, W, dims)
+        end
+        tail_c = fit_νsum(W, f_νmax)
+        sum_approx = tail_c#tail_c[ax...]
     end
-    tail_c = fit_νsum(W, f_νmax)
-    #ax = collect(collect.(axes(tail_c)))
-    #ax[end] = [1]
-    sum_approx = tail_c#tail_c[ax...]
     return sum_approx
 end
 
@@ -221,4 +221,14 @@ function find_inner_maximum(arr)
         index_maximum = index_maximum + 1
     end
     return index_maximum
+end
+
+#TODO: this is about 2 times slower than sum, why?
+function sum_freq(arr, dims::Array{Int64, 1}, simParams::SimulationParameters, modelParams::ModelParameters)
+    if simParams.tail_corrected
+        res = mapslices(x -> approx_full_sum(x, 1:length(dims), fast=true), arr, dims=dims)
+    else
+        res = sum(arr, dims=dims)
+    end
+    return res/(modelParams.β^length(dims))
 end

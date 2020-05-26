@@ -6,26 +6,25 @@ dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχ
 dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 
+function custom_newton(x0; steps=1000)
+end
 
-#TODO: compute start point according to fortran code
-function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
-    qNorm      = sum(qMult)*modelParams.β
-    deltino = 0.0
+function calc_λ_correction(χ, χloc, qMult,  simParams, modelParams)
+    #qNorm      = sum(qMult)*modelParams.β
+    qNorm       = sum(qMult)*modelParams.β
     χ_new(λ)  = 1.0  ./ (1 ./ χ .+ λ)
-    χr = real.(χ[usable,:])
+    χr = real.(χ)
     χlocr = real(χloc)
     f(λint)  = sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr
     af(λint)  = abs(sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr)
     df(λint)  = sum([sum(-((1 ./ χr[i,:]) .+ λint).^(-2) .* qMult) for i in 1:size(χr,1)])/qNorm
     ddf(λint)  = sum([sum(2 .* ((1 ./ χr[i,:]) .+ λint).^(-3) .* qMult) for i in 1:size(χr,1)])/qNorm
     nh  =ceil(Int64, size(χr,1)/2)
-    if length(usable) < 1
-        println(stderr, "  ---> WARNING: ω=0 not in usable range!")
-    end
     χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
-    println("found χ_min = ", -χ_min, ", 1/χ_min = ", -1/χ_min)
+    interval = [χ_min-1.0/length(qMult), χ_min + 1.0/length(qMult)]
+    println("found χ_min = ", χ_min, ". Looking for roots in intervall [", interval[1], ", ", interval[2], "]")
     #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
-    r = find_zeros(f, χ_min-1.0/length(qMult), χ_min + 1.0)
+    r = find_zeros(f, interval[1], interval[2])
     #println("possible roots: ", r)
     println("possible roots: ", r)
     #println("possible roots: ", Optim.minimizer(r))
@@ -33,7 +32,7 @@ function calc_λ_correction(χ, χloc, qMult, usable, modelParams)
        println(stderr, "   ---> WARNING: no lambda roots found!!!")
        return 0, χ_new(0)
     else
-        λ = r[end]#r[findin(abs.(r .- (χ_min + deltino)))[2]]
+        λ = r[end]
         return λ, χ_new(λ)
     end
 end
@@ -79,6 +78,5 @@ function find_λ(G0, χch, χsp, γch, γsp,
         res_ch = res/β
     end
     #J = gradient(construct_f!, [0.0, 0.0])
-    println(construct_f(init))
     optimize(construct_f, init) #, Newton(); autodiff = :forward
 end

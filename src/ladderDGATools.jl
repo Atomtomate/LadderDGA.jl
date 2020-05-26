@@ -7,39 +7,6 @@
 @everywhere @inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
                     ((π/β)*(2*n + 1)*1im + μ - Σ)
 
-function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid, 
-                              modelParams::ModelParameters, simParams::SimulationParameters)
-    #TODO: this is slower, than having this as a parameter. Check again after conversion to module
-    #
-    Nq   = size(collect(qGrid),1)
-    _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
-    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
-    ϵkIntList   = squareLattice_ekGrid(kIntGrid, tsc)
-    ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid, tsc)
-    res = zeros(Complex{Float64}, Nq, simParams.n_iν, 2*simParams.n_iω+1)
-    @simd for qi in 1:Nq
-        @simd for νₙ in 0:simParams.n_iν-1
-            Σν = get_symm_f(Σ,νₙ)
-            for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
-                Σων = get_symm_f(Σ,νₙ + ωₙ)
-                #res[qi,  νₙ+1, ωi] = 0.0 #[ωi, νₙ+1, qi] = 0.0
-                @simd for ki in 1:length(ϵkIntList)
-                    @inbounds ϵₖ₂ = ϵkqIntList[ki, qi]
-                    Gν = GF_from_Σ(νₙ, modelParams.β, modelParams.μ, ϵkIntList[ki], Σν) 
-                    Gνω = GF_from_Σ(νₙ + ωₙ, modelParams.β, modelParams.μ, ϵₖ₂, Σων)
-                    @inbounds res[qi,  νₙ+1, ωi] -= Gν*Gνω
-                end
-            end
-        end
-    end
-    #res = sdata(res)
-    res = (2^modelParams.D) * modelParams.β .* res ./ ((2*simParams.Nint)^modelParams.D)
-    res = permutedims(res, [3,2,1])
-    res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
-    #res = convert(Array{Complex{Float64}}, res)
-    return res
-end
-
 function calc_bubble_fft_internal(ind::Int64, Σ::Array{Complex{Float64},1}, 
                                   ϵkIntGrid::Array{Float64}, β::Float64, μ::Float64, 
                                   phasematrix::Array{Complex{Float64}})
@@ -48,6 +15,7 @@ function calc_bubble_fft_internal(ind::Int64, Σ::Array{Complex{Float64},1},
     return fft!(Gν) .* phasematrix
 end
 
+#TODO: get rid of kInt, remember symmetry G(k')G(k'+q) so 2*LQ-2 = kInt
 function calc_bubble_fft(Σ::Array{Complex{Float64},1}, 
                               modelParams::ModelParameters, simParams::SimulationParameters)
     tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
@@ -59,7 +27,7 @@ function calc_bubble_fft(Σ::Array{Complex{Float64},1},
 
     res = Array{Complex{Float64}}(undef, 2*simParams.n_iω+1, simParams.n_iν, length(qGrid))
     bw_plan = plan_ifft(ϵkIntGrid,[1,2,3])
-    for νₙ in 0:simParams.n_iν-1
+    @sync @distributed for νₙ in 0:simParams.n_iν-1
         Gν = calc_bubble_fft_internal(νₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
         for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
             Gνω = calc_bubble_fft_internal(νₙ + ωₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
@@ -72,19 +40,33 @@ function calc_bubble_fft(Σ::Array{Complex{Float64},1},
     return res
 end
 
+function calc_χ_2(Γ::Array{T,3}, bubble::Array{T,3},
+                              modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1) where T
+    Nω = floor(Int64,size(bubble, 1)/2)
+    Nν = floor(Int64,size(bubble, 2)/2)
+    Nq = size(bubble, 3)
+    χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
+    β = (modelParams.β)
+    for (ωi,ωₙ) in enumerate((-Nω):Nω)
+        Γ[ωi,:,:]
+        for qi in 1:Nq
+            #χ = χ₀ - 1/β² χ₀ Γ χ
+        end
+    end
+end
 
-#function χ_γ_helper()
-#end
 
 """
-    Solve χ = χ₀ - 1/β² χ₀ Γ χ
+Solve χ = χ₀ - 1/β² χ₀ Γ χ
+    ⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
+    ⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
     with indices: χ[ω, q] = χ₀[]
     TODO: use 4.123 with B.6+B.7 instead of inversion
 """
 function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
                               modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1) where T
-    Nω = simParams.n_iω
-    Nν = simParams.n_iν
+    Nω = floor(Int64,size(bubble, 1)/2)
+    Nν = floor(Int64,size(bubble, 2)/2)
     Nq = size(bubble, 3)
     γres = SharedArray{eltype(bubble)}(2*Nω+1, 2*Nν, Nq)
     χ = SharedArray{eltype(bubble)}(2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
@@ -94,25 +76,18 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
         ωmax = Int(floor(Nν/2))
         W = build_weights(ωmin, ωmax, [0,1,2,3])
     end
-    for qi in 1:Nq
+    @sync @distributed for qi in 1:Nq
         for (ωi,ωₙ) in enumerate((-Nω):Nω)
-            tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
             χ_tmp = copy(Γ[ωi, :, :])
+            tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
             for νi in 1:size(Γ,2)
                 @inbounds χ_tmp[νi, νi] += 1.0 / bubble[ωi, νi, qi] 
             end
             χ_tmp = inv(χ_tmp)
 
             #TODO: HUGE bottleneck here. this needs to be optimized
-            if simParams.tail_corrected
-                @inbounds χ[ωi, qi] = approx_full_sum(χ_tmp, W, [1,2], fast=true)/(modelParams.β^2)
-                for νi in 1:length(tmpSum)
-                    @inbounds tmpSum[νi] = approx_full_sum(χ_tmp[νi,:], W, [1], fast=true)/(modelParams.β)
-                end
-            else
-                @inbounds χ[ωi, qi] = sum(χ_tmp)/(modelParams.β^2) 
-                tmpSum = sum(χ_tmp, dims=[2])/(modelParams.β)
-            end
+            @inbounds χ[ωi, qi] = sum_freq(χ_tmp, [1,2], simParams, modelParams)[1,1]
+            @inbounds tmpSum = sum_freq(χ_tmp, [2], simParams, modelParams)[:,1]
             for νi in 1:size(tmpSum,1) #enumerate((-Nν):(Nν-1))
                 @inbounds γres[ωi, νi, qi] = tmpSum[νi] ./ 
                        (bubble[ωi, νi, qi]  * (1.0 - Usign*modelParams.U * χ[ωi, qi]))
@@ -232,7 +207,6 @@ function calc_DΓA_Σ_impr(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex
     #println(Σ_ladder_2)
     return Σ_ladder_1, Σ_ladder_2, tmp_νp[cut:(end-cut)]
 end
-
 
 
 function calc_DΓA_Σ_noise(χch::Array{Complex{Float64}, 2}, χsp::Array{Complex{Float64}, 2},
