@@ -21,10 +21,10 @@ function calc_λ_correction(χ, χloc, qMult,  simParams, modelParams)
     ddf(λint)  = sum([sum(2 .* ((1 ./ χr[i,:]) .+ λint).^(-3) .* qMult) for i in 1:size(χr,1)])/qNorm
     nh  =ceil(Int64, size(χr,1)/2)
     χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
-    interval = [χ_min-1.0/length(qMult), χ_min + 1.0/length(qMult)]
+    interval = [χ_min-1.0/length(qMult), χ_min + 1.0]
     println("found χ_min = ", χ_min, ". Looking for roots in intervall [", interval[1], ", ", interval[2], "]")
     #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
-    r = find_zeros(f, interval[1], interval[2])
+    r = find_zeros(f, interval[1], interval[2], order=0)
     #println("possible roots: ", r)
     println("possible roots: ", r)
     #println("possible roots: ", Optim.minimizer(r))

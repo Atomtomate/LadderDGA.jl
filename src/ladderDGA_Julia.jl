@@ -1,21 +1,15 @@
     using Printf 
 
-    const PARALLEL = false
     using Distributed
     using SharedArrays
     #TODO: move to JLD2
     using JLD
     using LinearAlgebra
     using GenericLinearAlgebra
-    using Optim
     using TOML
     using Printf
     using ForwardDiff
-    #using ParquetFiles
-    #using DataFrames
     using Query
-    #using NLsolve
-    #using DelimitedFiles
     using Roots
     using FFTW
     include("$(@__DIR__)/Config.jl")
@@ -27,22 +21,7 @@
     include("$(@__DIR__)/dbg_ladderDGATools.jl")
     include("$(@__DIR__)/GFFit.jl")
     include("$(@__DIR__)/lambdaCorrection.jl")
-    #include("$(@__DIR__)/../test/old_ladderDGATools.jl")
 
-    #if PARALLEL
-    #end
-    @everywhere using Distributed
-    @everywhere using SharedArrays
-    @everywhere using LinearAlgebra
-    @everywhere using GenericLinearAlgebra
-    @everywhere using FFTW
-    @everywhere include("$(@__DIR__)/Config.jl")
-    @everywhere include("$(@__DIR__)/helpers.jl")
-    @everywhere include("$(@__DIR__)/GFTools.jl")
-    @everywhere include("$(@__DIR__)/ladderDGATools.jl")
-    @everywhere include("$(@__DIR__)/GFFit.jl")
-    @everywhere include("$(@__DIR__)/lambdaCorrection.jl")
-    #@everywhere include("$(@__DIR__)/../test/old_ladderDGATools.jl")
     export calculate_Σ_ladder
 
     #TODO: auto load fortran, if dimensions do not match
@@ -55,7 +34,6 @@
     const loadFromBak = false
 
 #function calculate_Σ_ladder(configFile)
-
     print("Reading Inputs...")
     modelParams, simParams, env = readConfig(configFile)#
     if env.loadFortran == "text"
@@ -93,12 +71,12 @@
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
 
-    #TODO: use fit for sum here
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams, modelParams)[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams, modelParams)[:,1,1]
     usable_loc_sp = find_usable_interval(real(χLocsp_ω))
-    usable_loc_ch = find_usable_interval(real(χLocch_ω))
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams, modelParams)[1]
+
+    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams, modelParams)[:,1,1]
+    usable_loc_ch = find_usable_interval(real(χLocch_ω))
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams, modelParams)[1]
     println("\rInputs Read. Starting Computation.
           Found usable intervals for local susceptibility of length 
@@ -107,8 +85,6 @@
           χLoc_sp = $(χLocsp), χLoc_ch = $(χLocch)")
 
     println("Setting up and calculating local quantitites: ")
-    _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
-    kList            = collect(kGrid)
     qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
     qMultiplicity    = kGrid_multiplicity(qIndices)
     qNorm            = 8*(simParams.Nq-1)^(modelParams.D)
@@ -129,6 +105,7 @@
         
     χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
     χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
+
     if simParams.tail_corrected
         χch_sum = approx_full_sum(χch_ω[usable_loc_ch], [1])[1]/(modelParams.β)
         rhs = 0.25 - χch_sum
@@ -147,8 +124,8 @@
     if !simParams.chi_only
         println("Calculating Σ ladder: ")
         @time Σ_ladder = calc_DΓA_Σ(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
-                                      qMultiplicity, qGrid, kGrid, modelParams, simParams)
-        save("Sigma", Σ_ladder, "kGrid", kGrid,
+                                      qMultiplicity, qGrid, modelParams, simParams)
+        save("Sigma", Σ_ladder, 
               compress=true, compatible=true)
     end
     save("chi.jld", "chi_ch", χch, "chi_sp", χsp, 

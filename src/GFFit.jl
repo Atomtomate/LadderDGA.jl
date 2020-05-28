@@ -155,23 +155,12 @@ function build_fνmax_fast(f, W)
             f_νmax[i] = f_νmax[i-1] + sum(f[lo, lo:up]) + sum(f[up, lo:up]) + 
                         sum(f[(lo+1):(up-1),lo]) + sum(f[(lo+1):(up-1),up]) 
         end
+    else
+        error("Frequency fit only implemented for 1 and 2 dimensions.")
     end
     return f_νmax
 end
 
-
-function approx_full_sum(f, dims; fast=true)
-    N = floor(Int64, size(f,dims[1])/2)
-    if N < 5
-        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
-                " Falling back to naive sum.")
-        return sum(f, dims=dims)
-    end
-    ωmin = Int(floor(N*3/4))
-    ωmax = N 
-    W = build_weights(ωmin, ωmax, [0,1,2,3])
-    approx_full_sum(f, W, dims, fast=fast)
-end
 
 """
     Computes an approximation for the infinite sum over f, by fitting to
@@ -179,8 +168,14 @@ end
     arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
     and the dimensions over which to fit.
 """
-function approx_full_sum(f, W, dims; fast=true)
+function approx_full_sum(f, dims; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
     N = floor(Int64, size(f,dims[1])/2)
+    if W === nothing
+        ωmin = Int(floor(N*3/4))
+        ωmax = N 
+        W = build_weights(ωmin, ωmax, [0,1,2,3])
+    end
+
     if N < size(W,1)
         println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
                 " Falling back to naive sum.")
@@ -224,9 +219,9 @@ function find_inner_maximum(arr)
 end
 
 #TODO: this is about 2 times slower than sum, why?
-function sum_freq(arr, dims::Array{Int64, 1}, simParams::SimulationParameters, modelParams::ModelParameters)
+function sum_freq(arr, dims, simParams::SimulationParameters, modelParams::ModelParameters; weights::Union{Nothing, Array{Float64,2}}=nothing)
     if simParams.tail_corrected
-        res = mapslices(x -> approx_full_sum(x, 1:length(dims), fast=true), arr, dims=dims)
+        res = mapslices(x -> approx_full_sum(x, 1:length(dims), W=weights, fast=true), arr, dims=dims)
     else
         res = sum(arr, dims=dims)
     end
