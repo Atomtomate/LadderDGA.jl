@@ -52,7 +52,7 @@ function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64}
 end
 
 function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)  
-    FUpDo = zeros(Complex{Float64}, length(ωGrid), length(νGrid1), length(νGrid2))
+    FUpDo = zeros(eltype(χdo), length(ωGrid), length(νGrid1), length(νGrid2))
     for (ωi, ωₙ) in enumerate(ωGrid)
         for (νi, νₙ) in enumerate(νGrid1)
             for (νj, νpₙ) in enumerate(νGrid2)

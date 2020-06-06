@@ -9,11 +9,11 @@ dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* 
 function custom_newton(x0; steps=1000)
 end
 
-function calc_λ_correction(χ, χloc, qMult,  simParams, modelParams)
+function calc_λ_correction(χ, usable_range, χloc, qMult,  simParams, modelParams)
     #qNorm      = sum(qMult)*modelParams.β
     qNorm       = sum(qMult)*modelParams.β
     χ_new(λ)  = 1.0  ./ (1 ./ χ .+ λ)
-    χr = real.(χ)
+    χr = real.(χ[usable_range, :])
     χlocr = real(χloc)
     f(λint)  = sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr
     af(λint)  = abs(sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr)
@@ -63,6 +63,9 @@ function find_λ(G0, χch, χsp, γch, γsp,
 		res = abs2(sum(χch_λ + χsp_λ)/(2*modelParams.β) - (1-modelParams.n/2)*(modelParams.n/2))
 		tmp = mapslices(x -> 1 ./ G0[1:size(Σ_λ,2)].- x, Σ_λ; dims=[2])
 		res += abs2(sum(χch_λ .- χsp_λ) ./ (2*modelParams.β) .- sum(Σ_λ ./ (tmp)))
+        #Kriterien: χsp/ch(ω=0) > 0, TODO: checken
+        #U>0 => λsp > 0, λch < 0
+        #U<0 => λsp < 0, λch > 0
 		return res
 	end
 

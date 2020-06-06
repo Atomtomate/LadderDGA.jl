@@ -3,20 +3,19 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 25.0
+beta = 9.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 11
-nBoseFreq = 10
+nFermFreq = 10
+nBoseFreq = 9
 shift     = 0       # shift of center of bosonic frequency range
-Nk        = 10     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
-NkInt     = 50     # TODO: implement
-Nq        = 26      # TODO: adaptiv mesh
-tail_corrected = true
-chi_only = true          # Should only chis_omega and chich_omega be calculated?
+Nk        = 2     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+tail_corrected = false
+chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"        # naive or FFT, GL not implemented
+rhs  = ""   # possible modes: native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
 
 [Environment]
 loadFortran = "text"    # julia, text, parquet, TODO: implement hdf5
@@ -27,6 +26,7 @@ inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt_sums.jld"
 force_full_bosonic_sum = false  # instead of finding a usable intervall, use all bosonic frequencies
+cast_to_real = false             # cast all arrays with vanishing imaginary part to real
 
 [legacy]
 lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?

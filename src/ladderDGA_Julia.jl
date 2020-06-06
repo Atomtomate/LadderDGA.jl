@@ -64,20 +64,27 @@
         χspAsympt = asympt_vars["chi_sp_asympt"]
     end
     #TODO: unify checks
-    if !(simParams.Nq*2-2 == simParams.Nint)
-        println(stderr, "WARNING: for FFT, q and integration grids must be related in size!! 2*Nq-2 == Nint")
+    if !(simParams.Nk % 2 == 0)
+        println(stderr, "WARNING: for FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
     end
+    Nq = Int(simParams.Nk/2) + 1
 
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
+    if env.cast_to_real
+        println(stderr, "cast_to_real not fully implemented yet")
+        χDMFTch = real(χDMFTch)
+        χDMFTsp = real(χDMFTsp)
+    end
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams, modelParams)[:,1,1]
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
     usable_loc_sp = find_usable_interval(real(χLocsp_ω))
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams, modelParams)[1]
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tail_corrected, modelParams.β)[1]
 
-    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams, modelParams)[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
     usable_loc_ch = find_usable_interval(real(χLocch_ω))
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams, modelParams)[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tail_corrected, modelParams.β)[1]
+
     println("\rInputs Read. Starting Computation.
           Found usable intervals for local susceptibility of length 
           sp: $(length(usable_loc_sp))
@@ -85,9 +92,9 @@
           χLoc_sp = $(χLocsp), χLoc_ch = $(χLocch)")
 
     println("Setting up and calculating local quantitites: ")
-    qIndices, qGrid  = reduce_kGrid.(gen_kGrid(simParams.Nq, modelParams.D; min = 0, max = π, include_min = true))
+    qIndices, qGrid  = reduce_kGrid.(gen_kGrid(Nq, modelParams.D; min = 0, max = π, include_min = true))
     qMultiplicity    = kGrid_multiplicity(qIndices)
-    qNorm            = 8*(simParams.Nq-1)^(modelParams.D)
+    qNorm            = 8*(Nq-1)^(modelParams.D)
 
     println("Calculating bubble: ")
     if simParams.kInt == "FFT"
@@ -96,20 +103,23 @@
         @time bubble = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
     end
 
-    println("Calculating χ and γ in the spin channel: ")
-    @time χsp, trilexsp = 
-        calc_χ_trilex(Γsp, bubble, modelParams, simParams, Usign=(-1))
-    println("Calculating χ and γ in the charge channel: ")
-    @time χch, trilexch = 
-        calc_χ_trilex(Γch, bubble, modelParams, simParams, Usign=(+1))
+    println("Calculating χ and γ: ")
+    @time χsp, χch, trilexsp, trilexch = calc_χ_trilex(Γsp, Γch, bubble, modelParams, simParams)
         
     χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
     χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
+    usable_sp = find_usable_interval(real(χsp_ω))
+    usable_ch = find_usable_interval(real(χch_ω))
+
+    println("Found usable intervals for non-local susceptibility of length 
+          sp: $(length(usable_sp))
+          ch: $(length(usable_ch))")
 
     if simParams.tail_corrected
-        χch_sum = approx_full_sum(χch_ω[usable_loc_ch], [1])[1]/(modelParams.β)
-        rhs = 0.25 - χch_sum
-        println("Using rhs for tail corrected lambda correction: ", rhs, " = 0.25 - ", real(χch_sum))
+        χch_sum = approx_full_sum(χch_ω[usable_ch], [1])[1]/(modelParams.β)
+        #rhs = χLocsp + χLocch - χch_sum
+        rhs = 0.5 - real(χch_sum)
+        println("Using rhs for tail corrected lambda correction: ", rhs, " = 0.5 - ", real(χch_sum))
     else
         χsp_sum = sum(χsp_ω[usable_loc_sp])/(modelParams.β)
         χch_sum = sum(χch_ω[usable_loc_ch])/(modelParams.β)
@@ -118,7 +128,7 @@
     end
 
     println("Calculating λ correction in the spin channel: ")
-    @time λsp, χsp_λ = calc_λ_correction(χsp[usable_loc_sp,:], rhs, qMultiplicity, simParams, modelParams)
+    @time λsp, χsp_λ = calc_λ_correction(χsp, usable_sp, rhs, qMultiplicity, simParams, modelParams)
     println("Found λsp = ", λsp)
 
     if !simParams.chi_only

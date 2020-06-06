@@ -11,13 +11,16 @@ julia> gen_kGrid(2, 2; min = 0, max = 2π, include_min = false)
 Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}(([3.141592653589793, 6.283185307179586], [3.141592653589793, 6.283185307179586]))
 ```
 """
-function gen_kGrid(Nk::Int64, D::Int64; min = 0, max = π, include_min=true)
+function gen_kGrid(Nk::Int64, D::Int64; min=-π, max = π, include_min=false)
     kx::Array{Float64} = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)]
     indArr = Base.product([1:(Nk) for Di in 1:D]...)
     kGrid  = Base.product([kx for Di in 1:D]...)
     return indArr, kGrid
 end
 
+#TODO: Rotation fertig
+#      Mirror Symmetry
+#TODO: find symmetries
 """
     reduce_kGrid(kGrid) 
 
@@ -113,18 +116,19 @@ function gen_squareLattice_ekq_grid(kList::Array, qList::Array, tsc)
 end
 
 #TODO: generalize to 3D, better abstraction
-function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1})
+function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1}, D::Int64)
     res = zeros(length(kList),length(qList), 8) # There are 8 additional 
+    tsc =  D == 3 ? 0.40824829046386301636 : 0.5
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi,1] = 0.5*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,2] = 0.5*(cos(k[1] + q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,3] = 0.5*(cos(k[1] - q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,4] = 0.5*(cos(k[1] - q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,5] = 0.5*(cos(k[1] + q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,6] = 0.5*(cos(k[1] + q[2]) + cos(k[2] - q[1]))
-            @inbounds res[ki,qi,7] = 0.5*(cos(k[1] - q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,8] = 0.5*(cos(k[1] - q[2]) + cos(k[2] - q[1]))
+            @inbounds res[ki,qi,1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
+            @inbounds res[ki,qi,2] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]))
+            @inbounds res[ki,qi,3] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]))
+            @inbounds res[ki,qi,4] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]))
+            @inbounds res[ki,qi,5] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]))
+            @inbounds res[ki,qi,6] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]))
+            @inbounds res[ki,qi,7] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]))
+            @inbounds res[ki,qi,8] = tsc*(cos(k[1] - q[2]) + cos(k[2] - q[1]))
         end
     end
     return res

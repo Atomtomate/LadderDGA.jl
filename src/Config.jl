@@ -11,8 +11,6 @@ struct SimulationParameters
     n_iω::Int64             # number of bosonic frequencies
     shift::Int64            # shift of center for intervall of bosonic frequencies
     Nk::Int64               # Number of k-space integration steps
-    Nint::Int64
-    Nq::Int64               # Number of k-space integration steps for Q grid
     tail_corrected::Bool    # use correction for finite ν and ω sums.
     chi_only::Bool    # skip computation of self energy
     kInt::String            # Type of k=space integration: naive summation or FFT
@@ -30,5 +28,6 @@ struct EnvironmentVars
     inputDir::String
     inputVars::String
     asymptVars::String
+    cast_to_real::Bool
 end
 # TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp

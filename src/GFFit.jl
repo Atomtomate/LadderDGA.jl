@@ -170,17 +170,17 @@ end
 """
 function approx_full_sum(f, dims; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
     N = floor(Int64, size(f,dims[1])/2)
-    if W === nothing
-        ωmin = Int(floor(N*3/4))
-        ωmax = N 
-        W = build_weights(ωmin, ωmax, [0,1,2,3])
-    end
 
     if N < size(W,1)
         println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
                 " Falling back to naive sum.")
         sum_approx = sum(f, dims=dims)
     else
+        if W === nothing
+            ωmin = Int(floor(N*3/4))
+            ωmax = N 
+            W = build_weights(ωmin, ωmax, [0,1,2,3])
+        end
         if fast
             if !all(dims .== 1:ndims(f))
                 throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
@@ -219,11 +219,11 @@ function find_inner_maximum(arr)
 end
 
 #TODO: this is about 2 times slower than sum, why?
-function sum_freq(arr, dims, simParams::SimulationParameters, modelParams::ModelParameters; weights::Union{Nothing, Array{Float64,2}}=nothing)
-    if simParams.tail_corrected
+function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; weights::Union{Nothing, Array{Float64,2}}=nothing)
+    if tail_corrected
         res = mapslices(x -> approx_full_sum(x, 1:length(dims), W=weights, fast=true), arr, dims=dims)
     else
         res = sum(arr, dims=dims)
     end
-    return res/(modelParams.β^length(dims))
+    return res/(β^length(dims))
 end

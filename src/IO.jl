@@ -16,8 +16,6 @@ function readConfig(file)
                                tml["Simulation"]["nBoseFreq"],
                                tml["Simulation"]["shift"],
                                tml["Simulation"]["Nk"],
-                               tml["Simulation"]["NkInt"],
-                               tml["Simulation"]["Nq"],
                                tml["Simulation"]["tail_corrected"],
                                tml["Simulation"]["chi_only"],
                                tml["Simulation"]["kInt"])
@@ -26,7 +24,8 @@ function readConfig(file)
                              tml["Environment"]["loadAsymptotics"],
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
-                             tml["Environment"]["asymptVars"]
+                             tml["Environment"]["asymptVars"],
+                             tml["Environment"]["cast_to_real"]
                             )
     return (model, sim, env)
 end
