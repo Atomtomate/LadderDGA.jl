@@ -7,7 +7,7 @@
 @everywhere @inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
                     ((π/β)*(2*n + 1)*1im + μ - Σ)
 
-function calc_bubble_fft_internal(ind::Int64, Σ::Array{Complex{Float64},1}, 
+@inline @inbounds function calc_bubble_fft_internal(ind::Int64, Σ::Array{Complex{Float64},1}, 
                                   ϵkIntGrid::Array{Float64}, β::Float64, μ::Float64, 
                                   phasematrix::Array{Complex{Float64}})
     Σν = get_symm_f(Σ,ind)
@@ -30,25 +30,20 @@ function calc_bubble_fft(Σ::Array{Complex{Float64},1},
     res = Array{Complex{Float64}}(undef,simParams.n_iν, 2*simParams.n_iω+1, length(qGrid))
     bw_plan = plan_ifft(ϵkIntGrid)
 
-    for νₙ in 0:simParams.n_iν-1
+    @inbounds for νₙ in 0:simParams.n_iν-1
         Gν = calc_bubble_fft_internal(νₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
         for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
             Gνω = calc_bubble_fft_internal(νₙ + ωₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
             tmp = reshape(bw_plan * (Gν  .* Gνω), (repeat([simParams.Nk], modelParams.D)...))
-            res[νₙ+1, ωi, :] = reduce_kGrid(tmp)[1:length(qGrid)]
+            @inbounds res[νₙ+1, ωi, :] = reduce_kGrid(tmp)[1:length(qGrid)]
         end
     end
-    res = -modelParams.β .* res ./ (simParams.Nk^modelParams.D)
-    res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=1)
+    @inbounds res = -modelParams.β .* res ./ (simParams.Nk^modelParams.D)
+    @inbounds res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=1)
     res = permutedims(res, [2,3,1])
     return res
 end
 
-
-function calc_χ_internal(ind::Int64, Σ::Array{Complex{Float64},1}, 
-                                  ϵkIntGrid::Array{Float64}, β::Float64, μ::Float64, 
-                                  phasematrix::Array{Complex{Float64}})
-end
 
 """
 Solve χ = χ₀ - 1/β² χ₀ Γ χ
@@ -97,16 +92,34 @@ function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3},
     return χsp, χch, γsp, γch
 end
 
+function calc_DΓA_Σ_fft(χch, χsp, γch, γsp,
+                             bubble, Σ_loc, FUpDo, qMult, qGrid, 
+                             modelParams::ModelParameters, simParams::SimulationParameters)
+    Nω = size(bubble,1)
+    Nq = size(bubble,2)
+    Nν = size(bubble,3)
+    qNorm            = 8*(Nq-1)^(modelParams.D)
+    _, kGrid         = gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = 2π, include_min = true)
+    phasematrix = map(x -> exp(-2π*1im*(sum(x)-modelParams.D)*(1.0/simParams.Nk)), kIndices)
+    for (νi,νₙ) in enumerate(1:Nν)
+        for (ωi,ωₙ) in enumerate(-Nω:Nω)
+            Σνω  = get_symm_f(Σ_loc,ωₙ + νₙ)
+            Kνωq = (1.5 * γsp[ωi, νi+Nν, qi]*(1 + modelParams.U*χsp[ωi, qi]) -
+                   0.5 * γch[ωi, νi+Nν, qi]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5) +
+                  sum(bubble[ωi, qi, :] .* FUpDo[ωi, νi+Nν, :])
+            #TODO: construct full k+q grid
+        end
+    end
+end
 
 function calc_DΓA_Σ(χch, χsp, γch, γsp,
                              bubble, Σ_loc, FUpDo, qMult, qGrid, 
                              modelParams::ModelParameters, simParams::SimulationParameters)
     _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
-    qList = collect(qGrid)
+    qNorm            = 8*(Nq-1)^(modelParams.D)
     Nq = length(qList)
-    Nν = simParams.n_iν
-    kList = collect(kGrid)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, modelParams.D)
+    Nν = size(bubble,3)
+    #ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, modelParams.D)
 
     Σ_ladder = Array{eltype(χch)}(undef, length(kList), Nν)
     for (νi,νₙ) in enumerate(1:Nν)
@@ -114,10 +127,9 @@ function calc_DΓA_Σ(χch, χsp, γch, γsp,
             qiNorm = qMult[qi]/((2*(Nq-1))^2*8)#/(4.0*8.0)
             for (ωi,ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
                 Σν = get_symm_f(Σ_loc,ωₙ + νₙ)
-                tmp = (1.5 * γsp[ωi, νi+Nν, qi]*(1 + modelParams.U*χsp[ωi, qi])-
-                                                     0.5 * γch[ωi, νi+Nν, qi]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5)
-                for (νpi, νpₙ) in enumerate((-Nν):(Nν-1))
-                end
+                tmp = (1.5 * γsp[ωi, νi+Nν, qi]*(1 + modelParams.U*χsp[ωi, qi]) -
+                        0.5 * γch[ωi, νi+Nν, qi]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5) +
+                        sum(bubble[ωi, qi, :] .* FUpDo[ωi, νi+Nν, :])
                 for ki in 1:length(kList)
                     for perm in 1:size(ϵkqList,3)
                         Gν = GF_from_Σ(ωₙ + νₙ, modelParams.β, modelParams.μ, ϵkqList[ki,qi,perm], Σν) 

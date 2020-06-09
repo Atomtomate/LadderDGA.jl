@@ -133,3 +133,29 @@ function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1},
     end
     return res
 end
+
+function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Float64},1}, qList::Array{Tuple{Float64,Float64,Float64},1}, D::Int64)
+    res = zeros(length(kList),length(qList), 8) # There are 8 additional 
+    tsc =  D == 3 ? 0.40824829046386301636 : 0.5
+    for (ki,k) in enumerate(kList)
+        for (qi,q) in enumerate(qList)
+            @inbounds res[ki,qi, 1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi, 2] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi, 3] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi, 4] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi, 5] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi, 6] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi, 7] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi, 8] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi, 9] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi,10] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi,11] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi,12] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi,13] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi,14] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]) + cos(k[3] - q[3]))
+            @inbounds res[ki,qi,15] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
+            @inbounds res[ki,qi,16] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
+        end
+    end
+    return res
+end

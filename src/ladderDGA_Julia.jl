@@ -6,6 +6,7 @@
     using JLD
     using LinearAlgebra
     using GenericLinearAlgebra
+    using Combinatorics
     using TOML
     using Printf
     using ForwardDiff
