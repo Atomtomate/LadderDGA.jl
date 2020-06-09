@@ -3,15 +3,15 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 9.0
+beta = 25.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 10
-nBoseFreq = 9
+nFermFreq = 11
+nBoseFreq = 10
 shift     = 0       # shift of center of bosonic frequency range
-Nk        = 2     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+Nk        = 6     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"        # naive or FFT, GL not implemented

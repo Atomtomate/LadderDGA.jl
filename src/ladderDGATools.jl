@@ -106,9 +106,9 @@ function calc_DΓA_Σ(χch, χsp, γch, γsp,
     Nq = length(qList)
     Nν = simParams.n_iν
     kList = collect(kGrid)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, modelParamd.D)
+    ϵkqList = gen_squareLattice_full_ekq_grid(kList, qList, modelParams.D)
 
-    Σ_ladder = SharedArray{eltype(χch)}(length(kList), Nν)
+    Σ_ladder = Array{eltype(χch)}(undef, length(kList), Nν)
     for (νi,νₙ) in enumerate(1:Nν)
         for qi in 1:length(qList)
             qiNorm = qMult[qi]/((2*(Nq-1))^2*8)#/(4.0*8.0)
