@@ -47,6 +47,32 @@ function reduce_kGrid(kGrid)
     return grid_red
 end
 
+
+
+"""
+    expand_kGrid(reducedInd, reducedArr, Nk)
+
+Expands arbitrary Array on reduced k-Grid back to full grid.
+Results are shaped as 1D array.
+
+#Examples
+```
+    mapslices(x->expand_kGrid(qIndices, x, simParams.Nk),sdata(bubble), dims=[2])
+```
+"""
+function expand_kGrid(reducedInd, reducedArr::Array{T,1}, Nk::Int64) where T <: Number
+    D = length(reducedInd[1])
+    newArr = Array{eltype(reducedArr)}(undef, (Nk*ones(Int64, D))...)
+    for (ri,redInd) in enumerate(reducedInd)
+        perms = unique(collect(permutations(redInd)))
+        for p in perms
+            newArr[p...] = reducedArr[ri]
+        end
+    end
+    return newArr[1:end]
+end
+
+
 function kGrid_multiplicity(kIndices)
     min_ind = minimum(kIndices)
     max_ind = maximum(kIndices)
@@ -116,9 +142,9 @@ function gen_squareLattice_ekq_grid(kList::Array, qList::Array, tsc)
 end
 
 #TODO: generalize to 3D, better abstraction
-function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1}, D::Int64)
+function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1})
     res = zeros(length(kList),length(qList), 8) # There are 8 additional 
-    tsc =  D == 3 ? 0.40824829046386301636 : 0.5
+    tsc =  0.5
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
             @inbounds res[ki,qi,1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
@@ -134,27 +160,24 @@ function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1},
     return res
 end
 
-function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Float64},1}, qList::Array{Tuple{Float64,Float64,Float64},1}, D::Int64)
-    res = zeros(length(kList),length(qList), 8) # There are 8 additional 
-    tsc =  D == 3 ? 0.40824829046386301636 : 0.5
+function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Float64},1}, qList::Array{Tuple{Float64,Float64,Float64},1})
+    perm = permutations([1,2,3])
+    res = zeros(length(kList),length(qList), 8*length(perm)) # There are 8 additional 
+    tsc =  0.40824829046386301636
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi, 1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi, 2] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi, 3] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi, 4] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi, 5] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi, 6] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi, 7] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi, 8] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi, 9] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi,10] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi,11] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi,12] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi,13] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi,14] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]) + cos(k[3] - q[3]))
-            @inbounds res[ki,qi,15] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
-            @inbounds res[ki,qi,16] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]) + cos(k[3] + q[3]))
+            ind = 0
+            for p in perm
+                res[ki,qi,ind+1] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] + q[3]))
+                res[ki,qi,ind+2] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] - q[3]))
+                res[ki,qi,ind+3] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] + q[3]))
+                res[ki,qi,ind+4] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] - q[3]))
+                res[ki,qi,ind+5] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] + q[3]))
+                res[ki,qi,ind+6] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] - q[3]))
+                res[ki,qi,ind+7] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] + q[3]))
+                res[ki,qi,ind+8] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] - q[3]))
+                ind += 8
+            end
         end
     end
     return res

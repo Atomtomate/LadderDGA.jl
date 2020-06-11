@@ -129,18 +129,19 @@
     end
 
     println("Calculating λ correction in the spin channel: ")
-    @time λsp, χsp_λ = calc_λ_correction(χsp, usable_sp, rhs, qMultiplicity, simParams, modelParams)
-    println("Found λsp = ", λsp)
+    #@time λsp, χsp_λ = calc_λ_correction(χsp, usable_sp, rhs, qMultiplicity, simParams, modelParams)
+    #println("Found λsp = ", λsp)
 
     if !simParams.chi_only
         println("Calculating Σ ladder: ")
         @time Σ_ladder = calc_DΓA_Σ(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
                                       qMultiplicity, qGrid, modelParams, simParams)
-        save("Sigma", Σ_ladder, 
+        @time Σ_ladder2 = calc_DΓA_Σ_fft(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo, modelParams, simParams)
+        save("sigma.jld","Sigma", Σ_ladder, 
               compress=true, compatible=true)
     end
-    save("chi.jld", "chi_ch", χch, "chi_sp", χsp, 
-         "chi_sp_lambda", χsp_λ, compress=true, compatible=true)
+    #save("chi.jld", "chi_ch", χch, "chi_sp", χsp, 
+    #     "chi_sp_lambda", χsp_λ, compress=true, compatible=true)
     #= save("res.jld", "kGrid", collect(kGrid), "qGrid", collect(qGrid), "qMult", qMultiplicity, =#
     #=                 "bubble", bubble, =#
     #=                 "trilex_ch", trilexch, "trilex_sp", trilexsp, =#

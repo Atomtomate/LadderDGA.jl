@@ -8,10 +8,10 @@ nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 11
-nBoseFreq = 10
+nFermFreq = 3
+nBoseFreq = 2
 shift     = 0       # shift of center of bosonic frequency range
-Nk        = 4     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+Nk        = 2     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"        # naive or FFT, GL not implemented
@@ -21,6 +21,7 @@ rhs  = ""   # possible modes: native (fixed for tc, error_comp for naive), fixed
 loadFortran = "text"    # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
+#inputDir = "/home/julian/Hamburg/ladderDGA_3/ladderDGA_vsmall"
 inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
 #inputDir = "/home/julian/Hamburg/ED_Data/t_scan_U2_from_metal/b9.0_U2.0/data"
 inputVars = "vars.jld"
