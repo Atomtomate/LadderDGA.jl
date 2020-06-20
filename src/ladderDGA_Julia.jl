@@ -7,12 +7,13 @@
     using LinearAlgebra
     using GenericLinearAlgebra
     using Combinatorics
-    using TOML
+    using TOML          # used for input
     using Printf
     using ForwardDiff
     using Query
-    using Roots
-    using FFTW
+    using Roots         # used to find lambda
+    using PaddedViews   # used to pad fft arrays
+    using FFTW          # used for convolutions
     include("$(@__DIR__)/Config.jl")
     include("$(@__DIR__)/helpers.jl")
     include("$(@__DIR__)/IO.jl")
@@ -93,19 +94,23 @@
           χLoc_sp = $(χLocsp), χLoc_ch = $(χLocch)")
 
     println("Setting up and calculating local quantitites: ")
-    qIndices, qGrid  = reduce_kGrid.(gen_kGrid(Nq, modelParams.D; min = 0, max = π, include_min = true))
+    kIndices, kGrid = gen_kGrid(simParams.Nk, modelParams.D; min = -π, max = π) 
+    ϵkGrid          = squareLattice_ekGrid(kGrid)
+    println("cut and reduce for iterators")
+    qIndices, qGrid    = reduce_kGrid.(cut_mirror.(collect.((kIndices, kGrid))))
     qMultiplicity    = kGrid_multiplicity(qIndices)
     qNorm            = 8*(Nq-1)^(modelParams.D)
 
     println("Calculating bubble: ")
     if simParams.kInt == "FFT"
-        @time bubble = calc_bubble_fft(Σ_loc, modelParams, simParams);
+        @time bubble = calc_bubble_fft(Σ_loc, ϵkGrid, length(qGrid), modelParams, simParams);
     else
         @time bubble = calc_bubble(Σ_loc, qGrid, modelParams, simParams);
     end
 
     println("Calculating χ and γ: ")
     @time χsp, χch, trilexsp, trilexch = calc_χ_trilex(Γsp, Γch, bubble, modelParams, simParams)
+    @time χsp2, χch2, trilexsp2, trilexch2 = calc_χ_trilex(Γsp, Γch, bubble, modelParams, simParams)
         
     χsp_ω = [sum(χsp[i,:] .* qMultiplicity) for i in 1:size(χsp,1)] ./ (qNorm)
     χch_ω = [sum(χch[i,:] .* qMultiplicity) for i in 1:size(χch,1)] ./ (qNorm)
@@ -134,9 +139,15 @@
 
     if !simParams.chi_only
         println("Calculating Σ ladder: ")
-        @time Σ_ladder = calc_DΓA_Σ(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo,
-                                      qMultiplicity, qGrid, modelParams, simParams)
-        @time Σ_ladder2 = calc_DΓA_Σ_fft(χch, χsp, trilexch, trilexsp, bubble, Σ_loc, FUpDo, modelParams, simParams)
+        @time Σ_ladder, tmp1, tmp2 = calc_DΓA_Σ(χsp, χch, trilexsp, trilexch, bubble, Σ_loc, FUpDo,
+                                      qMultiplicity, qGrid, qIndices, modelParams, simParams)
+        @time Σ_ladder2, tmp1_2, tmp2_2 = calc_DΓA_Σ_fft(χsp, χch, trilexsp, trilexch, bubble, Σ_loc, FUpDo, 
+                                     qMultiplicity, qGrid,qIndices, modelParams, simParams)
+        #println("full input")
+        #@time Σ_ladder3, tmp1_3, tmp2_3 = calc_DΓA_Σ_fft(χsp2, χch2, trilexsp2, trilexch2, bubble2, Σ_loc, FUpDo, 
+         #                             qMultiplicity, qGrid,qIndices, modelParams, simParams, full_input=true)
+        #@time Σ_ladder2 = calc_DΓA_Σ_fft_2(χsp2, χch2, trilexsp2, trilexch2, bubble2, Σ_loc, FUpDo, 
+        #                              qMultiplicity, qGrid, modelParams, simParams, full_input=true)
         save("sigma.jld","Sigma", Σ_ladder, 
               compress=true, compatible=true)
     end

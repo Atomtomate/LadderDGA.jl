@@ -116,3 +116,26 @@ iω(n) = 1im*2*n*π/(modelParams.β);
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
 split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
+
+"""
+    padlength(a,b)
+
+computes the length of zero-padding required for convolution, using fft
+This is the next larger or equally large number to max(a,b)
+TODO: does only support padding for cube like arrays (i.e. all dimension have the same size).
+
+# Examples
+```
+julia> padlength(1:5,1:14)
+8
+julia> padlength(1:4,1:13)
+4
+```
+"""
+padlength(a,b) = 2^floor(Int, log(2,size(a,1)+size(b,1)-1))
+
+
+function fft_conv(a, b)
+    zero_pad_length = padlength(a,b)
+    PaddedView(0, collect(a), Tuple(repeat([pad(a,b)], ndims(a))))
+end

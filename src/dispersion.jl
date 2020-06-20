@@ -20,7 +20,7 @@ end
 
 #TODO: Rotation fertig
 #      Mirror Symmetry
-#TODO: find symmetries
+#TODO: define data type for grids, this should include type of grid to match symmetries, collect should not be necessary
 """
     reduce_kGrid(kGrid) 
 
@@ -50,7 +50,7 @@ end
 
 
 """
-    expand_kGrid(reducedInd, reducedArr, Nk)
+    expand_kGrid(reducedInd, reducedArr)
 
 Expands arbitrary Array on reduced k-Grid back to full grid.
 Results are shaped as 1D array.
@@ -60,16 +60,18 @@ Results are shaped as 1D array.
     mapslices(x->expand_kGrid(qIndices, x, simParams.Nk),sdata(bubble), dims=[2])
 ```
 """
-function expand_kGrid(reducedInd, reducedArr::Array{T,1}, Nk::Int64) where T <: Number
+function expand_kGrid(reducedInd, reducedArr::Array)
     D = length(reducedInd[1])
+    Nk = maximum(maximum.(reducedInd))
     newArr = Array{eltype(reducedArr)}(undef, (Nk*ones(Int64, D))...)
     for (ri,redInd) in enumerate(reducedInd)
         perms = unique(collect(permutations(redInd)))
+        #println(perms)
         for p in perms
             newArr[p...] = reducedArr[ri]
         end
     end
-    return newArr[1:end]
+    return newArr
 end
 
 
@@ -122,16 +124,16 @@ kGrid_to_array(kGrid::Array{Float64}) = kGrid
 
 Computes 0.5 [cos(k_x) + ... + cos(k_D)] and returns a grid with Nk points.
 """
-function squareLattice_ekGrid(kgrid, tsc)
-    ek(k) = tsc*sum([cos(kᵢ) for kᵢ in k])
-    res = [ek(k) for k in kgrid]
+squareLattice_ekGrid(kgrid)  = ((length(first(kgrid)) == 3 ? -0.40824829046386301636 : -0.5) * 
+                                 sum([cos(kᵢ) for kᵢ in k]) for k in kgrid)
+
+
+function gen_squareLattice_ekq_grid(kList::Any, qList::Any)
+    gen_squareLattice_ekq_grid(collect.(kList), collect.(qList))
 end
 
-function gen_squareLattice_ekq_grid(kList::Any, qList::Any, tsc)
-    gen_squareLattice_ekq_grid(collect.(kList), collect.(qList), tsc)
-end
-
-function gen_squareLattice_ekq_grid(kList::Array, qList::Array, tsc)
+function gen_squareLattice_ekq_grid(kList::Array, qList::Array)
+    tsc =  length(first(klist)) == 3 ? -0.40824829046386301636 : -0.5
     res = zeros(length(kList),length(qList))
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
@@ -144,7 +146,7 @@ end
 #TODO: generalize to 3D, better abstraction
 function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1})
     res = zeros(length(kList),length(qList), 8) # There are 8 additional 
-    tsc =  0.5
+    tsc = -0.5
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
             @inbounds res[ki,qi,1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
@@ -163,7 +165,7 @@ end
 function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Float64},1}, qList::Array{Tuple{Float64,Float64,Float64},1})
     perm = permutations([1,2,3])
     res = zeros(length(kList),length(qList), 8*length(perm)) # There are 8 additional 
-    tsc =  0.40824829046386301636
+    tsc = -0.40824829046386301636
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
             ind = 0
@@ -179,6 +181,52 @@ function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Floa
                 ind += 8
             end
         end
+    end
+    return res
+end
+
+
+function cut_mirror(arr)
+    res = nothing
+
+    Nk_cut = Int(size(arr,1)/2)
+    if ndims(arr) == 2
+        res = arr[Nk_cut:end, Nk_cut:end]
+    elseif ndims(arr) == 3
+        res = arr[Nk_cut:end, Nk_cut:end, Nk_cut:end]
+    else
+        println(stderr, "Error trying to reduce grid! Number of dimensions not recognized")
+    end
+    return res
+end
+
+function expand_mirror(arr)
+    res = nothing
+    Nk_old = size(arr,1)
+    Nk_expand = Nk_old - 2
+    size_new = size(arr) .+ Nk_expand
+
+    res = Array{eltype(arr)}(undef, size_new...)
+    if ndims(arr) == 2
+        res[1:Nk_old,1:Nk_old] = arr
+        res[Nk_old+1:end,1:Nk_old] = res[Nk_old-1:-1:2,1:Nk_old]
+        res[1:end,Nk_old+1:end] = res[1:end,Nk_old-1:-1:2]
+        for (i,ai) in enumerate((Nk_old-1):-1:2)
+            res[Nk_old+i,Nk_old+i] = arr[ai,ai]
+        end
+    elseif ndims(arr) == 3
+        res[1:Nk_old,1:Nk_old,1:Nk_old] = arr
+        res[Nk_old+1:end,1:Nk_old,1:Nk_old] = res[Nk_old-1:-1:2,1:Nk_old,1:Nk_old]
+        res[1:end,Nk_old+1:end,1:Nk_old] = res[1:end,Nk_old-1:-1:2,1:Nk_old]
+        for (i,ai) in enumerate((Nk_old-1):-1:2)
+            res[Nk_old+i,Nk_old+i,1:Nk_old] = arr[ai,ai,1:Nk_old]
+        end
+        res[1:end,1:end,Nk_old+1:end] .= res[1:end,1:end,Nk_old-1:-1:2]
+        for (i,ai) in enumerate((Nk_old-1):-1:2)
+            res[Nk_old+i,Nk_old+i,Nk_old+i] = arr[ai,ai,ai]
+        end
+    else
+        println(stderr, "Error trying to expand grid! Number of dimensions not recognized")
     end
     return res
 end

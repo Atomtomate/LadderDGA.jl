@@ -8,28 +8,47 @@
                     ((π/β)*(2*n + 1)*1im + μ - Σ)
 
 @inline @inbounds function G_fft(ind::Int64, Σ::Array{Complex{Float64},1}, 
-                                 ϵkIntGrid::Base.Generator, β::Float64, μ::Float64)
+                                  ϵkIntGrid::Array{Float64}, β::Float64, μ::Float64, 
+                                  phasematrix::Array{Complex{Float64}})
     Σν = get_symm_f(Σ,ind)
     Gν  = map(ϵk -> GF_from_Σ(ind, β, μ, ϵk, Σν), ϵkIntGrid)
-    return fft!(Gν)
+    return fft!(Gν) .* phasematrix
 end
 
 #TODO: get rid of kInt, remember symmetry G(k')G(k'+q) so 2*LQ-2 = kInt
-function calc_bubble_fft(Σ::Array{Complex{Float64},1}, ϵkIntGrid, redGridSize,
-                              mP::ModelParameters, sP::SimulationParameters)
+function calc_bubble_fft(Σ::Array{Complex{Float64},1}, 
+                              modelParams::ModelParameters, simParams::SimulationParameters)
+    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
+    println("TODO: only compute G_fft only once")
+    println("TODO: online compute kGrid once")
+    kIndices, kIntGrid = gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = 2π) 
+    ϵkIntGrid   = squareLattice_ekGrid(kIntGrid, tsc)
+    kGrid_cr = reduce_kGrid(cut_mirror(collect(kIndices)))[1:end]
 
-    Gνω = [G_fft(ind, Σ, ϵkIntGrid, mP.β, mP.μ) for ind in (-sP.n_iω):(sP.n_iν+sP.n_iω)]
-    Gν  = (G_fft(ind, Σ, Iterators.reverse(ϵkIntGrid), mP.β, mP.μ) for ind in 0:(sP.n_iν-1))
-    Gν  = -mP.β .* Gν ./ (sP.Nk^mP.D)
+    # transform to FFTW input style, from 0 to 1 and phase 
+    phasematrix = map(x -> exp(-2π*1im*(sum(x)-modelParams.D)*(1.0/simParams.Nk)), kIndices)
+    res = Array{Complex{Float64}}(undef,simParams.n_iν, 2*simParams.n_iω+1, length(kGrid_cr))
+    println(length(kGrid_cr))
+    res2 = Array{Complex{Float64}}(undef,simParams.n_iν, 2*simParams.n_iω+1, length(kIntGrid))
+    println(length(kIntGrid))
+    bw_plan = plan_ifft(ϵkIntGrid)
 
-    res = Array{Complex{Float64}}(undef, 2*sP.n_iω+1, redGridSize, sP.n_iν)
-    @inbounds for (νi,Gνi) in enumerate(Gν)
-        @inbounds for ωi in 1:2*sP.n_iω+1
-            @inbounds res[ωi,:,νi] = reverse(reduce_kGrid(cut_mirror(ifft(Gνi  .* Gνω[νi-1+ωi]))))
+    @inbounds for νₙ in 0:simParams.n_iν-1
+        Gν = G_fft(νₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
+        for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
+            Gνω = G_fft(νₙ + ωₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
+            tmp = reshape(bw_plan * (Gν  .* Gνω), (repeat([simParams.Nk], modelParams.D)...))
+            @inbounds res[νₙ+1, ωi, :] = reduce_kGrid(cut_mirror(tmp))[1:end]
+            @inbounds res2[νₙ+1, ωi, :] = tmp[1:end]
         end
     end
-    @inbounds res = cat(conj.(res[end:-1:1,:,end:-1:1]),res, dims=3)
-    return res
+    @inbounds res = -modelParams.β .* res ./ (simParams.Nk^modelParams.D)
+    @inbounds res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=1)
+    res = permutedims(res, [2,3,1])
+    @inbounds res2 = -modelParams.β .* res2 ./ (simParams.Nk^modelParams.D)
+    @inbounds res2 = cat(conj.(res2[end:-1:1,end:-1:1,:]),res2, dims=1)
+    res2 = permutedims(res2, [2,3,1])
+    return res, res2
 end
 
 
@@ -78,103 +97,66 @@ function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3},
     return χsp, χch, γsp, γch
 end
 
-function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qMultiplicity, qGrid, qIndices, modelParams::ModelParameters, simParams::SimulationParameters; full_input = false)
+function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qIndices, modelParams::ModelParameters, simParams::SimulationParameters; full_input = false)
     Nω = floor(Int64,size(bubble,1)/2)
     Nν = floor(Int64,size(bubble,3)/2)
-    kIndices, kGrid  = gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min=true)
-    ϵkGrid   = squareLattice_ekGrid(kGrid)
-    Σνω_list = [get_symm_f(Σ_loc,n) for n in -Nω:(Nω + Nν - 1)]
-    Gνω_list = [map(ϵk -> GF_from_Σ(n, modelParams.β, modelParams.μ, ϵk, Σνω_list[ni]), ϵkGrid) 
-                for (ni,n) in enumerate(-Nω:(Nω + Nν - 1))]
-
+    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
+    kIndices, kGrid         = gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = 2π)
+    ϵkGrid   = squareLattice_ekGrid(kGrid, tsc)
     Σ_ladder = zeros(eltype(χch), Nν, length(collect(kGrid)))
-    tmp1 = []
-    tmp2 = []
 
-    #println("TODO: expand before loop")
     for (νi,νₙ) in enumerate(0:Nν-1)
         for (ωi,ωₙ) in enumerate(-Nω:Nω)
+            Σνω  = get_symm_f(Σ_loc,ωₙ + νₙ)
             Kνωq = (1.5 .* γsp[ωi, :, νi+Nν] .* (1 .+ modelParams.U*χsp[ωi, :]) .-
                    0.5 .* γch[ωi, :, νi+Nν].* (1 .- modelParams.U*χch[ωi, :]) .- 1.5 .+ 0.5) .+
                    sum([bubble[ωi,:,vpi] .* FUpDo[ωi,νi+Nν,vpi] for vpi = 1:size(bubble,3)])
 
-            Σνω = get_symm_f(Σ_loc,ωₙ + νₙ)
-            Gνω = map(ϵk -> GF_from_Σ(ωₙ + νₙ, modelParams.β, modelParams.μ, ϵk, Σνω), ekGrid)
-            # = Gνω_list[νₙ + ωₙ + Nω + 1]
-            Gνω_ft = fft(Gνω[:])
+            Gνω = G_fft(νₙ + ωₙ, Σ_loc, ϵkGrid, modelParams.β, modelParams.μ, phasematrix)
             if !full_input
                 Kνωq = expand_mirror(expand_kGrid(collect(qIndices), Kνωq))#) 
-                if νi == 2 && ωi == 2
-                    tmp1 = Kνωq
-                    tmp2 = Gνω
-                end
-                #Kνωq = cat(Kνωq[:], zeros(length(Gνω[:])-length(Kνωq)), dims=1)
             else
-                Kνωq = reshape(Kνωq, (simParams.Nk,simParams.Nk))
-                if νi == 2 && ωi == 2
-                    tmp1 = Kνωq
-                    tmp2 = Gνω
-                end
+                Kνωq = reshape(Kνωq, (4,4))
             end
-            #println("1: ", νi, " ", ωi, " ", real(Kνωq))
-            #println(size(Kνωq))
-            Kνωq = fft(Kνωq[end:-1:1])
-            Σ_ladder[νi, :] = (ifft(Kνωq .* Gνω_ft))[1:end]
+            println(size(Kνωq))
+            Kνωq = fft(Kνωq).* phasematrix2
+            Σ_ladder[νi, :] -= (bw_plan * (Kνωq  .* Gνω))[1:end]
         end
     end
     Σ_ladder = modelParams.U .* Σ_ladder ./ (modelParams.β * (simParams.Nk^modelParams.D))
-    return Σ_ladder, tmp1, tmp2
+    return Σ_ladder
 end
-
-function calc_DΓA_Σ_fft_2(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qMult, qGrid, 
-                          modelParams::ModelParameters, simParams::SimulationParameters; full_input = false)
-    println(stderr,"TODO: compressed fft not implemented yet")
-end
-
 
 
 function calc_DΓA_Σ(χsp, χch, γsp, γch, 
-                             bubble, Σ_loc, FUpDo, qMult, qGrid, qInd,
+                             bubble, Σ_loc, FUpDo, qMult, qGrid, 
                              modelParams::ModelParameters, simParams::SimulationParameters)
-    _, kGrid         = reduce_kGrid.(collect.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true)))
+    _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))
     kList = collect(kGrid)
     Nω = floor(Int64,size(bubble,1)/2)
     Nq = size(bubble,2)
     Nν = floor(Int64,size(bubble,3)/2)
     ϵkqList = gen_squareLattice_full_ekq_grid(kList, collect(qGrid))
     multFac =  if (modelParams.D == 2) 8.0 else 48.0 end # 6 for permutation 8 for mirror
-    tmp1 = []
 
-    #println("s0: ", Nq)
-    #println("s1: ", length(kList))
-    #println("s2: ", size(ϵkqList,3))
-    tmp2 = zeros(Complex{Float64}, Nq,length(kList),size(ϵkqList,3))
     Σ_ladder = zeros(eltype(χch), Nν, length(kList))
     for (νi,νₙ) in enumerate(0:Nν-1)
-        for (ωi,ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
-            for qi in 1:Nq
-                qiNorm = qMult[qi]/((2*(Int(simParams.Nk/2)))^(modelParams.D)*multFac)#8*(Nq-1)^(modelParams.D)
+        for qi in 1:Nq
+            qiNorm = qMult[qi]/((2*(Int(simParams.Nk/2)))^(modelParams.D)*multFac)#8*(Nq-1)^(modelParams.D)
             #qiNorm = qMult[qi]/((2*(Nq-1))^2*8)#/(4.0*8.0)
+            for (ωi,ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
                 Σν = get_symm_f(Σ_loc,ωₙ + νₙ)
                 tmp = (1.5 * γsp[ωi, qi, νi+Nν]*(1 + modelParams.U*χsp[ωi, qi]) -
                        0.5 * γch[ωi, qi, νi+Nν]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5) +
                        sum(bubble[ωi, qi, :] .* FUpDo[ωi, νi+Nν, :])
-
-                if νi == 2 && ωi == 2
-                    push!(tmp1, tmp)
-                end
                 for ki in 1:length(kList)
                     for perm in 1:size(ϵkqList,3)
                         Gνω = GF_from_Σ(ωₙ + νₙ, modelParams.β, modelParams.μ, ϵkqList[ki,qi,perm], Σν) 
-                        if νi == 2 && ωi == 2 && ki == 2
-                            #println(qi, ", ", ki, ", ", perm, ": ", tmp)
-                            tmp2[ki,qi,perm] = Gνω
-                        end
-                        Σ_ladder[νi, ki] += tmp*Gνω*qiNorm*modelParams.U/modelParams.β
+                        Σ_ladder[νi, ki] -= tmp*Gνω*qiNorm*modelParams.U/modelParams.β
                     end
                 end
             end
         end
     end
-    return conj.(sdata(Σ_ladder)), tmp1, tmp2
+    return sdata(Σ_ladder)
 end
