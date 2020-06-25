@@ -25,6 +25,7 @@ function readConfig(file)
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
                              tml["Environment"]["asymptVars"],
+                             tml["Environment"]["force_full_bosonic_sum"],
                              tml["Environment"]["cast_to_real"]
                             )
     return (model, sim, env)

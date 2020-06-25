@@ -5,30 +5,30 @@ U    = 2.0
 mu   = 1.0
 beta = 25.0
 nden = 1.0
-Dimensions = 2
+Dimensions = 3
 
 [Simulation]
-nFermFreq = 3
-nBoseFreq = 2
-shift     = 0       # shift of center of bosonic frequency range
-Nk        = 4     # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+nFermFreq = 61
+nBoseFreq = 60
+shift     = 0             # shift of center of bosonic frequency range
+Nk        = 12            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
-kInt = "FFT"        # naive or FFT, GL not implemented
-rhs  = ""   # possible modes: native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
+kInt = "FFT"              # TODO: only FFT available for now (naive and GL have to be activated in code)
+rhs  = ""                 # TODO: implement possible modes: native (fixed for tc, error_comp for naive), 
+                          #                                 fixed (n/2 (1 - n/2) - sum(chi_ch)), 
+                          #                                 error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
 
 [Environment]
-loadFortran = "text"    # julia, text, parquet, TODO: implement hdf5
+loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
-#inputDir = "/home/julian/Hamburg/ladderDGA_3/ladderDGA_vsmall"
-#inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
-inputDir = "/home/julian/Hamburg/ladderDGA_2/ladderDGA_vsmall"
-#inputDir = "/home/julian/Hamburg/ED_Data/t_scan_U2_from_metal/b9.0_U2.0/data"
+#inputDir = "/home/julian/Hamburg/ED_Data/b15.0_U2.0"
+inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt_sums.jld"
-force_full_bosonic_sum = false  # instead of finding a usable intervall, use all bosonic frequencies
-cast_to_real = false             # cast all arrays with vanishing imaginary part to real
+force_full_bosonic_sum = false   # instead of finding a usable intervall, use all bosonic frequencies
+cast_to_real = false             # TODO: not implemented. cast all arrays with vanishing imaginary part to real
 
 [legacy]
 lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?

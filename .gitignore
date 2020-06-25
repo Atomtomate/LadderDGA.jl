@@ -2,6 +2,7 @@
 *.dat
 *.txt
 *.out
+Untitled.ipynb
 config_bak.toml
 *.pdf
 bak*

@@ -54,7 +54,7 @@ function find_usable_interval(arr; reduce_range_prct = 0.1)
     mid_index = Int(ceil(size(arr,1)/2))
 
     if arr[mid_index] < 0.0
-        res = []
+        res = [mid_index]
         return res
     end
     # interval for condition 1 (positive values)

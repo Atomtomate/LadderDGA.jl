@@ -134,7 +134,7 @@ function build_fνmax_fast(f, W)
     ν_cut  = νmax_end - νmax_start + 1
     f_νmax  = Array{eltype(f)}(undef, ν_cut)
     if νmax_start < 1
-        throw(BoundsError("ERROR: negative range for summ approximation!"))
+        throw("ERROR: negative range for sum approximation!")
     end
     lo = ν_cut-0
     up = n_iν-ν_cut+0+1
@@ -169,9 +169,9 @@ end
     and the dimensions over which to fit.
 """
 function approx_full_sum(f, dims; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
-    N = floor(Int64, size(f,dims[1])/2)
+    N = floor(Int64, size(f, dims[1])/2)
 
-    if N < size(W,1)
+    if !(W === nothing) && N < size(W,1)
         println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
                 " Falling back to naive sum.")
         sum_approx = sum(f, dims=dims)

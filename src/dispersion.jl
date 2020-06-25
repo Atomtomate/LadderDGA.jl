@@ -1,3 +1,91 @@
+import Base.collect
+
+# ================================================================================ #
+#                               Type Definitions                                   #
+# ================================================================================ #
+abstract type KIndices{T} end
+abstract type FullKIndices{T <: Base.Iterators.ProductIterator} <: KIndices{T} end
+abstract type ReducedKIndices{T} <: KIndices{T} end
+
+abstract type KPoints{T} end
+abstract type FullKPoints{T <: Base.Iterators.ProductIterator} <: KPoints{T} end
+abstract type ReducedKPoints{T} <: KPoints{T} end
+
+abstract type KGrid{T1 <: KIndices, T2 <: KPoints} end
+
+abstract type Dispersion{T <: KGrid} end
+
+# -------------------------------------------------------------------------------- #
+#                                 Simple Cubic                                     #
+# -------------------------------------------------------------------------------- #
+struct FullKIndices_SC_2D <: FullKIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64}}}} 
+    ind::Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64}}}
+end
+collect(indices::FullKIndices_SC_2D) = collect(indices.ind)
+
+struct FullKPoints_SC_2D <: FullKPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}} 
+    grid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}
+end
+collect(grid::FullKPoints_SC_2D) = collect(grid.grid)
+
+struct FullKGrid_SC_2D
+    Nk::Int64
+    kInd::FullKIndices_SC_2D
+    kGrid::FullKPoints_SC_2D
+    FullKGrid_SC_2D(Nk::Int64) = (
+        #kx = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)];
+        kx = [(2*π/Nk) * j - π for j in 1:Nk];
+        ind = FullKIndices_SC_2D(Base.product([1:(Nk) for Di in 1:2]...));
+        kGrid  = FullKPoints_SC_2D(Base.product([kx for Di in 1:2]...));
+        new(Nk, ind, kGrid))
+end
+
+
+struct FullKIndices_SC_3D <: FullKIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}} 
+    ind::Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}
+end
+collect(indices::FullKIndices_SC_3D) = collect(indices.ind)
+
+struct FullKPoints_SC_3D <: FullKPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}} 
+    grid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}
+end
+collect(grid::FullKPoints_SC_3D) = collect(grid.grid)
+
+struct FullKGrid_SC_3D
+    Nk::Int64
+    kInd::FullKIndices_SC_3D
+    kGrid::FullKPoints_SC_3D
+    FullKGrid_SC_3D(Nk::Int64) = (
+        #kx = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)];
+        kx = [(2*π/Nk) * j - π for j in 1:Nk];
+        ind = FullKIndices_SC_3D(Base.product([1:(Nk) for Di in 1:3]...));
+        kGrid  = FullKPoints_SC_3D(Base.product([kx for Di in 1:3]...));
+        new(Nk, ind, kGrid))
+end
+
+#FullKGrid(Nk::Int64; min=-π, max = π, include_min::Bool) = FullKGrid_SC_2D
+
+
+#= abstract type KIndices_SC_3D <: =# 
+#=     FullkIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}} =#
+#= end =#
+
+#= abstract type KPoints_SC_2D <: =# 
+#=     FullkPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}} =#
+#= end =#
+
+
+#= struct Full_KGrid_SC_2D <: KGrid{ =#
+#=          , =#
+#=          T2 =#
+#=         } =#
+#=     indices =#
+#=     grid::T2 =#
+#= end =#
+
+# ================================================================================ #
+#                                   Functions                                      #
+# ================================================================================ #
 """
     gen_kGrid(Nk, D[; min = 0, max = π, include_min=true]) = 
 
@@ -53,8 +141,8 @@ end
     expand_kGrid(reducedInd, reducedArr)
 
 Expands arbitrary Array on reduced k-Grid back to full grid.
-Results are shaped as 1D array.
-
+This includes restoration of mirror symmetry if the index array 
+reducedInd indicates uncomplete grid (by having no (1,1,1) index).
 #Examples
 ```
     mapslices(x->expand_kGrid(qIndices, x, simParams.Nk),sdata(bubble), dims=[2])
@@ -66,11 +154,11 @@ function expand_kGrid(reducedInd, reducedArr::Array)
     newArr = Array{eltype(reducedArr)}(undef, (Nk*ones(Int64, D))...)
     for (ri,redInd) in enumerate(reducedInd)
         perms = unique(collect(permutations(redInd)))
-        #println(perms)
         for p in perms
             newArr[p...] = reducedArr[ri]
         end
     end
+    minimum(minimum.(reducedInd)) > 1 && expand_mirror!(newArr)
     return newArr
 end
 
@@ -85,39 +173,16 @@ function kGrid_multiplicity(kIndices)
         end
         return val
     end
-    #TODO: for arbitraty dim
     if length(min_ind) == 2
         res = map(el -> borderFactor(el)*8/((el[2]==el[1]) + 1), kIndices)
     elseif length(min_ind) == 3
         res = map(el -> borderFactor(el)*48/( (el[2]==el[1]) + (el[3]==el[2]) + 3*(el[3]==el[1]) + 1), kIndices)
     else
-        res = []
-        print(stderr, "   ---> Warning! arbitrary dimensions for kGrid multiplicity not implemented!\n")
+        throw("Multiplicity of k points only implemented for 2D and 3D")
     end
     return res
 end
 
-function gen_reduced_kGrid(Nk::Int64, D::Int64; min = 0, max = π, include_min=true)
-    return gen_reduced_kGrid(gen_kGrid(Nk::Int64, D::Int64; min = 0, max = π, include_min=true))
-end
-
-
-"""
-    kGrid_to_array(kGrid)
-
-Collects the kGrid (given as an iterator) and returns a 
-N times D array (N being the number of k-points)
-"""
-function kGrid_to_array(kGrid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}})
-    permutedims(hcat(collect.(kGrid)...),[2,1])
-end
-
-function kGrid_to_array(kGrid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}})
-    permutedims(cat(collect.(kGrid)..., dims=3)[:,1,:],[2,1])
-end
-kGrid_to_array(kGrid::Array{Tuple{Float64,Float64}}) = permutedims(hcat(collect.(kGrid)...),[2,1])
-kGrid_to_array(kGrid::Array{Tuple{Float64,Float64,Float64}}) = permutedims(cat(collect.(kGrid)..., dims=3)[:,1,:],[2,1])
-kGrid_to_array(kGrid::Array{Float64}) = kGrid
 
 """
     squareLattice_ek_grid(kgrid)
@@ -133,7 +198,7 @@ function gen_squareLattice_ekq_grid(kList::Any, qList::Any)
 end
 
 function gen_squareLattice_ekq_grid(kList::Array, qList::Array)
-    tsc =  length(first(klist)) == 3 ? -0.40824829046386301636 : -0.5
+    tsc =  length(first(kList)) == 3 ? -0.40824829046386301636 : -0.5
     res = zeros(length(kList),length(qList))
     for (ki,k) in enumerate(kList)
         for (qi,q) in enumerate(qList)
@@ -186,47 +251,58 @@ function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Floa
 end
 
 
-function cut_mirror(arr)
-    res = nothing
+@inbounds cut_mirror(arr::Base.Iterators.ProductIterator) = cut_mirror(collect(arr))
+@inbounds cut_mirror(arr::Array{T, 2}) where T = arr[Int(size(arr,1)/2):end, Int(size(arr,2)/2):end]
+@inbounds cut_mirror(arr::Array{T, 3}) where T = arr[Int(size(arr,1)/2):end, Int(size(arr,2)/2):end, Int(size(arr,3)/2):end]
+#reverse cut. This is a helper function to avoid reversing the array after fft-convolution trick. assumes reserved input and returns correct array including cut
+@inbounds ifft_cut_mirror(arr::Base.Iterators.ProductIterator) = ifft_cut_mirror(collect(arr))
+@inbounds ifft_cut_mirror(arr::Array{T, 2}) where T = arr[end-1:-1:Int64(size(arr,1)/2-1), 
+                                                          end-1:-1:Int64(size(arr,2)/2-1)]
+@inbounds ifft_cut_mirror(arr::Array{T, 3}) where T = arr[end-1:-1:Int64(size(arr,1)/2-1), 
+                                                          end-1:-1:Int64(size(arr,2)/2-1), 
+                                                          end-1:-1:Int64(size(arr,3)/2-1)]
 
-    Nk_cut = Int(size(arr,1)/2)
-    if ndims(arr) == 2
-        res = arr[Nk_cut:end, Nk_cut:end]
-    elseif ndims(arr) == 3
-        res = arr[Nk_cut:end, Nk_cut:end, Nk_cut:end]
-    else
-        println(stderr, "Error trying to reduce grid! Number of dimensions not recognized")
+
+function expand_mirror!(arr::Array{T, 2}) where T <: Any
+    al = Int(size(arr,1)/2) - 1
+
+    arr[1:al,al+1:end] = arr[end-1:-1:al+2,al+1:end]
+    arr[1:end,1:al] = arr[1:end,end-1:-1:al+2,]
+    for i in 1:al
+        arr[i,i] = arr[end-i,end-i]
     end
+end
+
+function expand_mirror(arr::Array{T, 2}) where T <: Any
+    al = size(arr,1) - 2
+    size_new = size(arr) .+ al
+    res = Array{T}(undef, size_new...)
+
+    res[al+1:end, al+1:end] = arr
+    expand_mirror!(res)
     return res
 end
 
-function expand_mirror(arr)
-    res = nothing
-    Nk_old = size(arr,1)
-    Nk_expand = Nk_old - 2
-    size_new = size(arr) .+ Nk_expand
+function expand_mirror!(arr::Array{T, 3}) where T <: Any
+    al = Int(size(arr,1)/2) - 1
 
-    res = Array{eltype(arr)}(undef, size_new...)
-    if ndims(arr) == 2
-        res[1:Nk_old,1:Nk_old] = arr
-        res[Nk_old+1:end,1:Nk_old] = res[Nk_old-1:-1:2,1:Nk_old]
-        res[1:end,Nk_old+1:end] = res[1:end,Nk_old-1:-1:2]
-        for (i,ai) in enumerate((Nk_old-1):-1:2)
-            res[Nk_old+i,Nk_old+i] = arr[ai,ai]
-        end
-    elseif ndims(arr) == 3
-        res[1:Nk_old,1:Nk_old,1:Nk_old] = arr
-        res[Nk_old+1:end,1:Nk_old,1:Nk_old] = res[Nk_old-1:-1:2,1:Nk_old,1:Nk_old]
-        res[1:end,Nk_old+1:end,1:Nk_old] = res[1:end,Nk_old-1:-1:2,1:Nk_old]
-        for (i,ai) in enumerate((Nk_old-1):-1:2)
-            res[Nk_old+i,Nk_old+i,1:Nk_old] = arr[ai,ai,1:Nk_old]
-        end
-        res[1:end,1:end,Nk_old+1:end] .= res[1:end,1:end,Nk_old-1:-1:2]
-        for (i,ai) in enumerate((Nk_old-1):-1:2)
-            res[Nk_old+i,Nk_old+i,Nk_old+i] = arr[ai,ai,ai]
-        end
-    else
-        println(stderr, "Error trying to expand grid! Number of dimensions not recognized")
+    arr[1:al,al+1:end,al+1:end] = arr[end-1:-1:al+2,al+1:end,al+1:end]
+    arr[1:end,1:al,al+1:end] = arr[1:end,end-1:-1:al+2,al+1:end]
+    for i in 1:al
+        arr[i,i,al+1:end] = arr[end-i,end-i,al+1:end]
     end
+    arr[1:end,1:end,1:al] .= arr[1:end,1:end,end-1:-1:al+2]
+    for i in 1:al
+        arr[i,i,i] = arr[end-i,end-i,end-i]
+    end
+end
+
+function expand_mirror(arr::Array{T, 3}) where T <: Any
+    add_length = size(arr,1) - 2
+    size_new = size(arr) .+ add_length
+    res = Array{T}(undef, size_new...)
+
+    res[add_length:end, add_length:end, add_length:end] = arr
+    expand_mirror!(res)
     return res
 end

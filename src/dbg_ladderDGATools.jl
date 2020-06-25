@@ -1,15 +1,13 @@
 @inline GF_from_Σ_ap(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 
-function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid, 
+function calc_bubble(Σ::Array{Complex{Float64},1}, kGrid, qGrid, 
                               modelParams::ModelParameters, simParams::SimulationParameters)
     #TODO: this is slower, than having this as a parameter. Check again after conversion to module
     #
-    Nq   = size(collect(qGrid),1)
-    _, kIntGrid = gen_kGrid(simParams.Nint, modelParams.D; min = 0, max = 2π, include_min = false) 
-    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
-    ϵkIntList   = squareLattice_ekGrid(kIntGrid, tsc)
-    ϵkqIntList  = gen_squareLattice_ekq_grid(kIntGrid, qGrid, tsc)
+    Nq = length(qGrid)
+    ϵkIntList   = collect(squareLattice_ekGrid(kGrid))
+    ϵkqIntList  = collect(gen_squareLattice_ekq_grid(kGrid, qGrid))
     res = zeros(Complex{Float64}, Nq, simParams.n_iν, 2*simParams.n_iω+1)
     @simd for qi in 1:Nq
         @simd for νₙ in 0:simParams.n_iν-1
@@ -27,9 +25,9 @@ function calc_bubble(Σ::Array{Complex{Float64},1}, qGrid,
         end
     end
     #res = sdata(res)
-    res = (2^modelParams.D) * modelParams.β .* res ./ ((2*simParams.Nint)^modelParams.D)
-    res = permutedims(res, [3,2,1])
-    res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=2)
+    res = (2^modelParams.D) * modelParams.β .* res ./ ((2*simParams.Nk)^modelParams.D)
+    res = permutedims(res, [3,1,2])
+    res = cat(conj.(res[end:-1:1,:,end:-1:1]),res, dims=3)
     #res = convert(Array{Complex{Float64}}, res)
     return res
 end
@@ -239,3 +237,46 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
     return χ, γres
 end
 
+
+function calc_DΓA_Σ(χsp, χch, γsp, γch,
+                             bubble, Σ_loc, FUpDo, qMult, qGrid, qInd,
+                             modelParams::ModelParameters, simParams::SimulationParameters)
+    _, kGrid         = reduce_kGrid.(collect.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true)))
+    kList = collect(qGrid)
+    Nω = floor(Int64,size(bubble,1)/2)
+    Nq = size(bubble,2)
+    Nν = floor(Int64,size(bubble,3)/2)
+    ϵkqList = gen_squareLattice_full_ekq_grid(kList, collect(qGrid))
+    multFac =  if (modelParams.D == 2) 8.0 else 48.0 end # 6 for permutation 8 for mirror
+    tmp1 = []
+
+    tmp2 = zeros(Complex{Float64}, Nq,length(kList),size(ϵkqList,3))
+    Σ_ladder = zeros(eltype(χch), Nν, length(kList))
+    for (νi,νₙ) in enumerate(0:Nν-1)
+        for (ωi,ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
+            for qi in 1:Nq
+                qiNorm = qMult[qi]/((2*(Int(simParams.Nk/2)))^(modelParams.D)*multFac)#8*(Nq-1)^(modelParams.D)
+            #qiNorm = qMult[qi]/((2*(Nq-1))^2*8)#/(4.0*8.0)
+                Σνω = get_symm_f(Σ_loc,ωₙ + νₙ)
+                tmp = (1.5 * γsp[ωi, qi, νi+Nν]*(1 + modelParams.U*χsp[ωi, qi]) -
+                       0.5 * γch[ωi, qi, νi+Nν]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5) +
+                       sum(bubble[ωi, qi, :] .* FUpDo[ωi, νi+Nν, :])
+
+                if νi == 2 && ωi == 2
+                    push!(tmp1, tmp)
+                end
+                for ki in 1:length(kList)
+                    for perm in 1:size(ϵkqList,3)
+                        Gνω = GF_from_Σ(ωₙ + νₙ, modelParams.β, modelParams.μ, ϵkqList[ki,qi,perm], Σνω)
+                        if νi == 2 && ωi == 2 && ki == 2
+                            #println(qi, ", ", ki, ", ", perm, ": ", tmp)
+                            tmp2[ki,qi,perm] = Gνω
+                        end
+                        Σ_ladder[νi, ki] -= tmp*Gνω*qiNorm*modelParams.U/modelParams.β
+                    end
+                end
+            end
+        end
+    end
+    return conj.(sdata(Σ_ladder)), tmp1, tmp2
+end

@@ -6,9 +6,6 @@ dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχ
 dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 
-function custom_newton(x0; steps=1000)
-end
-
 function calc_λ_correction(χ, usable_range, χloc, qMult,  simParams, modelParams)
     #qNorm      = sum(qMult)*modelParams.β
     qNorm       = sum(qMult)*modelParams.β

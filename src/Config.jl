@@ -28,6 +28,7 @@ struct EnvironmentVars
     inputDir::String
     inputVars::String
     asymptVars::String
+    fullSums::Bool
     cast_to_real::Bool
 end
 # TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp
