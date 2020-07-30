@@ -2,29 +2,26 @@
 χ_λ!(χ_λ, χ, λ) = (χ_λ = 1 ./ ((1 ./ χ) .+ λ))
 
 dχ_λ(χ, λ) = - ((1 ./ χ) .+ λ)^(-2)
+
+#println("possible roots: ", Optim.minimizer(r))
 dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχch_λ)*qNorm
-dΣsp_λ_amp(G_plus_νq,γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
+dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 
 function calc_λ_correction(χ, usable_range, χloc, qMult,  simParams, modelParams)
-    #qNorm      = sum(qMult)*modelParams.β
-    qNorm       = sum(qMult)*modelParams.β
-    χ_new(λ)  = 1.0  ./ (1 ./ χ .+ λ)
-    χr = real.(χ[usable_range, :])
+    qNorm = sum(qMult)*modelParams.β
+    χr    = real.(χ[usable_range, :])
     χlocr = real(χloc)
+
+    χ_new(λ) = 1.0  ./ (1 ./ χ .+ λ)
     f(λint)  = sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr
-    af(λint)  = abs(sum([sum(((1 ./ χr[i,:]) .+ λint).^(-1) .* qMult) for i in 1:size(χr,1)])/qNorm - χlocr)
-    df(λint)  = sum([sum(-((1 ./ χr[i,:]) .+ λint).^(-2) .* qMult) for i in 1:size(χr,1)])/qNorm
-    ddf(λint)  = sum([sum(2 .* ((1 ./ χr[i,:]) .+ λint).^(-3) .* qMult) for i in 1:size(χr,1)])/qNorm
-    nh  =ceil(Int64, size(χr,1)/2)
-    χ_min =  -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
-    interval = [χ_min-1.0/length(qMult), χ_min + 1.0]
-    println("found χ_min = ", χ_min, ". Looking for roots in intervall [", interval[1], ", ", interval[2], "]")
-    #r = Optim.optimize(af,[χ_min+0.001],  Newton(); inplace=false, autodiff = :forward)
+    nh       = ceil(Int64, size(χr,1)/2)
+    χ_min    = -minimum(1 ./ real(χr)[nh,:]) #TODO ??????
+    interval = [χ_min-1.0, χ_min + 1.0]
+    println("found χ_min = ", printr_s(χ_min), ". Looking for roots in intervall [", 
+            printr_s(interval[1]), ", ", printr_s(interval[2]), "]")
     r = find_zeros(f, interval[1], interval[2], order=0)
-    #println("possible roots: ", r)
-    println("possible roots: ", r)
-    #println("possible roots: ", Optim.minimizer(r))
+    println("possible roots: ", printr_s.(r))
     if isempty(r)
        println(stderr, "   ---> WARNING: no lambda roots found!!!")
        return 0, χ_new(0)

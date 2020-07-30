@@ -240,43 +240,35 @@ end
 
 function calc_DΓA_Σ(χsp, χch, γsp, γch,
                              bubble, Σ_loc, FUpDo, qMult, qGrid, qInd,
-                             modelParams::ModelParameters, simParams::SimulationParameters)
-    _, kGrid         = reduce_kGrid.(collect.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true)))
-    kList = collect(qGrid)
+                             ωrange, modelParams::ModelParameters, simParams::SimulationParameters)
+    _, kGrid = gen_kGrid(simParams.Nk, modelParams.D)
+    kList = reduce_kGrid(cut_mirror(kGrid))
+    qList = collect(qGrid)
     Nω = floor(Int64,size(bubble,1)/2)
     Nq = size(bubble,2)
     Nν = floor(Int64,size(bubble,3)/2)
-    ϵkqList = gen_squareLattice_full_ekq_grid(kList, collect(qGrid))
+    ϵkqList = gen_squareLattice_ekq_grid(kList, collect(qGrid))
     multFac =  if (modelParams.D == 2) 8.0 else 48.0 end # 6 for permutation 8 for mirror
-    tmp1 = []
 
-    tmp2 = zeros(Complex{Float64}, Nq,length(kList),size(ϵkqList,3))
     Σ_ladder = zeros(eltype(χch), Nν, length(kList))
     for (νi,νₙ) in enumerate(0:Nν-1)
-        for (ωi,ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
+        for (ωi,ωₙ) in enumerate(-Nω:Nω)
             for qi in 1:Nq
-                qiNorm = qMult[qi]/((2*(Int(simParams.Nk/2)))^(modelParams.D)*multFac)#8*(Nq-1)^(modelParams.D)
+                qiNorm = qMult[qi]/((2*(Int(simParams.Nk/2)))^(modelParams.D))#8*(Nq-1)^(modelParams.D)
             #qiNorm = qMult[qi]/((2*(Nq-1))^2*8)#/(4.0*8.0)
                 Σνω = get_symm_f(Σ_loc,ωₙ + νₙ)
                 tmp = (1.5 * γsp[ωi, qi, νi+Nν]*(1 + modelParams.U*χsp[ωi, qi]) -
                        0.5 * γch[ωi, qi, νi+Nν]*(1 - modelParams.U*χch[ωi, qi])-1.5+0.5) +
                        sum(bubble[ωi, qi, :] .* FUpDo[ωi, νi+Nν, :])
 
-                if νi == 2 && ωi == 2
-                    push!(tmp1, tmp)
-                end
                 for ki in 1:length(kList)
                     for perm in 1:size(ϵkqList,3)
                         Gνω = GF_from_Σ(ωₙ + νₙ, modelParams.β, modelParams.μ, ϵkqList[ki,qi,perm], Σνω)
-                        if νi == 2 && ωi == 2 && ki == 2
-                            #println(qi, ", ", ki, ", ", perm, ": ", tmp)
-                            tmp2[ki,qi,perm] = Gνω
-                        end
                         Σ_ladder[νi, ki] -= tmp*Gνω*qiNorm*modelParams.U/modelParams.β
                     end
                 end
             end
         end
     end
-    return conj.(sdata(Σ_ladder)), tmp1, tmp2
+    return conj.(sdata(Σ_ladder))
 end

@@ -139,3 +139,9 @@ function fft_conv(a, b)
     zero_pad_length = padlength(a,b)
     PaddedView(0, collect(a), Tuple(repeat([pad(a,b)], ndims(a))))
 end
+
+"""
+    print 4 digits of the real part of `x`
+"""
+printr_s(x::Complex{Float64}) = round(real(x), digits=4)
+printr_s(x::Float64) = round(x, digits=4)

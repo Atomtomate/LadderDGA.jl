@@ -3,15 +3,15 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 25.0
+beta = 15.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 61
-nBoseFreq = 60
+nFermFreq = 41
+nBoseFreq = 40
 shift     = 0             # shift of center of bosonic frequency range
-Nk        = 12            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+Nk        = 6            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"              # TODO: only FFT available for now (naive and GL have to be activated in code)
@@ -23,8 +23,8 @@ rhs  = ""                 # TODO: implement possible modes: native (fixed for tc
 loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
-#inputDir = "/home/julian/Hamburg/ED_Data/b15.0_U2.0"
 inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
+#inputDir = "/home/julian/Hamburg/ladderDGA_3/ladderDGA_vsmall"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt_sums.jld"
 force_full_bosonic_sum = false   # instead of finding a usable intervall, use all bosonic frequencies
