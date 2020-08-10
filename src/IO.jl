@@ -17,6 +17,8 @@ function readConfig(file)
                                tml["Simulation"]["shift"],
                                tml["Simulation"]["Nk"],
                                tml["Simulation"]["tail_corrected"],
+                               tml["Simulation"]["force_full_bosonic_sum"],
+                               tml["Simulation"]["force_full_bosonic_chi"],
                                tml["Simulation"]["chi_only"],
                                tml["Simulation"]["kInt"])
     env = EnvironmentVars(   tml["Environment"]["loadFortran"],
@@ -25,7 +27,6 @@ function readConfig(file)
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
                              tml["Environment"]["asymptVars"],
-                             tml["Environment"]["force_full_bosonic_sum"],
                              tml["Environment"]["cast_to_real"]
                             )
     return (model, sim, env)

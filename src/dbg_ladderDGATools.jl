@@ -203,9 +203,9 @@ end
 function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
                               modelParams::ModelParameters, simParams::SimulationParameters; Usign= 1) where T
     Nω = floor(Int64,size(bubble, 1)/2)
-    Nν = floor(Int64,size(bubble, 2)/2)
-    Nq = size(bubble, 3)
-    γres = Array{eltype(bubble)}(undef, 2*Nω+1, 2*Nν, Nq)
+    Nq = size(bubble, 2)
+    Nν = floor(Int64,size(bubble, 3)/2)
+    γres = Array{eltype(bubble)}(undef, 2*Nω+1, Nq, 2*Nν)
     χ = Array{eltype(bubble)}(undef, 2*Nω+1, Nq)    # ωₙ x q (summed over νₙ)
 
     W = nothing
@@ -215,20 +215,14 @@ function calc_χ_trilex(Γ::Array{T,3}, bubble::Array{T,3},
         W = build_weights(νmin, νmax, [0,1,2,3])
     end
     for qi in 1:Nq
-        for (ωi,ωₙ) in enumerate((-Nω):Nω)
-            χ_tmp = copy(Γ[ωi, :, :])
-            tmpSum = Array{eltype(Γ)}(undef, size(Γ,2))
-            for νi in 1:size(Γ,2)
-                @inbounds χ_tmp[νi, νi] += 1.0 / bubble[ωi, νi, qi] 
-            end
+        for ωi in 1:2*Nω+1
+            @inbounds χ_tmp = Matrix(Γ[ωi, :, :]) + Diagonal(1.0 ./ bubble[ωi, qi, :]);
             χ_tmp = inv(χ_tmp)
-
-            #TODO: HUGE bottleneck here. this needs to be optimized
             @inbounds χ[ωi, qi] = sum_freq(χ_tmp, [1,2], simParams.tail_corrected, modelParams.β, weights=W)[1,1]
-            @inbounds tmpSum = sum_freq(χ_tmp, [2], simParams.tail_corrected, modelParams.β, weights=W)[:,1]
+            @inbounds tmpSum = sum_freq(χ_tmp, [2], simParams.tail_corrected, 1.0, weights=W)[:,1]
             for νi in 1:size(tmpSum,1) #enumerate((-Nν):(Nν-1))
-                @inbounds γres[ωi, νi, qi] = tmpSum[νi] ./ 
-                       (bubble[ωi, νi, qi]  * (1.0 - Usign*modelParams.U * χ[ωi, qi]))
+                @inbounds γres[ωi, qi, νi] = tmpSum[νi] ./ 
+                       (bubble[ωi, qi, νi]  * (1.0 - Usign*modelParams.U * χ[ωi, qi]))
             end
         end
     end
@@ -241,6 +235,7 @@ end
 function calc_DΓA_Σ(χsp, χch, γsp, γch,
                              bubble, Σ_loc, FUpDo, qMult, qGrid, qInd,
                              ωrange, modelParams::ModelParameters, simParams::SimulationParameters)
+    println(stderr, "incorrect results for naive computation of EoM!")
     _, kGrid = gen_kGrid(simParams.Nk, modelParams.D)
     kList = reduce_kGrid(cut_mirror(kGrid))
     qList = collect(qGrid)

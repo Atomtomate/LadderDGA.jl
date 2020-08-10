@@ -12,6 +12,8 @@ struct SimulationParameters
     shift::Int64            # shift of center for intervall of bosonic frequencies
     Nk::Int64               # Number of k-space integration steps
     tail_corrected::Bool    # use correction for finite ν and ω sums.
+    fullSums::Bool
+    fullChi::Bool
     chi_only::Bool    # skip computation of self energy
     kInt::String            # Type of k=space integration: naive summation or FFT
 end
@@ -28,7 +30,31 @@ struct EnvironmentVars
     inputDir::String
     inputVars::String
     asymptVars::String
-    fullSums::Bool
     cast_to_real::Bool
+end
+
+struct LocalQuantities
+    Γsp
+    Γch
+    Σ_loc
+    FUpFo
+    χLocsp
+    χLocch
+    usable_loc_sp
+    usable_loc_ch
+end
+
+
+mutable struct NonLocalQuantities
+    bubble
+    χsp
+    χsp_λ
+    χch
+    χch_λ
+    usable_sp 
+    usable_ch
+    trilexsp
+    trilexch
+    Σ_ladder
 end
 # TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp
