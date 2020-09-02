@@ -5,8 +5,17 @@
 # ==================================================================================================== # 
 function readConfig(file)
     tml = TOML.parsefile(file)
-    model = 
     sim = tml["Simulation"]
+    χfill = nothing
+    if tml["Simulation"]["chi_unusable_fill_value"] == "0"
+        χfill = zero_χ_fill
+    elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi_lambda"
+        χfill = lambda_χ_fill
+    elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi"
+        χfill = χ_fill
+    else
+        error("could not parse chi fill value")
+    end
     model = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
@@ -17,8 +26,10 @@ function readConfig(file)
                                tml["Simulation"]["shift"],
                                tml["Simulation"]["Nk"],
                                tml["Simulation"]["tail_corrected"],
+                               tml["Simulation"]["force_full_local_bosonic_sum"],
                                tml["Simulation"]["force_full_bosonic_sum"],
                                tml["Simulation"]["force_full_bosonic_chi"],
+                               χfill,
                                tml["Simulation"]["chi_only"],
                                tml["Simulation"]["kInt"])
     env = EnvironmentVars(   tml["Environment"]["loadFortran"],
@@ -70,7 +81,7 @@ reduce_3Freq!(inp, freqBox, simParams) = inp = reduce_3Freq(inp, freqBox, simPar
 
 
 function convert_from_fortran(simParams, env, loadFromBak=false)
-    println("Reading Fortran Input, this can take several minutes.")
+    @info "Reading Fortran Input, this can take several minutes."
     if loadFromBak
         vars = load("fortran_files_bak") 
         g0 = vars["g0"]
@@ -81,12 +92,12 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
         χDMFTCharge = vars["cDMFTCharge"]
         χDMFTSpin = vars["cDMFTSpin"]
     else
-        g0 = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/g0mand", storedInverse=true)
-        gImp = readFortranSymmGF(simParams.n_iν+simParams.n_iω, env.inputDir*"/gm_wim", storedInverse=false)
+        g0 = readFortranSymmGF(simParams.n_iν+2*simParams.n_iω, env.inputDir*"/g0mand", storedInverse=true)
+        gImp = readFortranSymmGF(simParams.n_iν+2*simParams.n_iω, env.inputDir*"/gm_wim", storedInverse=false)
         freqBox, Γcharge, Γspin = readFortranΓ(env.inputDir*"/gamma_dir")
-        println("Done Reading Gamma")
+        @info "Done Reading Gamma"
         χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"/chi_dir")
-        println("Done Reading chi")
+        @info "Done Reading chi"
     end
     Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
     Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
@@ -409,7 +420,7 @@ function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
     lineLen = length(InString[1])
     splitLength = floor(Int64,lineLen/NCols)
     if lineLen%NCols != 0
-        println(stderr, "   ---> Warning!! Could not find fixed column width!")
+        @warn "   ---> Warning!! Could not find fixed column width!"
     end
     #InArr = sign .* parse.(Float64,hcat(split.(InString)...)[2:end,:])
     InArr = zeros(Float64, NRows, NCols-1)
@@ -461,12 +472,22 @@ function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, in
         open(filename, "w") do f
             for (νi,νₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
                 for (ν2i,ν2ₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
-                    @printf(f, "%18.10f  %18.10f  %18.10f %18.10f %18.10f %18.10f %18.10f\n", ωₙ, νₙ, ν2ₙ,
+                    @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n", ωₙ, νₙ, ν2ₙ,
                             real(inCol1[ωi, νi, ν2i]), imag(inCol1[ωi, νi, ν2i]), 
                             real(inCol2[ωi, νi, ν2i]), imag(inCol2[ωi, νi, ν2i]))
                 end
             end
         end
+    end
+end
+
+function writeFortranΣ(dirName::String, Σ_ladder)
+    res = zeros(size(Σ_ladder,1), 3)
+    for ki in 1:size(Σ_ladder,2)
+        res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ modelParams.β
+        res[:,2] = real.(Σ_ladder[:,ki])
+        res[:,3] = imag.(Σ_ladder[:,ki])
+        writedlm( dirName * "/SELF_Q_" * lpad(ki,4,"0"),  rpad.(round.(res; digits=14), 22, " "), "\t")
     end
 end
 

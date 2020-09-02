@@ -74,7 +74,7 @@ Build weight matrix i.e. ``W = M^{-1} R`` with M from [`build_design_matrix`](@r
 and ``R_{ij} = \\frac{1}{j^i}``.
 Fit coefficients can be obtained by multiplying `w` with data: ``a_k = W_{kj} g_j``
 """
-function build_weights(imin, imax, coeff_exp_list::Array)
+function build_weights(imin::Int64, imax::Int64, coeff_exp_list::Array)::Array{Float64, 2}
     M = build_design_matrix(imin, imax, coeff_exp_list)
     Minv = inv(M)
     ncoeffs = length(coeff_exp_list)
@@ -127,7 +127,7 @@ end
 """
     Faster version for build_νmax. WARNING: only tested for square arrays
 """
-function build_fνmax_fast(f, W)
+function build_fνmax_fast(f::AbstractArray, W)
     n_iν       = minimum(size(f))
     νmax_end   = floor(Int64,n_iν/2)
     νmax_start =  νmax_end - size(W, 2) + 1
@@ -168,8 +168,10 @@ end
     arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
     and the dimensions over which to fit.
 """
-function approx_full_sum(f, dims; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
+function approx_full_sum(f; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
+    dims = collect(1:ndims(f))
     N = floor(Int64, size(f, dims[1])/2)
+
 
     if !(W === nothing) && N < size(W,1)
         println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
@@ -220,8 +222,13 @@ end
 
 #TODO: this is about 2 times slower than sum, why?
 function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; weights::Union{Nothing, Array{Float64,2}}=nothing)
+    #if !(all(dims .== [1]) || all(dims .== [1,2]))
+    #    println(stderr,"arbitrary frequency sums not tested yet")
+    #end
     if tail_corrected
-        res = mapslices(x -> approx_full_sum(x, 1:length(dims), W=weights, fast=true), arr, dims=dims)
+        #mapdims = collect(setdiff(1:ndims(arr),dims))
+        #println(mapdims)
+        res = mapslices(x -> approx_full_sum(x, W=weights, fast=true), arr, dims=dims)
     else
         res = sum(arr, dims=dims)
     end

@@ -3,18 +3,20 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 15.0
+beta = 15#25.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 41
-nBoseFreq = 40
+nFermFreq = 7#3#41
+nBoseFreq = 6#2#40
 shift     = 0             # shift of center of bosonic frequency range
-Nk        = 10            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+Nk        = 4            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
-force_full_bosonic_sum = false   # instead of finding a usable intervall, use all bosonic frequencies
-force_full_bosonic_chi = false   # compute all omega frequencies for chi and trilex
+force_full_local_bosonic_sum = false   # instead of a usable interval for local quantities, use all bosonic frequencies
+force_full_bosonic_sum = true        # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies
+force_full_bosonic_chi = true        # compute all omega frequencies for chi and trilex
+chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"              # TODO: only FFT available for now (naive and GL have to be activated in code)
 rhs  = ""                 # TODO: implement possible modes: native (fixed for tc, error_comp for naive), 
@@ -23,8 +25,9 @@ rhs  = ""                 # TODO: implement possible modes: native (fixed for tc
 
 [Environment]
 loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
-writeFortran = false
+writeFortran = true
 loadAsymptotics = false
+#inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
 inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
 #inputDir = "/home/julian/Hamburg/ladderDGA_3/ladderDGA_vsmall"
 inputVars = "vars.jld"
@@ -35,4 +38,4 @@ cast_to_real = false             # TODO: not implemented. cast all arrays with v
 lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?
 
 [Debug]
-read_bubble = true
+read_bubble = false

@@ -1,55 +1,34 @@
-#TODO: nw and niv grid as parameters? 
 #TODO: define GF type that knows about which dimension stores which variable
 using Base.Iterators
 
-@everywhere @inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T =
-                    1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
-@everywhere @inline @fastmath w_from_Σ(n::Int64, β::Float64, μ::Float64, Σ::Complex{Float64}) =
-                    ((π/β)*(2*n + 1)*1im + μ - Σ)
-
-@inline function G_fft(ind::Int64, Σ::Array{Complex{Float64},1}, 
-                                 ϵkGrid::Base.Generator, β::Float64, μ::Float64)
-    Σν = get_symm_f(Σ,ind)
-    @inbounds Gν  = map(ϵk -> GF_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
-    return fft!(Gν)
-end
-
-function calc_bubble_fft(Σ::Array{Complex{Float64},1}, ϵkGrid::Base.Generator, redGridSize::Int64,
-                              mP::ModelParameters, sP::SimulationParameters)
-
-    res = Array{Complex{Float64}}(undef, 2*sP.n_iω+1, redGridSize, sP.n_iν)
-    println("in bubble: ", size(Σ))
-    println("gnuomega indices: ", length(collect((-sP.n_iω):(sP.n_iν+sP.n_iω))))
-    println("in bubble: ", mP)
-    println("in bubble: ", sP)
-    @inbounds Gνω = [G_fft(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in (-sP.n_iω):(sP.n_iν+sP.n_iω-1)]
-    #println(Gνω)
-    norm = -mP.β ./ (sP.Nk^mP.D) 
-
-    for ωi in 0:2*sP.n_iω
-        for νi in 1:sP.n_iν
-            @inbounds res[ωi+1,:,νi] = norm .* reduce_kGrid(ifft_cut_mirror(ifft(Gνω[νi+sP.n_iω] .* Gνω[νi+ωi])))
-        end
+function calc_bubble_fft(Gνω, Nk::Int64, mP::ModelParameters, sP::SimulationParameters)
+    res = Array{Complex{Float64}}(undef, 2*sP.n_iω+1, Nk, 2*sP.n_iν)
+    norm = (Nk == 1) ? -mP.β : -mP.β /(sP.Nk^(mP.D));
+    transform = Nk == 1 ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+    for ωi in 1:(2*sP.n_iω+1), νi in 1:sP.n_iν
+        @inbounds res[ωi,:,νi+sP.n_iν] .= norm .* transform(Gνω[νi+sP.n_iω] .* Gνω[νi+ωi-1])
     end
-    @inbounds res = cat(conj.(res[end:-1:1,:,end:-1:1]),res, dims=3)
+    res[:,:,1:sP.n_iν] = conj.(res[end:-1:1,:,end:-1:(sP.n_iν+1)])
     return res
 end
 
+function calc_tmp(Γ::Array{T,2}, bubble::Array{T,2})::Array{T,2} where T <: Number
+    ((Diagonal(bubble[qi, :]) * Γ + Matrix{eltype(Γ)}(I, size(Γ[:,:])...))\Diagonal(bubble[qi, :]) for qi in 1:size(bubble,1))
+end
 
+
+#TODO: this can probabily be optimized a lot
 """
 Solve χ = χ₀ - 1/β² χ₀ Γ χ
     ⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
     ⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
     with indices: χ[ω, q] = χ₀[]
-    TODO: use 4.123 with B.6+B.7 instead of inversion
 """
 function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3}, qMultiplicity,
-                              modelParams::ModelParameters, simParams::SimulationParameters) where T <: Number
-    Nω = floor(Int64, size(bubble,1)/2)
-    Nν = floor(Int64,size(bubble, 3)/2)
-    νmin = Int(floor((Nν)*2/4))                                 # min freq for freq fit
-    νmax = Int(floor(Nν))                                       # max freq for freq fit
-    W    = simParams.tail_corrected ? build_weights(νmin, νmax, [0,1,2,3]) : nothing
+                              mP::ModelParameters, sP::SimulationParameters) where T <: Number
+    νmin = Int(floor(size(bubble, 3)))                                 # min freq for freq fit
+    νmax = Int(floor(size(bubble, 3)/2))                               # max freq for freq fit
+    W    = sP.tail_corrected ? build_weights(νmin, νmax, [0,1,2,3]) : nothing
 
     χsp   = zeros(eltype(bubble), size(bubble)[1:2]...)    # ωₙ x q (summed over νₙ)
     χsp_ω = zeros(eltype(bubble), size(bubble)[1])    # ωₙ (summed over νₙ and ωₙ)
@@ -60,16 +39,16 @@ function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3}, 
     trilexch = zeros(eltype(bubble), size(bubble)...)
 
     UnitM = Matrix{eltype(Γsp)}(I, size(Γsp[1,:,:])...)
-    qNorm = 8*(Int(simParams.Nk/2))^(modelParams.D)
     usable_sp = nothing
     usable_ch = nothing
 
 
     indh = ceil(Int64, size(bubble,1)/2)
-    ωi_list = ((i == 0) ? indh : 
-               ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:2*Nω+1)
+    ωindices = sP.fullChi ? 
+            ((i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)) :
+                1:size(bubble,2)
 
-    for ωi in ωi_list
+    for ωi in ωindices
         ΓspView = view(Γsp,ωi,:,:)
         ΓchView = view(Γch,ωi,:,:)
         for qi in 1:size(bubble, 2)
@@ -79,57 +58,60 @@ function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3}, 
 
             @inbounds A = bubbleD * ΓspView + UnitM 
             χ_full_sp = A\bubbleD
-            @inbounds χsp[ωi, qi] = sum_freq(χ_full_sp, [1,2], simParams.tail_corrected, modelParams.β, weights=W)[1,1]
-            @inbounds trilexsp[ωi, qi, :] .= sum_freq(χ_full_sp, [2], simParams.tail_corrected, 1.0, weights=W)[:,1] ./ (bubble_i * (1.0 + modelParams.U * χsp[ωi, qi]))
-
+            @inbounds χsp[ωi, qi] = sum_freq(χ_full_sp, [1,2], sP.tail_corrected, mP.β, weights=W)[1,1]
             @inbounds A = bubbleD * ΓchView + UnitM
             χ_full_ch = A\bubbleD
-            @inbounds χch[ωi, qi] = sum_freq(χ_full_ch, [1,2], simParams.tail_corrected, modelParams.β, weights=W)[1,1]
-            @inbounds trilexch[ωi, qi, :] .= sum_freq(χ_full_ch, [2], simParams.tail_corrected, 1.0, weights=W)[:,1] ./  (bubble_i * (1.0 - modelParams.U * χch[ωi, qi]))
+            @inbounds χch[ωi, qi] = sum_freq(χ_full_ch, [1,2], sP.tail_corrected, mP.β, weights=W)[1,1]
+
+            @inbounds trilexsp[ωi, qi, :] .= sum_freq(χ_full_sp, [2], sP.tail_corrected, 1.0, weights=W)[:,1] ./ (bubble_i* (1.0 + mP.U * χsp[ωi, qi]))
+            @inbounds trilexch[ωi, qi, :] .= sum_freq(χ_full_ch, [2], sP.tail_corrected, 1.0, weights=W)[:,1] ./  (bubble_i* (1.0 - mP.U * χch[ωi, qi]))
         end
 
-        χsp_ω[ωi] = sum(χsp[ωi,:] .* qMultiplicity) / (qNorm)
-        χch_ω[ωi] = sum(χch[ωi,:] .* qMultiplicity) / (qNorm)
-        if (!simParams.fullChi)
+        χsp_ω[ωi] = sum(χsp[ωi,:] .* qMultiplicity) / sum(qMultiplicity)
+        χch_ω[ωi] = sum(χch[ωi,:] .* qMultiplicity) / sum(qMultiplicity)
+        if (!sP.fullChi)
             usable_sp = find_usable_interval(real(χsp_ω))
             usable_ch = find_usable_interval(real(χch_ω))
             first(usable_sp) > ωi && first(usable_ch) > ωi && break
         end
     end
-    if simParams.fullChi
-        usable_sp = find_usable_interval(real(χsp_ω))
-        usable_ch = find_usable_interval(real(χch_ω))
-    end
+    usable_sp = find_usable_interval(real(χsp_ω), reduce_range_prct=0.1)
+    usable_ch = find_usable_interval(real(χch_ω), reduce_range_prct=0.1)
 
     return χsp, χch, χsp_ω, χch_ω, trilexsp, trilexch, usable_sp, usable_ch
 end
 
-function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, ϵkGrid, qIndices, usable_ω, mP::ModelParameters, sP::SimulationParameters)
-    norm = mP.U / (mP.β * (sP.Nk^mP.D))
-    @inbounds Gνω = [G_fft(ind, Σ_loc, ϵkGrid, mP.β, mP.μ) for ind in (-sP.n_iω):(sP.n_iν+sP.n_iω-1)]
+"""
 
-    Σ_ladder = zeros(eltype(χch), sP.n_iν, length(qIndices))
+"""
+function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Gνω, FUpDo, ϵkGrid, qIndices, usable_ω, usable_ν, Nk,mP::ModelParameters, sP::SimulationParameters, tc::Bool)
+    #usable_ν = 1:(last(usable_ν) - sP.n_iν)
+    ωindices = sP.fullSums ? (1:(2*sP.n_iω+1)) : usable_ω
+    Σ_ladder_ω = zeros(Complex{Float64}, length(ωindices), length(usable_ν), length(qIndices))
+    νpindices = sP.n_iν #(sP.n_iν - last(usable_ν) + 1):(sP.n_iν  + last(usable_ν) - 1)
+    Nq = size(bubble,2)
 
-    #for ωi in 1:2*sP.n_iω+1
-    #    for νi in 1:sP.n_iν
-    #        @inbounds res[ωi,:,νi] = norm .* reduce_kGrid(ifft_cut_mirror(ifft(Gνω[νi+sP.n_iω] .* Gνω[νi-1+ωi])))
-    #for ωi in 0:2*sP.n_iω
-    #    for νi in 1:sP.n_iν
-    #        @inbounds res[ωi+1,:,νi] = norm .* reduce_kGrid(ifft_cut_mirror(ifft(Gνω[νi+sP.n_iω] .* Gνω[νi+ωi])))
-    #    end
-    println(usable_ω)
-    println("TODO: qMult instead of expansion")
-    for ωi in usable_ω
-        for νi in 1:sP.n_iν
-            Kνωq = (1.5 .* γsp[ωi, :, νi+sP.n_iν] .* (1 .+ mP.U*χsp[ωi, :]) .-
-                   0.5 .* γch[ωi, :, νi+sP.n_iν].* (1 .- mP.U*χch[ωi, :]) .- 1.5 .+ 0.5) .+
-                   sum(bubble[ωi,:,vpi] .* FUpDo[ωi,νi+sP.n_iν,vpi] for vpi = 1:size(bubble,3))
-            Kνωq = expand_kGrid(qIndices, Kνωq)
-            Kνωq = fft(Kνωq)
-            Σ_ladder[νi, :] += norm .* reduce_kGrid(ifft_cut_mirror(ifft(Kνωq .* Gνω[νi + ωi])))
+    @info "using ω range: " ωindices
+    @info "using νp range: " νpindices
+    Wν    = tc ? build_weights(Int(floor(last(νpindices)*3/5)), Int(last(νpindices)), [0,1,2,3]) : nothing
+    Wω    = tc ? build_weights(Int(floor(last(ωindices .- sP.n_iω)*3/5)), Int(last(ωindices) - sP.n_iω), [0,1,2,3]) : nothing
+    transform = length(qIndices) == 1 ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+    transformK(x) = length(qIndices) == 1 ? identity(x) : fft(expand_kGrid(qIndices, x))
+    norm = mP.U / (mP.β * (Nk^mP.D))
+    
+    for (ω_ind, ωi) in enumerate(ωindices)
+        f1 = 1.5 .* (1 .+ mP.U*χsp[ωi, :])
+        f2 = 0.5 .* (1 .- mP.U*χch[ωi, :])
+        for νi in usable_ν
+            tmp = [sum_freq(bubble[ωi,qi,:] .* FUpDo[ωi,νi+sP.n_iν,:], [1], tc, 1.0, weights=Wν)[1] for qi in 1:Nq]
+            Kνωq = γsp[ωi, :, νi+sP.n_iν] .* f1 .-
+                   γch[ωi, :, νi+sP.n_iν] .* f2 .- 1.5 .+ 0.5 .+ tmp
+            Kνωq = transformK(Kνωq)
+            Σ_ladder_ω[ω_ind, νi, :] += transform(Kνωq .* Gνω[νi + ωi - 1])
         end
     end
-    return Σ_ladder
+    return  norm .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:]
 end
 
-
+function Σ_DMFT_correction
+end

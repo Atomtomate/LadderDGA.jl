@@ -1,5 +1,6 @@
 #TODO: this should be a macro
-@everywhere @inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = @inbounds if i < 0 conj(f[-i]) else f[i+1] end
+@everywhere @inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
+store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
@@ -147,10 +148,10 @@ printr_s(x::Complex{Float64}) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
-function setup_LDGA(configFile)
+function setup_LDGA(configFile, loadFromBak)
     modelParams, simParams, env = readConfig(configFile)#
     if env.loadFortran == "text"
-        convert_from_fortran(simParams, env, loadFromBak)
+        convert_from_fortran(simParams, env, false)
         if env.loadAsymptotics
             readEDAsymptotics(env)
         end
@@ -160,7 +161,7 @@ function setup_LDGA(configFile)
             readEDAsymptotics_parquet(env)
         end
     end
-    println("loading from ", env.inputVars)
+    @info "loading from " env.inputVars
     vars    = load(env.inputVars) 
     G0      = vars["g0"]
     GImp    = vars["gImp"]
@@ -168,7 +169,7 @@ function setup_LDGA(configFile)
     Γsp     = vars["GammaSpin"]
     χDMFTch = vars["chiDMFTCharge"]
     χDMFTsp = vars["chiDMFTSpin"]
-    println("TODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir")
+    @warn "TODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir"
     ωGrid   = (-simParams.n_iω):(simParams.n_iω)
     νGrid   = (-simParams.n_iν):(simParams.n_iν-1)
     if env.loadAsymptotics
@@ -178,17 +179,18 @@ function setup_LDGA(configFile)
     end
     #TODO: unify checks
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
+    (simParams.fullSums && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
-    usable_loc_sp = simParams.fullSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
+    usable_loc_sp = simParams.fullLocSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tail_corrected, modelParams.β)[1]
 
     χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
-    usable_loc_ch = simParams.fullSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
+    usable_loc_ch = simParams.fullLocSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tail_corrected, modelParams.β)[1]
 
-    return modelParams, simParams, env, Γch, Γsp, Σ_loc, FUpDo, χLocch, χLocsp, usable_loc_ch, usable_loc_sp
+    return modelParams, simParams, env, Γsp, Γch, GImp, Σ_loc, FUpDo, χLocsp, χLocch, usable_loc_sp, usable_loc_ch
 end

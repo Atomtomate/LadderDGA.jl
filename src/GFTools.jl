@@ -46,11 +46,6 @@ end
 #for i = 1:nFreq
 #    new_grid[i] = view(new_grid,i) ./ view(tail,2)
 #end
-function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3) 
-    @inbounds Σ::Array{Complex{Float64},1} =  1 ./ GBath .- 1 ./ GImp
-    return Σ
-end
-
 function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)  
     FUpDo = zeros(eltype(χdo), length(ωGrid), length(νGrid1), length(νGrid2))
     for (ωi, ωₙ) in enumerate(ωGrid)
@@ -63,3 +58,25 @@ function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)
     end
     return FUpDo
 end
+
+function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3) 
+    @inbounds Σ::Array{Complex{Float64},1} =  1 ./ GBath .- 1 ./ GImp
+    return Σ
+end
+
+@inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T <: Real =
+                    1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
+
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},1}, 
+                   ϵkGrid::Base.Generator, β::Float64, μ::Float64)
+    Σν = get_symm_f(Σ,ind)
+    return map(ϵk -> GF_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
+end
+
+@inline function G_fft(ind::Int64, Σ::Array{Complex{Float64},1}, 
+                       ϵkGrid::Base.Generator, β::Float64, μ::Float64)
+    fft(G(ind, Σ, ϵkGrid, β, μ))
+end
+
+@inline Gfft_from_Σ(Σ::Array{Complex{Float64},1}, ϵkGrid::Base.Generator, 
+                 range::UnitRange{Int64}, mP::ModelParameters) = [G_fft(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
