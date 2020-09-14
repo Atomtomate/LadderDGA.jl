@@ -73,6 +73,12 @@ function reduce_3Freq(inp, freqBox, simParams)
     n_iν = simParams.n_iν
     start_ωₙ =  -(freqBox[1,1] + n_iω) + 1
     start_νₙ =  -(freqBox[2,1] + n_iν) + 2
+
+    if (length(start_ωₙ:(start_ωₙ+2*n_iω)) != size(inp,1)) ||
+       (length(start_νₙ:(start_νₙ + 2*n_iν - 1)) != size(inp,2))
+        @error "Input frequency range does not match input data. This can lead to wrong results! Input size: ", size(inp),
+        " got ", length(start_ωₙ:(start_ωₙ+2*n_iω)), ",", length(start_νₙ:(start_νₙ + 2*n_iν - 1))
+    end
     # This selects the range of [-ωₙ, ωₙ] and [-νₙ, νₙ-1] from gamma
     return inp[start_ωₙ:(start_ωₙ+2*n_iω), start_νₙ:(start_νₙ + 2*n_iν - 1), start_νₙ:(start_νₙ +2*n_iν - 1)]
 end
@@ -104,7 +110,7 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
     χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)
     χDMFTSpin = reduce_3Freq(χDMFTSpin, freqBox, simParams)
     if env.writeFortran
-        println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
+        @info "Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output."
         writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
         writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
     end
@@ -483,11 +489,16 @@ end
 
 function writeFortranΣ(dirName::String, Σ_ladder)
     res = zeros(size(Σ_ladder,1), 3)
+    
     for ki in 1:size(Σ_ladder,2)
-        res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ modelParams.β
-        res[:,2] = real.(Σ_ladder[:,ki])
-        res[:,3] = imag.(Σ_ladder[:,ki])
-        writedlm( dirName * "/SELF_Q_" * lpad(ki,4,"0"),  rpad.(round.(res; digits=14), 22, " "), "\t")
+        fn = dirName * "/SELF_Q_" * lpad(ki,4,"0")
+        open(fn, write=true) do f
+            write(f, "header...\n")
+            res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ modelParams.β
+            res[:,2] = real.(Σ_ladder[:,ki])
+            res[:,3] = imag.(Σ_ladder[:,ki])
+            writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")
+        end
     end
 end
 

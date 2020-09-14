@@ -1,7 +1,9 @@
 # TODO: test everything for single orbital case
-iν_array(β::Real, grid::Array{Int}) = [1.0im*((2.0 *el + 1)* π/β) for el in grid]
+iν_array(β::Real, grid::Array{Int64}) = [1.0im*((2.0 *el + 1)* π/β) for el in grid]
+iν_array(β::Real, grid::UnitRange{Int64}) = [1.0im*((2.0 *el + 1)* π/β) for el in grid]
 iν_array(β::Real, size::Integer)    = [1.0im*((2.0 *i + 1)* π/β) for i in 0:size-1]
-iω_array(β::Real, grid::Array{Int}) = [1.0im*((2.0 *el)* π/β) for el in grid]
+iω_array(β::Real, grid::Array{Int64}) = [1.0im*((2.0 *el)* π/β) for el in grid]
+iω_array(β::Real, grid::UnitRange{Int64}) = [1.0im*((2.0 *el)* π/β) for el in grid]
 iω_array(β::Real, size::Integer)    = [1.0im*((2.0 *i)* π/β) for i in 0:size-1]
 
 
@@ -64,19 +66,45 @@ function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64}
     return Σ
 end
 
-@inline @fastmath GF_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T <: Real =
+@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T <: Real =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 
+"""
+    G(ind::Int64, Σ::Array{Complex{Float64},1}, ϵkGrid, β::Float64, μ)
+Constructs GF from k-independent self energy, using the Dyson equation
+and the dispersion relation of the lattice.
+"""
 @inline function G(ind::Int64, Σ::Array{Complex{Float64},1}, 
                    ϵkGrid::Base.Generator, β::Float64, μ::Float64)
     Σν = get_symm_f(Σ,ind)
-    return map(ϵk -> GF_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
+    return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
 end
 
-@inline function G_fft(ind::Int64, Σ::Array{Complex{Float64},1}, 
-                       ϵkGrid::Base.Generator, β::Float64, μ::Float64)
-    fft(G(ind, Σ, ϵkGrid, β, μ))
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},2}, 
+                   ϵkGrid, β::Float64, μ::Float64)
+    Σνk = get_symm_f(Σ,ind)
+    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
-@inline Gfft_from_Σ(Σ::Array{Complex{Float64},1}, ϵkGrid::Base.Generator, 
-                 range::UnitRange{Int64}, mP::ModelParameters) = [G_fft(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
+@inline Gfft_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
+                    range::UnitRange{Int64}, mP::ModelParameters) = flatten_2D(fft.(G_from_Σ(Σ, ϵkGrid, range, mP)))
+
+@inline G_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
+                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
+"""
+    extend_Σ(Σ_ladder, Σ_loc, range)
+
+Builds new  self energy with `Σ_loc` tail, extending the frequency
+range of `Σ_ladder`. If `range` contains negative frequencies, the
+results are obtaind from `get_symm_f(Σ, i)`.
+"""
+function extend_Σ(Σ_ladder, Σ_loc, range)
+    res = zeros(eltype(Σ_ladder), length(range), size(Σ_ladder,2))
+    Σ_length = size(Σ_ladder, 1)
+    for (ind, ν) in enumerate(range)
+        res[ind,:] .= (ν < Σ_length && ν >= -Σ_length) ? get_symm_f(Σ_ladder,ν) : get_symm_f(Σ_loc,ν)
+    end
+    return res
+end

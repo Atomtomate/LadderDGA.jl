@@ -306,3 +306,9 @@ function expand_mirror(arr::Array{T, 3}) where T <: Any
     expand_mirror!(res)
     return res
 end
+
+"""
+    sum_q(arr, qMult)
+Computes normalized sum over all q-Points.
+"""
+sum_q(arr, qMult; dims=1:ndims(arr)) = sum(arr .* qMult, dims=dims) ./ sum(qMult)

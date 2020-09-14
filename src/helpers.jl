@@ -1,6 +1,8 @@
 #TODO: this should be a macro
-@everywhere @inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
+@inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
+@inline get_symm_f(f::Array{Complex{Float64},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
 store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
+store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
@@ -165,8 +167,10 @@ function setup_LDGA(configFile, loadFromBak)
     vars    = load(env.inputVars) 
     G0      = vars["g0"]
     GImp    = vars["gImp"]
-    Γch     = vars["GammaCharge"]
-    Γsp     = vars["GammaSpin"]
+    Γch_tmp     = vars["GammaCharge"]
+    Γsp_tmp     = vars["GammaSpin"]
+    Γch = SharedArray{Complex{Float64},3}(size(Γch_tmp),pids=procs());copy!(Γch, Γch_tmp)
+    Γsp = SharedArray{Complex{Float64},3}(size(Γsp_tmp),pids=procs());copy!(Γsp, Γsp_tmp)
     χDMFTch = vars["chiDMFTCharge"]
     χDMFTsp = vars["chiDMFTSpin"]
     @warn "TODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir"
@@ -179,7 +183,7 @@ function setup_LDGA(configFile, loadFromBak)
     end
     #TODO: unify checks
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
-    (simParams.fullSums && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    (simParams.fullRange && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
@@ -192,5 +196,39 @@ function setup_LDGA(configFile, loadFromBak)
     usable_loc_ch = simParams.fullLocSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tail_corrected, modelParams.β)[1]
 
-    return modelParams, simParams, env, Γsp, Γch, GImp, Σ_loc, FUpDo, χLocsp, χLocch, usable_loc_sp, usable_loc_ch
+    impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp)
+    impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch)
+
+    return modelParams, simParams, env, impQ_sp, impQ_ch, GImp, Σ_loc, FUpDo
+end
+
+
+function flatten_2D(arr)
+    res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
+    for i in 1:length(arr)
+        res[i,:] = arr[i]
+    end
+    return res
+end
+
+function calc_E_Pot(Σ_ladder, ϵkGrid, mP::ModelParameters, sP::SimulationParameters; weights=nothing)
+    νGrid = 0:simParams.n_iν-1
+    Σ_hartree = mP.n * mP.U/2
+    ϵkGrid_red = reduce_kGrid(cut_mirror(collect(ϵkGrid)))
+    tail_corr_0 = 0.0
+    tail_corr_inv_0 = mP.β * Σ_hartree/2
+    tail_corr_1 = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵkGrid_red .+ Σ_hartree .- mP.μ))' ./ (iν_array(mP.β, 0:(sP.n_iν-1)) .^ 2)
+    tail_corr_inv_1 = 0.5 * mP.β * (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵkGrid_red .+ Σ_hartree .- mP.μ))
+
+
+    Σ_ladder_corrected = Σ_ladder.+ Σ_hartree
+    G0_full = G_from_Σ(zeros(Complex{Float64}, sP.n_iν), ϵkGrid, νGrid, mP);
+    G0 = flatten_2D(reduce_kGrid.(cut_mirror.(G0_full)))
+    G_new = flatten_2D(G_from_Σ(Σ_ladder_corrected, ϵkGrid_red, νGrid, mP));
+
+    norm = (mP.β * sP.Nk^mP.D)
+    tmp = real.(G_new .* Σ_ladder_corrected .+ tail_corr_0 .- tail_corr_1);
+    res = [sum( (2 .* sum(tmp[1:i,:], dims=[1])[1,:] .+ tail_corr_inv_0 .- tail_corr_inv_1 .* 0.5 .* mP.β) .* qMultiplicity) / norm for i in 1:sP.n_iν]
+    return (weights != nothing) ? fit_νsum(weights, res[(end-size(weights,2)+1):end]) : res[end]
+    #Wν    = build_weights(floor(Int64, 15), sP.n_iν, collect(0:6))
 end

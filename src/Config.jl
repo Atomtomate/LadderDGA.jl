@@ -15,7 +15,7 @@ struct SimulationParameters
     Nk::Int64               # Number of k-space integration steps
     tail_corrected::Bool    # use correction for finite ν and ω sums.
     fullLocSums::Bool       # full ω sums in computation of local quantities
-    fullSums::Bool          # full ω sums in computation of Σ_ladder
+    fullRange::Bool          # full ω sums in computation of Σ_ladder
     fullChi::Bool
     χFillType::ChiFillType # values to be set outside the usable interval
     chi_only::Bool          # skip computation of self energy
@@ -36,29 +36,3 @@ struct EnvironmentVars
     asymptVars::String
     cast_to_real::Bool
 end
-
-struct LocalQuantities
-    Γsp
-    Γch
-    Σ_loc
-    FUpFo
-    χLocsp
-    χLocch
-    usable_loc_sp
-    usable_loc_ch
-end
-
-
-mutable struct NonLocalQuantities
-    bubble
-    χsp
-    χsp_λ
-    χch
-    χch_λ
-    usable_sp 
-    usable_ch
-    trilexsp
-    trilexch
-    Σ_ladder
-end
-# TODO: not implemented: LQ, Nint, chi_only, lambdaspin_only, sumallch, sumallsp

@@ -16,11 +16,8 @@ end
 
 
 function fit_tail(G, iν_array, tail_func = tail_func_full, n_tail = 8)
-    #println(length(G))
-    #println(length(iν_array))
     @assert length(G) == length(iν_array)
     cost(c) = sum(abs2.(G .- tail_func(iν_array, c)))
-    #print(Optim.optimize(cost, zeros(n_tail), Optim.Newton(); autodiff = :forward))
     res = Optim.minimizer(Optim.optimize(cost, zeros(n_tail), Optim.Newton(); autodiff = :forward))
     return res
 end
@@ -151,7 +148,6 @@ function build_fνmax_fast(f::AbstractArray, W)
         for i in 2:length(f_νmax)
             lo = lo - 1
             up = up + 1
-            #println("$(i): $(lo), $(lo:up), $(up), $(lo:up), $(lo), $((lo+1):(up-1)), $(up), $((lo+1):(up-1))")
             f_νmax[i] = f_νmax[i-1] + sum(f[lo, lo:up]) + sum(f[up, lo:up]) + 
                         sum(f[(lo+1):(up-1),lo]) + sum(f[(lo+1):(up-1),up]) 
         end
@@ -168,31 +164,22 @@ end
     arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
     and the dimensions over which to fit.
 """
-function approx_full_sum(f; W::Union{Nothing, Array{Float64,2}}=nothing, fast::Bool=true)
+
+function approx_full_sum(f; W::Array{Float64,2})
     dims = collect(1:ndims(f))
     N = floor(Int64, size(f, dims[1])/2)
-
-
-    if !(W === nothing) && N < size(W,1)
-        println(stderr, "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms.",
-                " Falling back to naive sum.")
+    if !all(dims .== 1:ndims(f))
+        throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
+    end
+    if N < size(W,1)
+        @error "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms. Falling back to naive sum."
+        println(f)
+        println(W)
+        quit()
         sum_approx = sum(f, dims=dims)
     else
-        if W === nothing
-            ωmin = Int(floor(N*3/4))
-            ωmax = N 
-            W = build_weights(ωmin, ωmax, [0,1,2,3])
-        end
-        if fast
-            if !all(dims .== 1:ndims(f))
-                throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
-            end
-            f_νmax = build_fνmax_fast(f, W)
-        else
-            f_νmax = build_fνmax(f, W, dims)
-        end
-        tail_c = fit_νsum(W, f_νmax)
-        sum_approx = tail_c#tail_c[ax...]
+        f_νmax = build_fνmax_fast(f, W)
+        sum_approx = fit_νsum(W, f_νmax)
     end
     return sum_approx
 end
@@ -222,17 +209,16 @@ end
 
 #TODO: this is about 2 times slower than sum, why?
 function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; weights::Union{Nothing, Array{Float64,2}}=nothing)
-    #if !(all(dims .== [1]) || all(dims .== [1,2]))
-    #    println(stderr,"arbitrary frequency sums not tested yet")
-    #end
     if tail_corrected
-        #mapdims = collect(setdiff(1:ndims(arr),dims))
-        #println(mapdims)
-        res = mapslices(x -> approx_full_sum(x, W=weights, fast=true), arr, dims=dims)
+        if weights === nothing
+            N = floor(Int64, size(arr, dims[1])/2)
+            ωmin = Int(floor(N*3/4))
+            ωmax = N 
+            weights = build_weights(ωmin, ωmax, [0,1,2,3])
+        end
+        res = mapslices(x -> approx_full_sum(x, W=weights), arr, dims=dims)
     else
         res = sum(arr, dims=dims)
     end
     return res/(β^length(dims))
 end
-
-#TODO: sum_q

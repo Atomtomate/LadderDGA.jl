@@ -15,40 +15,21 @@
     return fft!(Gν) .* phasematrix
 end
 
-#TODO: get rid of kInt, remember symmetry G(k')G(k'+q) so 2*LQ-2 = kInt
-function calc_bubble_fft(Σ::Array{Complex{Float64},1}, 
-                              modelParams::ModelParameters, simParams::SimulationParameters)
-    tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
-    println("TODO: only compute G_fft only once")
-    println("TODO: online compute kGrid once")
-    kIndices, kIntGrid = gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = 2π) 
-    ϵkIntGrid   = squareLattice_ekGrid(kIntGrid, tsc)
-    kGrid_cr = reduce_kGrid(cut_mirror(collect(kIndices)))[1:end]
 
-    # transform to FFTW input style, from 0 to 1 and phase 
-    phasematrix = map(x -> exp(-2π*1im*(sum(x)-modelParams.D)*(1.0/simParams.Nk)), kIndices)
-    res = Array{Complex{Float64}}(undef,simParams.n_iν, 2*simParams.n_iω+1, length(kGrid_cr))
-    println(length(kGrid_cr))
-    res2 = Array{Complex{Float64}}(undef,simParams.n_iν, 2*simParams.n_iω+1, length(kIntGrid))
-    println(length(kIntGrid))
-    bw_plan = plan_ifft(ϵkIntGrid)
-
-    @inbounds for νₙ in 0:simParams.n_iν-1
-        Gν = G_fft(νₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
-        for (ωi, ωₙ) in enumerate((-simParams.n_iω):simParams.n_iω)
-            Gνω = G_fft(νₙ + ωₙ, Σ, ϵkIntGrid, modelParams.β, modelParams.μ, phasematrix)
-            tmp = reshape(bw_plan * (Gν  .* Gνω), (repeat([simParams.Nk], modelParams.D)...))
-            @inbounds res[νₙ+1, ωi, :] = reduce_kGrid(cut_mirror(tmp))[1:end]
-            @inbounds res2[νₙ+1, ωi, :] = tmp[1:end]
+function calc_bubble_fft(Gνω::Array{Complex{Float64},1}, Nk::Int64, mP::ModelParameters, sP::SimulationParameters)
+    res = SharedArray{Complex{Float64},3}((2*sP.n_iω+1, Nk, 2*sP.n_iν))
+    gridShape = (Nk == 1) ? [1] : repeat([sP.Nk], mP.D)
+    norm = (Nk == 1) ? -mP.β : -mP.β /(sP.Nk^(mP.D));
+    transform = Nk == 1 ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+    @sync @distributed for ωi in 1:(2*sP.n_iω+1)
+        for νi in 1:sP.n_iν
+            v1 = view(Gνω, νi+sP.n_iω, :)
+            v2 = view(Gνω, νi+ωi-1, :)
+            @inbounds res[ωi,:,νi+sP.n_iν] .= norm .* transform(reshape(v1 .* v2, gridShape...))
         end
     end
-    @inbounds res = -modelParams.β .* res ./ (simParams.Nk^modelParams.D)
-    @inbounds res = cat(conj.(res[end:-1:1,end:-1:1,:]),res, dims=1)
-    res = permutedims(res, [2,3,1])
-    @inbounds res2 = -modelParams.β .* res2 ./ (simParams.Nk^modelParams.D)
-    @inbounds res2 = cat(conj.(res2[end:-1:1,end:-1:1,:]),res2, dims=1)
-    res2 = permutedims(res2, [2,3,1])
-    return res, res2
+    res[:,:,1:sP.n_iν] = conj.(res[end:-1:1,:,end:-1:(sP.n_iν+1)])
+    return res
 end
 
 
@@ -59,7 +40,7 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
     TODO: use 4.123 with B.6+B.7 instead of inversion
 """
-function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3},
+function calc_χ_trilex_old(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3},
                               modelParams::ModelParameters, simParams::SimulationParameters) where T <: Number
     Nω = floor(Int64,size(bubble, 1)/2)
     Nq = size(bubble, 2)
@@ -97,7 +78,7 @@ function calc_χ_trilex(Γsp::Array{T,3}, Γch::Array{T,3}, bubble::Array{T,3},
     return χsp, χch, γsp, γch
 end
 
-function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qIndices, modelParams::ModelParameters, simParams::SimulationParameters; full_input = false)
+function calc_DΓA_Σ_fft_old(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qIndices, modelParams::ModelParameters, simParams::SimulationParameters; full_input = false)
     Nω = floor(Int64,size(bubble,1)/2)
     Nν = floor(Int64,size(bubble,3)/2)
     tsc =  modelParams.D == 3 ? 0.40824829046386301636 : 0.5
@@ -128,7 +109,7 @@ function calc_DΓA_Σ_fft(χsp, χch, γsp, γch, bubble, Σ_loc, FUpDo, qIndice
 end
 
 
-function calc_DΓA_Σ(χsp, χch, γsp, γch, 
+function calc_DΓA_Σ_old(χsp, χch, γsp, γch, 
                              bubble, Σ_loc, FUpDo, qMult, qGrid, 
                              modelParams::ModelParameters, simParams::SimulationParameters)
     _, kGrid         = reduce_kGrid.(gen_kGrid(simParams.Nk, modelParams.D; min = 0, max = π, include_min = true))

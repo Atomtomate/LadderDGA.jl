@@ -1,11 +1,15 @@
 *.jld
 *.dat
 *.txt
+*.csv
 *.out
 Untitled.ipynb
 config_bak.toml
+config_tc.toml
 *.pdf
 bak*
 fortran_out
 .ipynb_checkpoints/
 nohub.out
+*bak*
+*dbg*
