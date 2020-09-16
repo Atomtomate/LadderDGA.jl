@@ -2,7 +2,7 @@ using FortranFiles
 using Test
 
 include("loadFortranData.jl")
-include("../src/ladderDGA_Julia.jl")
+include("../src/LadderDGA.jl")
 include("ladderDGATest.jl")
 
 @testset "full run" begin

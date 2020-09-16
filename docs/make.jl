@@ -1,17 +1,17 @@
-using Documenter, ladderDGA_Julia
+using Documenter, LadderDGA
 
 makedocs(;
-    modules=[ladderDGA_Julia],
+    modules=[LadderDGA],
     format=Documenter.HTML(),
     pages=[
         "Home" => "index.md",
     ],
-    repo="https://github.com/Atomtomate/ladderDGA_Julia.jl/blob/{commit}{path}#L{line}",
-    sitename="ladderDGA_Julia.jl",
+    repo="https://github.com/Atomtomate/LadderDGA.jl/blob/{commit}{path}#L{line}",
+    sitename="LadderDGA.jl",
     authors="Julian Stobbe <Atomtomate@gmx.de>",
     assets=String[],
 )
 
 deploydocs(;
-    repo="github.com/Atomtomate/ladderDGA_Julia.jl",
+    repo="github.com/Atomtomate/LadderDGA.jl",
 )

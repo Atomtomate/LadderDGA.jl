@@ -185,6 +185,9 @@ function approx_full_sum(f; W::Array{Float64,2})
 end
 
 
+"""
+    Returns index of the maximum which is closest to the mid point of the array
+"""
 function find_inner_maximum(arr)
     darr = diff(arr; dims=1)
     mid_index = Int(floor(size(arr,1)/2))

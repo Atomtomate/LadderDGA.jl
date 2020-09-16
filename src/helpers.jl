@@ -26,28 +26,6 @@ sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else
 sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
 
 """
-    Returns index of the maximum which is closest to the mid point of the array
-"""
-function find_inner_maximum(arr)
-    darr = diff(arr; dims=1)
-    mid_index = Int(floor(size(arr,1)/2))
-    intervall_range = 1
-
-    # find interval
-    while (intervall_range < mid_index) &&
-        (darr[(mid_index-intervall_range)] * darr[(mid_index+intervall_range-1)] > 0)
-            intervall_range = intervall_range+1
-    end
-
-    index_maximum = mid_index-intervall_range+1
-    # find index
-    while darr[(mid_index-intervall_range)]*darr[index_maximum] > 0
-        index_maximum = index_maximum + 1
-    end
-    return index_maximum
-end
-
-"""
     Returns rang of indeces that are usable under 2 conditions.
     TODO: This is temporary and should be replace with a function accepting general predicates.
 """

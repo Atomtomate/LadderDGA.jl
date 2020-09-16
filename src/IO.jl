@@ -38,7 +38,11 @@ function readConfig(file)
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
                              tml["Environment"]["asymptVars"],
-                             tml["Environment"]["cast_to_real"]
+                             tml["Environment"]["cast_to_real"],
+                             String([(i == 1) ? uppercase(c) : lowercase(c) 
+                                     for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
+                             lowercase(tml["Environment"]["logfile"]),
+                             tml["Environment"]["progressbar"]
                             )
     return (model, sim, env)
 end
@@ -200,28 +204,6 @@ end
 #                                            Text Input                                                #
 #                                                                                                      #
 # ==================================================================================================== # 
-function readFortran3FreqFile(filename; sign = 1.0, freqInteger = true)
-    InString = open(filename, "r") do f
-        readlines(f)
-    end
-    InArr = sign .* parse.(Float64,hcat(split.(InString)...)[2:end,:])
-    N = Int(sqrt(size(InArr,2)))
-    if freqInteger
-        ωₙ = Int(parse(Float64, split(InString[1])[1]))
-        middleFreqBox = Int64.([minimum(InArr[1,:]),maximum(InArr[1,:])])
-        innerFreqBox  = Int64.([minimum(InArr[2,:]),maximum(InArr[2,:])])
-        freqBox = permutedims([middleFreqBox innerFreqBox], [2,1])
-    else
-        #print("\rWarning, non integer frequencies in "*filename*" ignored!")
-        ωₙ = 0
-        freqBox = []
-    end
-
-    InCol1  = reshape(InArr[3,:] .+ InArr[4,:].*1im, (N, N))
-    InCol2  = reshape(InArr[5,:] .+ InArr[6,:].*1im, (N, N))
-    return ωₙ, freqBox, InCol1, InCol2
-end
-
 function readFortranqωFile(filename, nDims; readq = false, data_cols = 2)
     InString = open(filename, "r") do f
         readlines(f)

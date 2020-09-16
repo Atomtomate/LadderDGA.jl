@@ -10,29 +10,41 @@ dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .*
 
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities,
                       nlQ_ch::NonLocalQuantities, sP::SimulationParameters, mP::ModelParameters)
-    usable_ω = sP.fullRange ? (1:length(nlQ_sp.χ_physical)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
+    usable_ω = sP.fullRange ? (1:length(nlQ_sp.χ_ω)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     @info """Found usable intervals for non-local susceptibility of length 
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))"""
-    χch_sum = real(sum_freq(nlQ_ch.χ_physical[usable_ω], [1], sP.tail_corrected, mP.β)[1])
+    χch_sum = real(sum_freq(nlQ_ch.χ_ω[usable_ω], [1], sP.tail_corrected, mP.β)[1])
+    @info usable_ω sum(nlQ_ch.χ_ω[usable_ω])/mP.β
+    @info sP.tail_corrected , mP.n/2 , χch_sum , real(impQ_ch.χ_loc) , real(impQ_sp.χ_loc), real(χch_sum)
     rhs = sP.tail_corrected ? mP.n/2 - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
     return rhs, usable_ω
 end
 
-function calc_λsp_correction(χ_in, usable_ω, rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
+function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::UnitRange{Int64}, 
+                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
+
+    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qMultiplicity, 
+                                    modelParams.β, simParams.tail_corrected, simParams.χFillType)
+    nlQ_sp = NonLocalQuantities(χsp_λ, sum_q(χsp_λ, qMultiplicity', dims=[2])[:,1], nlQ_sp.γ, nlQ_sp.usable_ω, λsp)
+end
+
+function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::UnitRange{Int64}, 
+                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
     @info "Using rhs for lambda correction: " rhs " with tc = " tc
     res = zeros(eltype(χ_in), size(χ_in)...)
     W = tc ? build_weights(floor(Int64,size(χ_in, 1)/4), floor(Int64,size(χ_in, 1)/2), [0,1,2,3]) : nothing
-    χr    = real.(χ_in)
+    χr    = real.(χ_in[usable_ω,:])
     nh    = ceil(Int64, size(χr,1)/2)
     f(λint) = sum_freq(sum_q(χ_λ(χr, λint), qMult', dims=[2])[:,1], [1], tc, β, weights=W)[1] - rhs
     df(λint) = sum_freq(sum_q(-χ_λ(χr, λint) .^ 2, qMult', dims=[2])[:,1], [1], tc, β, weights=W)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
-    int = [χ_min - 1/length(qMult)^3, χ_min + 1/length(qMult)]
+    int = [χ_min, χ_min + 1/length(qMult)]
     @info "found " χ_min ". Looking for roots in intervall " int
     X = @interval(int[1],int[2])
-    r = roots(f, df, X, Newton)
+    r = roots(f, df, X, Newton, 1e-10)
     @info "possible roots: " r
 
     if isempty(r)

@@ -1,8 +1,8 @@
-# ladderDGA_Julia.jl
+# LadderDGA.jl
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [ladderDGA_Julia]
+Modules = [LadderDGA]
 ```

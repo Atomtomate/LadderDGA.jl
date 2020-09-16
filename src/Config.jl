@@ -35,4 +35,7 @@ struct EnvironmentVars
     inputVars::String
     asymptVars::String
     cast_to_real::Bool
+    loglevel::String      # disabled, error, warn, info, debug
+    logfile::String       # STDOUT, STDERR, filename
+    progressbar::Bool     # true/false enable or disable progress bar
 end

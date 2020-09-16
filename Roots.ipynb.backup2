@@ -31,7 +31,7 @@
       "\u001b[36m\u001b[1m┌ \u001b[22m\u001b[39m\u001b[36m\u001b[1mInfo: \u001b[22m\u001b[39mloading from \n",
       "\u001b[36m\u001b[1m└ \u001b[22m\u001b[39m  env.inputVars = \"vars.jld\"\n",
       "\u001b[33m\u001b[1m┌ \u001b[22m\u001b[39m\u001b[33m\u001b[1mWarning: \u001b[22m\u001b[39mTODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir\n",
-      "\u001b[33m\u001b[1m└ \u001b[22m\u001b[39m\u001b[90m@ Main ~/Hamburg/ladderDGA_Julia/src/helpers.jl:172\u001b[39m\n",
+      "\u001b[33m\u001b[1m└ \u001b[22m\u001b[39m\u001b[90m@ Main ~/Hamburg/LadderDGA/src/helpers.jl:172\u001b[39m\n",
       "\u001b[36m\u001b[1m┌ \u001b[22m\u001b[39m\u001b[36m\u001b[1mInfo: \u001b[22m\u001b[39mInputs Read. Starting Computation.\n",
       "\u001b[36m\u001b[1m│ \u001b[22m\u001b[39mFound usable intervals for local susceptibility of length \n",
       "\u001b[36m\u001b[1m│ \u001b[22m\u001b[39m      sp: 11\n",
@@ -205,7 +205,7 @@
     "using Plots\n",
     "using BenchmarkTools\n",
     "configFile = \"config.toml\"\n",
-    "include(\"src/ladderDGA_Julia.jl\")"
+    "include(\"src/LadderDGA.jl\")"
    ]
   },
   {
@@ -236,7 +236,7 @@
       "\u001b[36m\u001b[1m┌ \u001b[22m\u001b[39m\u001b[36m\u001b[1mInfo: \u001b[22m\u001b[39mloading from \n",
       "\u001b[36m\u001b[1m└ \u001b[22m\u001b[39m  env.inputVars = \"vars.jld\"\n",
       "\u001b[33m\u001b[1m┌ \u001b[22m\u001b[39m\u001b[33m\u001b[1mWarning: \u001b[22m\u001b[39mTODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir\n",
-      "\u001b[33m\u001b[1m└ \u001b[22m\u001b[39m\u001b[90m@ Main ~/Hamburg/ladderDGA_Julia/src/helpers.jl:172\u001b[39m\n"
+      "\u001b[33m\u001b[1m└ \u001b[22m\u001b[39m\u001b[90m@ Main ~/Hamburg/LadderDGA/src/helpers.jl:172\u001b[39m\n"
      ]
     },
     {
@@ -2915,7 +2915,7 @@
     {
      "data": {
       "text/plain": [
-       "\"/home/julian/Hamburg/ladderDGA_Julia\""
+       "\"/home/julian/Hamburg/LadderDGA\""
       ]
      },
      "execution_count": 107,
@@ -3024,9 +3024,9 @@
       " [5] _unique_dims at ./multidimensional.jl:1490 [inlined]",
       " [6] #unique#432 at ./multidimensional.jl:1488 [inlined]",
       " [7] unique at ./multidimensional.jl:1488 [inlined]",
-      " [8] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/dispersion.jl:156",
-      " [9] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:99",
-      " [10] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:109",
+      " [8] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/dispersion.jl:156",
+      " [9] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:99",
+      " [10] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:109",
       " [11] cond_Epot2_r(::Interval{Float64}, ::Float64, ::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},1}, ::Array{Complex{Float64},2}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::ModelParameters, ::SimulationParameters) at ./In[52]:21",
       " [12] (::var\"#testf2#239\"{Float64})(::Interval{Float64}) at ./In[67]:11",
       " [13] (::Bisection{var\"#testf2#239\"{Float64}})(::Root{Interval{Float64}}, ::Float64) at /home/julian/.julia/packages/IntervalRootFinding/1ujfi/src/contractors.jl:76",
@@ -5681,10 +5681,10 @@
       " [5] _unsafe_getindex(::IndexLinear, ::Array{Complex{Float64},3}, ::UnitRange{Int64}, ::StepRange{Int64,Int64}, ::UnitRange{Int64}) at ./multidimensional.jl:739",
       " [6] _getindex at ./multidimensional.jl:727 [inlined]",
       " [7] getindex at ./abstractarray.jl:980 [inlined]",
-      " [8] expand_mirror!(::Array{Complex{Float64},3}) at /home/julian/Hamburg/ladderDGA_Julia/src/dispersion.jl:290",
-      " [9] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/dispersion.jl:161",
-      " [10] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:99",
-      " [11] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:109",
+      " [8] expand_mirror!(::Array{Complex{Float64},3}) at /home/julian/Hamburg/LadderDGA/src/dispersion.jl:290",
+      " [9] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/dispersion.jl:161",
+      " [10] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:99",
+      " [11] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:109",
       " [12] cond_both_r(::Interval{Float64}, ::Interval{Float64}, ::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},1}, ::Array{Complex{Float64},2}, ::Float64, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::ModelParameters, ::SimulationParameters) at ./In[30]:7",
       " [13] testf3(::IntervalBox{2,Float64}) at ./In[31]:6",
       " [14] (::Bisection{typeof(testf3)})(::Root{IntervalBox{2,Float64}}, ::Float64) at /home/julian/.julia/packages/IntervalRootFinding/1ujfi/src/contractors.jl:76",
@@ -5723,9 +5723,9 @@
       "InterruptException:",
       "",
       "Stacktrace:",
-      " [1] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/dispersion.jl:158",
-      " [2] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:99",
-      " [3] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:109",
+      " [1] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/dispersion.jl:158",
+      " [2] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:99",
+      " [3] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:109",
       " [4] cond_both_r!(::Array{Float64,1}, ::Array{Float64,1}, ::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},1}, ::Array{Complex{Float64},2}, ::Float64, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::ModelParameters, ::SimulationParameters) at ./In[30]:24",
       " [5] testf3!(::Array{Float64,1}, ::Array{Float64,1}) at ./In[32]:1",
       " [6] finite_difference_jacobian!(::Array{Float64,2}, ::typeof(testf3!), ::Array{Float64,1}, ::FiniteDiff.JacobianCache{Array{Float64,1},Array{Float64,1},Array{Float64,1},UnitRange{Int64},Nothing,Val{:central},Float64}, ::Nothing; relstep::Float64, absstep::Float64, colorvec::UnitRange{Int64}, sparsity::Nothing, dir::Bool) at /home/julian/.julia/packages/FiniteDiff/NDazk/src/jacobians.jl:369",
@@ -5775,7 +5775,7 @@
       " [11] collect_to!(::Array{Complex{Float64},1}, ::Base.Generator{UnitRange{Int64},var\"#128#130\"{Array{Complex{Float64},3},Array{Complex{Float64},3},SimulationParameters,Bool,Nothing,Int64,Int64}}, ::Int64, ::Int64) at ./array.jl:710",
       " [12] collect_to_with_first!(::Array{Complex{Float64},1}, ::Complex{Float64}, ::Base.Generator{UnitRange{Int64},var\"#128#130\"{Array{Complex{Float64},3},Array{Complex{Float64},3},SimulationParameters,Bool,Nothing,Int64,Int64}}, ::Int64) at ./array.jl:689",
       " [13] collect(::Base.Generator{UnitRange{Int64},var\"#128#130\"{Array{Complex{Float64},3},Array{Complex{Float64},3},SimulationParameters,Bool,Nothing,Int64,Int64}}) at ./array.jl:670",
-      " [14] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:106",
+      " [14] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:106",
       " [15] cond_both_r!(::Array{Float64,1}, ::Array{Float64,1}, ::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},1}, ::Array{Complex{Float64},2}, ::Float64, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::ModelParameters, ::SimulationParameters) at ./In[30]:24",
       " [16] (::var\"#testf3!#192\")(::Array{Float64,1}, ::Array{Float64,1}) at ./In[33]:2",
       " [17] finite_difference_jacobian!(::Array{Float64,2}, ::var\"#testf3!#192\", ::Array{Float64,1}, ::FiniteDiff.JacobianCache{Array{Float64,1},Array{Float64,1},Array{Float64,1},UnitRange{Int64},Nothing,Val{:central},Float64}, ::Nothing; relstep::Float64, absstep::Float64, colorvec::UnitRange{Int64}, sparsity::Nothing, dir::Bool) at /home/julian/.julia/packages/FiniteDiff/NDazk/src/jacobians.jl:369",
@@ -5814,9 +5814,9 @@
       "InterruptException:",
       "",
       "Stacktrace:",
-      " [1] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/dispersion.jl:158",
-      " [2] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:99",
-      " [3] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/ladderDGA_Julia/src/ladderDGATools.jl:109",
+      " [1] expand_kGrid(::Array{Tuple{Int64,Int64,Int64},1}, ::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/dispersion.jl:158",
+      " [2] (::var\"#transformK#129\"{Array{Tuple{Int64,Int64,Int64},1}})(::Array{Complex{Float64},1}) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:99",
+      " [3] calc_DΓA_Σ_fft(::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::Int64, ::ModelParameters, ::SimulationParameters, ::Bool) at /home/julian/Hamburg/LadderDGA/src/ladderDGATools.jl:109",
       " [4] cond_both_r!(::Array{Float64,1}, ::Array{Float64,1}, ::Array{Float64,2}, ::Array{Float64,2}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},3}, ::Array{Array{Complex{Float64},3},1}, ::Array{Array{Complex{Float64},3},1}, ::Array{Complex{Float64},3}, ::Array{Complex{Float64},1}, ::Array{Complex{Float64},2}, ::Float64, ::Base.Generator{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}},var\"#107#108\"{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}}}, ::Array{Tuple{Int64,Int64,Int64},1}, ::UnitRange{Int64}, ::UnitRange{Int64}, ::ModelParameters, ::SimulationParameters) at ./In[30]:24",
       " [5] (::var\"#testf3!#193\")(::Array{Float64,1}, ::Array{Float64,1}) at ./In[34]:2",
       " [6] finite_difference_jacobian!(::Array{Float64,2}, ::var\"#testf3!#193\", ::Array{Float64,1}, ::FiniteDiff.JacobianCache{Array{Float64,1},Array{Float64,1},Array{Float64,1},UnitRange{Int64},Nothing,Val{:central},Float64}, ::Nothing; relstep::Float64, absstep::Float64, colorvec::UnitRange{Int64}, sparsity::Nothing, dir::Bool) at /home/julian/.julia/packages/FiniteDiff/NDazk/src/jacobians.jl:370",
@@ -7200,7 +7200,7 @@
       "Stacktrace:",
       " [1] Generator at ./generator.jl:32 [inlined] (repeats 2 times)",
       " [2] map at ./abstractarray.jl:2072 [inlined]",
-      " [3] χ_λ at /home/julian/Hamburg/ladderDGA_Julia/src/lambdaCorrection.jl:1 [inlined]",
+      " [3] χ_λ at /home/julian/Hamburg/LadderDGA/src/lambdaCorrection.jl:1 [inlined]",
       " [4] construct_f(::Interval{Float64}, ::Interval{Float64}, ::Array{Complex{Float64},2}, ::Array{Complex{Float64},2}, ::Array{Float64,1}; rhs::Float64) at ./In[307]:3",
       " [5] f_full(::IntervalBox{2,Float64}) at ./In[310]:3",
       " [6] 𝒩(::typeof(f_full), ::IntervalRootFinding.var\"#43#44\"{typeof(f_full)}, ::IntervalBox{2,Float64}, ::Float64) at /home/julian/.julia/packages/IntervalRootFinding/1ujfi/src/contractors.jl:26",
@@ -7274,7 +7274,7 @@
     }
    ],
    "source": [
-    "include(\"src/ladderDGA_Julia.jl\")\n",
+    "include(\"src/LadderDGA.jl\")\n",
     "include(\"test/loadFortranData.jl\")"
    ]
   }
