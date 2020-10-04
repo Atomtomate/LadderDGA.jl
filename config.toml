@@ -3,18 +3,19 @@
 [Model]
 U    = 2.0
 mu   = 1.0
-beta = 15#25.0
+beta = 15  #25.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 31
-nBoseFreq = 30
+nFermFreq = 41
+nBoseFreq = 40
 shift     = 0             # shift of center of bosonic frequency range
 Nk        = 10            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = false
-force_full_local_bosonic_sum = false  # instead of a usable interval for impurity quantities, use all bosonic frequencies
-force_full_bosonic_sum = false        # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies
+force_full_local_bosonic_sum = false # instead of a usable interval for impurity quantities, use all bosonic frequencies (fortran: false)
+force_full_bosonic_sum = false        # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies (fortran: true)
+force_max_usable = true             # instead of comon usable range, use individual maximum ranges (fortran: true)
 force_full_bosonic_chi = true        # compute all omega frequencies for chi and trilex
 chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
@@ -26,14 +27,15 @@ rhs  = ""                 # TODO: implement possible modes: native (fixed for tc
 [Environment]
 loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
-loadAsymptotics = false
+loadAsymptotics = true
 #inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
-inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_medium"
+inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
+#inputDir = "/home/julian/Hamburg/ED_Data/b25.0_U1.0/data"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt_sums.jld"
 cast_to_real = false      # TODO: not implemented. cast all arrays with vanishing imaginary part to real
-loglevel = "info"        # error, warn, info, debug
-logfile = "stderr"        # STDOUT, STDERR, filename
+loglevel = "debug"        # error, warn, info, debug
+logfile = "stderr" #"run.out"        # STDOUT, STDERR, filename
 progressbar = false        # true/false enable or disable progress bar
 
 [legacy]

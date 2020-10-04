@@ -14,84 +14,6 @@ function convert_to_real(f; eps=10E-12)
     return real.(f)
 end
 
-sum_limits(a, b, e) = if (ndims(a) == 1) sum(a[b:e]) else sum(mapslices(x -> sum_limits(x,b,e), a; dims=2:ndims(a))[b:e]) end
-        
-sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else 
-                        sum(mapslices(x -> sum_inner(x,cut), a; dims=2:ndims(a))[cut:(end-cut+1)]) end
-
-"""
-    Sums first νmax entries of any array along given dimension.
-    Warning: This has NOT been tested for multiple dimensions.
-"""
-sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
-
-"""
-    Returns rang of indeces that are usable under 2 conditions.
-    TODO: This is temporary and should be replace with a function accepting general predicates.
-"""
-function find_usable_interval(arr; reduce_range_prct = 0.0)
-    darr = diff(arr; dims=1)
-    #index_maximum = find_inner_maximum(arr)
-    mid_index = Int(ceil(size(arr,1)/2))
-
-    if arr[mid_index] < 0.0
-        res = [mid_index]
-        return res
-    end
-    # interval for condition 1 (positive values)
-    cond1_intervall_range = 1
-    # find range for positive values
-    while (cond1_intervall_range < mid_index) &&
-        (arr[(mid_index-cond1_intervall_range)] > 0) &&
-        (arr[(mid_index+cond1_intervall_range)] > 0)
-        cond1_intervall_range = cond1_intervall_range + 1
-    end
-
-    # interval for condition 2 (monotonicity)
-    cond2_intervall_range = 1
-    # find range for first turning point
-    #println(cond1_intervall_range)
-    while (cond2_intervall_range < mid_index-1) &&
-        (darr[(mid_index-cond2_intervall_range)] > 0) &&
-        (darr[(mid_index+cond2_intervall_range)] < 0)
-        cond2_intervall_range = cond2_intervall_range + 1
-    end
-
-    #println(cond2_intervall_range)
-    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    #println(intervall_range)
-    range = ceil(Int64, intervall_range*(1-reduce_range_prct))
-    #println(range)
-    if length(arr)%2 == 1
-        res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
-    else
-        res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
-    end
-
-    #println("res: $(res) = $(mid_index) +- $(range)")
-    if length(res) < 1
-        println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
-        res = [mid_index]
-        println(res)
-    end
-    return res
-end
-
-function compute_Ekin(iνₙ, ϵₖ, Vₖ, GImp, β; full=true)
-    Ekin = 0.0 + 0.0*1im
-    fak = if full sum(Vₖ .^ 2)*(β^2)/4 else sum(Vₖ .^ 2)*(β^2)/8 end
-    for n in 1:length(GImp)
-        for l in 1:length(Vₖ)
-            Ekin += (GImp[n] * (Vₖ[l]^2) / (iνₙ[n] - ϵₖ[l])) - (Vₖ[l] ^ 2)/(iνₙ[n]^2)
-        end
-    end
-    if (full)
-        return  ((Ekin - fak)/(2*β))
-    else
-        return (Ekin - fak)/β
-    end
-end
-
 iω(n) = 1im*2*n*π/(modelParams.β);
 
 
@@ -133,7 +55,7 @@ function setup_LDGA(configFile, loadFromBak)
     if env.loadFortran == "text"
         convert_from_fortran(simParams, env, false)
         if env.loadAsymptotics
-            readEDAsymptotics(env)
+            readEDAsymptotics(env, modelParams)
         end
     elseif env.loadFortran == "parquet"
         convert_from_fortran_pq(simParams, env)
@@ -161,7 +83,7 @@ function setup_LDGA(configFile, loadFromBak)
     end
     #TODO: unify checks
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
-    (simParams.fullRange && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    (simParams.fullωRange_Σ && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
     Σ_loc = Σ_Dyson(G0, GImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
@@ -210,3 +132,27 @@ function calc_E_Pot(Σ_ladder, ϵkGrid, mP::ModelParameters, sP::SimulationParam
     return (weights != nothing) ? fit_νsum(weights, res[(end-size(weights,2)+1):end]) : res[end]
     #Wν    = build_weights(floor(Int64, 15), sP.n_iν, collect(0:6))
 end
+
+macro slice_middle(arr, n)
+    :($arr[($n:(length($arr))-$n)])
+end
+
+macro slice_usable(arr, usable)
+    n = :(ceil(Int64,(length($arr)-length($usable)+2)/2))
+    :($arr[($n:(length($arr))-$n+1)])
+end
+
+stripped_type(t) = (t |> typeof |> Base.typename).wrapper
+sum_drop(arr::AbstractArray) = sum(a,dims=dims)[[(i in dims ? 1 : axes(a,i)) for i in 1:ndims(a)]...]
+
+# ================== FFT + Intervals Workaround ==================
+lo(arr::Array{Interval{Float64}}) = map(x->x.lo,arr)
+hi(arr::Array{Interval{Float64}}) = map(x->x.hi,arr) 
+lo(arr::Array{Complex{Interval{Float64}}}) = map(x->x.lo,real.(arr)) .+ map(x->x.lo,imag.(arr)) .* im
+hi(arr::Array{Complex{Interval{Float64}}}) = map(x->x.hi,real.(arr)) .+ map(x->x.hi,imag.(arr)) .* im
+cmplx_interval(x::Tuple{Complex{Float64},Complex{Float64}}) = Complex(interval(minimum(real.(x)),maximum(real.(x))),
+                                                                      interval(minimum(imag.(x)),maximum(imag.(x))))
+AbstractFFTs.fft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(fft(lo(arr)), fft(lo(arr))))
+AbstractFFTs.fft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(fft(lo(arr)), fft(hi(arr))))
+AbstractFFTs.ifft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(ifft(lo(arr)), ifft(lo(arr))))
+AbstractFFTs.ifft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(ifft(lo(arr)), ifft(hi(arr))))

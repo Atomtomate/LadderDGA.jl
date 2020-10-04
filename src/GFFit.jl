@@ -14,14 +14,6 @@ function tail_func_cmplx(iωn, c)
     return res
 end
 
-
-function fit_tail(G, iν_array, tail_func = tail_func_full, n_tail = 8)
-    @assert length(G) == length(iν_array)
-    cost(c) = sum(abs2.(G .- tail_func(iν_array, c)))
-    res = Optim.minimizer(Optim.optimize(cost, zeros(n_tail), Optim.Newton(); autodiff = :forward))
-    return res
-end
-
 """
     build_design_matrix(imin, imax, ncoeffs)
 
@@ -165,7 +157,7 @@ end
     and the dimensions over which to fit.
 """
 
-function approx_full_sum(f; W::Array{Float64,2})
+function approx_full_sum(f; correction::Float64=0.0, W::Array{Float64,2})
     dims = collect(1:ndims(f))
     N = floor(Int64, size(f, dims[1])/2)
     if !all(dims .== 1:ndims(f))
@@ -176,9 +168,9 @@ function approx_full_sum(f; W::Array{Float64,2})
         println(f)
         println(W)
         quit()
-        sum_approx = sum(f, dims=dims)
+        sum_approx = sum(f, dims=dims) .+ correction
     else
-        f_νmax = build_fνmax_fast(f, W)
+        f_νmax = build_fνmax_fast(f, W) .+ correction
         sum_approx = fit_νsum(W, f_νmax)
     end
     return sum_approx
@@ -211,17 +203,116 @@ function find_inner_maximum(arr)
 end
 
 #TODO: this is about 2 times slower than sum, why?
-function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; weights::Union{Nothing, Array{Float64,2}}=nothing)
+function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; 
+                  correction::Float64=0.0, weights::Union{Nothing, Array{Float64,2}}=nothing)
     if tail_corrected
         if weights === nothing
             N = floor(Int64, size(arr, dims[1])/2)
-            ωmin = Int(floor(N*3/4))
+            ωmin = Int(floor(N*1/4))
             ωmax = N 
             weights = build_weights(ωmin, ωmax, [0,1,2,3])
         end
-        res = mapslices(x -> approx_full_sum(x, W=weights), arr, dims=dims)
+        res = mapslices(x -> approx_full_sum(x, correction=correction, W=weights), arr, dims=dims)
     else
-        res = sum(arr, dims=dims)
+        res = sum(arr, dims=dims) .+ correction
     end
     return res/(β^length(dims))
 end
+
+
+#TODO: clean up
+sum_limits(a, b, e) = if (ndims(a) == 1) sum(a[b:e]) else sum(mapslices(x -> sum_limits(x,b,e), a; dims=2:ndims(a))[b:e]) end
+        
+sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else 
+                        sum(mapslices(x -> sum_inner(x,cut), a; dims=2:ndims(a))[cut:(end-cut+1)]) end
+
+"""
+    Sums first νmax entries of any array along given dimension.
+    Warning: This has NOT been tested for multiple dimensions.
+"""
+sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
+
+"""
+    Returns rang of indeces that are usable under 2 conditions.
+    TODO: This is temporary and should be replace with a function accepting general predicates.
+"""
+function find_usable_interval(arr; reduce_range_prct = 0.0)
+    darr = diff(arr; dims=1)
+    #index_maximum = find_inner_maximum(arr)
+    mid_index = Int(ceil(size(arr,1)/2))
+
+    if arr[mid_index] < 0.0
+        res = [mid_index]
+        return res
+    end
+    # interval for condition 1 (positive values)
+    cond1_intervall_range = 1
+    # find range for positive values
+    while (cond1_intervall_range < mid_index) &&
+        (arr[(mid_index-cond1_intervall_range)] > 0) &&
+        (arr[(mid_index+cond1_intervall_range)] > 0)
+        cond1_intervall_range = cond1_intervall_range + 1
+    end
+
+    # interval for condition 2 (monotonicity)
+    cond2_intervall_range = 1
+    # find range for first turning point
+    #println(cond1_intervall_range)
+    while (cond2_intervall_range < mid_index-1) &&
+        (darr[(mid_index-cond2_intervall_range)] > 0) &&
+        (darr[(mid_index+cond2_intervall_range)] < 0)
+        cond2_intervall_range = cond2_intervall_range + 1
+    end
+
+    #println(cond2_intervall_range)
+    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
+    #println(intervall_range)
+    range = ceil(Int64, intervall_range*(1-reduce_range_prct))
+    #println(range)
+    if length(arr)%2 == 1
+        res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
+    else
+        res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
+    end
+
+    #println("res: $(res) = $(mid_index) +- $(range)")
+    if length(res) < 1
+        println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
+        res = [mid_index]
+        println(res)
+    end
+    return res
+end
+
+function find_usable_γ(arr)
+    nh = ceil(Int64,length(arr)/2)
+    darr = abs.(diff(real.(arr)))
+    max_ok = darr[nh]
+    i = 1
+    while (i < floor(Int64,length(arr)/2))
+        if findmax(darr[nh-i:nh+i])[1] > max_ok
+            max_ok = findmax(darr[nh-i:nh+i])[1]
+        else
+            break
+        end
+        i += 1
+    end
+    max_range_i = findfirst(darr[nh:end] .> max_ok)
+
+    range = max_range_i === nothing ? (1:length(arr)) : (nh-max_range_i+2):(nh+max_range_i-1)
+    return range
+end
+
+function extend_γ(arr, usable_ν)
+    res = copy(arr)
+    val = arr[first(usable_ν)]
+    res[setdiff(1:length(arr), usable_ν)] .= val
+    return res
+end
+
+function extend_γ!(arr, usable_ν)
+    val = arr[first(usable_ν)]
+    arr[setdiff(1:length(arr), usable_ν)] .= val
+end
+
+

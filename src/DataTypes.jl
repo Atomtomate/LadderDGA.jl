@@ -9,13 +9,13 @@ struct ImpurityQuantities
     usable_ω::UnitRange{Int64}
 end
 
-struct NonLocalQuantities
-    χ::SharedArray{Complex{Float64},2}
-    χ_ω::SharedArray{Complex{Float64},1}
-    γ::SharedArray{Complex{Float64},3}
+struct NonLocalQuantities{T <: Union{Complex{Float64}, Float64}}
+    χ::SharedArray{T,2}
+    γ::SharedArray{T,3}
     usable_ω::UnitRange{Int64}
     λ::Float64
 end
+
 const ΓT = SharedArray{Complex{Float64},3}
 const BubbleT = SharedArray{Complex{Float64},3}
 const GνqT = SharedArray{Complex{Float64},2}

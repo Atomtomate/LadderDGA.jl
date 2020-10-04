@@ -15,7 +15,8 @@ struct SimulationParameters
     Nk::Int64               # Number of k-space integration steps
     tail_corrected::Bool    # use correction for finite ν and ω sums.
     fullLocSums::Bool       # full ω sums in computation of local quantities
-    fullRange::Bool          # full ω sums in computation of Σ_ladder
+    fullωRange_Σ::Bool         # full ω sums in computation of Σ_ladder
+    maxRange::Bool          # each channel has separate usable range
     fullChi::Bool
     χFillType::ChiFillType # values to be set outside the usable interval
     chi_only::Bool          # skip computation of self energy

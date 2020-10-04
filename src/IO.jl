@@ -28,6 +28,7 @@ function readConfig(file)
                                tml["Simulation"]["tail_corrected"],
                                tml["Simulation"]["force_full_local_bosonic_sum"],
                                tml["Simulation"]["force_full_bosonic_sum"],
+                               tml["Simulation"]["force_max_usable"],
                                tml["Simulation"]["force_full_bosonic_chi"],
                                χfill,
                                tml["Simulation"]["chi_only"],
@@ -361,7 +362,7 @@ function readGImp(filename; only_positive=false)
 end
 
 
-function readEDAsymptotics(env)
+function readEDAsymptotics(env, modelParams)
     χ_asympt = readdlm(env.inputDir * "/chi_asympt")   
     χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
     χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
@@ -471,9 +472,12 @@ end
 
 function writeFortranΣ(dirName::String, Σ_ladder)
     res = zeros(size(Σ_ladder,1), 3)
+    if !isdir(dirName)
+        mkdir(dirName)
+    end
     
     for ki in 1:size(Σ_ladder,2)
-        fn = dirName * "/SELF_Q_" * lpad(ki,4,"0")
+        fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
         open(fn, write=true) do f
             write(f, "header...\n")
             res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ modelParams.β
@@ -484,3 +488,39 @@ function writeFortranΣ(dirName::String, Σ_ladder)
     end
 end
 
+function writeFortranEnergies(E_Kin, E_Pot, β, dirName::String)
+    if !isdir(dirName)
+        mkdir(dirName)
+    end
+    @assert size(E_Kin) == size(E_Pot)
+    νGrid = 0:(length(E_Kin)-1)
+    iν_n = iν_array(β, νGrid)
+
+    println(length(E_Kin))
+    fn_DGA = dirName * "/energiesDGA.dat"
+    open(fn_DGA, "w") do f
+        for i in 1:length(E_Kin)
+            @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                    imag(iν_n[i]), 0.0, 0.0, real(E_Kin[i]), 0.0, 0.0, 0.0, real(E_Pot[i]), 0.0)
+        end
+    end
+end
+
+function writeFortranEnergies(E_Kin, E_Pot, E_Kin_ED, E_Pot_ED, β, dirName::String)
+    if !isdir(dirName)
+        mkdir(dirName)
+    end
+    @assert size(E_Kin) == size(E_Pot) == size(E_Kin_ED) == size(E_Pot_ED)
+    νGrid = 0:(length(E_Kin)-1)
+    iν_n = iν_array(β, νGrid)
+
+    writeFortranEnergies(E_Kin, E_Pot, β, dirName)
+
+    fn_DMFT = dirName * "/energiesDMFT.dat"
+    open(fn_DMFT, "w") do f
+        for i in 1:length(E_Kin)
+            @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                    imag(iν_n[i]), 0.0, 0.0, real(E_Kin_ED[i]), 0.0, 0.0, 0.0, real(E_Pot_ED[i]), 0.0)
+        end
+    end
+end
