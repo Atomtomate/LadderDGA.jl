@@ -67,7 +67,7 @@ function calc_χ_trilex_int(Γr::SharedArray{Complex{Float64},3}, bubble::Shared
 end
 
 function Σ_internal2!(tmp::SharedArray{Complex{Float64},3}, ωindices,
-                     bubble::BubbleT, FUpDo::SubArray, Wν, tc::Bool)
+                     bubble::BubbleT, FUpDo::SubArray, tc::Bool, Wν)
     for ω_ind in 1:length(ωindices)
         ωi = ωindices[ω_ind]
         for qi in 1:size(bubble,2)
@@ -78,11 +78,11 @@ function Σ_internal2!(tmp::SharedArray{Complex{Float64},3}, ωindices,
     end
 end
 
-function Σ_internal!(Σ::SharedArray{Complex{Float64},3}, ωindices::Union{Array{Int64,1},UnitRange{Int64}},
-                     χsp::SharedArray{Complex{Float64},2}, χch::SharedArray{Complex{Float64},2},
-                     γsp::SubArray, γch::SubArray, Gνω::GνqT,
+#TODO: specify chi type (SharedArray{Complex{T}}, T = Union{Interval, Float64, AudoDiff:w
+function Σ_internal!(Σ, ωindices::Union{Array{Int64,1},UnitRange{Int64}},
+                     χsp, χch, γsp::SubArray, γch::SubArray, Gνω::GνqT,
                      tmp::SharedArray{Complex{Float64},3}, U::Float64,
-                     transformG::Function, transformK::Function, transform::Function)
+                     transformG::Function, transformK::Function, transform::Function) where T Float64
     for ω_ind in 1:length(ωindices)
         ωi = ωindices[ω_ind]
         @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωi, :])
@@ -110,7 +110,7 @@ function calc_DΓA_Σ_int(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities
     Wν    = tc ? build_weights(Int(floor(sP.n_iν*3/5)), sP.n_iν, [0,1,2,3]) : nothing
     Wω    = tc ? build_weights(Int(floor(last(ωindices .- sP.n_iω)*3/5)), Int(last(ωindices) - sP.n_iω), [0,1,2,3]) : nothing
     norm = mP.U / (mP.β * (Nk^mP.D))
-    Σ_internal2!(tmp, ωindices, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), Wν, tc)
+    Σ_internal2!(tmp, ωindices, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
     Σ_internal!(Σ_ladder_ω, ωindices, nlQ_sp.χ, nlQ_ch.χ,
                 view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
                 Gνω, tmp, mP.U, transformG, transformK, transform)

@@ -1,6 +1,7 @@
 #TODO: this should be a macro
 @inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
 @inline get_symm_f(f::Array{Complex{Float64},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
+@inline get_symm_f(f::Array{Complex{Interval{Float64}},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
 store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 

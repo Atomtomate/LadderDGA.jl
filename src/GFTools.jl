@@ -66,8 +66,18 @@ function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64}
     return Σ
 end
 
-@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{T}) where T <: Real =
+@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Float64}) where T <: Real =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
+@inline G_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
+                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
+@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Interval{Float64}}) where T <: Real =
+                    1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
+@inline G_from_Σ(Σ::Array{Complex{Interval{Float64}}}, ϵkGrid, 
+                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
+@inline Gfft_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
+                    range::UnitRange{Int64}, mP::ModelParameters) = flatten_2D(fft.(G_from_Σ(Σ, ϵkGrid, range, mP)))
 
 """
     G(ind::Int64, Σ::Array{Complex{Float64},1}, ϵkGrid, β::Float64, μ)
@@ -86,12 +96,12 @@ end
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
+@inline function G(ind::Int64, Σ::Array{Complex{Interval{Float64}},2}, 
+                   ϵkGrid, β::Float64, μ::Float64)
+    Σνk = get_symm_f(Σ,ind)
+    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
+end
 
-@inline Gfft_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
-                    range::UnitRange{Int64}, mP::ModelParameters) = flatten_2D(fft.(G_from_Σ(Σ, ϵkGrid, range, mP)))
-
-@inline G_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
-                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
 """
     extend_Σ(Σ_ladder, Σ_loc, range)
