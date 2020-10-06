@@ -67,7 +67,7 @@ end
 function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
                          ϵkGrid::Base.Generator, FUpDo::Array{Complex{Float64},3}, 
                          Σ_loc_pos, Σ_ladderLoc,
-                         qIndices::qGridT, qM, mP::ModelParameters, sP::SimulationParameters, tc::Bool)
+                         qIndices::qGridT, qM, mP::ModelParameters, sP::SimulationParameters, tc::Bool; find_root=true)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
     transform = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft 
@@ -75,9 +75,13 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
     transformG(x) = reshape(x, gridShape...)
 
     Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -simParams.n_iω:(simParams.n_iν+simParams.n_iω-1), mP))
+
+    usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
+    n_iω_usable = (-sP.n_iω:sP.n_iω)[usable_ω]
+    Gνω_usable = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, first(n_iω_usable):(simParams.n_iν+last(n_iω_usable)-1), mP))
     ϵqGrid = reduce_kGrid(cut_mirror(collect(ϵkGrid)));
     νGrid = 0:sP.n_iν-1
-    usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     Σ_hartree = mP.n * mP.U/2
     norm = mP.β * sP.Nk^mP.D
     E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵqGrid .+ Σ_hartree .- mP.μ))
@@ -87,25 +91,51 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
     Wν    = tc ? build_weights(Int(floor(sP.n_iν*3/5)), sP.n_iν, [0,1,2,3]) : nothing
     Wω    = tc ? build_weights(Int(floor(last(usable_ω .- sP.n_iω)*3/5)), Int(last(usable_ω) - sP.n_iω), [0,1,2,3]) : nothing
 
-    Σ_ladder_ω = SharedArray{Complex{Interval{Float64}},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices))
+    Σ_ladder_ω = find_root ? SharedArray{Complex{Interval{Float64}},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) : SharedArray{Complex{Float64},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) 
     tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
     Σ_internal2!(tmp, usable_ω, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
 
+
     # --- Calculate new Sigma ---
     function find_roots(λspi, λchi)
-        χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λspi))
-        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λchi))
-        Σ_internal!(Σ_ladder_ω, usable_ω, χsp_λ, χch_λ,
-                    view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
-                    Gνω, tmp, mP.U, transformG, transformK, transform)
+        χsp_λ = SharedArray(χ_λ(real.(nlQ_sp.χ[usable_ω,:]), λspi))
+        χch_λ = SharedArray(χ_λ(real.(nlQ_ch.χ[usable_ω,:]), λchi))
+        Σ_internal!(Σ_ladder_ω, 1:length(usable_ω), χsp_λ, χch_λ,
+                    view(nlQ_sp.γ,usable_ω,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), 
+                    view(nlQ_ch.γ,usable_ω,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
+                    Gνω_usable, tmp, mP.U, transformG, transformK, transform)
         Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:] ./ norm
         Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)] .+ Σ_hartree
         G_corr = flatten_2D(G_from_Σ(Σ_corr, ϵqGrid, νGrid, mP));
         E_pot  = calc_E_pot(G_corr, Σ_corr, E_pot_tail, E_pot_tail_inv, qM, norm)
-        println("internal: ", λspi, ", ", λchi)
-        return mP.U * sum(real.(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:])) ./ norm  - E_pot
+        res = mP.U * sum(real.(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:])) ./ norm
+        println("internal: ", λspi, ", ", λchi, ". res = $(res), E_Pot = $(E_pot)")
+        return res - E_pot
     end
-    Xsp = @interval(-1,1)
-    res_roots = roots(x->find_roots(x,0.0), Xsp, Bisection, 1e-6);
-    return res_roots
+    res_roots = 0
+    E_pot = 0
+    lhs = 0
+    Σ_corr = nothing
+    if find_root
+        nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
+        χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ)[nh,:])
+        χch_min    = -minimum(1 ./ real.(nlQ_ch.χ)[nh,:])
+        println(χsp_min)
+        int = [χsp_min, χsp_min + 1]
+        Xsp = @interval(χsp_min,χsp_min + 1)
+        res_roots = roots(x->find_roots(x,0.0), Xsp, Bisection, 1e-6);
+    else
+        χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λsp))
+        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λch))
+        Σ_internal!(Σ_ladder_ω, usable_ω, χsp_λ, χch_λ,
+                    view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
+                    Gνω, tmp, mP.U, transformG, transformK, transform)
+        Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:] ./ norm
+
+        Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)]
+        G_corr = flatten_2D(G_from_Σ(Σ_corr .+ Σ_hartree, ϵqGrid, νGrid, mP));
+        E_pot  = calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qM, norm)
+        lhs = mP.U * sum(real.(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:])) ./ norm
+    end
+    return res_roots, Σ_corr, lhs, E_pot
 end

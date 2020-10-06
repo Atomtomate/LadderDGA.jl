@@ -66,7 +66,7 @@ function calc_χ_trilex_int(Γr::SharedArray{Complex{Float64},3}, bubble::Shared
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
-function Σ_internal2!(tmp::SharedArray{Complex{Float64},3}, ωindices,
+function Σ_internal2!(tmp::Union{Array,SharedArray{Complex{Float64},3}}, ωindices,
                      bubble::BubbleT, FUpDo::SubArray, tc::Bool, Wν)
     for ω_ind in 1:length(ωindices)
         ωi = ωindices[ω_ind]
@@ -81,7 +81,7 @@ end
 #TODO: specify chi type (SharedArray{Complex{T}}, T = Union{Interval, Float64, AudoDiff:w
 function Σ_internal!(Σ, ωindices::Union{Array{Int64,1},UnitRange{Int64}},
                      χsp, χch, γsp::SubArray, γch::SubArray, Gνω::GνqT,
-                     tmp::SharedArray{Complex{Float64},3}, U::Float64,
+                     tmp::Union{Array,SharedArray{Complex{Float64},3}}, U::Float64,
                      transformG::Function, transformK::Function, transform::Function) where T Float64
     for ω_ind in 1:length(ωindices)
         ωi = ωindices[ω_ind]
