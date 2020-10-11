@@ -9,9 +9,9 @@ struct ImpurityQuantities
     usable_ω::UnitRange{Int64}
 end
 
-struct NonLocalQuantities{T <: Union{Complex{Float64}, Float64}}
-    χ::SharedArray{T,2}
-    γ::SharedArray{T,3}
+struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: Union{Complex{Float64}, Float64}}
+    χ::SharedArray{T1,2}
+    γ::SharedArray{T2,3}
     usable_ω::UnitRange{Int64}
     λ::Float64
 end

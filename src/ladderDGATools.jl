@@ -27,7 +27,7 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 """
 
 function calc_χ_trilex_int(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArray{Complex{Float64},3}, 
-                       qMultiplicity::Array{<:Real,1}, U::Float64, β::Float64, channel::RemoteChannel; 
+                       qMultiplicity::Array{Float64,1}, U::Float64, β::Float64, channel::RemoteChannel; 
                        tc::Bool=false, fullRange::Bool=false)
     W = tc ? build_weights(floor(Int64,size(bubble, 3)/4), floor(Int64,size(bubble, 3)/2), [0,1,2,3]) : nothing
     sum_χ(arr::Array{Complex{Float64},2}) = sum_freq(arr, [1,2], tc, β, weights=W)[1,1]
@@ -68,11 +68,11 @@ end
 
 function Σ_internal2!(tmp::Union{Array,SharedArray{Complex{Float64},3}}, ωindices,
                      bubble::BubbleT, FUpDo::SubArray, tc::Bool, Wν)
-    for ω_ind in 1:length(ωindices)
-        ωi = ωindices[ω_ind]
+    @sync @distributed for ωi in 1:length(ωindices)
+        ωₙ = ωindices[ωi]
         for qi in 1:size(bubble,2)
             for νi in 1:size(FUpDo,2)
-                @inbounds tmp[ω_ind, qi, νi] = sum_freq(bubble[ωi,qi,:] .* FUpDo[ωi,νi,:], [1], tc, 1.0, weights=Wν)[1]
+                @inbounds tmp[ωi, qi, νi] = sum_freq(bubble[ωₙ,qi,:] .* FUpDo[ωₙ,νi,:], [1], tc, 1.0, weights=Wν)[1]
             end
         end
     end
@@ -83,14 +83,14 @@ function Σ_internal!(Σ, ωindices::Union{Array{Int64,1},UnitRange{Int64}},
                      χsp, χch, γsp::SubArray, γch::SubArray, Gνω::GνqT,
                      tmp::Union{Array,SharedArray{Complex{Float64},3}}, U::Float64,
                      transformG::Function, transformK::Function, transform::Function) where T Float64
-    for ω_ind in 1:length(ωindices)
-        ωi = ωindices[ω_ind]
-        @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωi, :])
-        @inbounds f2 = 0.5 .* (1 .- U*χch[ωi, :])
+    @sync @distributed for ωi  in 1:length(ωindices)
+        ωₙ = ωindices[ωi]
+        @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
+        @inbounds f2 = 0.5 .* (1 .- U*χch[ωₙ, :])
         for νi in 1:size(γsp,3)
-            @inbounds Kνωq = transformK(γsp[ωi, :, νi] .* f1 .-
-                              γch[ωi, :, νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ω_ind,:,νi])
-            @inbounds Σ[ω_ind, νi, :] = transform(Kνωq .* transformG(view(Gνω,νi + ωi - 1,:)))
+            @inbounds Kνωq = transformK(γsp[ωₙ, :, νi] .* f1 .-
+                              γch[ωₙ, :, νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νi])
+            @inbounds Σ[ωi, νi, :] = transform(Kνωq .* transformG(view(Gνω,νi + ωₙ - 1,:)))
         end
     end
 end;
@@ -104,7 +104,7 @@ function calc_DΓA_Σ_int(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities
     transformG(x) = reshape(x, gridShape...)
     transformK(x) = (Nk == 1) ? identity(x) : fft(expand_kGrid(qIndices, x))
 
-    Σ_ladder_ω = SharedArray{eltype(nlQ_sp.χ),3}(length(ωindices), length(1:sP.n_iν), length(qIndices))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(1:sP.n_iν), length(qIndices))
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), sP.n_iν)
 
     Wν    = tc ? build_weights(Int(floor(sP.n_iν*3/5)), sP.n_iν, [0,1,2,3]) : nothing

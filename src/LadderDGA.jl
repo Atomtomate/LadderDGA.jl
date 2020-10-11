@@ -20,7 +20,7 @@ function calc_Σ()
     nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qMultiplicity, -modelParams.U);
 
     @info "Calculating λ correction in the spin channel: "
-    rhs, usable_ω = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, simParams, modelParams)
+    rhs, usable_ω = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qMultiplicity, simParams, modelParams)
     @info "Computing λ corrected χsp, using " simParams.χFillType " as fill value outside usable ω range."
 
     usable_ω_λc = simParams.maxRange ? nlQ_sp.usable_ω : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)

@@ -311,7 +311,10 @@ end
     sum_q(arr, qMult)
 Computes normalized sum over all q-Points.
 """
-sum_q(arr, qMult; dims=1) = convert(stripped_type(arr), mapslices(x-> sum(x .* qMult), arr, dims=dims) ./ sum(qMult))
+function sum_q(arr, qMult; dims::Int64=1) 
+    @assert all(size(arr, dims) .== size(qMult, 1))
+    convert(stripped_type(arr), mapslices(x-> sum(x .* qMult), arr, dims=dims) ./ sum(qMult))
+end
 sum_q_test(arr, qMult; dims=1) = stripped_type(arr)(sum(mapslices(x-> x .* qMult, arr, dims=dims), dims=dims) ./ sum(qMult))
 
 sum_q_drop(arr, qMult; dims=1) = stripped_type(arr)(sum_drop(mapslices(x-> x .* qMult, arr, dims=dims), dims=dims) ./ sum(qMult))

@@ -101,6 +101,6 @@ if myid() == 1
     const calc_Σ(Qsp::NonLocalQuantities, Qch::NonLocalQuantities, bubble::BubbleT, G::GνqT, 
                 qIndices::qGridT, usable_ω::UnitRange{Int64}, Nk::Int64) = 
                 calc_DΓA_Σ_int(Qsp, Qch, bubble, G, FUpDo, qIndices, usable_ω, Nk,
-                               modelParams, simParams, true)#simParams.tail_corrected)
+                               modelParams, simParams, simParams.tail_corrected)
 end
 

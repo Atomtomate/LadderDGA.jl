@@ -1,7 +1,7 @@
 using Distributed
 
 if (myid()==1) && (nprocs()==1)
-    addprocs(8)
+    addprocs(7)
 end
 println("using ", nprocs(), " workers.")
 

@@ -167,7 +167,6 @@ function approx_full_sum(f; correction::Float64=0.0, W::Array{Float64,2})
         @error "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms. Falling back to naive sum."
         println(f)
         println(W)
-        quit()
         sum_approx = sum(f, dims=dims) .+ correction
     else
         f_νmax = build_fνmax_fast(f, W) .+ correction
