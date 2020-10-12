@@ -45,7 +45,8 @@ function _richardson_naive(arr::AbstractArray{T,1}) where T
 end
 
 function richardson(arr::AbstractArray{T,1}, csum_inp=false) where T
-    partial = !csum_inp ? cumsum(arr) : arr
+    w = build_weights(length(arr))
+    partial = !csum_inp ? w * cumsum(arr) : w * arr
 end
 
 

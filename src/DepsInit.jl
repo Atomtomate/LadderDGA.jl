@@ -18,6 +18,7 @@ using StaticArrays
 using PaddedViews   # used to pad fft arrays
 using FFTW          # used for convolutions
 using ProgressMeter
+using NLsolve
 
 
 # ======================= Includes ========================
