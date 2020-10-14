@@ -1,5 +1,7 @@
 using IntervalArithmetic
 using IntervalRootFinding
+
+include("ConvergenceAcc.jl")
 χ_λ(χ::AbstractArray, λ::Union{Float64,Interval{Float64}}) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 χ_λ!(χ_λ, χ, λ::Union{Float64,Interval{Float64}}) = (χ_λ = map(χi -> 1.0 / ((1.0 / χi) + λ), χ))
@@ -73,11 +75,9 @@ function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bu
     transform = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft 
     transformK(x) = fft(expand_kGrid(qIndices, x))
     transformG(x) = reshape(x, gridShape...)
-    Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -simParams.n_iω:(simParams.n_iν+simParams.n_iω-1), mP))
+    Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -sP.n_iω:(sP.n_iν+sP.n_iω-1), mP))
 
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
-    n_iω_usable = (-sP.n_iω:sP.n_iω)[usable_ω]
     ϵqGrid = reduce_kGrid(cut_mirror(collect(ϵkGrid)));
     νGrid = 0:sP.n_iν-1
     Σ_hartree = mP.n * mP.U/2
@@ -87,7 +87,8 @@ function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bu
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(ϵqGrid)), (-mP.β/2) .* E_pot_tail_c])
 
     Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
-    Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3,4]) : nothing
+    Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
+    #Wω_real = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,2,4,6]) : nothing
     tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
 
     Σ_internal2!(tmp, usable_ω, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
@@ -119,18 +120,17 @@ end
 function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
                          ϵkGrid::Base.Generator, FUpDo::Array{Complex{Float64},3}, 
                          Σ_loc_pos, Σ_ladderLoc,
-                         qIndices::qGridT, qMult, mP::ModelParameters, sP::SimulationParameters, tc::Bool)
+                         qIndices::qGridT, qMult, mP::ModelParameters, sP::SimulationParameters, tc::Bool;
+                         E_pot_tail_corr = false)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
     transform = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft 
     transformK(x) = fft(expand_kGrid(qIndices, x))
     transformG(x) = reshape(x, gridShape...)
-
-    Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -simParams.n_iω:(simParams.n_iν+simParams.n_iω-1), mP))
+    Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -sP.n_iω:(sP.n_iν+sP.n_iω-1), mP))
 
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
-    n_iω_usable = (-sP.n_iω:sP.n_iω)[usable_ω]
     ϵqGrid = reduce_kGrid(cut_mirror(collect(ϵkGrid)));
     νGrid = 0:sP.n_iν-1
     Σ_hartree = mP.n * mP.U/2
@@ -140,7 +140,7 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(ϵqGrid)), (-mP.β/2) .* E_pot_tail_c])
 
     Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
-    Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3,4]) : nothing
+    Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) 
     tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
 
@@ -156,7 +156,11 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
 
     Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)]
     G_corr = flatten_2D(G_from_Σ(Σ_corr .+ Σ_hartree, ϵqGrid, νGrid, mP));
-    E_pot  = calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qMult, norm)
+    E_pot = if E_pot_tail_corr
+        Shanks.shanks(calc_E_pot_νn(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qMult, norm), csum_inp=true)[1]
+    else
+        calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qMult, norm)
+    end
 
     tmp_sum = sum_q(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:], qMult, dims=2)[:,1]
     lhs = mP.U * real(sum_freq(tmp_sum, [1], tc, mP.β, weights=Wω)[1])

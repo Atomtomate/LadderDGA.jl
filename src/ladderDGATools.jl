@@ -107,12 +107,11 @@ function calc_DΓA_Σ_int(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(1:sP.n_iν), length(qIndices))
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), sP.n_iν)
 
-    Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3]) : nothing
-    Wω    = tc ? build_weights(1, floor(Int64, length(ωindices)/2), [0,1,2,3,4]) : nothing
-    norm = mP.U / (mP.β * (Nk^mP.D))
+    Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
+    Wω    = tc ? build_weights(1, floor(Int64, length(ωindices)/2), [0,1,2,3]) : nothing
     Σ_internal2!(tmp, ωindices, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
     Σ_internal!(Σ_ladder_ω, ωindices, nlQ_sp.χ, nlQ_ch.χ,
                 view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
                 Gνω, tmp, mP.U, transformG, transformK, transform)
-    return  norm .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:]
+    return  mP.U .* sum_freq(Σ_ladder_ω, [1], tc, mP.β, weights=Wω)[1,:,:] ./ (Nk^mP.D)
 end

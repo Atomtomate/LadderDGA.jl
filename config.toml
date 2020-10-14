@@ -1,17 +1,17 @@
 # input TOML for ladderDGA
 
 [Model]
-U    = 1.0
-mu   = 0.5
-beta = 25  #25.0
+U    = 2.0 #1.0
+mu   = 1.0 #0.5
+beta = 15 #25  #25.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 81
-nBoseFreq = 80
+nFermFreq = 41 #81
+nBoseFreq = 40 #80
 shift     = 0             # shift of center of bosonic frequency range
-Nk        = 16            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+Nk        = 10            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = true
 force_full_local_bosonic_sum = false # instead of a usable interval for impurity quantities, use all bosonic frequencies (fortran: false)
 force_full_bosonic_sum = false # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies (fortran: true)
@@ -29,8 +29,8 @@ loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = true
 #inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
-#inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
-inputDir = "/home/julian/Hamburg/ED_Data/b25.0_U1.0/data"
+inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
+#inputDir = "/home/julian/Hamburg/ED_Data/b25.0_U1.0/data"
 inputVars = "vars.jld"
 asymptVars = "vars_asympt_sums.jld"
 cast_to_real = false      # TODO: not implemented. cast all arrays with vanishing imaginary part to real

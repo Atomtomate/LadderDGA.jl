@@ -19,9 +19,9 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
 end
 
 function calc_E(Σ, ϵqGrid, qM, Nk, mP, sP)
-    println("TODO: E_pot function has to be tested")
-    println("TODO: use GNew/GLoc/GImp instead of Sigma")
-    println("TODO: make frequency summation with sum_freq an optional")
+    #println("TODO: E_pot function has to be tested")
+    #println("TODO: use GNew/GLoc/GImp instead of Sigma")
+    #println("TODO: make frequency summation with sum_freq an optional")
     νGrid = 0:sP.n_iν-1
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
@@ -55,8 +55,13 @@ function calc_E_pot(G, Σ, tail, tail_inv, qM, norm)
     return sum((2 .* sum(E_pot, dims=[1])[1,:] .+ tail_inv) .* qM) / norm
 end
 
+function calc_E_pot_νn(G, Σ, tail, tail_inv, qM, norm)
+    E_pot = real.(G .* Σ .- tail);
+    return [sum((2 .* sum(E_pot[1:i,:], dims=[1])[1,:] .+ tail_inv) .* qM) / norm for i in 1:size(E_pot,1)]
+end
 
-function calc_E_kin(G, Σ, ϵqGrid, tail, tail_inv, qM, norm)
+
+function calc_E_kin(G, ϵqGrid, tail, tail_inv, qM, norm)
     E_kin = ϵqGrid' .* real.(G .- tail)
     return sum((4 .* sum(E_kin, dims=[1])[1,:] .+ tail_inv) .* qM) / norm
 end

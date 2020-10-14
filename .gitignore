@@ -3,6 +3,7 @@
 *.txt
 *.csv
 *.out
+*.tex
 Untitled.ipynb
 config_bak.toml
 config_tc.toml
@@ -13,3 +14,4 @@ fortran_out
 nohub.out
 *bak*
 *dbg*
+Roots NLSolve_files

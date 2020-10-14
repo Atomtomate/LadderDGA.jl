@@ -39,11 +39,6 @@ julia> padlength(1:4,1:13)
 padlength(a,b) = 2^floor(Int, log(2,size(a,1)+size(b,1)-1))
 
 
-function fft_conv(a, b)
-    zero_pad_length = padlength(a,b)
-    PaddedView(0, collect(a), Tuple(repeat([pad(a,b)], ndims(a))))
-end
-
 """
     print 4 digits of the real part of `x`
 """
