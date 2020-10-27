@@ -1,19 +1,3 @@
-function tail_func_full(iωn, c)
-    res = [c[1] for i = 1:length(iωn)]
-    for  i = 2:length(c)
-        res = res .+ c[i]./(iωn .^ (i-1))
-    end
-    return res
-end
-
-function tail_func_cmplx(iωn, c)
-    res = [c[1] for i = 1:length(iωn)]
-    for  i =  2:Int(floor(length(c)/2))
-        res = res .+ (c[2*i-1]+c[2*i]*im)./(iωn .^ (2*i-1))
-    end
-    return res
-end
-
 """
     build_design_matrix(imin, imax, ncoeffs)
 
@@ -176,31 +160,6 @@ function approx_full_sum(f; correction::Float64=0.0, W::Array{Float64,2})
 end
 
 
-"""
-    Returns index of the maximum which is closest to the mid point of the array
-"""
-function find_inner_maximum(arr)
-    darr = diff(arr; dims=1)
-    mid_index = Int(floor(size(arr,1)/2))
-    intervall_range = 1
-
-    # find interval
-    while (intervall_range < mid_index) &&
-        (darr[(mid_index-intervall_range)] * darr[(mid_index+intervall_range-1)] > 0)
-            intervall_range = intervall_range+1
-    end
-
-    index_maximum = mid_index-intervall_range+1
-    if (mid_index-intervall_range) < 1 || index_maximum >= length(arr)
-        return 1
-    end
-    # find index
-    while darr[(mid_index-intervall_range)]*darr[index_maximum] > 0
-        index_maximum = index_maximum + 1
-    end
-    return index_maximum
-end
-
 #TODO: this is about 2 times slower than sum, why?
 function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; 
                   correction::Float64=0.0, weights::Union{Nothing, Array{Float64,2}}=nothing)
@@ -219,11 +178,8 @@ function sum_freq(arr, dims, tail_corrected::Bool, β::Float64;
 end
 
 
-#TODO: clean up
-sum_limits(a, b, e) = if (ndims(a) == 1) sum(a[b:e]) else sum(mapslices(x -> sum_limits(x,b,e), a; dims=2:ndims(a))[b:e]) end
-        
-sum_inner(a, cut) =  if (ndims(a) == 1) sum(a[cut:(end-cut+1)]) else 
-                        sum(mapslices(x -> sum_inner(x,cut), a; dims=2:ndims(a))[cut:(end-cut+1)]) end
+sum_inner(a::Array{T, 1}, cut::Int64) where T <: Number = sum(a[cut:(end-cut+1)])
+sum_inner(a::Array{T, N}, cut::Int64) where {T <: Number, N} = sum(mapslices(x -> sum_inner(x,cut), a; dims=2:ndims(a))[cut:(end-cut+1)])
 
 """
     Sums first νmax entries of any array along given dimension.
@@ -237,7 +193,6 @@ sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
 """
 function find_usable_interval(arr; reduce_range_prct = 0.0)
     darr = diff(arr; dims=1)
-    #index_maximum = find_inner_maximum(arr)
     mid_index = Int(ceil(size(arr,1)/2))
 
     if arr[mid_index] < 0.0
@@ -283,6 +238,12 @@ function find_usable_interval(arr; reduce_range_prct = 0.0)
     return res
 end
 
+
+"""
+    Returns rang of indeces that are usable for the ν range of γ.
+    This assumes γ → 1 for ν → ∞.
+    TODO: This is temporary and should be replace with a function accepting general predicates.
+"""
 function find_usable_γ(arr)
     nh = ceil(Int64,length(arr)/2)
     darr = abs.(diff(real.(arr)))

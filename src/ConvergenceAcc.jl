@@ -13,7 +13,7 @@ function _shanks(arr::AbstractArray{T, 1}; atol_denom = 10*eps(Float64)) where T
     vm1 = view(arr, 1:(length(arr)-2))
     vp1 = view(arr, 3:(length(arr)-0))
     denom = (vp1 .- v0) .- (v0 .- vm1)
-    any(abs.(denom) .< atol_denom) && println("hit atol_denom")
+    #any(abs.(denom) .< atol_denom) && println("hit atol_denom")
     return any(abs.(denom) .< atol_denom) ? (vp1,true) : (vp1 .- (((vp1 .- v0) .^ 2) ./ denom),false)
 end
 

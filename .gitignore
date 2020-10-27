@@ -4,6 +4,7 @@
 *.csv
 *.out
 *.tex
+vscjlsymserv-*
 Untitled.ipynb
 config_bak.toml
 config_tc.toml

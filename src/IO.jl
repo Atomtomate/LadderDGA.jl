@@ -488,6 +488,31 @@ function writeFortranΣ(dirName::String, Σ_ladder)
     end
 end
 
+function writeFortranχ(dirName::String, χ, χ_λ, qGrid, usable_ω)
+    if !isdir(dirName)
+        mkdir(dirName)
+    end
+    for ωi in 1:size(χ, 1) 
+        fn = dirName * "/chi" * lpad(ωi-1,3,"0")
+        open(fn, write=true) do f
+            for qi in 1:size(χ, 2)
+                res = ωi in usable_ω ? χ_λ[ωi - first(usable_ω) + 1,1] : 0.0
+                if length(qGrid[1]) == 3
+                    @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                        qGrid[qi][1], qGrid[qi][2], qGrid[qi][3],
+                        real(χ[ωi, qi]), imag(χ[ωi, qi]),
+                        real(res), imag(res))
+                else
+                    @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                        qGrid[qi][1], qGrid[qi][2],
+                        real(χ[ωi, qi]), imag(χ[ωi, qi]),
+                        real(res), imag(res))
+                end
+            end
+        end
+    end
+end
+
 function writeFortranEnergies(E_Kin, E_Pot, β, dirName::String)
     if !isdir(dirName)
         mkdir(dirName)

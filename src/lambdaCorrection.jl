@@ -163,6 +163,6 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
     end
 
     tmp_sum = sum_q(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:], qMult, dims=2)[:,1]
-    lhs = mP.U * real(sum_freq(tmp_sum, [1], tc, mP.β, weights=Wω)[1])
+    lhs = mP.U * (real(sum_freq(tmp_sum, [1], tc, mP.β, weights=Wω)[1])/2 + (mP.n^2)/4)
     return Σ_corr, lhs, E_pot
 end
