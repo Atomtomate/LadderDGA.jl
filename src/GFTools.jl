@@ -7,11 +7,6 @@ iω_array(β::Real, grid::UnitRange{Int64}) = [1.0im*((2.0 *el)* π/β) for el i
 iω_array(β::Real, size::Integer)    = [1.0im*((2.0 *i)* π/β) for i in 0:size-1]
 
 
-function tail_func(n::Array{Int}, β, c::Array{Float64})
-    iνn = iν_array(β, n)
-    tail_func(iνn, β, c)
-end
-
 function tail_τ_func(τ::Array, β, c::Array{Float64})
     res = [c[1] for i = 1:length(τ)]
     for  i = 2:length(c)
@@ -31,23 +26,7 @@ function tail_τ_func(τ::Array, β, c::Array{Float64})
     return res
 end
 
-function tail(GF, β, n_tail = 5, nFreq = 20, stop = :end)
-    stop = stop == :end ? size(GF, 1) : stop
-    start = stop - nFreq + 1
-    iνn = iν_array(β, collect(start:stop))
-    g_grid = view(G.f_grid, start:stop)
-    cost(c) = sum(abs2.(imag(GF) - imag(tail_func(iνn, β, c))))
-    res = Optim.minimizer(Optim.optimize(cost, zeros(n_tail), Optim.BFGS()))
-    return res
-end
 
-# TODO: implement tail correction here
-# nFreq = size(GBath, 1)
-# tail = tail(GImp, 5, 20) 
-#new_grid = GImp
-#for i = 1:nFreq
-#    new_grid[i] = view(new_grid,i) ./ view(tail,2)
-#end
 function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)  
     FUpDo = zeros(eltype(χdo), length(ωGrid), length(νGrid1), length(νGrid2))
     for (ωi, ωₙ) in enumerate(ωGrid)
