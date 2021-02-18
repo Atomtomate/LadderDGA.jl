@@ -6,14 +6,17 @@ struct ImpurityQuantities
     χ::SharedArray{Complex{Float64},3}
     χ_ω::SharedArray{Complex{Float64},1}
     χ_loc::Complex{Float64}
-    usable_ω::UnitRange{Int64}
+    usable_ω::AbstractArray
 end
 
 struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: Union{Complex{Float64}, Float64}}
     χ::SharedArray{T1,2}
     γ::SharedArray{T2,3}
-    usable_ω::UnitRange{Int64}
+    usable_ω::AbstractArray
     λ::Float64
+end
+
+struct Simulation
 end
 
 const ΓT = SharedArray{Complex{Float64},3}

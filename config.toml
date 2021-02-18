@@ -1,22 +1,22 @@
 # input TOML for ladderDGA
 
 [Model]
-U    = 1.0 #2.0
-mu   = 0.5 #1.0
-beta = 25 #15
+U    = 1.0
+mu   = 0.5
+beta = 25.0 #25.0
 nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 81 #41
-nBoseFreq = 80 #40
-shift     = 0             # shift of center of bosonic frequency range
-Nk        = 14            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+nFermFreq = 50
+nBoseFreq = 50
+shift     = 1             # shift of center of bosonic frequency range
+Nk        = 10            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
 tail_corrected = true
-force_full_local_bosonic_sum = false # instead of a usable interval for impurity quantities, use all bosonic frequencies (fortran: false)
-force_full_bosonic_sum = false # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies (fortran: true)
+force_full_local_bosonic_sum = false   # instead of a usable interval for local quantities, use all bosonic frequencies
+force_full_bosonic_sum = false        # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies
 force_max_usable = true         # instead of comon usable range, use individual maximum ranges (fortran: true)
-force_full_bosonic_chi = false  # compute all omega frequencies for chi and trilex
+force_full_bosonic_chi = true        # compute all omega frequencies for chi and trilex
 chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
 kInt = "FFT"              # TODO: only FFT available for now (naive and GL have to be activated in code)
@@ -25,15 +25,15 @@ rhs  = ""                 # TODO: implement possible modes: native (fixed for tc
                           #                                 error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
 
 [Environment]
-loadFortran = "text"      # julia, text, parquet, TODO: implement hdf5
+inputDataType = "jld2"      # jld2, text, parquet, TODO: implement hdf5
 writeFortran = false
-loadAsymptotics = true
+loadAsymptotics = false
 #inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
-#inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT"
-inputDir = "/home/julian/Hamburg/ED_Data/b25.0_U1.0/data"
-inputVars = "vars.jld"
+inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/50_red_shift"
+freqFile = "freqList.jld2"
+inputVars = "ED_out.jld2"
 asymptVars = "vars_asympt_sums.jld"
-cast_to_real = false      # TODO: not implemented. cast all arrays with vanishing imaginary part to real
+cast_to_real = false             # TODO: not implemented. cast all arrays with vanishing imaginary part to real
 loglevel = "debug"        # error, warn, info, debug
 logfile = "stderr" #"run.out"        # STDOUT, STDERR, filename
 progressbar = false        # true/false enable or disable progress bar

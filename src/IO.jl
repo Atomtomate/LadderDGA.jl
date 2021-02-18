@@ -16,14 +16,26 @@ function readConfig(file)
     else
         error("could not parse chi fill value")
     end
+    env = EnvironmentVars(   tml["Environment"]["inputDataType"],
+                             tml["Environment"]["writeFortran"],
+                             tml["Environment"]["loadAsymptotics"],
+                             tml["Environment"]["inputDir"],
+                             tml["Environment"]["freqFile"],
+                             tml["Environment"]["inputVars"],
+                             tml["Environment"]["asymptVars"],
+                             tml["Environment"]["cast_to_real"],
+                             String([(i == 1) ? uppercase(c) : lowercase(c) 
+                                     for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
+                             lowercase(tml["Environment"]["logfile"]),
+                             tml["Environment"]["progressbar"]
+                            )
+    JLD2.@load env.inputDir*"/"*env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
     model = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
                             tml["Model"]["nden"],
                             tml["Model"]["Dimensions"])
-    sim = SimulationParameters(tml["Simulation"]["nFermFreq"],
-                               tml["Simulation"]["nBoseFreq"],
-                               tml["Simulation"]["shift"],
+    sim = SimulationParameters(nBose,nFermi,shift,
                                tml["Simulation"]["Nk"],
                                tml["Simulation"]["tail_corrected"],
                                tml["Simulation"]["force_full_local_bosonic_sum"],
@@ -33,18 +45,6 @@ function readConfig(file)
                                χfill,
                                tml["Simulation"]["chi_only"],
                                tml["Simulation"]["kInt"])
-    env = EnvironmentVars(   tml["Environment"]["loadFortran"],
-                             tml["Environment"]["writeFortran"],
-                             tml["Environment"]["loadAsymptotics"],
-                             tml["Environment"]["inputDir"],
-                             tml["Environment"]["inputVars"],
-                             tml["Environment"]["asymptVars"],
-                             tml["Environment"]["cast_to_real"],
-                             String([(i == 1) ? uppercase(c) : lowercase(c) 
-                                     for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
-                             lowercase(tml["Environment"]["logfile"]),
-                             tml["Environment"]["progressbar"]
-                            )
     return (model, sim, env)
 end
 
@@ -93,36 +93,33 @@ reduce_3Freq!(inp, freqBox, simParams) = inp = reduce_3Freq(inp, freqBox, simPar
 
 function convert_from_fortran(simParams, env, loadFromBak=false)
     @info "Reading Fortran Input, this can take several minutes."
-    if loadFromBak
-        vars = load("fortran_files_bak") 
-        g0 = vars["g0"]
-        gImp = vars["gImp"]
-        FreqBox = vars["freqBox"]
-        Γcharge = vars["Gcharge"]
-        Γspin = vars["Gspin"]
-        χDMFTCharge = vars["cDMFTCharge"]
-        χDMFTSpin = vars["cDMFTSpin"]
-    else
         g0 = readFortranSymmGF(simParams.n_iν+2*simParams.n_iω, env.inputDir*"/g0mand", storedInverse=true)
         gImp = readFortranSymmGF(simParams.n_iν+2*simParams.n_iω, env.inputDir*"/gm_wim", storedInverse=false)
-        freqBox, Γcharge, Γspin = readFortranΓ(env.inputDir*"/gamma_dir")
+        freqBox, Γch, Γsp = readFortranΓ(env.inputDir*"/gamma_dir")
         @info "Done Reading Gamma"
-        χDMFTCharge, χDMFTSpin = readFortranχDMFT(env.inputDir*"/chi_dir")
+        χDMFTch, χDMFTsp = readFortranχDMFT(env.inputDir*"/chi_dir")
         @info "Done Reading chi"
-    end
-    Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
-    Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
-    χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)
-    χDMFTSpin = reduce_3Freq(χDMFTSpin, freqBox, simParams)
+    Γch = -1.0 .* reduce_3Freq(Γch, freqBox, simParams)
+    Γsp = -1.0 .* reduce_3Freq(Γsp, freqBox, simParams)
+    χDMFTch = reduce_3Freq(χDMFTch, freqBox, simParams)
+    χDMFTsp = reduce_3Freq(χDMFTsp, freqBox, simParams)
     if env.writeFortran
         @info "Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output."
-        writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
-        writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
+        writeFortranΓ("fortran_out", "gamma", simParams, Γch, Γsp)
+        writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTch .+ χDMFTsp), 0.5 .* (χDMFTch .- χDMFTsp))
     end
     if length(env.inputVars) > 0
-        save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
-             "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
+        JLD2.@save env.inputVars Γch Γsp χDMFTch χDMFTsp gImp g0
     end
+end
+
+# ==================================================================================================== # 
+#                                                                                                      #
+#                                             JLD2 Input                                               #
+#                                                                                                      #
+# ==================================================================================================== # 
+function readEDAsymptotics_julia(env)
+    @error("Asymptotics from jld2 not implemented yet")
 end
 
 # ==================================================================================================== # 
@@ -195,8 +192,7 @@ function convert_from_fortran_pq(simParams, env)
     println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
     writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
     writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
-    save(env.inputVars, "g0", g0, "gImp", gImp, "GammaCharge", Γcharge, "GammaSpin", Γspin,
-         "chiDMFTCharge", χDMFTCharge, "chiDMFTSpin", χDMFTSpin, "freqBox", freqBox, compress=true, compatible=true)
+    JLD2.@save env.inputVars Γch Γsp χDMFTch χDMFTsp gImp g0
 end
 
 

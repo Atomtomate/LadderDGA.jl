@@ -27,15 +27,11 @@ function tail_τ_func(τ::Array, β, c::Array{Float64})
 end
 
 
-function FUpDo_from_χDMFT(χdo, GImp, ωGrid, νGrid1, νGrid2, β)  
-    FUpDo = zeros(eltype(χdo), length(ωGrid), length(νGrid1), length(νGrid2))
-    for (ωi, ωₙ) in enumerate(ωGrid)
-        for (νi, νₙ) in enumerate(νGrid1)
-            for (νj, νpₙ) in enumerate(νGrid2)
-                FUpDo[ωi, νi, νj] = χdo[ωi, νi, νj]/(β^2 * get_symm_f(GImp,νₙ) * get_symm_f(GImp,ωₙ + νₙ)
-                                        * get_symm_f(GImp,νpₙ) * get_symm_f(GImp,ωₙ + νpₙ))
-            end
-        end
+function FUpDo_from_χDMFT(χdo, GImp, freqList, β)  
+    FUpDo = Array{eltype(χdo)}(undef, length(freqList))
+    for (i, f) in enumerate(freqList)
+        FUpDo[i] = χdo[i]/(β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
+                           * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
     end
     return FUpDo
 end

@@ -9,8 +9,8 @@ struct ModelParameters
 end
 
 struct SimulationParameters
-    n_iν::Int64             # number of fermionic frequencies
     n_iω::Int64             # number of bosonic frequencies
+    n_iν::Int64             # number of fermionic frequencies
     shift::Int64            # shift of center for interval of bosonic frequencies
     Nk::Int64               # Number of k-space integration steps
     tail_corrected::Bool    # use correction for finite ν and ω sums.
@@ -29,10 +29,11 @@ struct FreqGrid
 end
 
 struct EnvironmentVars
-    loadFortran::String
+    inputDataType::String
     writeFortran::Bool
     loadAsymptotics::Bool
     inputDir::String
+    freqFile::String
     inputVars::String
     asymptVars::String
     cast_to_real::Bool

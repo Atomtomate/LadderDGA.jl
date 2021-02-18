@@ -11,9 +11,35 @@ abstract type KPoints{T} end
 abstract type FullKPoints{T <: Base.Iterators.ProductIterator} <: KPoints{T} end
 abstract type ReducedKPoints{T} <: KPoints{T} end
 
-abstract type KGrid{T1 <: KIndices, T2 <: KPoints} end
+#abstract type KGrid{T1 <: KIndices, T2 <: KPoints} end
 
-abstract type Dispersion{T <: KGrid} end
+#abstract type Dispersion{T <: KGrid} end
+
+struct KGrid
+    indices::Base.Iterators.ProductIterator
+    kGrid::Base.Iterators.ProductIterator
+    ϵkGrid::Base.Generator
+end
+
+struct Reduced_KGrid
+    Nq::Int
+    indices::Vector{Tuple}
+    multiplicity::Vector{Float64}
+    kGrid::Vector{Tuple}
+    ϵkGrid::Vector{Float64}
+end
+
+function squareLattice_kGrid(Nk::Int, D::Int)
+    ind, grid = gen_kGrid(Nk, D)
+    ϵkGrid = squareLattice_ekGrid(grid)
+    return KGrid(ind,grid,ϵkGrid)
+end
+
+function reduce_squareLattice(kGrid::KGrid)
+    qIndices, qGrid, ϵqGrid = reduce_kGrid.(cut_mirror.((kGrid.indices, kGrid.kGrid, collect(kGrid.ϵkGrid))));
+    qMult   = kGrid_multiplicity(qIndices);
+    return Reduced_KGrid(length(qIndices), qIndices, qMult, qGrid, ϵqGrid)
+end
 
 # -------------------------------------------------------------------------------- #
 #                                 Simple Cubic                                     #
@@ -55,12 +81,13 @@ struct FullKGrid_SC_3D
     Nk::Int64
     kInd::FullKIndices_SC_3D
     kGrid::FullKPoints_SC_3D
-    FullKGrid_SC_3D(Nk::Int64) = (
+    function FullKGrid_SC_3D(Nk::Int64)
         #kx = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)];
-        kx = [(2*π/Nk) * j - π for j in 1:Nk];
-        ind = FullKIndices_SC_3D(Base.product([1:(Nk) for Di in 1:3]...));
-        kGrid  = FullKPoints_SC_3D(Base.product([kx for Di in 1:3]...));
-        new(Nk, ind, kGrid))
+        kx = [(2*π/Nk) * j - π for j in 1:Nk]
+        ind = FullKIndices_SC_3D(Base.product([1:(Nk) for Di in 1:3]...))
+        kGrid  = FullKPoints_SC_3D(Base.product([kx for Di in 1:3]...))
+        new(Nk, ind, kGrid)
+    end
 end
 
 #FullKGrid(Nk::Int64; min=-π, max = π, include_min::Bool) = FullKGrid_SC_2D

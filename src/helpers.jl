@@ -47,31 +47,31 @@ printr_s(x::Float64) = round(x, digits=4)
 
 
 function setup_LDGA(configFile, loadFromBak)
+    @info "Reading Inputs..."
     modelParams, simParams, env = readConfig(configFile)#
-    if env.loadFortran == "text"
+    in_file = env.inputVars
+    if env.inputDataType == "text"
         convert_from_fortran(simParams, env, false)
         if env.loadAsymptotics
             readEDAsymptotics(env, modelParams)
         end
-    elseif env.loadFortran == "parquet"
+    elseif env.inputDataType == "parquet"
         convert_from_fortran_pq(simParams, env)
         if env.loadAsymptotics
             readEDAsymptotics_parquet(env)
         end
+    elseif env.inputDataType == "jld2"
+        if env.loadAsymptotics
+            readEDAsymptotics_julia(env)
+        end
+        in_file = env.inputDir*"/"*env.inputVars
     end
     @info "loading from " env.inputVars
-    vars    = load(env.inputVars) 
-    G0      = vars["g0"]
-    GImp    = vars["gImp"]
-    Γch_tmp     = vars["GammaCharge"]
-    Γsp_tmp     = vars["GammaSpin"]
-    Γch = SharedArray{Complex{Float64},3}(size(Γch_tmp),pids=procs());copy!(Γch, Γch_tmp)
-    Γsp = SharedArray{Complex{Float64},3}(size(Γsp_tmp),pids=procs());copy!(Γsp, Γsp_tmp)
-    χDMFTch = vars["chiDMFTCharge"]
-    χDMFTsp = vars["chiDMFTSpin"]
+    JLD2.@load in_file Γch Γsp χDMFTch χDMFTsp gImp g0
+    Γch_new = SharedArray{Complex{Float64},3}(size(Γch),pids=procs());copy!(Γch_new, Γch)
+    Γsp_new = SharedArray{Complex{Float64},3}(size(Γsp),pids=procs());copy!(Γsp_new, Γsp)
     @warn "TODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir"
-    ωGrid   = (-simParams.n_iω):(simParams.n_iω)
-    νGrid   = (-simParams.n_iν):(simParams.n_iν-1)
+    JLD2.@load env.inputDir*"/"*env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
     if env.loadAsymptotics
         asympt_vars = load(env.asymptVars)
         χchAsympt = asympt_vars["chi_ch_asympt"]
@@ -81,21 +81,43 @@ function setup_LDGA(configFile, loadFromBak)
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
     (simParams.fullωRange_Σ && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
-    Σ_loc = Σ_Dyson(G0, GImp)
-    FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), GImp, ωGrid, νGrid, νGrid, modelParams.β)
+    Σ_loc = Σ_Dyson(g0, gImp)
+    FUpDo = reshape(FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp, freqList, modelParams.β), 2*nBose+1,2*nFermi,2*nFermi)
+    kGrid = squareLattice_kGrid(simParams.Nk, modelParams.D)
+    qGrid = reduce_squareLattice(kGrid)
+
+    fft_range = -(simParams.n_iν+simParams.n_iω):(simParams.n_iν+simParams.n_iω-1)
+    #TODO: this should no assume consecutive frequencies
+    #νGrid = [(i,j) for i in 1:(2*simParams.n_iω+1) for j in (1:2*simParams.n_iν) .- trunc(Int64,simParams.shift*(i-simParams.n_iω-1)/2)]
+    νGrid = Array{AbstractArray}(undef, 2*simParams.n_iω+1);
+    for i in 1:length(νGrid)
+        νGrid[i] = (1:2*simParams.n_iν) .- trunc(Int64,simParams.shift*(i-simParams.n_iω-1)/2)
+    end
+    #TODO: fix this! do not assume anything about freqGrid without reading from file
+    
+    gImp_sym = store_symm_f(gImp, fft_range)
+    gImp_fft = convert(SharedArray,reshape(gImp_sym, (length(gImp_sym),1)));
+    gLoc_fft_pos = Gfft_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, modelParams);
+    gLoc_fft = convert(SharedArray, gLoc_fft_pos);
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
-    usable_loc_sp = simParams.fullLocSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tail_corrected, modelParams.β)[1]
-
     χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
+    usable_loc_sp = simParams.fullLocSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
     usable_loc_ch = simParams.fullLocSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
+
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tail_corrected, modelParams.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tail_corrected, modelParams.β)[1]
 
-    impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp)
-    impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch)
+    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp)
+    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch, χLocch_ω, χLocch, usable_loc_ch)
 
-    return modelParams, simParams, env, impQ_sp, impQ_ch, GImp, Σ_loc, FUpDo
+    @info """Inputs Read. Starting Computation.
+    Found usable intervals for local susceptibility of length 
+      sp: $(length(impQ_sp.usable_ω))
+      ch: $(length(impQ_ch.usable_ω)) 
+      χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
+
+    return modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo
 end
 
 

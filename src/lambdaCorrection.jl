@@ -25,14 +25,14 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     return rhs, usable_ω
 end
 
-function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::UnitRange{Int64}, 
-                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
-    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qMult, 
-                                    modelParams.β, simParams.tail_corrected, simParams.χFillType)
+function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractArray{Int64}, 
+                             rhs::Float64, qGrid, mP::ModelParameters, sP::SimulationParameters)
+    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
+                                    mP.β, sP.tail_corrected, sP.χFillType)
     nlQ_sp = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λsp)
 end
 
-function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::UnitRange{Int64}, 
+function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
                              rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
     @info "Using rhs for lambda correction: " rhs " with tc = " tc
     res = zeros(eltype(χ_in), size(χ_in)...)
