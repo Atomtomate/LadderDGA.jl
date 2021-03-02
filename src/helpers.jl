@@ -82,7 +82,7 @@ function setup_LDGA(configFile, loadFromBak)
     (simParams.fullωRange_Σ && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
     Σ_loc = Σ_Dyson(g0, gImp)
-    FUpDo = reshape(FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp, freqList, modelParams.β), 2*nBose+1,2*nFermi,2*nFermi)
+    FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp, freqList, modelParams, simParams)
     kGrid = squareLattice_kGrid(simParams.Nk, modelParams.D)
     qGrid = reduce_squareLattice(kGrid)
 
@@ -117,7 +117,7 @@ function setup_LDGA(configFile, loadFromBak)
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
 
-    return modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo
+    return modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, χDMFTsp, χDMFTch, gImp
 end
 
 

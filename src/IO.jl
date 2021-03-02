@@ -248,7 +248,6 @@ end
 function readFortranχDMFT(dirName::String)
     files = readdir(dirName)
     _, _, χupup, χupdo = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger=false)
-
     for file in files[2:end]
         _, _, χup_new, χupdo_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger=false)
         χupup = cat(χupup, χup_new, dims=3)

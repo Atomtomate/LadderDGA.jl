@@ -7,7 +7,7 @@ using LadderDGA
 function run_sim()
     print("specify location of config file: ")
     cfg_file = readline()
-    modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc_pos, FUpDo  = setup_LDGA(cfg_file, false);
+    modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc_pos, FUpDo, χDMFTsp, χDMFTch, gImp = setup_LDGA(cfg_file, false);
         
     @info "Calculating local quantities: "
     bubbleLoc = calc_bubble(νGrid, GImp_fft, 1, modelParams, simParams)
@@ -31,20 +31,22 @@ function run_sim()
 #                         mP::ModelParameters, sP::SimulationParameters)
     usable_ω_λc = simParams.maxRange ? nlQ_sp.usable_ω : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     nlQ_sp_λ = calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, modelParams, simParams)
-    νZero = simParams.n_iν+1
-    Σ_bare, Σ_ladder, Σ_ladderLoc = if !simParams.chi_only
-        usable_ω_Σ = simParams.fullωRange_Σ ? (1:simParams.n_iω) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    νZero = simParams.n_iν
+    dbg1, dbg2, tmp, Σ_ladder_ω, Σ_bare, Σ_ladder, Σ_ladderLoc = if !simParams.chi_only
+        println("param: ", simParams.fullωRange_Σ)
+        usable_ω_Σ = simParams.fullωRange_Σ ? (1:2*simParams.n_iω+1) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+        println("range: ", usable_ω_Σ)
         @info "Calculating Σ ladder: "
-        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, GImp_fft, FUpDo,
-                             [(1,1,1)], usable_ω_Σ, νGrid, νZero, 1, modelParams, simParams)
+        dbg1,dbg2,c,d,Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, GImp_fft, FUpDo,
+                             [(1,1,1)], usable_ω_Σ, νGrid, νZero, 1, modelParams, simParams,false)
         Σ_ladderLoc = Σ_ladderLoc .+ modelParams.n * modelParams.U/2.0;
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch, bubble, GLoc_fft, FUpDo,
-                                qGrid.indices, usable_ω_Σ, νGrid, νZero, simParams.Nk, modelParams, simParams)
-        Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)]
-        Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
+        a,b,tmp, Σ_ladder_ω,Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch, bubble, GLoc_fft, FUpDo,
+                                qGrid.indices, usable_ω_Σ, νGrid, νZero, simParams.Nk, modelParams, simParams, false)
+        Σ_ladder_corrected = Σ_ladder[1:νZero] .- Σ_ladderLoc[1:νZero] .+ Σ_loc_pos[eachindex(Σ_ladderLoc[1:νZero])]
+        dbg1, dbg2, tmp, Σ_ladder_ω, Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
     end
     @info "Done."
-    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_sp, nlQ_ch, nlQ_sp_λ, Σ_bare, Σ_ladder, Σ_ladderLoc, usable_ω, usable_ω_λc, usable_ω_Σ
+    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_sp, nlQ_ch, nlQ_sp_λ, Σ_bare, Σ_ladder, Σ_ladderLoc, usable_ω, usable_ω_λc, usable_ω_Σ, tmp, Σ_ladder_ω, dbg1, dbg2
 end
 
 flush(LadderDGA.io)
