@@ -16,6 +16,10 @@ function readConfig(file)
     else
         error("could not parse chi fill value")
     end
+    tc_type = Symbol(lowercase(tml["Simulation"]["tail_corrected"]))
+    if !(tc_type in [:nothing, :richardson, :shanks])
+        error("Unrecognized tail correction type \"$(tc_type)\"")
+    end
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
                              tml["Environment"]["loadAsymptotics"],
@@ -37,14 +41,16 @@ function readConfig(file)
                             tml["Model"]["Dimensions"])
     sim = SimulationParameters(nBose,nFermi,shift,
                                tml["Simulation"]["Nk"],
-                               tml["Simulation"]["tail_corrected"],
+                               tc_type,
                                tml["Simulation"]["force_full_local_bosonic_sum"],
                                tml["Simulation"]["force_full_bosonic_sum"],
                                tml["Simulation"]["force_max_usable"],
                                tml["Simulation"]["force_full_bosonic_chi"],
                                χfill,
                                tml["Simulation"]["chi_only"],
-                               tml["Simulation"]["kInt"])
+                               tml["Simulation"]["bosonic_tail_coeffs"],
+                               tml["Simulation"]["fermionic_tail_coeffs"]
+    )
     return (model, sim, env)
 end
 

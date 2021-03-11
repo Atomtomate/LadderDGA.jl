@@ -8,6 +8,8 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
 
+default_fit_range(s::Int) = (floor(Int,s/4), floor(Int, s/2))
+
 function convert_to_real(f; eps=10E-12)
     if maximum(imag.(f)) > eps
         throw(InexactError("Imaginary part too large for conversion!"))
@@ -79,7 +81,7 @@ function setup_LDGA(configFile, loadFromBak)
     end
     #TODO: unify checks
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
-    (simParams.fullωRange_Σ && simParams.tail_corrected) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    (simParams.fullωRange_Σ && (simParams.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
 
     Σ_loc = Σ_Dyson(g0, gImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp, freqList, modelParams, simParams)
@@ -94,19 +96,37 @@ function setup_LDGA(configFile, loadFromBak)
         νGrid[i] = (1:2*simParams.n_iν) .- trunc(Int64,simParams.shift*(i-simParams.n_iω-1)/2)
     end
     #TODO: fix this! do not assume anything about freqGrid without reading from file
+
+    #TODO: all fit capabilities should be encapsulated
+    @info "Constructing fit kernels"
+    fitKernels_fermions = Dict{Tuple{Int,Int}, Matrix{Float64}}()
+    fitKernels_bosons = Dict{Tuple{Int,Int}, Matrix{Float64}}()
+    n_tc_f = length(simParams.fermionic_tail_coeffs)
+    n_tc_b = length(simParams.bosonic_tail_coeffs)
+    for stop in n_tc_f:simParams.n_iν
+        for start in n_tc_f:(stop-n_tc_f)
+            fitKernels_fermions[(start,stop)] = (simParams.tc_type == :richardson) ? build_weights(start, stop, simParams.fermionic_tail_coeffs) : Matrix{Float64}(undef,0,0)
+        end
+    end
+    for stop in n_tc_b:simParams.n_iω
+        for start in n_tc_b:(stop-n_tc_b)
+            fitKernels_bosons[(start,stop)] = (simParams.tc_type == :richardson) ? build_weights(start, stop, simParams.bosonic_tail_coeffs) : Matrix{Float64}(undef,0,0)
+        end
+    end
+    
     
     gImp_sym = store_symm_f(gImp, fft_range)
     gImp_fft = convert(SharedArray,reshape(gImp_sym, (length(gImp_sym),1)));
     gLoc_fft_pos = Gfft_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, modelParams);
     gLoc_fft = convert(SharedArray, gLoc_fft_pos);
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tail_corrected, modelParams.β)[:,1,1]
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
     usable_loc_sp = simParams.fullLocSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
     usable_loc_ch = simParams.fullLocSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
 
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tail_corrected, modelParams.β)[1]
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tail_corrected, modelParams.β)[1]
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_sp))])[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_ch))])[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch, χLocch_ω, χLocch, usable_loc_ch)
@@ -116,8 +136,7 @@ function setup_LDGA(configFile, loadFromBak)
       sp: $(length(impQ_sp.usable_ω))
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
-
-    return modelParams, simParams, env, kGrid, qGrid, νGrid, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, χDMFTsp, χDMFTch, gImp
+    return modelParams, simParams, env, kGrid, qGrid, νGrid, fitKernels_fermions, fitKernels_bosons, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, χDMFTsp, χDMFTch, gImp
 end
 
 

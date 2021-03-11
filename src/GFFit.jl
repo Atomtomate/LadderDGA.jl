@@ -58,14 +58,30 @@ function build_weights(imin::Int64, imax::Int64, coeff_exp_list::Array)::Array{F
     return w
 end
 
-function fit_νsum(W, data; precision = 100000)
-    result = Array{eltype(data)}(undef, (size(data,1)))
+function fit_νsum_shanks(data; order=0)
+    result = ndims(data) > 1 ? Array{eltype(data)}(undef, (size(data,1))) : zero(eltype(data))
+    if ndims(data) == 1
+        order = order == 0 ? floor(Int64,(size(data,1)-1)/2) : order
+        if order > 0
+            result = Shanks.shanks(data, order=order, csum_inp=true)[1]
+        end
+    else
+        order = order == 0 ? floor(Int64,(size(data,2)-1)/2) : order
+        for ωi in 1:size(data,1)
+            result[ωi] = Shanks.shanks(data[ωi,:], csum_inp=true)[1]
+        end
+    end
+    return result
+end
+
+function fit_νsum_richardson(W, data; precision = 100000)
+    result = ndims(data) > 1 ? Array{eltype(data)}(undef, (size(data,1))) : zero(eltype(data))
     setprecision(precision) do
         if ndims(data) == 1
             result = dot(data, W[1,:])
         else
             for ωi in 1:size(data,1)
-                result[ωi] = dot(data[ωi,:] , W[1,:])
+                dot(data[ωi,:] , W[1,:])
             end
         end
     end
@@ -100,10 +116,11 @@ end
 """
     Faster version for build_νmax. WARNING: only tested for square arrays
 """
-function build_fνmax_fast(f::AbstractArray, W)
+function build_fνmax_fast(f::AbstractArray, νmin)
+    #
     n_iν       = minimum(size(f))
     νmax_end   = floor(Int64,n_iν/2)
-    νmax_start =  νmax_end - size(W, 2) + 1
+    νmax_start =  νmax_end - νmin  + 1
     ν_cut  = νmax_end - νmax_start + 1
     f_νmax  = Array{eltype(f)}(undef, ν_cut)
     if νmax_start < 1
@@ -140,37 +157,39 @@ end
     arguments are the function, the weights constructed from  [`build_design_weights`](@ref)
     and the dimensions over which to fit.
 """
+function approx_full_sum_shanks(f; correction::Float64=0.0)
+    f_νmax = build_fνmax_fast(f, 4) .+ correction
+    return fit_νsum_shanks(f_νmax)[1]
+end
 
-function approx_full_sum(f; correction::Float64=0.0, W::Array{Float64,2})
+
+function approx_full_sum_richardson(f; correction::Float64=0.0, W::Array{Float64,2})
     dims = collect(1:ndims(f))
     N = floor(Int64, size(f, dims[1])/2)
-    if !all(dims .== 1:ndims(f))
-        throw(BoundsError("incorrect dimension. Fast approximate sum not implemented for aritrary dimensions! Use the setting fast=false instead"))
-    end
     if N < size(W,1)
         @error "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms. Falling back to naive sum."
-        println(f)
-        println(W)
         sum_approx = sum(f, dims=dims) .+ correction
     else
-        f_νmax = build_fνmax_fast(f, W) .+ correction
-        sum_approx = fit_νsum(W, f_νmax)
+        f_νmax = build_fνmax_fast(f, size(W, 2)) .+ correction
+        sum_approx = fit_νsum_richardson(W, f_νmax)
     end
     return sum_approx
 end
 
 
 #TODO: this is about 2 times slower than sum, why?
-function sum_freq(arr, dims, tail_corrected::Bool, β::Float64; 
+function sum_freq(arr, dims, type::Symbol, β::Float64; 
                   correction::Float64=0.0, weights::Union{Nothing, Array{Float64,2}}=nothing)
-    if tail_corrected
+    if type == :richardson
         if weights === nothing
             N = floor(Int64, size(arr, dims[1])/2)
             ωmin = Int(floor(N*1/4))
             ωmax = N 
             weights = build_weights(ωmin, ωmax, [0,1,2,3])
         end
-        res = mapslices(x -> approx_full_sum(x, correction=correction, W=weights), arr, dims=dims)
+        res = mapslices(x -> approx_full_sum_richardson(x, correction=correction, W=weights), arr, dims=dims)
+    elseif type == :shanks
+        res = mapslices(x -> approx_full_sum_shanks(x, correction=correction), arr, dims=dims)
     else
         res = sum(arr, dims=dims) .+ correction
     end
@@ -202,7 +221,7 @@ function find_usable_interval(arr; reduce_range_prct = 0.0)
     # interval for condition 1 (positive values)
     cond1_intervall_range = 1
     # find range for positive values
-    while (cond1_intervall_range < mid_index) &&
+    @inbounds while (cond1_intervall_range < mid_index) &&
         (arr[(mid_index-cond1_intervall_range)] > 0) &&
         (arr[(mid_index+cond1_intervall_range)] > 0)
         cond1_intervall_range = cond1_intervall_range + 1
@@ -211,25 +230,19 @@ function find_usable_interval(arr; reduce_range_prct = 0.0)
     # interval for condition 2 (monotonicity)
     cond2_intervall_range = 1
     # find range for first turning point
-    #println(cond1_intervall_range)
-    while (cond2_intervall_range < mid_index-1) &&
+   @inbounds while (cond2_intervall_range < mid_index-1) &&
         (darr[(mid_index-cond2_intervall_range)] > 0) &&
         (darr[(mid_index+cond2_intervall_range)] < 0)
         cond2_intervall_range = cond2_intervall_range + 1
     end
-
-    #println(cond2_intervall_range)
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    #println(intervall_range)
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
-    #println(range)
     if length(arr)%2 == 1
         res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
     else
         res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
     end
 
-    #println("res: $(res) = $(mid_index) +- $(range)")
     if length(res) < 1
         println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
         res = [mid_index]
@@ -249,7 +262,7 @@ function find_usable_γ(arr)
     darr = abs.(diff(real.(arr)))
     max_ok = darr[nh]
     i = 1
-    while (i < floor(Int64,length(arr)/2))
+    @inbounds while (i < floor(Int64,length(arr)/2))
         if findmax(darr[nh-i:nh+i])[1] > max_ok
             max_ok = findmax(darr[nh-i:nh+i])[1]
         else
@@ -257,7 +270,7 @@ function find_usable_γ(arr)
         end
         i += 1
     end
-    max_range_i = findfirst(darr[nh:end] .> max_ok)
+    @inbounds max_range_i = findfirst(darr[nh:end] .> max_ok)
 
     range = max_range_i === nothing ? (1:length(arr)) : (nh-max_range_i+2):(nh+max_range_i-1)
     return range
@@ -266,13 +279,13 @@ end
 function extend_γ(arr, usable_ν)
     res = copy(arr)
     val = arr[first(usable_ν)]
-    res[setdiff(1:length(arr), usable_ν)] .= val
+    res[setdiff(1:length(arr), usable_ν)] .= 1.0
     return res
 end
 
 function extend_γ!(arr, usable_ν)
     val = arr[first(usable_ν)]
-    arr[setdiff(1:length(arr), usable_ν)] .= val
+    arr[setdiff(1:length(arr), usable_ν)] .= 1.0
 end
 
 

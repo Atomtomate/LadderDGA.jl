@@ -25,18 +25,12 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
 """
 function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArray{Complex{Float64},3}, 
-                       qMultiplicity::Array{Float64,1}, U::Float64,
+                       qMultiplicity::Array{Float64,1}, νGrid, fitKernels, U::Float64,
                        mP::ModelParameters, sP::SimulationParameters)
-    @info "in chi tc = $(sP.tail_corrected)"
-    W = sP.tail_corrected ? build_weights(floor(Int64,size(bubble, 3)/4), floor(Int64,size(bubble, 3)/2), [0,1,2,3]) : nothing
-    sum_χ(arr::Array{Complex{Float64},2}) = sum_freq(arr, [1,2], sP.tail_corrected, mP.β, weights=W)[1,1]
-    sum_γ(arr::Array{Complex{Float64},2}) = sum_freq(arr, [2], sP.tail_corrected, 1.0, weights=W)[:,1]
-
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
     χ_ω = SharedArray{eltype(bubble), 1}(size(bubble)[1])  # ωₙ (summed over νₙ and ωₙ)
 
-    UnitM = Matrix{eltype(Γr)}(I, size(Γr[1,:,:])...)
 
     indh = ceil(Int64, size(bubble,1)/2)
     ωindices = sP.fullChi ? 
@@ -44,13 +38,16 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)]
 
     @sync @distributed for ωi in ωindices
-        Γview = view(Γr,ωi,:,:)
+        νIndices = intersect(νGrid[ωi] .- (νGrid[ωi][1] - 1), 1:size(bubble,3))
+        Γview = view(Γr,ωi,νIndices,νIndices)
+        UnitM = Matrix{eltype(Γr)}(I, length(νIndices),length(νIndices))
+        fitKernel = fitKernels[default_fit_range(length(νIndices))]
         for qi in 1:size(bubble, 2)
-            bubble_i = view(bubble,ωi, qi, :)
+            bubble_i = view(bubble,ωi, qi, νIndices)
             bubbleD = Diagonal(bubble_i)
             χ_full = (bubbleD * Γview + UnitM)\bubbleD
-            @inbounds χ[ωi, qi] = sum_χ(χ_full)
-            @inbounds γ[ωi, qi, :] .= sum_γ(χ_full) ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
+            @inbounds χ[ωi, qi] = sum_freq(χ_full, [1,2], sP.tc_type, mP.β, weights=fitKernel)[1,1]
+            @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], :nothing, 1.0, weights=fitKernel)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
         end
         χ_ω[ωi] = sum_q(χ[ωi,:], qMultiplicity)[1]
         if (!sP.fullChi)
@@ -59,26 +56,20 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         end
     end
     usable = find_usable_interval(real(χ_ω), reduce_range_prct=0.05)
-    if sP.tail_corrected
-        γ = convert(SharedArray, mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
+    if sP.tc_type != :nothing
+        γ = convert(SharedArray, γ) #mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
     end
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
-#TODO: specify chi type (SharedArray{Complex{T}}, T = Union{Interval, Float64, AudoDiff:w
-# function Σ_internal_new!(Σ, ωindices::Union{Array{Int64,1},AbstractArray{Int64}},νGrid,
-#         χsp::SharedArray{ComplexF64,2}, χch::SharedArray{ComplexF64,2}, 
-#         γsp::SharedArray{ComplexF64,3}, γch::SharedArray{ComplexF64,3}, Gνω::GνqT,
-#         tmp::Union{Array,SharedArray{Complex{Float64},3}}, U::Float64,
-#         transformG::Function, transformK::Function, transform::Function) where T Float64
 
-function Σ_internal2!(tmp, ωindices, bubble::BubbleT,
-                      FUpDo, tc::Bool, Wν)
+function Σ_internal2!(tmp, ωindices, bubble::BubbleT, FUpDo, tc_type::Symbol, Wν)
     @sync @distributed for ωi in 1:length(ωindices)
         ωₙ = ωindices[ωi]
         for qi in 1:size(bubble,2)
             for νi in 1:size(tmp,3)
-                tmp[ωi, qi, νi] = sum_freq(bubble[ωₙ,qi,:] .* FUpDo[ωₙ,νi,:], [1], tc, 1.0, weights=Wν)[1]
+                val = bubble[ωₙ,qi,:] .* FUpDo[ωₙ,νi,:]
+                @inbounds tmp[ωi, qi, νi] = sum_freq(val, [1], tc_type, 1.0, weights=Wν)[1]
             end
         end
     end
@@ -86,15 +77,15 @@ end
 
 function Σ_internal!(Σ, ωindices, νGrid, ωZero, νZero, shift, χsp, χch, γsp, γch, Gνω,
                      tmp, U,transformG, transformK, transform)
-    for ωi  in 1:length(ωindices)
+    @sync @distributed for ωi in 1:length(ωindices)
         ωₙ = ωindices[ωi]
-        f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
-        f2 = 0.5 .* (1 .- U*χch[ωₙ, :])
-        νZerop = νZero - trunc(Int64,shift*(ωi - ωZero)/2)
+        @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
+        @inbounds f2 = 0.5 .* (1 .- U*χch[ωₙ, :])
+        νZerop = νZero + trunc(Int64,shift*(ωi - ωZero - 1)/2)
         for νi in 1:size(Σ,3)
-            val = γsp[ωₙ, :, νi] .* f1 .-γch[ωₙ, :, νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νi]
+            @inbounds val = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
             Kνωq = transformK(val)
-            Σ[ωi,:, νi] = transform(Kνωq .* transformG(view(Gνω,νi + νZerop +  ωₙ - 1,:)))
+            @inbounds Σ[ωi,:, νi] = transform(Kνωq .* transformG(view(Gνω,νZero + νi + ωₙ - 1,:)))
         end
     end
 end
@@ -102,22 +93,22 @@ end
 function calc_Σ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT,
                         Gνω::GνqT, FUpDo::Array{Complex{Float64},3}, qIndices::Vector,
                         ωindices, νGrid, νZero, Nk::Int64,
-                        mP::ModelParameters, sP::SimulationParameters, tc_2)
+                        fitKernels_fermions, fitKernels_bosons,
+                        mP::ModelParameters, sP::SimulationParameters)
     gridShape = (Nk == 1) ? [1] : repeat([sP.Nk], mP.D)
     transform = (Nk == 1) ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
     transformG(x) = reshape(x, gridShape...)
     transformK(x) = (Nk == 1) ? identity(x) : fft(expand_kGrid(qIndices, x))
     νSize = length(νZero:size(nlQ_ch.γ,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(size(bubble,1), size(bubble,2), sP.n_iν)
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(qIndices), trunc(Int,sP.n_iν-sP.n_iω/2))
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
 
-    Wν    = sP.tail_corrected ? build_weights(1, νSize, [0,1,2,3]) : nothing
-    Wω    = sP.tail_corrected ? build_weights(1, floor(Int64, length(ωindices)/2), [0,1,2,3,4]) : nothing
-
     ωZero = sP.n_iω
-    Σ_internal2!(tmp, ωindices, bubble, FUpDo, sP.tail_corrected, Wν)
+    fk_f = fitKernels_fermions[default_fit_range(νSize)]
+    Σ_internal2!(tmp, ωindices, bubble, FUpDo, :nothing, fk_f)
     Σ_internal!(Σ_ladder_ω, ωindices, νGrid, ωZero, νZero, sP.shift, nlQ_sp.χ, nlQ_ch.χ,
-        nlQ_sp.γ[:,:,νZero+1:end], nlQ_ch.γ[:,:,νZero+1:end],Gνω, tmp[:,:,νZero+1:end], mP.U, transformG, transformK, transform)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], tc_2, mP.β, weights=Wω)[1,:,:] ./ (Nk^mP.D), [2,1])
+        nlQ_sp.γ, nlQ_ch.γ,Gνω, tmp, mP.U, transformG, transformK, transform)
+
+res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], :nothing, mP.β, weights=fitKernels_bosons[default_fit_range(length(ωindices))])[1,:,:] ./ (Nk^mP.D), [2,1])
     return  0, 0, tmp, Σ_ladder_ω, res
 end

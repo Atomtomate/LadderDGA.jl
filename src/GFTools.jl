@@ -32,8 +32,8 @@ function FUpDo_from_χDMFT(χupdo, GImp, freqList, mP, sP)
     #TODO: indices should not be computed by hand here, get them from input
     for f in freqList
         i = f[1] + sP.n_iω+1
-        j = f[2] + sP.n_iν+1 - trunc(Int64,sP.shift*f[1]/2)
-        k = f[3] + sP.n_iν+1 - trunc(Int64,sP.shift*f[1]/2)
+        j = f[2] + sP.n_iν+1 + trunc(Int64,sP.shift*f[1]/2)
+        k = f[3] + sP.n_iν+1 + trunc(Int64,sP.shift*f[1]/2)
         FUpDo[i,j,k] = χupdo[i,j,k]/(mP.β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
                            * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
     end

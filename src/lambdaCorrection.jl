@@ -19,26 +19,26 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))"""
-    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sP.tail_corrected, mP.β)[1])
-    rhs = sP.tail_corrected ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
-    @info "tc:  $(sP.tail_corrected), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
+    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sP.tc_type, mP.β)[1])
+    rhs = (sP.tc_type != :nothing) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
+    @info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
     return rhs, usable_ω
 end
 
 function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractArray{Int64}, 
                              rhs::Float64, qGrid, mP::ModelParameters, sP::SimulationParameters)
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
-                                    mP.β, sP.tail_corrected, sP.χFillType)
+                                    mP.β, sP.tc_type, sP.χFillType)
     nlQ_sp = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λsp)
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Bool, χFillType)
+                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Symbol, χFillType)
     @info "Using rhs for lambda correction: " rhs " with tc = " tc
     res = zeros(eltype(χ_in), size(χ_in)...)
     χr    = real.(χ_in[usable_ω,:])
     nh    = ceil(Int64, size(χr,1)/2)
-    W = tc ? build_weights(floor(Int64,size(χr, 1)/4), floor(Int64,size(χr, 1)/2), [0,1,2,3]) : nothing
+    W = (tc == :richardson) ? build_weights(floor(Int64,size(χr, 1)/4), floor(Int64,size(χr, 1)/2), [0,1,2,3]) : nothing
     f(λint) = sum_freq(sum_q(χ_λ(χr, λint), qMult, dims=2)[:,1], [1], tc, β, weights=W)[1] - rhs
     df(λint) = sum_freq(sum_q(-χ_λ(χr, λint) .^ 2, qMult, dims=2)[:,1], [1], tc, β, weights=W)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
@@ -46,7 +46,7 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     @info "found " χ_min ". Looking for roots in intervall " int
     X = @interval(int[1],int[2])
     r = roots(f, df, X, Newton, 1e-10)
-    @info "possible roots: " r
+    #@info "possible roots: " r
 
     if isempty(r)
        @warn "   ---> WARNING: no lambda roots found!!!"
