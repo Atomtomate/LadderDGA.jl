@@ -8,28 +8,28 @@ nden = 1.0
 Dimensions = 3
 
 [Simulation]
-nFermFreq = 50
-nBoseFreq = 50
-shift     = 1             # shift of center of bosonic frequency range
-Nk        = 10            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
-tail_corrected = true
+Nk        = 4            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
+tail_correction = "nothing" #"Richardson" # Nothing, Richardson, Shanks
+lambda_correction = "sp"     # nothing, sp, sp_ch
 force_full_local_bosonic_sum = false   # instead of a usable interval for local quantities, use all bosonic frequencies
 force_full_bosonic_sum = false        # instead of a usable interval for non local quantities (EoM), use all bosonic frequencies
-force_max_usable = true         # instead of comon usable range, use individual maximum ranges (fortran: true)
-force_full_bosonic_chi = true        # compute all omega frequencies for chi and trilex
+force_max_usable = false         # instead of comon usable range, use individual maximum ranges (fortran: true)
+force_full_bosonic_chi = false        # compute all omega frequencies for chi and trilex
 chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
 chi_only = false          # Should only chis_omega and chich_omega be calculated?
-kInt = "FFT"              # TODO: only FFT available for now (naive and GL have to be activated in code)
 rhs  = ""                 # TODO: implement possible modes: native (fixed for tc, error_comp for naive), 
                           #                                 fixed (n/2 (1 - n/2) - sum(chi_ch)), 
                           #                                 error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
+fermionic_tail_coeffs = [0,1]
+bosonic_tail_coeffs = [0,1]
+
 
 [Environment]
 inputDataType = "jld2"      # jld2, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
 #inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
-inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/50_red_shift"
+inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/20_red_shift"
 freqFile = "freqList.jld2"
 inputVars = "ED_out.jld2"
 asymptVars = "vars_asympt_sums.jld"
@@ -37,9 +37,6 @@ cast_to_real = false             # TODO: not implemented. cast all arrays with v
 loglevel = "debug"        # error, warn, info, debug
 logfile = "stderr" #"run.out"        # STDOUT, STDERR, filename
 progressbar = false        # true/false enable or disable progress bar
-
-[legacy]
-lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?
 
 [Debug]
 read_bubble = false

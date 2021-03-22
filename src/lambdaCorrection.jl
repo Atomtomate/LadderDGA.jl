@@ -11,7 +11,7 @@ dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχ
 dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities,
-                      nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, sP::SimulationParameters, mP::ModelParameters)
+                      nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, mP::ModelParameters, sP::SimulationParameters)
     @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = sum_q(nlQ_ch.χ, qMult, dims=2)[:,1]
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -66,55 +66,56 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     end
 end
 
-function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-                     ϵkGrid::Base.Generator, FUpDo::Array{Complex{Float64},3}, 
-                     Σ_loc_pos, Σ_ladderLoc,qIndices::qGridT, qMult, 
-                     mP::ModelParameters, sP::SimulationParameters, tc::Bool)
+function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2},
+                     FUpDo::Array{Complex{Float64},3}, 
+                     Σ_loc_pos, Σ_ladderLoc,
+                     qGrid::Reduced_KGrid, 
+                     mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
     transform = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft 
-    transformK(x) = fft(expand_kGrid(qIndices, x))
+    transformK(x) = fft(expand_kGrid(qGrid.indices, x))
     transformG(x) = reshape(x, gridShape...)
-    Gνω = convert(SharedArray,Gfft_from_Σ(Σ_loc_pos, ϵkGrid, -sP.n_iω:(sP.n_iν+sP.n_iω-1), mP))
 
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    ϵqGrid = reduce_kGrid(cut_mirror(collect(ϵkGrid)));
-    νGrid = 0:sP.n_iν-1
+    νGrid = 0:trunc(Int, sP.n_iν-sP.shift*sP.n_iω/2-1)
     Σ_hartree = mP.n * mP.U/2
     norm = mP.β * sP.Nk^mP.D
-    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵqGrid .+ Σ_hartree .- mP.μ))
+    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (qGrid.ϵkGrid .+ Σ_hartree .- mP.μ))
     E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, νGrid) .^ 2)
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(ϵqGrid)), (-mP.β/2) .* E_pot_tail_c])
+    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(qGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
 
-    Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
-    Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
-    #Wω_real = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,2,4,6]) : nothing
-    tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
+    Wν    = sP.tc_type == :richardson ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
+    Wω    = sP.tc_type == :richardson ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
+    νZero = sP.n_iν
+    ωZero = sP.n_iω
+    tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(usable_ω), length(qGrid.indices), trunc(Int,length(νGrid)))
 
-    Σ_internal2!(tmp, usable_ω, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
+    Σ_internal2!(tmp, usable_ω, bubble, FUpDo, :nothing, Wν)
 
     function cond_both!(F, λ)
-        Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) 
         χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
         χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
-        Σ_internal!(Σ_ladder_ω, usable_ω, χsp_λ, χch_λ,
-                view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
-                Gνω, tmp, mP.U, transformG, transformK, transform)
-        Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:] ./ norm
-        Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)]
-        G_corr = flatten_2D(G_from_Σ(Σ_corr .+ Σ_hartree, ϵqGrid, νGrid, mP));
-        E_pot_DGA = calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qMult, norm)
+        Σ_internal!(Σ_ladder_ω, usable_ω, ωZero, νZero, sP.shift, χsp_λ, χch_λ,
+                nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, transformG, transformK, transform)
+        Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], :nothing, 1.0, weights=Wω)[1,:,:] ./ norm, [2, 1])
+        Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_new,1)]
 
-        χupdo_ω = sum_q(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:], qMult, dims=2)[:,1]
-        χupup_ω = sum_q(χch_λ[usable_ω,:] .+ χsp_λ[usable_ω,:], qMult, dims=2)[:,1]
-        rhs_c1 = real(sum_freq(χupup_ω, [1], tc, mP.β, weights=Wω)[1])
-        rhs_c2 = mP.U * real(sum_freq(χupdo_ω, [1], tc, mP.β, weights=Wω)[1])
+        t = G_from_Σ(Σ_corr .+ Σ_hartree, qGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
+        G_corr = flatten_2D(t);
+        E_pot_DGA = calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qGrid.multiplicity, norm)
+
+        χupdo_ω = sum_q(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:], qGrid.multiplicity, dims=2)[:,1]
+        χupup_ω = sum_q(χch_λ[usable_ω,:] .+ χsp_λ[usable_ω,:], qGrid.multiplicity, dims=2)[:,1]
+        rhs_c1 = real(sum_freq(χupup_ω, [1], sP.tc_type, mP.β, weights=Wω)[1])
+        rhs_c2 = mP.U * real(sum_freq(χupdo_ω, [1], sP.tc_type, mP.β, weights=Wω)[1])
 
         lhs_c1 = 2 * mP.n/2 * (1 - mP.n/2)
         F[1] = rhs_c1 - lhs_c1
         F[2] = rhs_c2 + E_pot_DGA 
     end
-    return nlsolve(cond_both!, [ 0.1; -0.8])
+    return nlsolve(cond_both!, [ 0.1; -0.8]).zero
 end
 
 function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
@@ -141,21 +142,21 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
 
     Wν    = tc ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
     Wω    = tc ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) 
-    tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
 
 
     # --- Calculate new Sigma ---
-    Σ_internal2!(tmp, usable_ω, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
     χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λsp))
     χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λch))
+
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(usable_ω), length(1:sP.n_iν), length(qIndices)) 
+    tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), sP.n_iν)
+    Σ_internal2!(tmp, usable_ω, bubble, view(FUpDo,:,(sP.n_iν+1):size(FUpDo,2),:), tc, Wν)
     Σ_internal!(Σ_ladder_ω, usable_ω, χsp_λ, χch_λ,
                 view(nlQ_sp.γ,:,:,(sP.n_iν+1):size(nlQ_sp.γ,3)), view(nlQ_ch.γ,:,:,(sP.n_iν+1):size(nlQ_ch.γ,3)),
                 Gνω, tmp, mP.U, transformG, transformK, transform)
     Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [1], tc, 1.0, weights=Wω)[1,:,:] ./ norm
-
-    Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[eachindex(Σ_ladderLoc)]
-    G_corr = flatten_2D(G_from_Σ(Σ_corr .+ Σ_hartree, ϵqGrid, νGrid, mP));
+    Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_new)]
+    G_corr = flatten_2D(G_from_Σ(Σ_corr .+ Σ_hartree, ϵqGrid, 0:size(Σ_new, 1)-1, mP));
     E_pot = if E_pot_tail_corr
         Shanks.shanks(calc_E_pot_νn(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, qMult, norm), csum_inp=true)[1]
     else
@@ -165,4 +166,25 @@ function calc_E_pot_cond(λsp::Float64, λch::Float64, nlQ_sp::NonLocalQuantitie
     tmp_sum = sum_q(χch_λ[usable_ω,:] .- χsp_λ[usable_ω,:], qMult, dims=2)[:,1]
     lhs = mP.U * (real(sum_freq(tmp_sum, [1], tc, mP.β, weights=Wω)[1])/2 + (mP.n^2)/4)
     return Σ_corr, lhs, E_pot
+end
+
+
+
+function λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+                      bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
+                      qGrid::Reduced_KGrid, mP::ModelParameters, sP::SimulationParameters)
+    nlQ_sp_λ, nlQ_ch_λ = if sP.λc_type == :sp
+        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)
+        @info "Computing λ corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
+        nlQ_sp_λ = calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, mP, sP)
+        nlQ_sp_λ, nlQ_ch
+    elseif sP.λc_type == :sp_ch
+        λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid, mP, sP)
+        χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
+        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
+        nlQ_sp_λ = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λ[1])
+        nlQ_ch_λ = NonLocalQuantities(convert(SharedArray, χch_λ), nlQ_ch.γ, nlQ_ch.usable_ω, λ[2])
+        nlQ_sp_λ, nlQ_ch_λ
+    end
+    return nlQ_sp_λ, nlQ_ch_λ
 end

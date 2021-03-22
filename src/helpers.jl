@@ -8,7 +8,7 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
 
-default_fit_range(s::Int) = (floor(Int,s/4), floor(Int, s/2))
+default_fit_range(s::Int) = (max(floor(Int,s/4),1), max(floor(Int, s/2),1))
 
 function convert_to_real(f; eps=10E-12)
     if maximum(imag.(f)) > eps
@@ -103,6 +103,8 @@ function setup_LDGA(configFile, loadFromBak)
     fitKernels_bosons = Dict{Tuple{Int,Int}, Matrix{Float64}}()
     n_tc_f = length(simParams.fermionic_tail_coeffs)
     n_tc_b = length(simParams.bosonic_tail_coeffs)
+    fitKernels_fermions[(1,1)] =Matrix{Float64}(undef, 0,0)
+    fitKernels_bosons[(1,1)] = Matrix{Float64}(undef, 0,0)
     for stop in n_tc_f:simParams.n_iν
         for start in n_tc_f:(stop-n_tc_f)
             fitKernels_fermions[(start,stop)] = (simParams.tc_type == :richardson) ? build_weights(start, stop, simParams.fermionic_tail_coeffs) : Matrix{Float64}(undef,0,0)

@@ -16,9 +16,13 @@ function readConfig(file)
     else
         error("could not parse chi fill value")
     end
-    tc_type = Symbol(lowercase(tml["Simulation"]["tail_corrected"]))
+    tc_type = Symbol(lowercase(tml["Simulation"]["tail_correction"]))
     if !(tc_type in [:nothing, :richardson, :shanks])
         error("Unrecognized tail correction type \"$(tc_type)\"")
+    end
+    λc_type = Symbol(lowercase(tml["Simulation"]["lambda_correction"]))
+    if !(λc_type in [:nothing, :sp, :sp_ch])
+        error("Unrecognized tail correction type \"$(λc_type)\"")
     end
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
@@ -42,6 +46,7 @@ function readConfig(file)
     sim = SimulationParameters(nBose,nFermi,shift,
                                tml["Simulation"]["Nk"],
                                tc_type,
+                               λc_type,
                                tml["Simulation"]["force_full_local_bosonic_sum"],
                                tml["Simulation"]["force_full_bosonic_sum"],
                                tml["Simulation"]["force_max_usable"],

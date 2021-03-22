@@ -14,6 +14,7 @@ struct SimulationParameters
     shift::Int64            # shift of center for interval of bosonic frequencies
     Nk::Int64               # Number of k-space integration steps
     tc_type::Symbol  # use correction for finite ν and ω sums.
+    λc_type::Symbol  # which type of lambda correction to use (currecntly: nothing, sp, sp_ch, TOOD: sp_ch_q
     fullLocSums::Bool       # full ω sums in computation of local quantities
     fullωRange_Σ::Bool         # full ω sums in computation of Σ_ladder
     maxRange::Bool          # each channel has separate usable range
