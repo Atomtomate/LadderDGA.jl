@@ -33,9 +33,15 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
 
 
     indh = ceil(Int64, size(bubble,1)/2)
-    ωindices = sP.fullChi ? 
-        (1:size(bubble,1)) : 
-        [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)]
+    fixed_ω = typeof(sP.ωsum_type) == Tuple{Int,Int}
+    ωindices = if sP.fullChi
+            (1:size(bubble,1)) 
+        elseif fixed_ω
+            mid_index = Int(ceil(size(bubble,1)/2))
+            default_sum_range(mid_index, sP.ωsum_type)
+        else
+            [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)]
+        end
 
     @sync @distributed for ωi in ωindices
         νIndices = 1:size(bubble,3)
@@ -51,12 +57,12 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], :nothing, 1.0, weights=fitKernel)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
         end
         χ_ω[ωi] = sum_q(χ[ωi,:], qMultiplicity)[1]
-        if (!sP.fullChi)
-            usable = find_usable_interval(real(χ_ω))
+        if (!sP.fullChi && !fixed_ω)
+            usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type)
             first(usable) > ωi && break
         end
     end
-    usable = find_usable_interval(real(χ_ω), reduce_range_prct=0.05)
+    usable = (!sP.fullChi && !fixed_ω) ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type) : ωindices
     # if sP.tc_type != :nothing
     #    γ = convert(SharedArray, mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
     # end
@@ -103,7 +109,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     νZero = sP.n_iν
     ωZero = sP.n_iω
     νSize = length(νZero:size(Q_ch.γ,3))
-    ωindices = sP.fullωRange_Σ ? (1:size(bubble,1)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(qIndices), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))

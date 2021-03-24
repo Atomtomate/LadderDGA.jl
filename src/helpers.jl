@@ -9,6 +9,9 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # TODO: For now a fixed order of axis is assumed
 
 default_fit_range(s::Int) = (max(floor(Int,s/4),1), max(floor(Int, s/2),1))
+function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
+    return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
+end
 
 function convert_to_real(f; eps=10E-12)
     if maximum(imag.(f)) > eps
@@ -81,7 +84,8 @@ function setup_LDGA(configFile, loadFromBak)
     end
     #TODO: unify checks
     (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
-    (simParams.fullωRange_Σ && (simParams.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    (simParams.ωsum_type == :full && (simParams.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    simParams.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
 
     Σ_loc = Σ_Dyson(g0, gImp)
     FUpDo = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp, freqList, modelParams, simParams)
@@ -124,8 +128,13 @@ function setup_LDGA(configFile, loadFromBak)
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
     χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
-    usable_loc_sp = simParams.fullLocSums ? (1:length(χLocsp_ω)) : find_usable_interval(real(χLocsp_ω))
-    usable_loc_ch = simParams.fullLocSums ? (1:length(χLocch_ω)) : find_usable_interval(real(χLocch_ω))
+    usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=simParams.ωsum_type)
+    usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=simParams.ωsum_type)
+    if simParams.ωsum_type == :common
+        loc_range = intersect(usable_loc_sp, usable_loc_ch)
+        usable_loc_ch = loc_range
+        usable_loc_sp = loc_range
+    end
 
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_sp))])[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_ch))])[1]

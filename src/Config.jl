@@ -1,5 +1,7 @@
 @enum ChiFillType zero_χ_fill lambda_χ_fill χ_fill
 
+BSum = Union{Symbol, Tuple{Int,Int}}
+
 struct ModelParameters
     U::Float64              # Hubbard U
     μ::Float64              # chemical potential
@@ -15,9 +17,8 @@ struct SimulationParameters
     Nk::Int64               # Number of k-space integration steps
     tc_type::Symbol  # use correction for finite ν and ω sums.
     λc_type::Symbol  # which type of lambda correction to use (currecntly: nothing, sp, sp_ch, TOOD: sp_ch_q
-    fullLocSums::Bool       # full ω sums in computation of local quantities
-    fullωRange_Σ::Bool         # full ω sums in computation of Σ_ladder
-    maxRange::Bool          # each channel has separate usable range
+    ωsum_type::BSum
+    λ_rhs::Symbol
     fullChi::Bool
     χFillType::ChiFillType # values to be set outside the usable interval
     chi_only::Bool          # skip computation of self energy

@@ -7,6 +7,8 @@ function readConfig(file)
     tml = TOML.parsefile(file)
     sim = tml["Simulation"]
     χfill = nothing
+    rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"
+
     if tml["Simulation"]["chi_unusable_fill_value"] == "0"
         χfill = zero_χ_fill
     elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi_lambda"
@@ -24,6 +26,20 @@ function readConfig(file)
     if !(λc_type in [:nothing, :sp, :sp_ch])
         error("Unrecognized tail correction type \"$(λc_type)\"")
     end
+    ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum"])
+    m = match(rr, ωsum_inp)
+    ωsum_type = if m != nothing
+        tuple(parse.(Int, m.captures)...)
+    elseif ωsum_inp in ["common", "individual", "full"]
+        Symbol(ωsum_inp)
+    else
+        error("Could not parse bosonic_sum. Allowed input is: common, individual, full, fixed:N:M")
+    end
+
+    λrhs_type = Symbol(lowercase(tml["Simulation"]["rhs"]))
+    !(λrhs_type in [:native, :fixed, :error_comp]) && error("Could not parse rhs type for lambda correction. Options are native, fixed, error_comp.")
+        
+
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
                              tml["Environment"]["loadAsymptotics"],
@@ -47,9 +63,8 @@ function readConfig(file)
                                tml["Simulation"]["Nk"],
                                tc_type,
                                λc_type,
-                               tml["Simulation"]["force_full_local_bosonic_sum"],
-                               tml["Simulation"]["force_full_bosonic_sum"],
-                               tml["Simulation"]["force_max_usable"],
+                               ωsum_type,
+                               λrhs_type,
                                tml["Simulation"]["force_full_bosonic_chi"],
                                χfill,
                                tml["Simulation"]["chi_only"],

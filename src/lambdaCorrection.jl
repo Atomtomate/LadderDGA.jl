@@ -11,7 +11,7 @@ dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχ
 dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities,
-                      nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, mP::ModelParameters, sP::SimulationParameters)
+                      nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, fitKernels_bosons, mP::ModelParameters, sP::SimulationParameters)
     @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = sum_q(nlQ_ch.χ, qMult, dims=2)[:,1]
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -19,26 +19,27 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))"""
-    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sP.tc_type, mP.β)[1])
-    rhs = (sP.tc_type != :nothing) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
+    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sP.tc_type, mP.β, weights=fitKernels_bosons[default_fit_range(length(usable_ω))])[1])
+    rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
     @info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
     return rhs, usable_ω
 end
 
 function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qGrid, mP::ModelParameters, sP::SimulationParameters)
+                             rhs::Float64, qGrid, fitKernels_bosons, mP::ModelParameters, sP::SimulationParameters)
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
-                                    mP.β, sP.tc_type, sP.χFillType)
+                                    mP.β, sP.tc_type, sP.χFillType, fitKernels_bosons)
     nlQ_sp = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λsp)
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Symbol, χFillType)
+                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Symbol, χFillType, fitKernels_bosons)
     @info "Using rhs for lambda correction: " rhs " with tc = " tc
     res = zeros(eltype(χ_in), size(χ_in)...)
     χr    = real.(χ_in[usable_ω,:])
     nh    = ceil(Int64, size(χr,1)/2)
-    W = (tc == :richardson) ? build_weights(floor(Int64,size(χr, 1)/4), floor(Int64,size(χr, 1)/2), [0,1,2,3]) : nothing
+
+    W = fitKernels_bosons[default_fit_range(length(usable_ω))]
     f(λint) = sum_freq(sum_q(χ_λ(χr, λint), qMult, dims=2)[:,1], [1], tc, β, weights=W)[1] - rhs
     df(λint) = sum_freq(sum_q(-χ_λ(χr, λint) .^ 2, qMult, dims=2)[:,1], [1], tc, β, weights=W)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
@@ -70,6 +71,7 @@ function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bu
                      FUpDo::Array{Complex{Float64},3}, 
                      Σ_loc_pos, Σ_ladderLoc,
                      qGrid::Reduced_KGrid, 
+                     fitKernels_fermions, fitKernels_bosons,
                      mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
@@ -85,8 +87,8 @@ function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bu
     E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, νGrid) .^ 2)
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(qGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
 
-    Wν    = sP.tc_type == :richardson ? build_weights(1, sP.n_iν, [0,1,2,3,4]) : nothing
-    Wω    = sP.tc_type == :richardson ? build_weights(1, floor(Int64, length(usable_ω)/2), [0,1,2,3]) : nothing
+    Wν    = sP.tc_type == :richardson ? build_weights(1, sP.n_iν, sP.fermionic_tail_coeffs) : nothing
+    Wω    = (sP.tc_type == :richardson && (length(usable_ω) > 2*length(sP.bosonic_tail_coeffs))) ? build_weights(1, floor(Int64, length(usable_ω)/2), sP.bosonic_tail_coeffs) : nothing
     νZero = sP.n_iν
     ωZero = sP.n_iω
     tmp = SharedArray{Complex{Float64},3}(length(usable_ω), size(bubble,2), size(bubble,3))
@@ -172,14 +174,16 @@ end
 
 function λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
-                      qGrid::Reduced_KGrid, mP::ModelParameters, sP::SimulationParameters)
+                      qGrid::Reduced_KGrid,
+                      fitKernels_fermions, fitKernels_bosons,
+                      mP::ModelParameters, sP::SimulationParameters)
     nlQ_sp_λ, nlQ_ch_λ = if sP.λc_type == :sp
-        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)
+        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, fitKernels_bosons, mP, sP)
         @info "Computing λ corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-        nlQ_sp_λ = calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, mP, sP)
+        nlQ_sp_λ = calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, fitKernels_bosons, mP, sP)
         nlQ_sp_λ, nlQ_ch
     elseif sP.λc_type == :sp_ch
-        λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid, mP, sP)
+        λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid,fitKernels_fermions, fitKernels_bosons, mP, sP)
         χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
         χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
         nlQ_sp_λ = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λ[1])

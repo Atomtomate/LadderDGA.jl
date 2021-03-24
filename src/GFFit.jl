@@ -48,6 +48,10 @@ and ``R_{ij} = \\frac{1}{j^i}``.
 Fit coefficients can be obtained by multiplying `w` with data: ``a_k = W_{kj} g_j``
 """
 function build_weights(imin::Int64, imax::Int64, coeff_exp_list::Array)::Array{Float64, 2}
+    if (imax - imin) < length(coeff_exp_list) 
+        @error "Trying to construct Richardson matrix for insufficient number of array elements."
+        return Matrix{Float64}(undef, 0,0)
+    end
     M = build_design_matrix(imin, imax, coeff_exp_list)
     Minv = inv(M)
     ncoeffs = length(coeff_exp_list)
@@ -166,7 +170,7 @@ end
 function approx_full_sum_richardson(f; correction::Float64=0.0, W::Array{Float64,2})
     dims = collect(1:ndims(f))
     N = floor(Int64, size(f, dims[1])/2)
-    if N < size(W,1)
+    if (N < size(W,1)) || (N < 5) 
         @error "WARNING: could not extrapolate sum, there were only $(size(f,dims[1])) terms. Falling back to naive sum."
         sum_approx = sum(f, dims=dims) .+ correction
     else
@@ -210,10 +214,15 @@ sum_νmax(a, cut; dims) = mapslices(x -> sum_inner(x, (cut)), a; dims=dims)
     Returns rang of indeces that are usable under 2 conditions.
     TODO: This is temporary and should be replace with a function accepting general predicates.
 """
-function find_usable_interval(arr; reduce_range_prct = 0.0)
-    darr = diff(arr; dims=1)
-    mid_index = Int(ceil(size(arr,1)/2))
+function find_usable_interval(arr::Array{Float64,1};sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
+    mid_index = Int(ceil(length(arr)/2))
+    if sum_type == :full
+        return 1:length(arr)
+    elseif typeof(sum_type) == Tuple{Int,Int}
+        return default_sum_range(mid_index, sum_type)
+    end
 
+    darr = diff(arr; dims=1)
     if arr[mid_index] < 0.0
         res = [mid_index]
         return res

@@ -30,7 +30,8 @@ function run_sim(; cfg_file=nothing)
     nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qGrid.multiplicity, νGrid, fitKernels_fermions, -modelParams.U, modelParams, simParams);
 
     @info "Calculating λ correction: "
-    nlQ_sp_λ, nlQ_ch_λ = λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, modelParams, simParams)
+    nlQ_sp_λ, nlQ_ch_λ = λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, 
+                                      fitKernels_fermions, fitKernels_bosons, modelParams, simParams)
 
     Σ_bare, Σ_ladder, Σ_ladderLoc = if !simParams.chi_only
         @info "Calculating Σ ladder: "
