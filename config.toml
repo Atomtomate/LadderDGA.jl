@@ -1,5 +1,4 @@
 # input TOML for ladderDGA
-
 [Model]
 U    = 1.0
 mu   = 0.5
@@ -36,7 +35,6 @@ asymptVars = "vars_asympt_sums.jld"
 cast_to_real = false             # TODO: not implemented. cast all arrays with vanishing imaginary part to real
 loglevel = "debug"        # error, warn, info, debug
 logfile = "stderr" #"run.out"        # STDOUT, STDERR, filename
-progressbar = false        # true/false enable or disable progress bar
 
 [Debug]
 read_bubble = false
