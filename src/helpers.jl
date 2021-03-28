@@ -9,6 +9,7 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # TODO: For now a fixed order of axis is assumed
 
 default_fit_range(s::Int) = (max(floor(Int,s/4),1), max(floor(Int, s/2),1))
+
 function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
     return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
 end

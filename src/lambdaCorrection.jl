@@ -29,7 +29,9 @@ function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractAr
                              rhs::Float64, qGrid, fitKernels_bosons, mP::ModelParameters, sP::SimulationParameters)
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
                                     mP.β, sP.tc_type, sP.χFillType, fitKernels_bosons)
-    nlQ_sp = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λsp)
+    nlQ_sp.χ = χsp_λ
+    nlQ_sp.λ = λsp
+    return nlQ_sp
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
@@ -172,23 +174,21 @@ end
 
 
 
-function λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
                       qGrid::Reduced_KGrid,
                       fitKernels_fermions, fitKernels_bosons,
                       mP::ModelParameters, sP::SimulationParameters)
-    nlQ_sp_λ, nlQ_ch_λ = if sP.λc_type == :sp
+    if sP.λc_type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, fitKernels_bosons, mP, sP)
         @info "Computing λ corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-        nlQ_sp_λ = calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, fitKernels_bosons, mP, sP)
-        nlQ_sp_λ, nlQ_ch
+        calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, fitKernels_bosons, mP, sP)
     elseif sP.λc_type == :sp_ch
         λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid,fitKernels_fermions, fitKernels_bosons, mP, sP)
-        χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
-        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
-        nlQ_sp_λ = NonLocalQuantities(convert(SharedArray, χsp_λ), nlQ_sp.γ, nlQ_sp.usable_ω, λ[1])
-        nlQ_ch_λ = NonLocalQuantities(convert(SharedArray, χch_λ), nlQ_ch.γ, nlQ_ch.usable_ω, λ[2])
-        nlQ_sp_λ, nlQ_ch_λ
+        nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
+        nlQ_sp.λ = λ[1]
+        nlQ_ch.χ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
+        nlQ_ch.λ = λ[2]
     end
-    return nlQ_sp_λ, nlQ_ch_λ
+    return nlQ_sp, nlQ_ch
 end

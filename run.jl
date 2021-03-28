@@ -30,23 +30,23 @@ function run_sim(; cfg_file=nothing)
     nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qGrid.multiplicity, νGrid, fitKernels_fermions, -modelParams.U, modelParams, simParams);
 
     @info "Calculating λ correction: "
-    nlQ_sp_λ, nlQ_ch_λ = λ_correction(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, 
+    λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, 
                                       fitKernels_fermions, fitKernels_bosons, modelParams, simParams)
 
     Σ_bare, Σ_ladder, Σ_ladderLoc = if !simParams.chi_only
         @info "Calculating Σ ladder: "
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, bubble, GLoc_fft, FUpDo,
+        Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, GLoc_fft, FUpDo,
                             qGrid.indices, simParams.Nk, fitKernels_fermions, fitKernels_bosons, modelParams, simParams)
         Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_ladder,1)]
         Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
     end
     @info "Done."
-    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_sp, nlQ_ch_λ, nlQ_sp_λ, Σ_bare, Σ_ladder, Σ_ladderLoc
+    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_bare, Σ_ladder, Σ_ladderLoc
 end
 
 function run2(cfg_file)
-     _, _, _, _, _, nlQ_ch_λ, nlQ_sp_λ, _, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
-    return nlQ_ch_λ, nlQ_sp_λ, Σ_ladder
+     _, _, _, _, _, _, nlQ_ch, nlQ_sp, _, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
+    return nlQ_ch, nlQ_sp, Σ_ladder
 end
 
 flush(LadderDGA.io)

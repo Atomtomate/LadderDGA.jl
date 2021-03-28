@@ -9,7 +9,7 @@ struct ImpurityQuantities
     usable_ω::AbstractArray
 end
 
-struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: Union{Complex{Float64}, Float64}}
+mutable struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: Union{Complex{Float64}, Float64}}
     χ::SharedArray{T1,2}
     γ::SharedArray{T2,3}
     usable_ω::AbstractArray

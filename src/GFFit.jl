@@ -120,7 +120,7 @@ end
 """
     Faster version for build_νmax. WARNING: only tested for square arrays
 """
-function build_fνmax_fast(f::AbstractArray, νmin)
+function build_fνmax_fast(f::Union{Array{<:Number, 1}, Array{<:Number,2}}, νmin::Int)
     #
     n_iν       = minimum(size(f))
     νmax_end   = floor(Int64,n_iν/2)
@@ -182,10 +182,11 @@ end
 
 
 #TODO: this is about 2 times slower than sum, why?
-function sum_freq(arr, dims, type::Symbol, β::Float64; 
+function sum_freq(arr, dims::Array{Int,1}, type::Symbol, β::Float64; 
                   correction::Float64=0.0, weights::Union{Nothing, Array{Float64,2}}=nothing)
     if type == :richardson
         if weights === nothing
+            @warn "constructing fit matrix in place"
             N = floor(Int64, size(arr, dims[1])/2)
             ωmin = Int(floor(N*1/4))
             ωmax = N 
