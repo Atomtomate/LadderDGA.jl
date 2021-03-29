@@ -98,7 +98,7 @@ function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γ
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
-                        Gνω::GνqT, FUpDo::Array{Complex{Float64},3}, qIndices::Vector,
+                        Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, qIndices::Vector,
                         Nk::Int64,
                         fitKernels_fermions, fitKernels_bosons,
                         mP::ModelParameters, sP::SimulationParameters)

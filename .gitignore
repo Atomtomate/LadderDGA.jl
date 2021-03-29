@@ -1,9 +1,12 @@
+*.lock
+*.log
 *.jld
 *.dat
 *.txt
 *.csv
 *.out
 *.tex
+node_modules/
 vscjlsymserv-*
 Untitled.ipynb
 config_bak.toml

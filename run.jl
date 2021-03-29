@@ -1,16 +1,18 @@
-using Pkg
-Pkg.activate("/home/julian/Hamburg/LadderDGA")
-using LadderDGA
+using Distributed
+addprocs(7, enable_threaded_blas=true)
+@everywhere using Pkg
+@everywhere Pkg.activate("/home/julian/Hamburg/LadderDGA")
+@everywhere using LadderDGA
 #TODO: this could be a macro modifying the 3 main functions
 # ======================== Setup ==========================
 
 function run_sim(; cfg_file=nothing)
     @warn "assuming linear, continuous nu grid for chi/trilex"
-    if cfg_file == nothing
+    if cfg_file === nothing
         print("specify location of config file: ")
         cfg_file = readline()
     end
-    modelParams, simParams, env, kGrid, qGrid, νGrid, fitKernels_fermions, fitKernels_bosons, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc_pos, FUpDo, χDMFTsp, χDMFTch, gImp = setup_LDGA(cfg_file, false);
+    modelParams, simParams, env, kGrid, qGrid, νGrid, fitKernels_fermions, fitKernels_bosons, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc_pos, FUpDo, gImp = setup_LDGA(cfg_file, false);
         
     @info "Calculating local quantities: "
     bubbleLoc = calc_bubble(νGrid, GImp_fft, 1, modelParams, simParams)
@@ -29,6 +31,7 @@ function run_sim(; cfg_file=nothing)
     nlQ_sp = calc_χ_trilex(impQ_sp.Γ, bubble, qGrid.multiplicity, νGrid, fitKernels_fermions, modelParams.U, modelParams, simParams);
     nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qGrid.multiplicity, νGrid, fitKernels_fermions, -modelParams.U, modelParams, simParams);
 
+    
     @info "Calculating λ correction: "
     λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, 
                                       fitKernels_fermions, fitKernels_bosons, modelParams, simParams)
@@ -45,7 +48,7 @@ function run_sim(; cfg_file=nothing)
 end
 
 function run2(cfg_file)
-     _, _, _, _, _, _, nlQ_ch, nlQ_sp, _, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
+     _, _, _, _, nlQ_ch, nlQ_sp, _, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
     return nlQ_ch, nlQ_sp, Σ_ladder
 end
 

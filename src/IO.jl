@@ -28,7 +28,7 @@ function readConfig(file)
     end
     ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum"])
     m = match(rr, ωsum_inp)
-    ωsum_type = if m != nothing
+    ωsum_type = if m !== nothing
         tuple(parse.(Int, m.captures)...)
     elseif ωsum_inp in ["common", "individual", "full"]
         Symbol(ωsum_inp)
@@ -53,7 +53,7 @@ function readConfig(file)
                              lowercase(tml["Environment"]["logfile"]),
                              tml["Environment"]["progressbar"]
                             )
-    JLD2.@load env.inputDir*"/"*env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
+    JLD2.@load env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
     model = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 

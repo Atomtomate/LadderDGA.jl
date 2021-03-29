@@ -2,17 +2,17 @@
 using ArgParse
 using Logging
 using Distributed
-@everywhere using SharedArrays
+using SharedArrays
 #TODO: move to JLD2
 using JLD, JLD2
 using DelimitedFiles
-@everywhere using LinearAlgebra
-@everywhere using GenericLinearAlgebra
+using LinearAlgebra
+using GenericLinearAlgebra
 using Combinatorics
 using TOML          # used for input
-@everywhere using Printf
+using Printf
 using ForwardDiff
-@everywhere using Query
+using Query
 using IntervalArithmetic, IntervalRootFinding
 using StaticArrays
 using PaddedViews   # used to pad fft arrays
@@ -33,9 +33,10 @@ include("$(@__DIR__)/lambdaCorrection.jl")
 include("$(@__DIR__)/thermodynamics.jl")
 
 
-if (myid()==1) && (nprocs()==1)
-    addprocs(7)
-end
+# if (myid()==1) && (nprocs()==1)
+#   println("activating procs")
+#   addprocs(3)
+#end
 #
 # ==================== Argument Parser ====================
 s = ArgParseSettings()
