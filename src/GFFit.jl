@@ -1,21 +1,4 @@
 """
-    build_design_matrix(imin, imax, ncoeffs)
-
-Helper function that build the matrix ``M`` used to fit data obtained in a
-`imin` to `imax` interval to a ``\\sum_{n=0}^{`ncoeffs`} c_n/i^n`` tail.
-The coefficients ``c_n`` are obtained by solving ``M c = b``. 
-``b`` can be constructed from the data using [`build_rhs`](@ref).
-"""
-function build_design_matrix(imin, imax, coeff_exp_list::Array)
-    ncoeffs = length(coeff_exp_list)
-    M = zeros(BigFloat, (ncoeffs, ncoeffs))
-    for i = imin:imax, (ki,k) = enumerate(coeff_exp_list), (li,l) in enumerate(coeff_exp_list)
-        M[li,ki] += 1.0 / ((BigFloat(i)^(k+l)))
-    end
-    return M
-end
-
-"""
     build_rhs(imin, imax, ncoeffs, data)
 
 Contructs rhs for ``M c = b``. Use [`build_design_matrix`](@ref) to obtain

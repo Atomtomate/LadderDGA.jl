@@ -51,8 +51,8 @@ end
 @warn "Check U and Beta consistency in chi_dir/gamma_dir"
 args = parse_args([], s)
 
-const global io = open("run.out","w+")
-logger = ConsoleLogger(stderr, Logging.Info, 
+const global io = open("lDGA.log","w+")
+logger = ConsoleLogger(io, Logging.Info, 
                   meta_formatter=Logging.default_metafmt,
                   show_limited=true, right_justify=0)
 global_logger(logger)
