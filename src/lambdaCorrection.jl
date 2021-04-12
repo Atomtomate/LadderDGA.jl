@@ -1,7 +1,6 @@
 using IntervalArithmetic
 using IntervalRootFinding
 
-include("ConvergenceAcc.jl")
 χ_λ(χ::AbstractArray, λ::Union{Float64,Interval{Float64}}) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 χ_λ!(χ_λ, χ, λ::Union{Float64,Interval{Float64}}) = (χ_λ = map(χi -> 1.0 / ((1.0 / χi) + λ), χ))
@@ -10,8 +9,7 @@ dχ_λ(χ, λ::Union{Float64,Interval{Float64}}) = map(χi -> - ((1.0 / χi) + �
 dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχch_λ)*qNorm
 dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
-function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities,
-                      nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, fitKernels_bosons, mP::ModelParameters, sP::SimulationParameters)
+function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, qMult::Array{Float64,1}, mP::ModelParameters, sP::SimulationParameters)
     @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = sum_q(nlQ_ch.χ, qMult, dims=2)[:,1]
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -19,31 +17,32 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))"""
-    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sP.tc_type, mP.β, weights=fitKernels_bosons[default_fit_range(length(usable_ω))])[1])
+
+    sh = get_sum_helper(usable_ω, sP)
+    χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sh, mP.β)[1])
     rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
     @info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
     return rhs, usable_ω
 end
 
 function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qGrid, fitKernels_bosons, mP::ModelParameters, sP::SimulationParameters)
+                             rhs::Float64, qGrid,mP::ModelParameters, sP::SimulationParameters)
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
-                                    mP.β, sP.tc_type, sP.χFillType, fitKernels_bosons)
+                                    mP.β, sP.χFillType, sP)
     nlQ_sp.χ = χsp_λ
     nlQ_sp.λ = λsp
     return nlQ_sp
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, tc::Symbol, χFillType, fitKernels_bosons)
-    @info "Using rhs for lambda correction: " rhs " with tc = " tc
+                             rhs::Float64, qMult::Array{Float64,1}, β::Float64, χFillType, sP::SimulationParameters)
     res = zeros(eltype(χ_in), size(χ_in)...)
     χr    = real.(χ_in[usable_ω,:])
     nh    = ceil(Int64, size(χr,1)/2)
+    sh = get_sum_helper(usable_ω, sP)
 
-    W = fitKernels_bosons[default_fit_range(length(usable_ω))]
-    f(λint) = sum_freq(sum_q(χ_λ(χr, λint), qMult, dims=2)[:,1], [1], tc, β, weights=W)[1] - rhs
-    df(λint) = sum_freq(sum_q(-χ_λ(χr, λint) .^ 2, qMult, dims=2)[:,1], [1], tc, β, weights=W)[1]
+    f(λint) = sum_freq(sum_q(χ_λ(χr, λint), qMult, dims=2)[:,1], [1], sh, β)[1] - rhs
+    df(λint) = sum_freq(sum_q(-χ_λ(χr, λint) .^ 2, qMult, dims=2)[:,1], [1], sh, β)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
     int = [χ_min, χ_min + 10/length(qMult)]
     @info "found " χ_min ". Looking for roots in intervall " int
@@ -73,7 +72,6 @@ function extendend_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bu
                      FUpDo::Array{Complex{Float64},3}, 
                      Σ_loc_pos, Σ_ladderLoc,
                      qGrid::Reduced_KGrid, 
-                     fitKernels_fermions, fitKernels_bosons,
                      mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
@@ -177,14 +175,13 @@ end
 function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
                       qGrid::Reduced_KGrid,
-                      fitKernels_fermions, fitKernels_bosons,
                       mP::ModelParameters, sP::SimulationParameters)
     if sP.λc_type == :sp
-        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, fitKernels_bosons, mP, sP)
+        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)
         @info "Computing λ corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-        calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, fitKernels_bosons, mP, sP)
+        calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, mP, sP)
     elseif sP.λc_type == :sp_ch
-        λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid,fitKernels_fermions, fitKernels_bosons, mP, sP)
+        λ = extendend_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid, mP, sP)
         nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
         nlQ_sp.λ = λ[1]
         nlQ_ch.χ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))

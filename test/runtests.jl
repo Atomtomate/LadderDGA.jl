@@ -1,9 +1,9 @@
-using FortranFiles
+using LadderDGA
 using Test
 
-include("loadFortranData.jl")
-include("../src/LadderDGA.jl")
-include("ladderDGATest.jl")
+@testset "GFFit" begin
+    include("GFFit.jl")
+end
 
 @testset "full run" begin
     #bubble_f, χch_f, χsp_f, trilexch_f, trilexsp_f, Σ_f = loadFortranData(dir)

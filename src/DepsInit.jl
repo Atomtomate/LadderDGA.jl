@@ -6,8 +6,7 @@ using SharedArrays
 #TODO: move to JLD2
 using JLD, JLD2
 using DelimitedFiles
-using LinearAlgebra
-using GenericLinearAlgebra
+using LinearAlgebra, GenericLinearAlgebra
 using Combinatorics
 using TOML          # used for input
 using Printf
@@ -18,6 +17,8 @@ using StaticArrays
 using PaddedViews   # used to pad fft arrays
 using FFTW          # used for convolutions
 using NLsolve
+
+using SeriesAcceleration
 
 
 # ======================= Includes ========================

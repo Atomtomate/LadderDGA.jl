@@ -8,7 +8,8 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
 
-default_fit_range(s::Int) = (max(floor(Int,s/4),1), max(floor(Int, s/2),1))
+default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
+default_fit_range(s::Int) = ceil(Int,s/4):floor(Int, s/2)
 
 function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
     return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
@@ -54,9 +55,8 @@ printr_s(x::Float64) = round(x, digits=4)
 
 function setup_LDGA(configFile, loadFromBak)
     @info "Reading Inputs..."
-    modelParams, simParams, env = readConfig(configFile)#
+    modelParams, simParams, env, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset = readConfig(configFile)#
 
-    JLD2.@load env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
 
     fft_range = -(simParams.n_iν+simParams.n_iω):(simParams.n_iν+simParams.n_iω-1)
     kGrid = squareLattice_kGrid(simParams.Nk, modelParams.D)
@@ -119,26 +119,21 @@ function setup_LDGA(configFile, loadFromBak)
 
     #TODO: all fit capabilities should be encapsulated
     @info "Constructing fit kernels"
-    fitKernels_fermions = Dict{Tuple{Int,Int}, Matrix{Float64}}()
-    fitKernels_bosons = Dict{Tuple{Int,Int}, Matrix{Float64}}()
-    n_tc_f = length(simParams.fermionic_tail_coeffs)
-    n_tc_b = length(simParams.bosonic_tail_coeffs)
-    fitKernels_fermions[(1,1)] =Matrix{Float64}(undef, 0,0)
-    fitKernels_bosons[(1,1)] = Matrix{Float64}(undef, 0,0)
-    for stop in n_tc_f:simParams.n_iν
-        for start in n_tc_f:(stop-n_tc_f)
-            fitKernels_fermions[(start,stop)] = (simParams.tc_type == :richardson) ? build_weights(start, stop, simParams.fermionic_tail_coeffs) : Matrix{Float64}(undef,0,0)
-        end
-    end
-    for stop in n_tc_b:simParams.n_iω
-        for start in n_tc_b:(stop-n_tc_b)
-            fitKernels_bosons[(start,stop)] = (simParams.tc_type == :richardson) ? build_weights(start, stop, simParams.bosonic_tail_coeffs) : Matrix{Float64}(undef,0,0)
-        end
+    fitRange = default_fit_range(simParams.n_iν)
+    sumHelper_f =  if simParams.tc_type == :nothing
+        Naive()
+    elseif simParams.tc_type == :richardson
+        Richardson(fitRange, simParams.fermionic_tail_coeffs)
+    else
+        @error("Unrecognized tail correction, falling back to naive sums!")
+        Naive()
     end
     
+    fitRange = ceil(Int,simParams.n_iω/2):simParams.n_iω
+    helper_ω = simParams.tc_type == :richardson ? Richardson(fitRange,simParams.bosonic_tail_coeffs) : Naive()
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], simParams.tc_type, modelParams.β, weights=fitKernels_fermions[default_fit_range(size(χDMFTsp,2))])[:,1,1]
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], helper_ω, modelParams.β)[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], helper_ω, modelParams.β)[:,1,1]
     usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=simParams.ωsum_type)
     usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=simParams.ωsum_type)
     if simParams.ωsum_type == :common
@@ -147,8 +142,8 @@ function setup_LDGA(configFile, loadFromBak)
         usable_loc_sp = loc_range
     end
 
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_sp))])[1]
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], simParams.tc_type, modelParams.β, weights=fitKernels_bosons[default_fit_range(length(usable_loc_ch))])[1]
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], helper_ω, modelParams.β)[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], helper_ω, modelParams.β)[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)
@@ -158,7 +153,7 @@ function setup_LDGA(configFile, loadFromBak)
       sp: $(length(impQ_sp.usable_ω))
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
-    return modelParams, simParams, env, kGrid, qGrid, νGrid, fitKernels_fermions, fitKernels_bosons, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp
+    return modelParams, simParams, env, kGrid, qGrid, νGrid, sumHelper_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp
 end
 
 

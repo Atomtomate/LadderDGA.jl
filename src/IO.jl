@@ -53,7 +53,7 @@ function readConfig(file)
                              lowercase(tml["Environment"]["logfile"]),
                              tml["Environment"]["progressbar"]
                             )
-    JLD2.@load env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
+    JLD2.@load env.inputDir*"/"*env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
     model = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
@@ -71,7 +71,7 @@ function readConfig(file)
                                tml["Simulation"]["bosonic_tail_coeffs"],
                                tml["Simulation"]["fermionic_tail_coeffs"]
     )
-    return (model, sim, env)
+    return model, sim, env, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
 end
 
 function convertGF!(GF, storedInverse, storeFull)
