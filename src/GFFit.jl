@@ -1,17 +1,22 @@
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    build_fνmax_fast(f::AbstractArray{T,1}, nmin::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
 
 Description
 -------------
-
-Usage
--------------
-
-Arguments
--------------
+Constructs array of partial sums of one or two-dimensional array `f` starting
+at with `rmin` summands.
+This assumes, that the array is symmetric around the mid index.
 
 Examples
 -------------
+```
+julia> LadderDGA.build_fνmax_fast([3,2,1,2,3],2)
+[5, 11]
+julia> arr = [3 3 3 3 3; 3 2 2 2 3; 3 2 1 2 3; 3 2 2 2 3; 3 3 3 3 3
+julia> LadderDGA.build_fνmax_fast(arr,2)
+[17, 65]
+```
 """
 function build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
     n_iν       = minimum(size(f))
@@ -29,21 +34,6 @@ function build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where 
     return f_νmax
 end
 
-"""
-    build_fνmax(f, W, dims; ω_shift = 0)
-
-Description
--------------
-
-Usage
--------------
-
-Arguments
--------------
-
-Examples
--------------
-"""
 function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where T <: Number
     n_iν       = minimum(size(f))
     lo = ceil(Int,n_iν/2) - (nmin - 1)
@@ -59,19 +49,16 @@ function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where
 end
 
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    get_sum_helper(range, sP::SimulationParameters)
 
 Description
 -------------
-
-Usage
--------------
-
-Arguments
--------------
+Construct helper for (improved) sums. This is used for 
 
 Examples
 -------------
+```
+```
 """
 function get_sum_helper(range, sP::SimulationParameters)
     fitRange = default_fit_range(range)

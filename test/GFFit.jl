@@ -11,3 +11,6 @@
     @test all(LadderDGA.build_fνmax_fast(a, 2) .== test[2:3])
     @test all(LadderDGA.build_fνmax_fast(a, 3) .== test[3])
 end
+
+@testset "get_sum_helper" begin
+end

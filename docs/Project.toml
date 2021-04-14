@@ -1,3 +1,6 @@
 [deps]
 SeriesAcceleration = "d262d690-7b73-43ed-8cf8-7b23904776e1"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+
+[compat]
+Documenter = "0.26"
