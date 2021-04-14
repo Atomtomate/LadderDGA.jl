@@ -13,7 +13,7 @@ end
 struct SimulationParameters
     n_iω::Int64             # number of bosonic frequencies
     n_iν::Int64             # number of fermionic frequencies
-    shift::Int64            # shift of center for interval of bosonic frequencies
+    shift::Bool            # shift of center for interval of bosonic frequencies
     Nk::Int64               # Number of k-space integration steps
     tc_type::Symbol  # use correction for finite ν and ω sums.
     λc_type::Symbol  # which type of lambda correction to use (currecntly: nothing, sp, sp_ch, TOOD: sp_ch_q

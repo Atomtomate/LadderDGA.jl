@@ -1,6 +1,13 @@
 using LadderDGA
 using Test
 
+mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 5)
+#sP_1 = SimulationParameters(1,2,)
+
+@testset "Config" begin
+    include("Config.jl")
+end
+
 @testset "GFFit" begin
     include("GFFit.jl")
 end
