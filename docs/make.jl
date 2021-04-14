@@ -1,8 +1,6 @@
 using Documenter
 using LadderDGA
 
-
-
 push!(LOAD_PATH, "../src")
 makedocs(;
     modules=[LadderDGA],

@@ -695,7 +695,6 @@ git-tree-sha1 = "9827c552d04d812bf4958ec459ca06176370be14"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/SeriesAcceleration.jl"
 uuid = "d262d690-7b73-43ed-8cf8-7b23904776e1"
-version = "0.1.0"
 
 [[SetRounding]]
 git-tree-sha1 = "d7a25e439d07a17b7cdf97eecee504c50fedf5f6"
