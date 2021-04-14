@@ -1,17 +1,27 @@
-using Documenter, LadderDGA
+using Documenter
+using LadderDGA
 
+
+
+push!(LOAD_PATH, "../src")
 makedocs(;
     modules=[LadderDGA],
-    format=Documenter.HTML(),
+    authors="Julian Stobbe <Atomtomate@gmx.de> and contributors",
+    repo="https://github.com/Atomtomate/LadderDGA.jl/blob/{commit}{path}#L{line}",
+    sitename="LadderDGA",
+    format=Documenter.HTML(;
+        prettyurls=get(ENV, "CI", nothing) == "true",
+        canonical="https://Atomtomate.github.io/LadderDGA.jl",
+        assets=String[],
+    ),
     pages=[
         "Home" => "index.md",
     ],
-    repo="https://github.com/Atomtomate/LadderDGA.jl/blob/{commit}{path}#L{line}",
-    sitename="LadderDGA.jl",
-    authors="Julian Stobbe <Atomtomate@gmx.de>",
-    assets=String[],
 )
 
 deploydocs(;
-    repo="github.com/Atomtomate/LadderDGA.jl",
+    branch="gh-pages",
+    devbranch = "master",
+    devurl = "stable",
+    repo="github.com/Atomtomate/LadderDGA.jl.git",
 )

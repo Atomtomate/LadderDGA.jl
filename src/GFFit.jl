@@ -1,26 +1,18 @@
 """
-    Sums first νmax entries of any array along given dim for νmax = 1:size(arr,dim).
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
 """
-function build_fνmax(f, W, dims; ω_shift = 0)
-    n_iν   = minimum(size(f)[dims])
-    νmax_end = floor(Int64,n_iν/2)
-    νmax_start =  νmax_end - size(W, 2) + 1
-    if νmax_start < 1
-        throw(BoundsError("ERROR: negative range for summ approximation!"))
-    end
-    dims   = Tuple(dims)
-    ν_cut  = νmax_end - νmax_start
-
-    #TODO: keep dins as singleton dims?
-    f_νmax = dropdims(sum_νmax(f, ν_cut+1, dims=dims); dims=dims)
-    νdim   = ndims(f_νmax) + 1
-    for ν_cut_i in (ν_cut):-1:1
-        f_νmax = cat(f_νmax, dropdims(sum_νmax(f, ν_cut_i; dims=dims); dims=dims); dims=νdim)
-    end
-
-    return f_νmax
-end
-
 function build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
     n_iν       = minimum(size(f))
     lo = ceil(Int,n_iν/2) - (nmin - 1)
@@ -37,9 +29,20 @@ function build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where 
     return f_νmax
 end
 
-#TODO: test for square arrays
 """
-    Faster version for build_νmax. WARNING: only tested for square arrays
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
 """
 function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where T <: Number
     n_iν       = minimum(size(f))
@@ -55,6 +58,21 @@ function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where
     return f_νmax
 end
 
+"""
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
+"""
 function get_sum_helper(range, sP::SimulationParameters)
     fitRange = default_fit_range(range)
     sumHelper = if sP.tc_type == :nothing
@@ -68,6 +86,21 @@ function get_sum_helper(range, sP::SimulationParameters)
     return sumHelper
 end
 
+"""
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
+"""
 function sum_freq(arr, dims::Array{Int,1}, type::T, β::Float64; 
                   correction::Float64=0.0) where T <: SumHelper
 
@@ -77,8 +110,20 @@ end
 
 
 """
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
     Returns rang of indeces that are usable under 2 conditions.
-    TODO: This is temporary and should be replace with a function accepting general predicates.
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
 """
 function find_usable_interval(arr::Array{Float64,1};sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
     mid_index = Int(ceil(length(arr)/2))
@@ -128,9 +173,19 @@ end
 
 
 """
-    Returns rang of indeces that are usable for the ν range of γ.
-    This assumes γ → 1 for ν → ∞.
-    TODO: This is temporary and should be replace with a function accepting general predicates.
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
 """
 function find_usable_γ(arr)
     nh = ceil(Int64,length(arr)/2)
@@ -151,6 +206,21 @@ function find_usable_γ(arr)
     return range
 end
 
+"""
+    build_fνmax(f, W, dims; ω_shift = 0)
+
+Description
+-------------
+
+Usage
+-------------
+
+Arguments
+-------------
+
+Examples
+-------------
+"""
 function extend_γ(arr, usable_ν)
     res = copy(arr)
     val = arr[first(usable_ν)]

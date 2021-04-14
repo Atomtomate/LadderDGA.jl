@@ -1,4 +1,7 @@
 # LadderDGA.jl
+```@meta
+CurrentModule = LadderDGA
+```
 
 ```@index
 ```
