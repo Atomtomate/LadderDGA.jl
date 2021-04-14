@@ -64,10 +64,6 @@ uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
 [[Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
-[[LinearAlgebra]]
-deps = ["Libdl"]
-uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-
 [[Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 
@@ -115,14 +111,6 @@ uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 
 [[Serialization]]
 uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
-
-[[SeriesAcceleration]]
-deps = ["Documenter", "LinearAlgebra", "Logging", "Test"]
-git-tree-sha1 = "8799b0f7700b430cb4075f46a3f4b7209aaea184"
-repo-rev = "master"
-repo-url = "https://github.com/Atomtomate/SeriesAcceleration.jl"
-uuid = "d262d690-7b73-43ed-8cf8-7b23904776e1"
-version = "0.3.0"
 
 [[Sockets]]
 uuid = "6462fe0b-24de-5631-8697-dd941f90decc"
