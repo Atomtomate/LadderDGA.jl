@@ -2,7 +2,7 @@ using LadderDGA
 using Test
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 5)
-#sP_1 = SimulationParameters(1,2,)
+sP_1 = SimulationParameters(1,2,false,1,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3])
 
 @testset "Config" begin
     include("Config.jl")

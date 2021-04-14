@@ -1,4 +1,6 @@
 """
+    ImpurityQuantities
+
 Contains all quantities of a given channel, computed by DMFT
 """
 struct ImpurityQuantities
@@ -9,14 +11,16 @@ struct ImpurityQuantities
     usable_ω::AbstractArray
 end
 
+"""
+    NonLocalQuantities
+
+Contains all non local quantities computed by the lDGA code
+"""
 mutable struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: Union{Complex{Float64}, Float64}}
     χ::SharedArray{T1,2}
     γ::SharedArray{T2,3}
     usable_ω::AbstractArray
     λ::Float64
-end
-
-struct Simulation
 end
 
 const ΓT = SharedArray{Complex{Float64},3}

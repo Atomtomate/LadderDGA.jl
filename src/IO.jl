@@ -67,7 +67,6 @@ function readConfig(file)
                                λrhs_type,
                                tml["Simulation"]["force_full_bosonic_chi"],
                                χfill,
-                               tml["Simulation"]["chi_only"],
                                tml["Simulation"]["bosonic_tail_coeffs"],
                                tml["Simulation"]["fermionic_tail_coeffs"]
     )

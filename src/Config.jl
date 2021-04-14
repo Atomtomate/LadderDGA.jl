@@ -1,8 +1,18 @@
-@enum ChiFillType zero_χ_fill lambda_χ_fill χ_fill
+abstract type ConfigStruct end
 
+#TODO: this type is probably not needed anymore
 BSum = Union{Symbol, Tuple{Int,Int}}
 
-struct ModelParameters
+@enum ChiFillType zero_χ_fill lambda_χ_fill χ_fill
+
+"""
+    ModelParameters <: ConfigStruct
+
+Contains model parameters for the Hubbard model.
+This is typically generated from a config.toml file using 
+the [`readConfig`](@ref readConfig) function.
+"""
+struct ModelParameters <: ConfigStruct
     U::Float64              # Hubbard U
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
@@ -10,7 +20,18 @@ struct ModelParameters
     D::Int64
 end
 
-struct SimulationParameters
+"""
+    SimulationParameters <: ConfigStruct
+
+Contains simulation parameters for the ladder DGA computations.
+This is typically generated from a config.toml file using 
+the [`readConfig`](@ref readConfig) function.
+
+Fields
+-------------
+TODO: describe implications of all fields
+"""
+struct SimulationParameters <: ConfigStruct
     n_iω::Int64             # number of bosonic frequencies
     n_iν::Int64             # number of fermionic frequencies
     shift::Bool            # shift of center for interval of bosonic frequencies
@@ -21,17 +42,19 @@ struct SimulationParameters
     λ_rhs::Symbol
     fullChi::Bool
     χFillType::ChiFillType # values to be set outside the usable interval
-    chi_only::Bool          # skip computation of self energy
     bosonic_tail_coeffs::Array{Int,1}   # tail
     fermionic_tail_coeffs::Array{Int,1}
 end
 
-struct FreqGrid
-    ω::Array{Float64,1}
-    ν::Array{Float64,1}
-end
+"""
+    EnvironmentVars <: ConfigStruct
 
-struct EnvironmentVars
+Contains various settings, controlling the I/O behaviour 
+of this module.
+This is typically generated from a config.toml file using 
+the [`readConfig`](@ref readConfig) function.
+"""
+struct EnvironmentVars <: ConfigStruct
     inputDataType::String
     writeFortran::Bool
     loadAsymptotics::Bool

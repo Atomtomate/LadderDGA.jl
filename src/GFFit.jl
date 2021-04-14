@@ -53,12 +53,8 @@ end
 
 Description
 -------------
-Construct helper for (improved) sums. This is used for 
-
-Examples
--------------
-```
-```
+Construct helper for (improved) sums from setting in
+`sP` over a given fit range `range`.
 """
 function get_sum_helper(range, sP::SimulationParameters)
     fitRange = default_fit_range(range)
@@ -74,45 +70,67 @@ function get_sum_helper(range, sP::SimulationParameters)
 end
 
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    sum_freq(f, dims::AbstractArray{Int,1}, type::T, β::Float64; 
+                  corr::Float64=0.0) where T <: SumHelper
 
 Description
 -------------
-
-Usage
--------------
+Wrapper for estimation of initite Matsubara sums from a finite set
+of samples. Computes ``\\frac{1}{\\beta}^D \\sum_{n} f(i\\omega_n)``.
+For convenience, a correction term (being the analytic sum over a
+previously subtracted tail) can also be provided throught the `corr` argument.
 
 Arguments
 -------------
+- **`f`**    : array containing function of Matsubara frequencies
+- **`dims`** : dimensions over which to sum
+- **`type`** : SumHelper object, used for estimation of limit
+- **`β`**    : Inverse Temperature for normalization
+- **`corr`** : When tail coefficients are know, the subtraction and 
+               subsequent addition of the analytic infinite sum over
+               the tail can be added back here.
 
 Examples
 -------------
+```
+julia> arr = ones(3,5,5)
+julia> sum_freq(arr, [2,3], Naive(), 1.0)
+3×1×1 Array{Float64, 3}:
+    [:, :, 1] =
+     25.0
+     25.0
+     25.0
+```
 """
-function sum_freq(arr, dims::Array{Int,1}, type::T, β::Float64; 
-                  correction::Float64=0.0) where T <: SumHelper
+function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
+        corr::Float64=0.0) where {T1 <: Number, T2 <: SumHelper}
 
-    res = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ correction, type), arr, dims=dims)
+    res = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), f, dims=dims)
     return res/(β^length(dims))
 end
 
 
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
+
+Finds a usable interval of indices for ``\\chi (\\omega_i)``, i.e. an interval where
+known physical properties hold.
 
 Description
 -------------
-    Returns rang of indeces that are usable under 2 conditions.
-
-Usage
--------------
+Returns range of indices `i` where the following conditions hold:
+ - arr[i] is positive
+ - arr[i] is decreasing (for ``|i-i_0|``, ``i_0`` index of 0 frequency).
 
 Arguments
 -------------
-
-Examples
--------------
+ - **`arr`**      : array, containing ``\\chi (\\omega_i)``
+ - **`sum_type`** : Optional. `:full` will always return `eachindex()`, any `Tuple{Int,Int}` 
+                    will be itnerpreted as fixed limits and the range will be fixed to these.
+ - **`reduce_range_prct`** : Optional. Will reduce the range by given percentage (usefull to
+                    reduce effect of bad tails).
 """
-function find_usable_interval(arr::Array{Float64,1};sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
+function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
     mid_index = Int(ceil(length(arr)/2))
     if sum_type == :full
         return 1:length(arr)
@@ -160,19 +178,9 @@ end
 
 
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    find_usable_γ(arr)
 
-Description
--------------
-
-Usage
--------------
-
-Arguments
--------------
-
-Examples
--------------
+Not tested yet!
 """
 function find_usable_γ(arr)
     nh = ceil(Int64,length(arr)/2)
@@ -194,19 +202,9 @@ function find_usable_γ(arr)
 end
 
 """
-    build_fνmax(f, W, dims; ω_shift = 0)
+    extend_γ(arr, usable_ν)
 
-Description
--------------
-
-Usage
--------------
-
-Arguments
--------------
-
-Examples
--------------
+Not tested yet!
 """
 function extend_γ(arr, usable_ν)
     res = copy(arr)
