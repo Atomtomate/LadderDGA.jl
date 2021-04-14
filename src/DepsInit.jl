@@ -4,7 +4,7 @@ using Logging
 using Distributed
 using SharedArrays
 #TODO: move to JLD2
-using JLD, JLD2
+using JLD2
 using DelimitedFiles
 using LinearAlgebra, GenericLinearAlgebra
 using Combinatorics
@@ -13,7 +13,6 @@ using Printf
 using ForwardDiff
 using Query
 using IntervalArithmetic, IntervalRootFinding
-using StaticArrays
 using PaddedViews   # used to pad fft arrays
 using FFTW          # used for convolutions
 using NLsolve
