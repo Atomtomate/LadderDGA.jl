@@ -11,9 +11,6 @@ abstract type KPoints{T} end
 abstract type FullKPoints{T <: Base.Iterators.ProductIterator} <: KPoints{T} end
 abstract type ReducedKPoints{T} <: KPoints{T} end
 
-#abstract type KGrid{T1 <: KIndices, T2 <: KPoints} end
-
-#abstract type Dispersion{T <: KGrid} end
 
 struct KGrid
     indices::Base.Iterators.ProductIterator

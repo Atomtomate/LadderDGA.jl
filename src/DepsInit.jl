@@ -47,8 +47,6 @@ s = ArgParseSettings()
         default = "config.toml"
 end
 
-@warn "ArgParse not working with jupyter notebooks"
-@warn "Check U and Beta consistency in chi_dir/gamma_dir"
 args = parse_args([], s)
 
 const global io = open("lDGA.log","w+")
