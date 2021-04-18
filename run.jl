@@ -1,5 +1,7 @@
 using Distributed
-#addprocs(7, enable_threaded_blas=true)
+if nprocs() == 1
+    addprocs(7, enable_threaded_blas=true)
+end
 @everywhere using Pkg
 @everywhere Pkg.activate("/home/julian/Hamburg/LadderDGA.jl")
 @everywhere using LadderDGA
@@ -41,11 +43,11 @@ function run_sim(; cfg_file=nothing)
     Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_ladder,1)]
     Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
     @info "Done."
-    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_bare, Σ_ladder, Σ_ladderLoc
+    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc
 end
 
 function run2(cfg_file)
-     _, _, _, _, nlQ_ch, nlQ_sp, _, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
+     _, _, _, _, nlQ_ch, nlQ_sp, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
     return nlQ_ch, nlQ_sp, Σ_ladder
 end
 

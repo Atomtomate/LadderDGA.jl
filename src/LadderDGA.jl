@@ -3,6 +3,7 @@ Base.Experimental.@optlevel 3
 
 include("DepsInit.jl")
 
+export sum_q
 export gen_kGrid, squareLiattice_ekGrid, reduce_kGrid, kGrid_multiplicity #TODO: this should be in the dispersions package
 export ModelParameters, SimulationParameters, FreqGrid, EnvironmentVars
 export LocalQuantities, NonLocalQuantities, ΓT, BubbleT, GνqT

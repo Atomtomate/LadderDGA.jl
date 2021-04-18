@@ -109,8 +109,8 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     νSize = length(νZero:size(Q_ch.γ,3))
     ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(qIndices), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(qIndices), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
 
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
     Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,

@@ -8,8 +8,6 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 # This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
 # TODO: For now a fixed order of axis is assumed
 
-default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
-default_fit_range(s::Int) = ceil(Int,s/4):floor(Int, s/2)
 
 function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
     return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
@@ -119,21 +117,12 @@ function setup_LDGA(configFile, loadFromBak)
 
     #TODO: all fit capabilities should be encapsulated
     @info "Constructing fit kernels"
-    fitRange = default_fit_range(simParams.n_iν)
-    sumHelper_f =  if simParams.tc_type == :nothing
-        Naive()
-    elseif simParams.tc_type == :richardson
-        Richardson(fitRange, simParams.fermionic_tail_coeffs)
-    else
-        @error("Unrecognized tail correction, falling back to naive sums!")
-        Naive()
-    end
-    
-    fitRange = ceil(Int,simParams.n_iω/2):simParams.n_iω
-    helper_ω = simParams.tc_type == :richardson ? Richardson(fitRange,simParams.bosonic_tail_coeffs) : Naive()
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], helper_ω, modelParams.β)[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], helper_ω, modelParams.β)[:,1,1]
+    sh_f = get_sum_helper(2*simParams.n_iν, simParams)
+    sh_b = get_sum_helper(2*simParams.n_iω, simParams)
+
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_b, modelParams.β)[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], sh_b, modelParams.β)[:,1,1]
     usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=simParams.ωsum_type)
     usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=simParams.ωsum_type)
     if simParams.ωsum_type == :common
@@ -142,8 +131,8 @@ function setup_LDGA(configFile, loadFromBak)
         usable_loc_sp = loc_range
     end
 
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], helper_ω, modelParams.β)[1]
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], helper_ω, modelParams.β)[1]
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b, modelParams.β)[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b, modelParams.β)[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)
@@ -153,7 +142,7 @@ function setup_LDGA(configFile, loadFromBak)
       sp: $(length(impQ_sp.usable_ω))
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
-    return modelParams, simParams, env, kGrid, qGrid, νGrid, sumHelper_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp
+    return modelParams, simParams, env, kGrid, qGrid, νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp
 end
 
 
@@ -184,7 +173,6 @@ function calc_E_Pot(Σ_ladder, ϵkGrid, mP::ModelParameters, sP::SimulationParam
     tmp = real.(G_new .* Σ_ladder_corrected .+ tail_corr_0 .- tail_corr_1);
     res = [sum( (2 .* sum(tmp[1:i,:], dims=[1])[1,:] .+ tail_corr_inv_0 .- tail_corr_inv_1 .* 0.5 .* mP.β) .* qMultiplicity) / norm for i in 1:sP.n_iν]
     return (weights != nothing) ? fit_νsum(weights, res[(end-size(weights,2)+1):end]) : res[end]
-    #Wν    = build_weights(floor(Int64, 15), sP.n_iν, collect(0:6))
 end
 
 macro slice_middle(arr, n)

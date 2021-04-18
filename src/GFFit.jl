@@ -48,6 +48,9 @@ function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where
     return f_νmax
 end
 
+default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
+default_fit_range(s::Int) = ceil(Int,s/4):ceil(Int, s/2)
+
 """
     get_sum_helper(range, sP::SimulationParameters)
 
