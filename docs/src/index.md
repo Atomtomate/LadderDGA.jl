@@ -1,11 +1,12 @@
-# LadderDGA.jl
+# LadderDGA.jl Documentation
+
+```@contents
+```
+
 ```@meta
 CurrentModule = LadderDGA
 ```
+# Index
 
 ```@index
-```
-
-```@autodocs
-Modules = [LadderDGA]
 ```

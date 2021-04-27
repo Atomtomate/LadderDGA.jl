@@ -7,7 +7,7 @@ Dimensions = 3
 
 [Simulation]
 Nk        = 4            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
-tail_correction = "Nothing" #"Richardson" # Nothing, Richardson, Shanks
+tail_correction = "Richardson" #"Richardson" # Nothing, Richardson, Shanks
 lambda_correction = "sp"     # nothing, spin, spin_charge
 bosonic_sum = "common"             # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
 force_full_bosonic_chi = false        # compute all omega frequencies for chi and trilex
@@ -22,7 +22,7 @@ inputDataType = "jld2"      # jld2, text, parquet, TODO: implement hdf5
 writeFortran = false
 loadAsymptotics = false
 #inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
-inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/50_red_shift"
+inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/20_red_nshift"
 freqFile = "freqList.jld2"
 inputVars = "ED_out.jld2"
 asymptVars = "vars_asympt_sums.jld"

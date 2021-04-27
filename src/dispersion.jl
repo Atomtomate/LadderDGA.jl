@@ -1,17 +1,3 @@
-import Base.collect
-
-# ================================================================================ #
-#                               Type Definitions                                   #
-# ================================================================================ #
-abstract type KIndices{T} end
-abstract type FullKIndices{T <: Base.Iterators.ProductIterator} <: KIndices{T} end
-abstract type ReducedKIndices{T} <: KIndices{T} end
-
-abstract type KPoints{T} end
-abstract type FullKPoints{T <: Base.Iterators.ProductIterator} <: KPoints{T} end
-abstract type ReducedKPoints{T} <: KPoints{T} end
-
-
 struct KGrid
     indices::Base.Iterators.ProductIterator
     kGrid::Base.Iterators.ProductIterator
@@ -38,78 +24,6 @@ function reduce_squareLattice(kGrid::KGrid)
     return Reduced_KGrid(length(qIndices), qIndices, qMult, qGrid, ϵqGrid)
 end
 
-# -------------------------------------------------------------------------------- #
-#                                 Simple Cubic                                     #
-# -------------------------------------------------------------------------------- #
-struct FullKIndices_SC_2D <: FullKIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64}}}} 
-    ind::Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64}}}
-end
-collect(indices::FullKIndices_SC_2D) = collect(indices.ind)
-
-struct FullKPoints_SC_2D <: FullKPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}} 
-    grid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}
-end
-collect(grid::FullKPoints_SC_2D) = collect(grid.grid)
-
-struct FullKGrid_SC_2D
-    Nk::Int64
-    kInd::FullKIndices_SC_2D
-    kGrid::FullKPoints_SC_2D
-    FullKGrid_SC_2D(Nk::Int64) = (
-        #kx = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)];
-        kx = [(2*π/Nk) * j - π for j in 1:Nk];
-        ind = FullKIndices_SC_2D(Base.product([1:(Nk) for Di in 1:2]...));
-        kGrid  = FullKPoints_SC_2D(Base.product([kx for Di in 1:2]...));
-        new(Nk, ind, kGrid))
-end
-
-
-struct FullKIndices_SC_3D <: FullKIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}} 
-    ind::Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}
-end
-collect(indices::FullKIndices_SC_3D) = collect(indices.ind)
-
-struct FullKPoints_SC_3D <: FullKPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}} 
-    grid::Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1},Array{Float64,1}}}
-end
-collect(grid::FullKPoints_SC_3D) = collect(grid.grid)
-
-struct FullKGrid_SC_3D
-    Nk::Int64
-    kInd::FullKIndices_SC_3D
-    kGrid::FullKPoints_SC_3D
-    function FullKGrid_SC_3D(Nk::Int64)
-        #kx = [((max-min)/(Nk - Int(include_min))) * j + min for j in (1:Nk) .- Int(include_min)];
-        kx = [(2*π/Nk) * j - π for j in 1:Nk]
-        ind = FullKIndices_SC_3D(Base.product([1:(Nk) for Di in 1:3]...))
-        kGrid  = FullKPoints_SC_3D(Base.product([kx for Di in 1:3]...))
-        new(Nk, ind, kGrid)
-    end
-end
-
-#FullKGrid(Nk::Int64; min=-π, max = π, include_min::Bool) = FullKGrid_SC_2D
-
-
-#= abstract type KIndices_SC_3D <: =# 
-#=     FullkIndices{Base.Iterators.ProductIterator{Tuple{UnitRange{Int64},UnitRange{Int64},UnitRange{Int64}}}} =#
-#= end =#
-
-#= abstract type KPoints_SC_2D <: =# 
-#=     FullkPoints{Base.Iterators.ProductIterator{Tuple{Array{Float64,1},Array{Float64,1}}}} =#
-#= end =#
-
-
-#= struct Full_KGrid_SC_2D <: KGrid{ =#
-#=          , =#
-#=          T2 =#
-#=         } =#
-#=     indices =#
-#=     grid::T2 =#
-#= end =#
-
-# ================================================================================ #
-#                                   Functions                                      #
-# ================================================================================ #
 """
     gen_kGrid(Nk, D[; min = 0, max = π, include_min=true]) = 
 
@@ -158,7 +72,6 @@ function reduce_kGrid(kGrid)
     #grid = Iterators.filter(isMonotonic, kGrid)
     return grid_red
 end
-
 
 
 """
@@ -215,64 +128,6 @@ Computes 0.5 [cos(k_x) + ... + cos(k_D)] and returns a grid with Nk points.
 """
 squareLattice_ekGrid(kgrid)  = ((length(first(kgrid)) == 3 ? -0.40824829046386301636 : -0.5) * 
                                  sum([cos(kᵢ) for kᵢ in k]) for k in kgrid)
-
-
-function gen_squareLattice_ekq_grid(kList::Any, qList::Any)
-    gen_squareLattice_ekq_grid(collect.(kList), collect.(qList))
-end
-
-function gen_squareLattice_ekq_grid(kList::Array, qList::Array)
-    tsc =  length(first(kList)) == 3 ? -0.40824829046386301636 : -0.5
-    res = zeros(length(kList),length(qList))
-    for (ki,k) in enumerate(kList)
-        for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi] = tsc.*sum(cos.(k .+ q))
-        end
-    end
-    return res
-end
-
-#TODO: generalize to 3D, better abstraction
-function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64},1}, qList::Array{Tuple{Float64,Float64},1})
-    res = zeros(length(kList),length(qList), 8) # There are 8 additional 
-    tsc = -0.5
-    for (ki,k) in enumerate(kList)
-        for (qi,q) in enumerate(qList)
-            @inbounds res[ki,qi,1] = tsc*(cos(k[1] + q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,2] = tsc*(cos(k[1] + q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,3] = tsc*(cos(k[1] - q[1]) + cos(k[2] + q[2]))
-            @inbounds res[ki,qi,4] = tsc*(cos(k[1] - q[1]) + cos(k[2] - q[2]))
-            @inbounds res[ki,qi,5] = tsc*(cos(k[1] + q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,6] = tsc*(cos(k[1] + q[2]) + cos(k[2] - q[1]))
-            @inbounds res[ki,qi,7] = tsc*(cos(k[1] - q[2]) + cos(k[2] + q[1]))
-            @inbounds res[ki,qi,8] = tsc*(cos(k[1] - q[2]) + cos(k[2] - q[1]))
-        end
-    end
-    return res
-end
-
-function gen_squareLattice_full_ekq_grid(kList::Array{Tuple{Float64,Float64,Float64},1}, qList::Array{Tuple{Float64,Float64,Float64},1})
-    perm = permutations([1,2,3])
-    res = zeros(length(kList),length(qList), 8*length(perm)) # There are 8 additional 
-    tsc = -0.40824829046386301636
-    for (ki,k) in enumerate(kList)
-        for (qi,q) in enumerate(qList)
-            ind = 0
-            for p in perm
-                res[ki,qi,ind+1] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] + q[3]))
-                res[ki,qi,ind+2] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] - q[3]))
-                res[ki,qi,ind+3] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] + q[3]))
-                res[ki,qi,ind+4] = tsc*(cos(k[p[1]] + q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] - q[3]))
-                res[ki,qi,ind+5] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] + q[3]))
-                res[ki,qi,ind+6] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] + q[2]) + cos(k[p[3]] - q[3]))
-                res[ki,qi,ind+7] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] + q[3]))
-                res[ki,qi,ind+8] = tsc*(cos(k[p[1]] - q[1]) + cos(k[p[2]] - q[2]) + cos(k[p[3]] - q[3]))
-                ind += 8
-            end
-        end
-    end
-    return res
-end
 
 
 @inbounds cut_mirror(arr::Base.Iterators.ProductIterator) = cut_mirror(collect(arr))
@@ -342,3 +197,7 @@ end
 sum_q_test(arr, qMult; dims=1) = stripped_type(arr)(sum(mapslices(x-> x .* qMult, arr, dims=dims), dims=dims) ./ sum(qMult))
 
 sum_q_drop(arr, qMult; dims=1) = stripped_type(arr)(sum_drop(mapslices(x-> x .* qMult, arr, dims=dims), dims=dims) ./ sum(qMult))
+
+
+reduce_kGrid_ifft = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+

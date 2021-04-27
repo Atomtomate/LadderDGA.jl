@@ -79,9 +79,21 @@ function setup_LDGA(configFile, loadFromBak)
             in_file = env.inputDir*"/"*env.inputVars
         end
         @info "loading from " env.inputVars
-        JLD2.@load in_file Γch Γsp χDMFTch χDMFTsp gImp g0
-        gImp_in = copy(gImp)
-        Σ_loc = Σ_Dyson(g0, gImp_in)
+        f = JLD2.load(in_file)
+        Γch = f["Γch"]
+        Γsp = f["Γsp"]
+        χDMFTch = f["χDMFTch"]
+        χDMFTsp = f["χDMFTsp"]
+        gImp_in, Σ_loc = if haskey(f, "g0")
+            gImp_in = copy(f["gImp"])
+            g0 = copy(f["g0"])
+            Σ_loc = Σ_Dyson(g0, gImp_in)
+            gImp_in, Σ_loc
+        else
+            gImp_in = copy(f["gImp"])
+            Σ_loc = copy(f["SigmaLoc"])
+            gImp_in, Σ_loc
+        end
         FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, modelParams, simParams)
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
@@ -119,10 +131,10 @@ function setup_LDGA(configFile, loadFromBak)
     @info "Constructing fit kernels"
 
     sh_f = get_sum_helper(2*simParams.n_iν, simParams)
-    sh_b = get_sum_helper(2*simParams.n_iω, simParams)
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_b, modelParams.β)[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], sh_b, modelParams.β)[:,1,1]
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, modelParams.β)[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, modelParams.β)[:,1,1]
+
     usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=simParams.ωsum_type)
     usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=simParams.ωsum_type)
     if simParams.ωsum_type == :common
@@ -131,8 +143,13 @@ function setup_LDGA(configFile, loadFromBak)
         usable_loc_sp = loc_range
     end
 
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b, modelParams.β)[1]
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b, modelParams.β)[1]
+    sh_b_sp = get_sum_helper(usable_loc_sp, simParams)
+    sh_b_ch = get_sum_helper(usable_loc_ch, simParams)
+    println(usable_loc_sp)
+    println(sh_b_sp)
+
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, modelParams.β)[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, modelParams.β)[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)

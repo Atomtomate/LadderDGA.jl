@@ -21,17 +21,8 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     sh = get_sum_helper(usable_ω, sP)
     χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sh, mP.β)[1])
     rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
-    @info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
+    #@info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
     return rhs, usable_ω
-end
-
-function calc_λsp_correction!(nlQ_sp::NonLocalQuantities, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, qGrid,mP::ModelParameters, sP::SimulationParameters)
-    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω, rhs, qGrid.multiplicity, 
-                                    mP.β, sP.χFillType, sP)
-    nlQ_sp.χ = χsp_λ
-    nlQ_sp.λ = λsp
-    return nlQ_sp
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
@@ -48,7 +39,6 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     @info "found " χ_min ". Looking for roots in intervall " int
     X = @interval(int[1],int[2])
     r = roots(f, df, X, Newton, 1e-10)
-    #@info "possible roots: " r
 
     if isempty(r)
        @warn "   ---> WARNING: no lambda roots found!!!"
@@ -176,17 +166,22 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
                       qGrid::Reduced_KGrid,
                       mP::ModelParameters, sP::SimulationParameters)
+    @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
+    rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)
+    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, rhs, qGrid.multiplicity, 
+                                    mP.β, sP.χFillType, sP)
+
+    #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
+    λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid, mP, sP)
     if sP.λc_type == :sp
-        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)
-        @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-        calc_λsp_correction!(nlQ_sp, usable_ω_λc, rhs, qGrid, mP, sP)
+        nlQ_sp.χ = χsp_λ
+        nlQ_sp.λ = λsp
     elseif sP.λc_type == :sp_ch
-        λ = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, qGrid, mP, sP)
         nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
         nlQ_sp.λ = λ[1]
         nlQ_ch.χ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
         nlQ_ch.λ = λ[2]
-        @info "λsp=$(λ[1]) and λch=$(λ[2])"
     end
-    return nlQ_sp, nlQ_ch
+    @info "new lambda correction: λsp=$(λ_new[1]) and λch=$(λ_new[2])"
+    return λsp, λ_new[1],λ_new[2]
 end

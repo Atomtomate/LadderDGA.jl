@@ -7,8 +7,8 @@ function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{F
     res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1,Nq,2*sP.n_iν)
     gridShape = (Nq == 1) ? [1] : repeat([sP.Nk], mP.D)
     norm = (Nq == 1) ? -mP.β : -mP.β /(sP.Nk^(mP.D));
-    transform = (Nq == 1) ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft ∘ (x->reshape(x, gridShape...))
-    @sync @distributed for ωi in 1:length(νGrid)
+    transform = (Nq == 1) ? identity : reduce_kGrid_ifft ∘ (x->reshape(x, gridShape...))
+    @sync @distributed for ωi in 1:2*sP.n_iω+1
         for (j,νₙ) in enumerate(νGrid[ωi])
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
@@ -101,7 +101,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
                         Nk::Int64,
                         sumHelper_f, mP::ModelParameters, sP::SimulationParameters)
     gridShape = (Nk == 1) ? [1] : repeat([sP.Nk], mP.D)
-    transform = (Nk == 1) ? identity : reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+    transform = (Nk == 1) ? identity : reduce_kGrid_ifft
     transformG(x) = reshape(x, gridShape...)
     transformK(x) = (Nk == 1) ? identity(x) : fft(expand_kGrid(qIndices, x))
     νZero = sP.n_iν

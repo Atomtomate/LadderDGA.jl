@@ -1,6 +1,9 @@
 *.lock
 *.log
+
 *.jld
+*.jld2
+*.h5
 *.dat
 *.txt
 *.csv

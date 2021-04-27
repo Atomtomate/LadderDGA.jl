@@ -1,9 +1,9 @@
 using Distributed
-if nprocs() == 1
-    addprocs(7, enable_threaded_blas=true)
-end
+#if nprocs() == 1
+#    addprocs(7)
+#end
 @everywhere using Pkg
-@everywhere Pkg.activate("/home/julian/Hamburg/LadderDGA.jl")
+@everywhere Pkg.activate(@__DIR__)
 @everywhere using LadderDGA
 #TODO: this could be a macro modifying the 3 main functions
 # ======================== Setup ==========================
@@ -35,7 +35,7 @@ function run_sim(; cfg_file=nothing)
 
     
     @info "Calculating λ correction: "
-    λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, modelParams, simParams)
+    λ_sp, λ_new_sp, λ_new_ch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, modelParams, simParams)
 
     @info "Calculating Σ ladder: "
     Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, GLoc_fft, FUpDo,
@@ -43,12 +43,12 @@ function run_sim(; cfg_file=nothing)
     Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_ladder,1)]
     Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
     @info "Done."
-    return bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc
+    return λ_sp, λ_new_sp, λ_new_ch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc
 end
 
 function run2(cfg_file)
-     _, _, _, _, nlQ_ch, nlQ_sp, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
-    return nlQ_ch, nlQ_sp, Σ_ladder
+     λ_sp, λ_new_sp, λ_new_ch, _, _, _, _, nlQ_ch, nlQ_sp, Σ_ladder, _ = run_sim(cfg_file=cfg_file)
+    return λ_sp, λ_new_sp, λ_new_ch, nlQ_ch, nlQ_sp, Σ_ladder
 end
 
 flush(LadderDGA.io)
