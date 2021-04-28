@@ -18,6 +18,7 @@ using FFTW          # used for convolutions
 using NLsolve
 
 using SeriesAcceleration
+using Dispersions
 
 
 # ======================= Includes ========================
@@ -25,7 +26,6 @@ include("$(@__DIR__)/Config.jl")
 include("$(@__DIR__)/DataTypes.jl")
 include("$(@__DIR__)/helpers.jl")
 include("$(@__DIR__)/IO.jl")
-include("$(@__DIR__)/dispersion.jl")
 include("$(@__DIR__)/GFTools.jl")
 include("$(@__DIR__)/GFFit.jl")
 include("$(@__DIR__)/ladderDGATools.jl")

@@ -61,7 +61,7 @@ end
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
         Σ_loc_pos, Σ_ladderLoc,
-                     qGrid::Reduced_KGrid, 
+                     qGrid::ReducedKGrid, 
                      mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
     gridShape = repeat([sP.Nk], mP.D)
@@ -164,7 +164,7 @@ end
 
 function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
-                      qGrid::Reduced_KGrid,
+                      qGrid::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters)
     @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, qGrid.multiplicity, mP, sP)

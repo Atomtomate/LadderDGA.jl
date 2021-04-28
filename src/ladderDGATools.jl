@@ -2,17 +2,14 @@
 using Base.Iterators
 
 
-function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, Nq::Int64, 
-                         mP::ModelParameters, sP::SimulationParameters)
+function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, grid::T, 
+        mP::ModelParameters, sP::SimulationParameters) where T <: Union{ReducedKGrid,Nothing}
     res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1,Nq,2*sP.n_iν)
-    gridShape = (Nq == 1) ? [1] : repeat([sP.Nk], mP.D)
-    norm = (Nq == 1) ? -mP.β : -mP.β /(sP.Nk^(mP.D));
-    transform = (Nq == 1) ? identity : reduce_kGrid_ifft ∘ (x->reshape(x, gridShape...))
     @sync @distributed for ωi in 1:2*sP.n_iω+1
         for (j,νₙ) in enumerate(νGrid[ωi])
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
-            res[ωi,:,j] .= norm .* transform(v1 .* v2)
+            res[ωi,:,j] .= -mP.β .* conv_transform(v1 .* v2)
         end
     end
     return res#SharedArray(permutedims(reshape(res,(2*sP.n_iν,2*sP.n_iω+1,Nq)),(2,3,1)))
@@ -118,3 +115,4 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ (Nk^mP.D), [2,1])
     return  res
 end
+

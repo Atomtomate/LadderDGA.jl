@@ -57,8 +57,9 @@ function setup_LDGA(configFile, loadFromBak)
 
 
     fft_range = -(simParams.n_iν+simParams.n_iω):(simParams.n_iν+simParams.n_iω-1)
-    kGrid = squareLattice_kGrid(simParams.Nk, modelParams.D)
-    qGrid = reduce_squareLattice(kGrid)
+    @warn "hardcoded 3D cP lattice with t = -0.4082"
+    kGrid = gen_cP_kGrid(simParams.Nk, modelParams.D, -0.40824829046386301636)
+    qGrid = reduceKGrid(kGrid)
 
     in_file = env.inputVars
     if(myid() == 1)
@@ -127,9 +128,6 @@ function setup_LDGA(configFile, loadFromBak)
     end
     #TODO: fix this! do not assume anything about freqGrid without reading from file
 
-    #TODO: all fit capabilities should be encapsulated
-    @info "Constructing fit kernels"
-
     sh_f = get_sum_helper(2*simParams.n_iν, simParams)
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, modelParams.β)[:,1,1]
@@ -171,27 +169,6 @@ function flatten_2D(arr)
     return res
 end
 
-function calc_E_Pot(Σ_ladder, ϵkGrid, mP::ModelParameters, sP::SimulationParameters; weights=nothing)
-    νGrid = 0:simParams.n_iν-1
-    Σ_hartree = mP.n * mP.U/2
-    ϵkGrid_red = reduce_kGrid(cut_mirror(collect(ϵkGrid)))
-    tail_corr_0 = 0.0
-    tail_corr_inv_0 = mP.β * Σ_hartree/2
-    tail_corr_1 = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵkGrid_red .+ Σ_hartree .- mP.μ))' ./ (iν_array(mP.β, 0:(sP.n_iν-1)) .^ 2)
-    tail_corr_inv_1 = 0.5 * mP.β * (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (ϵkGrid_red .+ Σ_hartree .- mP.μ))
-
-
-    Σ_ladder_corrected = Σ_ladder.+ Σ_hartree
-    G0_full = G_from_Σ(zeros(Complex{Float64}, sP.n_iν), ϵkGrid, νGrid, mP);
-    G0 = flatten_2D(reduce_kGrid.(cut_mirror.(G0_full)))
-    G_new = flatten_2D(G_from_Σ(Σ_ladder_corrected, ϵkGrid_red, νGrid, mP));
-
-    norm = (mP.β * sP.Nk^mP.D)
-    tmp = real.(G_new .* Σ_ladder_corrected .+ tail_corr_0 .- tail_corr_1);
-    res = [sum( (2 .* sum(tmp[1:i,:], dims=[1])[1,:] .+ tail_corr_inv_0 .- tail_corr_inv_1 .* 0.5 .* mP.β) .* qMultiplicity) / norm for i in 1:sP.n_iν]
-    return (weights != nothing) ? fit_νsum(weights, res[(end-size(weights,2)+1):end]) : res[end]
-end
-
 macro slice_middle(arr, n)
     :($arr[($n:(length($arr))-$n)])
 end
@@ -215,3 +192,15 @@ AbstractFFTs.fft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),max
 AbstractFFTs.fft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(fft(lo(arr)), fft(hi(arr))))
 AbstractFFTs.ifft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(ifft(lo(arr)), ifft(lo(arr))))
 AbstractFFTs.ifft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(ifft(lo(arr)), ifft(hi(arr))))
+
+
+# Dispersions Wrapper
+# TODO: most of this shoukd probably be absorded into Dispersions.jl
+conv_transform(n::Nothing, arr::AbstractArray) = arr
+
+@inline function conv_transform(grid::ReducedKGrid{T1}, arr::AbstractArray) where T1 <: Union{Dispersions.cP_2D,Dispersions.cP_3D}
+    shape = T1 === cP_2D ? repeat([grid.Ns], 2) : repeat([grid.Ns], 3)
+    reshape(arr, shape) |> ifft |> Dispersions.ifft_cut_mirror |> x-> reduceKArr(grid, x) |> x-> x/grid.Nk
+end
+#reduce_kGrid_ifft = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
+

@@ -4,6 +4,7 @@ mu   = 0.5
 beta = 25.0 #25.0
 nden = 1.0
 Dimensions = 3
+kGrid = "3D-sc-tp--0.40824829046386301636"
 
 [Simulation]
 Nk        = 4            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
