@@ -1,18 +1,23 @@
 #TODO: define GF type that knows about which dimension stores which variable
 using Base.Iterators
 
-
-function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, grid::T, 
+function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, kGrid::T, 
         mP::ModelParameters, sP::SimulationParameters) where T <: Union{ReducedKGrid,Nothing}
-    res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1,Nq,2*sP.n_iν)
-    @sync @distributed for ωi in 1:2*sP.n_iω+1
+    Nq = length(kGrid.kMult)
+    res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1, Nq,2*sP.n_iν)
+    dbg_indices = SharedArray{Int,3}(2*sP.n_iω+1, 2*sP.n_iν, 4)
+    for ωi in 1:2*sP.n_iω+1
         for (j,νₙ) in enumerate(νGrid[ωi])
+            dbg_indices[ωi,j,1] = ωi
+            dbg_indices[ωi,j,2] = νₙ
+            dbg_indices[ωi,j,3] = νₙ+sP.n_iω
+            dbg_indices[ωi,j,4] = νₙ+ωi-1
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
-            res[ωi,:,j] .= -mP.β .* conv_transform(v1 .* v2)
+            res[ωi,:,j] .= -mP.β .* conv_transform(kGrid, v1 .* v2)
         end
     end
-    return res#SharedArray(permutedims(reshape(res,(2*sP.n_iν,2*sP.n_iω+1,Nq)),(2,3,1)))
+    return res, dbg_indices
 end
 
 """
@@ -22,12 +27,11 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
     with indices: χ[ω, q] = χ₀[]
 """
 function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArray{Complex{Float64},3}, 
-                       qMultiplicity::Array{Float64,1}, νGrid, sumHelper::T, U::Float64,
-                       mP::ModelParameters, sP::SimulationParameters) where T <: SumHelper
+                       kGrid::T2, νGrid, sumHelper::T1, U::Float64,
+                       mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: Union{ReducedKGrid,Nothing}}
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
     χ_ω = SharedArray{eltype(bubble), 1}(size(bubble)[1])  # ωₙ (summed over νₙ and ωₙ)
-
 
     indh = ceil(Int64, size(bubble,1)/2)
     fixed_ω = typeof(sP.ωsum_type) == Tuple{Int,Int}
@@ -52,7 +56,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             @inbounds χ[ωi, qi] = sum_freq(χ_full, [1,2], sumHelper, mP.β)[1,1]
             @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], Naive(), 1.0)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
         end
-        χ_ω[ωi] = sum_q(χ[ωi,:], qMultiplicity)[1]
+        χ_ω[ωi] = kintegrate(kGrid, χ[ωi,:])[1]
         if (!sP.fullChi && !fixed_ω)
             usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type)
             first(usable) > ωi && break
@@ -79,7 +83,7 @@ function Σ_internal2!(tmp, ωindices, bubble::BubbleT, FUpDo, sumHelper::T) whe
 end
 
 function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γch, Gνω,
-                     tmp, U,transformG, transformK, transform)
+                     tmp, U, kGrid, transformG, transformK)
     @sync @distributed for ωi in 1:length(ωindices)
         ωₙ = ωindices[ωi]
         @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
@@ -88,31 +92,30 @@ function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γ
         for νi in 1:size(Σ,3)
             @inbounds val = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
             Kνωq = transformK(val)
-            @inbounds Σ[ωi,:, νi] = transform(Kνωq .* transformG(view(Gνω,νZero + νi + ωₙ - 1,:)))
+            @inbounds Σ[ωi,:, νi] = conv_transform(kGrid, Kνωq .* transformG(view(Gνω,νZero + νi + ωₙ - 1,:)))
         end
     end
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
-                        Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, qIndices::Vector,
-                        Nk::Int64,
-                        sumHelper_f, mP::ModelParameters, sP::SimulationParameters)
-    gridShape = (Nk == 1) ? [1] : repeat([sP.Nk], mP.D)
-    transform = (Nk == 1) ? identity : reduce_kGrid_ifft
+                Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
+                sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  Union{ReducedKGrid,Nothing}, T2 <: SumHelper}
+    Nk = kGrid === nothing ? 1 : kGrid.Nk
+    #TODO: move transform stuff to Dispersions.jl
+    gridShape = (kGrid === nothing) ? [1] : repeat([kGrid.Ns], mP.D)
     transformG(x) = reshape(x, gridShape...)
-    transformK(x) = (Nk == 1) ? identity(x) : fft(expand_kGrid(qIndices, x))
+    transformK(x) = (kGrid === nothing) ? identity(x) : fft(expandKArr(kGrid, x))
     νZero = sP.n_iν
     ωZero = sP.n_iω
     νSize = length(νZero:size(Q_ch.γ,3))
     ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(qIndices), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
 
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
     Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,
-        Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, transformG, transformK, transform)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ (Nk^mP.D), [2,1])
+        Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, transformG, transformK)
+    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ Nk, [2,1])
     return  res
 end
-

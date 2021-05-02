@@ -1,5 +1,5 @@
 module LadderDGA
-Base.Experimental.@optlevel 3
+#Base.Experimental.@optlevel 3
 
 include("DepsInit.jl")
 

@@ -9,6 +9,10 @@
 *.csv
 *.out
 *.tex
+
+run_*
+config_*
+
 node_modules/
 docs/build/
 vscjlsymserv-*

@@ -10,8 +10,16 @@ sP_2 = SimulationParameters(1,2,false,1,:richardson,:nothing,:common,:native,fal
     include("Config.jl")
 end
 
+@testset "Helpers" begin
+    include("helpers.jl")
+end
+
 @testset "GFFit" begin
     include("GFFit.jl")
+end
+
+@testset "ladderDGATools" begin
+    include("ladderDGATools.jl")
 end
 
 @testset "full run" begin

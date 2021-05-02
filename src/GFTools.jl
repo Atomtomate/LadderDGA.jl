@@ -55,9 +55,6 @@ end
 @inline G_from_Σ(Σ::Array{Complex{Interval{Float64}}}, ϵkGrid, 
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
-@inline Gfft_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
-                    range::UnitRange{Int64}, mP::ModelParameters) = flatten_2D(fft.(G_from_Σ(Σ, ϵkGrid, range, mP)))
-
 """
     G(ind::Int64, Σ::Array{Complex{Float64},1}, ϵkGrid, β::Float64, μ)
 Constructs GF from k-independent self energy, using the Dyson equation

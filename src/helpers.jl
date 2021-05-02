@@ -57,9 +57,10 @@ function setup_LDGA(configFile, loadFromBak)
 
 
     fft_range = -(simParams.n_iν+simParams.n_iω):(simParams.n_iν+simParams.n_iω-1)
-    @warn "hardcoded 3D cP lattice with t = -0.4082"
-    kGrid = gen_cP_kGrid(simParams.Nk, modelParams.D, -0.40824829046386301636)
+    @warn "hardcoded 3D cP lattice with t = 0.4082"
+    kGrid = gen_cP_kGrid(simParams.Nk, modelParams.D, 0.40824829046386301636)
     qGrid = reduceKGrid(kGrid)
+    kGrid_loc = reduceKGrid(gen_cP_kGrid(1, modelParams.D, 0.))
 
     in_file = env.inputVars
     if(myid() == 1)
@@ -98,12 +99,12 @@ function setup_LDGA(configFile, loadFromBak)
         FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, modelParams, simParams)
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
-        gLoc = Gfft_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, modelParams);
+        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, modelParams);
+        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], modelParams.D)...)), gLoc))
     end
-
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
     gImp_fft = SharedArray{Complex{Float64}}(size(gImp),pids=procs());copy!(gImp_fft, gImp)
-    gLoc_fft = SharedArray{Complex{Float64}}(size(gLoc),pids=procs());copy!(gLoc_fft, gLoc)
+    gLoc_fft = SharedArray{Complex{Float64}}(size(gLoc_fft_in),pids=procs());copy!(gLoc_fft, gLoc_fft_in)
     χDMFTch_new = SharedArray{Complex{Float64},3}(size(χDMFTch),pids=procs());copy!(χDMFTch_new, χDMFTch)
     χDMFTsp_new = SharedArray{Complex{Float64},3}(size(χDMFTsp),pids=procs());copy!(χDMFTsp_new, χDMFTsp)
     Γch_new = SharedArray{Complex{Float64},3}(size(Γch),pids=procs());copy!(Γch_new, Γch)
@@ -143,8 +144,6 @@ function setup_LDGA(configFile, loadFromBak)
 
     sh_b_sp = get_sum_helper(usable_loc_sp, simParams)
     sh_b_ch = get_sum_helper(usable_loc_ch, simParams)
-    println(usable_loc_sp)
-    println(sh_b_sp)
 
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, modelParams.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, modelParams.β)[1]
@@ -157,14 +156,14 @@ function setup_LDGA(configFile, loadFromBak)
       sp: $(length(impQ_sp.usable_ω))
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
-    return modelParams, simParams, env, kGrid, qGrid, νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp
+    return modelParams, simParams, env, kGrid_loc, kGrid, qGrid, νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
 end
 
 
 function flatten_2D(arr)
     res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
     for i in 1:length(arr)
-        res[i,:] = arr[i]
+        res[i,:] = arr[i][:]
     end
     return res
 end
@@ -192,15 +191,3 @@ AbstractFFTs.fft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),max
 AbstractFFTs.fft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(fft(lo(arr)), fft(hi(arr))))
 AbstractFFTs.ifft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(ifft(lo(arr)), ifft(lo(arr))))
 AbstractFFTs.ifft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(ifft(lo(arr)), ifft(hi(arr))))
-
-
-# Dispersions Wrapper
-# TODO: most of this shoukd probably be absorded into Dispersions.jl
-conv_transform(n::Nothing, arr::AbstractArray) = arr
-
-@inline function conv_transform(grid::ReducedKGrid{T1}, arr::AbstractArray) where T1 <: Union{Dispersions.cP_2D,Dispersions.cP_3D}
-    shape = T1 === cP_2D ? repeat([grid.Ns], 2) : repeat([grid.Ns], 3)
-    reshape(arr, shape) |> ifft |> Dispersions.ifft_cut_mirror |> x-> reduceKArr(grid, x) |> x-> x/grid.Nk
-end
-#reduce_kGrid_ifft = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft
-
