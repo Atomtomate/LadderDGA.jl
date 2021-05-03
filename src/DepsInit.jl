@@ -31,7 +31,6 @@ include("$(@__DIR__)/GFFit.jl")
 include("$(@__DIR__)/ladderDGATools.jl")
 include("$(@__DIR__)/lambdaCorrection.jl")
 include("$(@__DIR__)/thermodynamics.jl")
-include("$(@__DIR__)/../bak/dispersion.jl")
 
 
 # if (myid()==1) && (nprocs()==1)
