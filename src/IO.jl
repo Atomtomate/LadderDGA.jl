@@ -68,7 +68,8 @@ function readConfig(file)
                                tml["Simulation"]["force_full_bosonic_chi"],
                                χfill,
                                tml["Simulation"]["bosonic_tail_coeffs"],
-                               tml["Simulation"]["fermionic_tail_coeffs"]
+                               tml["Simulation"]["fermionic_tail_coeffs"],
+                               tml["Simulation"]["usable_prct_reduction"]
     )
     return model, sim, env, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
 end

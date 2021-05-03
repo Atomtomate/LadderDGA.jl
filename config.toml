@@ -8,7 +8,7 @@ kGrid = "3D-sc-tp--0.40824829046386301636"
 
 [Simulation]
 Nk        = 4            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: adaptiv mesh
-tail_correction = "Richardson" #"Richardson" # Nothing, Richardson, Shanks
+tail_correction = "Nothing" #"Richardson" # Nothing, Richardson, Shanks
 lambda_correction = "sp"     # nothing, spin, spin_charge
 bosonic_sum = "common"             # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
 force_full_bosonic_chi = false        # compute all omega frequencies for chi and trilex
@@ -16,6 +16,7 @@ chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets
 rhs  = "native"                 # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
 fermionic_tail_coeffs = [0,1,2,3,4]
 bosonic_tail_coeffs = [0,1,2,3,4]
+usable_prct_reduction = 0.1  # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
 
 
 [Environment]

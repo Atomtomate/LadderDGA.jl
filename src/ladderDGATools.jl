@@ -5,19 +5,14 @@ function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{F
         mP::ModelParameters, sP::SimulationParameters) where T <: Union{ReducedKGrid,Nothing}
     Nq = length(kGrid.kMult)
     res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1, Nq,2*sP.n_iν)
-    dbg_indices = SharedArray{Int,3}(2*sP.n_iω+1, 2*sP.n_iν, 4)
-    for ωi in 1:2*sP.n_iω+1
+    @sync @distributed for ωi in 1:2*sP.n_iω+1
         for (j,νₙ) in enumerate(νGrid[ωi])
-            dbg_indices[ωi,j,1] = ωi
-            dbg_indices[ωi,j,2] = νₙ
-            dbg_indices[ωi,j,3] = νₙ+sP.n_iω
-            dbg_indices[ωi,j,4] = νₙ+ωi-1
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
             res[ωi,:,j] .= -mP.β .* conv_transform(kGrid, v1 .* v2)
         end
     end
-    return res, dbg_indices
+    return res
 end
 
 """
@@ -44,8 +39,8 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)]
         end
 
+    νIndices = 1:size(bubble,3)
     @sync @distributed for ωi in ωindices
-        νIndices = 1:size(bubble,3)
 
         Γview = view(Γr,ωi,νIndices,νIndices)
         UnitM = Matrix{eltype(Γr)}(I, length(νIndices),length(νIndices))
@@ -58,11 +53,11 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         end
         χ_ω[ωi] = kintegrate(kGrid, χ[ωi,:])[1]
         if (!sP.fullChi && !fixed_ω)
-            usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type)
+            usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
             first(usable) > ωi && break
         end
     end
-    usable = (!sP.fullChi && !fixed_ω) ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type) : ωindices
+    usable = (!sP.fullChi && !fixed_ω) ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
     # if sP.tc_type != :nothing
     #    γ = convert(SharedArray, mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
     # end
