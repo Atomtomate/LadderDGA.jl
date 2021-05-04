@@ -43,7 +43,6 @@ function run_sim(; cfg_file=nothing)
     @info "Calculating Σ ladder: "
     #Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, GLoc_fft, FUpDo, qGrid, sumHelper_f, modelParams, simParams)
     #Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_ladder,1)]
-    #Σ_ladder, Σ_ladder_corrected, Σ_ladderLoc
     @info "Done."
     return λ_sp, λ_new_sp, λ_new_ch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc
 end

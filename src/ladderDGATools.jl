@@ -3,8 +3,7 @@ using Base.Iterators
 
 function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, kGrid::T, 
         mP::ModelParameters, sP::SimulationParameters) where T <: Union{ReducedKGrid,Nothing}
-    Nq = length(kGrid.kMult)
-    res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1, Nq,2*sP.n_iν)
+    res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1, length(kGrid.kMult), 2*sP.n_iν)
     @sync @distributed for ωi in 1:2*sP.n_iω+1
         for (j,νₙ) in enumerate(νGrid[ωi])
             v1 = view(Gνω, νₙ+sP.n_iω, :)
@@ -78,7 +77,8 @@ function Σ_internal2!(tmp, ωindices, bubble::BubbleT, FUpDo, sumHelper::T) whe
 end
 
 function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γch, Gνω,
-                     tmp, U, kGrid, transformG, transformK)
+                     tmp, U::Float64, kGrid)
+    transformK(x) = (kGrid.Nk == 1) ? identity(x) : fft(expandKArr(kGrid, x))
     @sync @distributed for ωi in 1:length(ωindices)
         ωₙ = ωindices[ωi]
         @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
@@ -87,30 +87,26 @@ function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γ
         for νi in 1:size(Σ,3)
             @inbounds val = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
             Kνωq = transformK(val)
-            @inbounds Σ[ωi,:, νi] = conv_transform(kGrid, Kνωq .* transformG(view(Gνω,νZero + νi + ωₙ - 1,:)))
+            @inbounds Σ[ωi,:, νi] = conv_transform(kGrid, Kνωq[:] .* view(Gνω,νZero + νi + ωₙ - 1,:))
         end
     end
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
-                sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  Union{ReducedKGrid,Nothing}, T2 <: SumHelper}
-    Nk = kGrid === nothing ? 1 : kGrid.Nk
+                sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  ReducedKGrid, T2 <: SumHelper}
+    Nk = kGrid.Nk
     #TODO: move transform stuff to Dispersions.jl
-    gridShape = (kGrid === nothing) ? [1] : repeat([kGrid.Ns], mP.D)
-    transformG(x) = reshape(x, gridShape...)
-    transformK(x) = (kGrid === nothing) ? identity(x) : fft(expandKArr(kGrid, x))
     νZero = sP.n_iν
     ωZero = sP.n_iω
-    νSize = length(νZero:size(Q_ch.γ,3))
-    ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices = 1:size(bubble,1) # intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
 
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
     Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,
-        Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, transformG, transformK)
+        Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid)
     res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ Nk, [2,1])
     return  res
 end
