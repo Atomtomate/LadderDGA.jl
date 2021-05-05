@@ -56,7 +56,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             first(usable) > ωi && break
         end
     end
-    usable = (!sP.fullChi && !fixed_ω) ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
+    usable = !fixed_ω ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
     # if sP.tc_type != :nothing
     #    γ = convert(SharedArray, mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
     # end

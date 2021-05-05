@@ -13,21 +13,24 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = kintegrate(kGrid, nlQ_ch.χ, dim=2)[:,1]
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    @info """Found usable intervals for non-local susceptibility of length 
-          sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
-          ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
-          usable: $(usable_ω), length: $(length(usable_ω))"""
-
     sh = get_sum_helper(usable_ω, sP)
     χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sh, mP.β)[1])
     rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
     #@info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
+
+    @info """Found usable intervals for non-local susceptibility of length 
+          sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
+          ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
+          usable: $(usable_ω), length: $(length(usable_ω))
+          rhs: $(rhs)"""
+
     return rhs, usable_ω
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
                              rhs::Float64, kGrid::T1, β::Float64, χFillType, sP::SimulationParameters) where T1 <: ReducedKGrid
     res = zeros(eltype(χ_in), size(χ_in)...)
+#    usable_ω = 1:size(χ_in,1)
     χr    = real.(χ_in[usable_ω,:])
     nh    = ceil(Int64, size(χr,1)/2)
     sh = get_sum_helper(usable_ω, sP)
@@ -36,9 +39,11 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
     int = [χ_min, χ_min + 10/length(kGrid.kInd)]
-    @info "found " χ_min ". Looking for roots in intervall " int
+    @info "found " χ_min ". Looking for roots in intervall $(int)" 
     X = @interval(int[1],int[2])
-    r = roots(f, df, X, Newton, 1e-10)
+    r = roots(f, df, X, Newton, 1e-12)
+    #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
+    #@info "Method 2 root:" r2
 
     if isempty(r)
        @warn "   ---> WARNING: no lambda roots found!!!"
