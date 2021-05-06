@@ -1,4 +1,5 @@
 using Distributed
+using JLD2
 #if nprocs() == 1
 #    addprocs(7)
 #end
@@ -9,42 +10,57 @@ using Distributed
 #TODO: this could be a macro modifying the 3 main functions
 # ======================== Setup ==========================
 
-function run_sim(; cfg_file=nothing)
+function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results=true)
     @warn "assuming linear, continuous nu grid for chi/trilex"
     if cfg_file === nothing
         print("specify location of config file: ")
         cfg_file = readline()
     end
-    modelParams, simParams, env, qGrid_loc, kGrid, qGrid, νGrid, sumHelper_f, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc_pos, FUpDo, gImp, GLoc = setup_LDGA(cfg_file, false);
+    mP, sP, env, kGrids, qGrids, qGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset = readConfig(cfg_file)#
+
+    last_λsp = nothing
+    last_λspch = nothing
+    for kIteration in 1:length(kGrids)
+        kG = kGrids[kIteration]
+        qG = qGrids[kIteration]
+        @info " ===== Iteration $(kIteration)/$(length(kGrids)) with $(kG.Nk) k points. ===== "
+        νGrid, sumHelper_f, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc, FUpDo, gImp, gLoc = setup_LDGA(kG, freqList, mP, sP, env);
+            
+        @info "Calculating local quantities: "
+        bubbleLoc = calc_bubble(νGrid, GImp_fft, qGridLoc, mP, sP)
+        locQ_sp = calc_χ_trilex(impQ_sp.Γ, bubbleLoc, qGridLoc, νGrid, sumHelper_f, mP.U, mP, sP);
+        locQ_ch = calc_χ_trilex(impQ_ch.Γ, bubbleLoc, qGridLoc, νGrid, sumHelper_f, -mP.U, mP, sP);
+
+        Σ_ladder = nothing
+        Σ_ladderLoc = nothing
+        #Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, GImp_fft, FUpDo,
+        #                     qGridLoc, sumHelper_f, mP, sP)
+        #Σ_ladderLoc = Σ_ladderLoc .+ mP.n * mP.U/2.0;
+
+
+        @info "Calculating bubble: "
+        bubble = calc_bubble(νGrid, GLoc_fft, qG, mP, sP);
+
+        @info "Calculating χ and γ: "
+        nlQ_sp = calc_χ_trilex(impQ_sp.Γ, bubble, qG, νGrid, sumHelper_f, mP.U, mP, sP);
+        nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qG, νGrid, sumHelper_f, -mP.U, mP, sP);
+
         
-    @info "Calculating local quantities: "
-    bubbleLoc = calc_bubble(νGrid, GImp_fft, qGrid_loc, modelParams, simParams)
-    locQ_sp = calc_χ_trilex(impQ_sp.Γ, bubbleLoc, qGrid_loc, νGrid, sumHelper_f, modelParams.U, modelParams, simParams);
-    locQ_ch = calc_χ_trilex(impQ_ch.Γ, bubbleLoc, qGrid_loc, νGrid, sumHelper_f, -modelParams.U, modelParams, simParams);
+        @info "Calculating λ correction: "
+        λ_sp, λ_spch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qG, mP, sP, init_sp=last_λsp, init_spch=last_λspch)
+        last_λsp = λ_sp
+        last_λspch = λ_spch
 
-    Σ_ladder = nothing
-    Σ_ladderLoc = nothing
-    #Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, GImp_fft, FUpDo,
-    #                     qGrid_loc, sumHelper_f, modelParams, simParams)
-    #Σ_ladderLoc = Σ_ladderLoc .+ modelParams.n * modelParams.U/2.0;
+        @info "Calculating Σ ladder: "
+        #Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, GLoc_fft, FUpDo, qG, sumHelper_f, mP, sP)
+        #Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc[1:size(Σ_ladder,1)]
+        @info "Done."
 
-
-    @info "Calculating bubble: "
-    bubble = calc_bubble(νGrid, GLoc_fft, qGrid, modelParams, simParams);
-
-    @info "Calculating χ and γ: "
-    nlQ_sp = calc_χ_trilex(impQ_sp.Γ, bubble, qGrid, νGrid, sumHelper_f, modelParams.U, modelParams, simParams);
-    nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, qGrid, νGrid, sumHelper_f, -modelParams.U, modelParams, simParams);
-
-    
-    @info "Calculating λ correction: "
-    λ_sp, λ_new_sp, λ_new_ch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qGrid, modelParams, simParams)
-
-    @info "Calculating Σ ladder: "
-    #Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, GLoc_fft, FUpDo, qGrid, sumHelper_f, modelParams, simParams)
-    #Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_ladder,1)]
-    @info "Done."
-    return λ_sp, λ_new_sp, λ_new_ch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc
+        if save_results && (myid() == 1)
+        fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(kG.Ns)_"*String(sP.tc_type)*"_lambda"*String(sP.λc_type)*res_postfix*".jld2"
+        jldsave(fname; λ_sp, λ_spch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc)
+        end
+    end
 end
 
 function run2(cfg_file)

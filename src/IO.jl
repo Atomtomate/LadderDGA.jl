@@ -4,6 +4,8 @@
 #                                                                                                      #
 # ==================================================================================================== # 
 function readConfig(file)
+    @info "Reading Inputs..."
+
     tml = TOML.parsefile(file)
     sim = tml["Simulation"]
     χfill = nothing
@@ -54,13 +56,12 @@ function readConfig(file)
                              tml["Environment"]["progressbar"]
                             )
     JLD2.@load env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
-    model = ModelParameters(tml["Model"]["U"], 
+    mP = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
                             tml["Model"]["nden"],
                             tml["Model"]["Dimensions"])
-    sim = SimulationParameters(nBose,nFermi,shift,
-                               tml["Simulation"]["Nk"],
+    sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type,
                                λc_type,
                                ωsum_type,
@@ -71,7 +72,17 @@ function readConfig(file)
                                tml["Simulation"]["fermionic_tail_coeffs"],
                                tml["Simulation"]["usable_prct_reduction"]
     )
-    return model, sim, env, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
+    @warn "hardcoded 3D cP lattice with t = 0.4082"
+    kGrids = []
+    qGrids = []
+    for Nk in tml["Simulation"]["Nk"]
+        kGrid = gen_cP_kGrid(Nk, mP.D, 0.40824829046386301636)
+        qGrid = reduceKGrid(kGrid)
+        push!(kGrids, kGrid)
+        push!(qGrids, qGrid)
+    end
+    qGridLoc = reduceKGrid(gen_cP_kGrid(1, mP.D, 0.))
+    return mP, sP, env, kGrids, qGrids, qGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
 end
 
 function convertGF!(GF, storedInverse, storeFull)
@@ -383,10 +394,10 @@ function readGImp(filename; only_positive=false)
 end
 
 
-function readEDAsymptotics(env, modelParams)
+function readEDAsymptotics(env, mP)
     χ_asympt = readdlm(env.inputDir * "/chi_asympt")   
-    χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
-    χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*modelParams.β*modelParams.β);
+    χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*mP.β*mP.β);
+    χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*mP.β*mP.β);
     #= _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false) =#
     #= χchED = χup .+ χdo =#
     #= χspED = χup .- χdo =#
@@ -501,7 +512,7 @@ function writeFortranΣ(dirName::String, Σ_ladder)
         fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
         open(fn, write=true) do f
             write(f, "header...\n")
-            res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ modelParams.β
+            res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ mP.β
             res[:,2] = real.(Σ_ladder[:,ki])
             res[:,3] = imag.(Σ_ladder[:,ki])
             writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")

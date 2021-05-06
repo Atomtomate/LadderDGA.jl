@@ -27,20 +27,17 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     return rhs, usable_ω
 end
 
-function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64}, 
-                             rhs::Float64, kGrid::T1, β::Float64, χFillType, sP::SimulationParameters) where T1 <: ReducedKGrid
+function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64},
+                            searchInterval::AbstractArray{Float64,1},
+                            rhs::Float64, kGrid::T1, β::Float64, χFillType, sP::SimulationParameters) where T1 <: ReducedKGrid
     res = zeros(eltype(χ_in), size(χ_in)...)
 #    usable_ω = 1:size(χ_in,1)
     χr    = real.(χ_in[usable_ω,:])
-    nh    = ceil(Int64, size(χr,1)/2)
     sh = get_sum_helper(usable_ω, sP)
 
     f(λint) = sum_freq(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1], [1], sh, β)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
-    χ_min    = -minimum(1 ./ χr[nh,:])
-    int = [χ_min, χ_min + 10/kGrid.Ns + 5/β]
-    @info "found " χ_min ". Looking for roots in intervall $(int)" 
-    X = @interval(int[1],int[2])
+    X = @interval(searchInterval[1],searchInterval[2])
     r = roots(f, df, X, Newton, 1e-12)
     #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
     #@info "Method 2 root:" r2
@@ -69,7 +66,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
                      kGrid::ReducedKGrid, 
                      mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
-    gridShape = repeat([sP.Nk], mP.D)
+    gridShape = repeat([kGrid.Ns], mP.D)
     transform = reduce_kGrid ∘ ifft_cut_mirror ∘ ifft 
     transformK(x) = fft(expand_kGrid(kGrid.indices, x))
     transformG(x) = reshape(x, gridShape...)
@@ -77,7 +74,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     νGrid = 0:trunc(Int, sP.n_iν-sP.shift*sP.n_iω/2-1)
     Σ_hartree = mP.n * mP.U/2
-    norm = mP.β * sP.Nk^mP.D
+    norm = mP.β * kGrid.Nk
     E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))
     E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, νGrid) .^ 2)
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
@@ -119,14 +116,28 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     return nlsolve(cond_both!, [ 0.1; -0.8]).zero
 end
 
+function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)
+    nh    = ceil(Int64, size(χr,1)/2)
+    χ_min    = -minimum(1 ./ χr[nh,:])
+    int = if init === nothing
+        rval = χ_min > 0 ? χ_min + 1/kGrid.Ns + 1/mP.β : minimum([10*abs(χ_min), χ_min + 10/kGrid.Ns + 10/mP.β]) 
+        [χ_min, rval]
+    else
+        [init - init_prct*init, init + init_prct*init]
+    end
+    @info "found " χ_min ". Looking for roots in intervall $(int)" 
+    return int
+end
+
 function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
                       kGrid::ReducedKGrid,
-                      mP::ModelParameters, sP::SimulationParameters)
+                      mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kGrid, mP, sP)
-    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, rhs, kGrid, 
-                                    mP.β, sP.χFillType, sP)
+    searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[usable_ω_λc,:]), kGrid, mP, init=init_sp)
+    searchInterval_spch = [-Inf, Inf]
+    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, rhs, kGrid, mP.β, sP.χFillType, sP)
 
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     λ_new = [0.0, 0.0]
@@ -141,5 +152,5 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
         nlQ_ch.λ = λ[2]
     end
     @info "new lambda correction: λsp=$(λ_new[1]) and λch=$(λ_new[2])"
-    return λsp, λ_new[1],λ_new[2]
+    return λsp, λ_new, searchInterval_sp, searchInterval_spch
 end

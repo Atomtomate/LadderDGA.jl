@@ -20,7 +20,7 @@ function convert_to_real(f; eps=10E-12)
     return real.(f)
 end
 
-iω(n) = 1im*2*n*π/(modelParams.β);
+iω(n) = 1im*2*n*π/(mP.β);
 
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
@@ -51,26 +51,17 @@ printr_s(x::Complex{Float64}) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
-function setup_LDGA(configFile, loadFromBak)
-    @info "Reading Inputs..."
-    modelParams, simParams, env, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset = readConfig(configFile)#
-
-
-    fft_range = -(simParams.n_iν+simParams.n_iω):(simParams.n_iν+simParams.n_iω-1)
-    @warn "hardcoded 3D cP lattice with t = 0.4082"
-    kGrid = gen_cP_kGrid(simParams.Nk, modelParams.D, 0.40824829046386301636)
-    qGrid = reduceKGrid(kGrid)
-    kGrid_loc = reduceKGrid(gen_cP_kGrid(1, modelParams.D, 0.))
-
+function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
+    fft_range = -(sP.n_iν+sP.n_iω):(sP.n_iν+sP.n_iω-1)
     in_file = env.inputVars
     if(myid() == 1)
         if env.inputDataType == "text"
-            convert_from_fortran(simParams, env, false)
+            convert_from_fortran(sP, env, false)
             if env.loadAsymptotics
-                readEDAsymptotics(env, modelParams)
+                readEDAsymptotics(env, mP)
             end
         elseif env.inputDataType == "parquet"
-            convert_from_fortran_pq(simParams, env)
+            convert_from_fortran_pq(sP, env)
             if env.loadAsymptotics
                 readEDAsymptotics_parquet(env)
             end
@@ -96,11 +87,11 @@ function setup_LDGA(configFile, loadFromBak)
             Σ_loc = copy(f["SigmaLoc"])
             gImp_in, Σ_loc
         end
-        FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, modelParams, simParams)
+        FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, mP, sP)
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
-        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, modelParams);
-        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], modelParams.D)...)), gLoc))
+        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
+        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], mP.D)...)), gLoc))
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
     gImp_fft = SharedArray{Complex{Float64}}(size(gImp),pids=procs());copy!(gImp_fft, gImp)
@@ -116,37 +107,36 @@ function setup_LDGA(configFile, loadFromBak)
         χspAsympt = asympt_vars["chi_sp_asympt"]
     end
     #TODO: unify checks
-    (simParams.Nk % 2 != 0) && throw("For FFT, q and integration grids must be related in size!! 2*Nq-2 == Nk")
-    (simParams.ωsum_type == :full && (simParams.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
-    simParams.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
+    (sP.ωsum_type == :full && (sP.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
 
 
     #TODO: this should no assume consecutive frequencies
-    #νGrid = [(i,j) for i in 1:(2*simParams.n_iω+1) for j in (1:2*simParams.n_iν) .- trunc(Int64,simParams.shift*(i-simParams.n_iω-1)/2)]
-    νGrid = Array{AbstractArray}(undef, 2*simParams.n_iω+1);
+    #νGrid = [(i,j) for i in 1:(2*sP.n_iω+1) for j in (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-sP.n_iω-1)/2)]
+    νGrid = Array{AbstractArray}(undef, 2*sP.n_iω+1);
     for i in 1:length(νGrid)
-        νGrid[i] = (1:2*simParams.n_iν) .- trunc(Int64,simParams.shift*(i-simParams.n_iω-1)/2)
+        νGrid[i] = (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-sP.n_iω-1)/2)
     end
     #TODO: fix this! do not assume anything about freqGrid without reading from file
 
-    sh_f = get_sum_helper(2*simParams.n_iν, simParams)
+    sh_f = get_sum_helper(2*sP.n_iν, sP)
 
-    χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, modelParams.β)[:,1,1]
-    χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, modelParams.β)[:,1,1]
+    χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, mP.β)[:,1,1]
+    χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, mP.β)[:,1,1]
 
-    usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=simParams.ωsum_type)
-    usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=simParams.ωsum_type)
-    if simParams.ωsum_type == :common
+    usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=sP.ωsum_type)
+    usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=sP.ωsum_type)
+    if sP.ωsum_type == :common
         loc_range = intersect(usable_loc_sp, usable_loc_ch)
         usable_loc_ch = loc_range
         usable_loc_sp = loc_range
     end
 
-    sh_b_sp = get_sum_helper(usable_loc_sp, simParams)
-    sh_b_ch = get_sum_helper(usable_loc_ch, simParams)
+    sh_b_sp = get_sum_helper(usable_loc_sp, sP)
+    sh_b_ch = get_sum_helper(usable_loc_ch, sP)
 
-    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, modelParams.β)[1]
-    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, modelParams.β)[1]
+    χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
+    χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)
@@ -156,7 +146,7 @@ function setup_LDGA(configFile, loadFromBak)
       sp: $(length(impQ_sp.usable_ω))
       ch: $(length(impQ_ch.usable_ω)) 
       χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
-    return modelParams, simParams, env, kGrid_loc, kGrid, qGrid, νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
+    return νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
 end
 
 
