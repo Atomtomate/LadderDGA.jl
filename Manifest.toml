@@ -23,9 +23,9 @@ uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
 [[ArrayInterface]]
 deps = ["IfElse", "LinearAlgebra", "Requires", "SparseArrays", "Static"]
-git-tree-sha1 = "f5cb35e4e2cbb488846d95b471f479be1ff6b173"
+git-tree-sha1 = "b08be763d0b8ddee6b162016dad746a69980616d"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "3.1.9"
+version = "3.1.11"
 
 [[Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -53,9 +53,9 @@ version = "0.8.0"
 
 [[ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
-git-tree-sha1 = "a66109c73612c63b10923ac446fddb0f0d21a593"
+git-tree-sha1 = "bd0cc939d94b8bd736dce5bbbe0d635db9f94af7"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-version = "0.9.40"
+version = "0.9.41"
 
 [[Combinatorics]]
 git-tree-sha1 = "08c8b6831dc00bfea825826be0bc8336fc369860"
@@ -75,9 +75,9 @@ version = "0.3.0"
 
 [[Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "ac4132ad78082518ec2037ae5770b6e796f7f956"
+git-tree-sha1 = "0a817fbe51c976de090aa8c997b7b719b786118d"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "3.27.0"
+version = "3.28.0"
 
 [[CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -146,10 +146,10 @@ uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
 version = "0.1.0"
 
 [[Distances]]
-deps = ["LinearAlgebra", "Statistics"]
-git-tree-sha1 = "366715149014943abd71aa647a07a43314158b2d"
+deps = ["LinearAlgebra", "Statistics", "StatsAPI"]
+git-tree-sha1 = "abe4ad222b26af3337262b8afb28fab8d215e9f8"
 uuid = "b4f34e82-e78d-54a5-968a-f98e89d6e8f7"
-version = "0.10.2"
+version = "0.10.3"
 
 [[Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -195,9 +195,9 @@ version = "1.1.0"
 
 [[FFTW]]
 deps = ["AbstractFFTs", "FFTW_jll", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "1dc6ca6ad69eb9beadd3ce82b90910f4fa63d7c3"
+git-tree-sha1 = "746f68839306977040653ebbd249e39c15420b8a"
 uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.4.0"
+version = "1.4.1"
 
 [[FFTW_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -252,9 +252,9 @@ version = "1.12.0+1"
 
 [[HTTP]]
 deps = ["Base64", "Dates", "IniFile", "MbedTLS", "NetworkOptions", "Sockets", "URIs"]
-git-tree-sha1 = "0e67ed09b3d89a28bb804ef5b886499f3a40a0cb"
+git-tree-sha1 = "b855bf8247d6e946c75bb30f593bfe7fe591058d"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.9.7"
+version = "0.9.8"
 
 [[IOCapture]]
 deps = ["Logging"]
@@ -613,6 +613,11 @@ version = "1.1.2"
 [[Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
 uuid = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+
+[[StatsAPI]]
+git-tree-sha1 = "1958272568dc176a1d881acb797beb909c785510"
+uuid = "82ae8749-77ed-4fe6-ae5f-f523153014b0"
+version = "1.0.0"
 
 [[TOML]]
 deps = ["Dates"]

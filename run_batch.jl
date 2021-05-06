@@ -11,7 +11,7 @@ flush(stderr)
 include("./run.jl")
 
 #bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, nlQ_ch_λ, nlQ_sp_λ, Σ_bare, Σ_ladder, Σ_ladderLoc = run_sim(config)
-nlQ_ch, nlQ_sp, Σ_ladder = run2(config)
+λ_sp, λ_new_sp, λ_new_ch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc= run_sim(cfg_file=config)
 
 println("computation complete. saving.")
 
@@ -22,4 +22,4 @@ println("computation complete. saving.")
 #                           "usable_w", usable_ω, "usable_w_l" usable_ω_λc, "usable_w_S", usable_ω_Σ, 
 #                           "tmp", tmp, "SigmaLadder_w", Σ_ladder_ω)
 #writedlm("chisp_pi", [real(usable_ω) real.(nlQ_sp_λ.χ[usable_ω,end])], '\t')
-save(out_file*".jld", "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "SigmaLadder", Σ_ladder)
+save(out_file*".jld", "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "SigmaLadder", Σ_ladder, "lsp", λ_sp)

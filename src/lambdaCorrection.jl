@@ -38,7 +38,7 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     f(λint) = sum_freq(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1], [1], sh, β)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
     χ_min    = -minimum(1 ./ χr[nh,:])
-    int = [χ_min, χ_min + 10/length(kGrid.kInd)]
+    int = [χ_min, χ_min + 10/kGrid.Ns + 5/β]
     @info "found " χ_min ". Looking for roots in intervall $(int)" 
     X = @interval(int[1],int[2])
     r = roots(f, df, X, Newton, 1e-12)

@@ -4,7 +4,7 @@ using Distributed
 #end
 @everywhere using Pkg
 @everywhere Pkg.activate(@__DIR__)
-Pkg.instantiate()
+#Pkg.instantiate()
 @everywhere using LadderDGA
 #TODO: this could be a macro modifying the 3 main functions
 # ======================== Setup ==========================
