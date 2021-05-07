@@ -120,10 +120,10 @@ function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::Reduce
     nh    = ceil(Int64, size(χr,1)/2)
     χ_min    = -minimum(1 ./ χr[nh,:])
     int = if init === nothing
-        rval = χ_min > 0 ? χ_min + 1/kGrid.Ns + 1/mP.β : minimum([10*abs(χ_min), χ_min + 10/kGrid.Ns + 10/mP.β]) 
+        rval = χ_min > 0 ? χ_min + 10/kGrid.Ns + 10/mP.β : minimum([10*abs(χ_min), χ_min + 10/kGrid.Ns + 10/mP.β])
         [χ_min, rval]
     else
-        [init - init_prct*init, init + init_prct*init]
+        [init - init_prct*abs(init), init + init_prct*abs(init)]
     end
     @info "found " χ_min ". Looking for roots in intervall $(int)" 
     return int
