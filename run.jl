@@ -1,5 +1,5 @@
 using Distributed
-using JLD2
+using JLD2, FileIO
 using Logging
 #if nprocs() == 1
 #    addprocs(7)
@@ -32,7 +32,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         qG = qGrids[kIteration]
         @info " ===== Iteration $(kIteration)/$(length(kGrids)) with $(kG.Nk) k points. ===== "
         νGrid, sumHelper_f, impQ_sp, impQ_ch, GImp_fft, GLoc_fft, Σ_loc, FUpDo, gImp, gLoc = setup_LDGA(kG, freqList, mP, sP, env);
-            
+
         @info "Calculating local quantities: "
         flush(io)
         bubbleLoc = calc_bubble(νGrid, GImp_fft, qGridLoc, mP, sP)
@@ -69,9 +69,10 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         @info "Done."
         flush(io)
 
-        if save_results && (myid() == 1)
+        if save_results
         fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(kG.Ns)_"*String(sP.tc_type)*"_lambda"*String(sP.λc_type)*res_postfix*".jld2"
-        jldsave(fname; λ_sp, λ_spch, bubbleLoc, locQ_sp, locQ_ch, bubble, nlQ_ch, nlQ_sp, Σ_ladder, Σ_ladderLoc)
+        @info "Writing to $(fname)"
+        save(fname, "λ_sp", λ_sp, "λ_spch", λ_spch, "bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "bubble", bubble, "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "Σ_ladder", Σ_ladder, "Σ_ladderLoc", Σ_ladderLoc)
         end
     end
 end

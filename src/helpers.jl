@@ -72,7 +72,7 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
             in_file = env.inputDir*"/"*env.inputVars
         end
         @info "loading from " env.inputVars
-        f = JLD2.load(in_file)
+        f = load(in_file)
         Γch = f["Γch"]
         Γsp = f["Γsp"]
         χDMFTch = f["χDMFTch"]

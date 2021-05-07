@@ -38,7 +38,8 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     f(λint) = sum_freq(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1], [1], sh, β)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
     X = @interval(searchInterval[1],searchInterval[2])
-    r = roots(f, df, X, Newton, 1e-12)
+    tol = maximum(1e-10, (1e-5)*abs(searchInterval[2] - searchInterval[1]))
+    r = roots(f, df, X, Newton, tol)
     #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
     #@info "Method 2 root:" r2
 
@@ -85,7 +86,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     ωZero = sP.n_iω
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(kGrid.indices), trunc(Int,length(νGrid)))
-
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
 
     function cond_both!(F, λ)
