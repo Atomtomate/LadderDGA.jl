@@ -50,17 +50,19 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
 
     #TODO: new method needs testing
     # X = @interval(searchInterval[1],searchInterval[2])
-    # tol = maximum([1e-9, (1e-5)*abs(searchInterval[2] - searchInterval[1])])
+    # tol = maximum([1e-7, (1e-4)*abs(searchInterval[2] - searchInterval[1])])
     # r = roots(f, df, X, Newton, tol)
-    #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
+    # r2 = find_zeros(f, -0.004, 0.07, verbose=true)
     #@info "Method 2 root:" r2
 
-    λsp_old = newton_right(χr, f, df, searchInterval[1])
+    nh    = ceil(Int64, size(χr,1)/2)
+    χ_min    = -minimum(1 ./ χr[nh,:])
+    λsp_old = newton_right(χr, f, df, χ_min)
     # if isempty(r) 
     #   @warn "   ---> WARNING: no lambda roots with new method found!!!"
     # end
     # λsp = mid(maximum(filter(x->!isempty(x),interval.(r))))
-    # if !isempty(r) && abs2(λsp_old - λsp_old) > 1e-5
+    # if !isempty(r) && abs2(λsp_old - λsp) > 1e-5
     #    @warn "   ---> WARNING: old and new λ not matching!!! $(λsp_old) != $(λsp)"
     # end
     @info "Found λsp " λsp_old
@@ -161,20 +163,21 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
 end
 
 function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
-                            x0::Float64; nsteps=1000, atol=1e-10)
+                            start::Float64; nsteps=5000, atol=1e-10)
     done = false
     δ = 0.01
-    xi = x0 + δ
-    xbak = x0
+    x0 = start + δ
+    xi = x0
     xlast = Inf
     i = 1
     while !done
         fi = f(xi)
         dfi = df(xi)
+        xlast = xi
         xi = x0 - fi / dfi
         if xi < x0               # only ever search to the right!
-            δ  /= 2
-            xi  = -1/xbak + δ
+            δ  = δ/2.0
+            x0  = start + δ      # reset with smaller delta
         else
             x0 = xi
         end
