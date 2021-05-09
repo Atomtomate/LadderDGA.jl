@@ -9,6 +9,19 @@ dχ_λ(χ, λ::Union{Float64,Interval{Float64}}) = map(χi -> - ((1.0 / χi) + �
 dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχch_λ)*qNorm
 dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
+function new_χλ(χ_in::SharedArray{Complex{Float64},2}, λ::Float64, sP::SimulationParameters)
+    res = SharedArray{eltype(χ_in), ndims(χ_in)}(size(χ_in)...)
+    if sP.χFillType == zero_χ_fill
+        res[usable_ω,:] =  χ_λ(χ_in[uable_ω,:], λ) 
+    elseif sP.χFillType == lambda_χ_fill
+        res =  χ_λ(χ_in, λ) 
+    else
+        copy!(res, χsp) 
+        res[usable_ω,:] =  χ_λ(χ_in[usable_ω,:], λ) 
+    end
+    return res
+end
+
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kGrid::T1, mP::ModelParameters, sP::SimulationParameters) where T1 <: ReducedKGrid
     @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = kintegrate(kGrid, nlQ_ch.χ, dim=2)[:,1]
@@ -29,36 +42,29 @@ end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64},
                             searchInterval::AbstractArray{Float64,1},
-                            rhs::Float64, kGrid::T1, β::Float64, χFillType, sP::SimulationParameters) where T1 <: ReducedKGrid
-    res = zeros(eltype(χ_in), size(χ_in)...)
-#    usable_ω = 1:size(χ_in,1)
+                            rhs::Float64, kGrid::T1, β::Float64, sP::SimulationParameters) where T1 <: ReducedKGrid
     χr    = real.(χ_in[usable_ω,:])
     sh = get_sum_helper(usable_ω, sP)
-
     f(λint) = sum_freq(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1], [1], sh, β)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
-    X = @interval(searchInterval[1],searchInterval[2])
-    tol = maximum([1e-9, (1e-5)*abs(searchInterval[2] - searchInterval[1])])
-    r = roots(f, df, X, Newton, tol)
+
+    #TODO: new method needs testing
+    # X = @interval(searchInterval[1],searchInterval[2])
+    # tol = maximum([1e-9, (1e-5)*abs(searchInterval[2] - searchInterval[1])])
+    # r = roots(f, df, X, Newton, tol)
     #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
     #@info "Method 2 root:" r2
 
-    if isempty(r)
-       @warn "   ---> WARNING: no lambda roots found!!!"
-       return 0.0, convert(SharedArray{eltype(χ_in),ndims(χ_in)}, χ_λ(χr, 0.0))
-    else
-        λsp = mid(maximum(filter(x->!isempty(x),interval.(r))))
-        @info "Found λsp " λsp
-        if χFillType == zero_χ_fill
-            res[usable_ω,:] =  χ_λ(χ_in[uable_ω,:], λsp) 
-        elseif χFillType == lambda_χ_fill
-            res =  χ_λ(χ_in, λsp) 
-        else
-            copy!(res, χsp) 
-            res[usable_ω,:] =  χ_λ(χ_in[usable_sp,:], λsp) 
-        end
-        return λsp, convert(SharedArray{eltype(χ_in),ndims(χ_in)},res)
-    end
+    λsp_old = newton_right(χr, f, df, searchInterval[1])
+    # if isempty(r) 
+    #   @warn "   ---> WARNING: no lambda roots with new method found!!!"
+    # end
+    # λsp = mid(maximum(filter(x->!isempty(x),interval.(r))))
+    # if !isempty(r) && abs2(λsp_old - λsp_old) > 1e-5
+    #    @warn "   ---> WARNING: old and new λ not matching!!! $(λsp_old) != $(λsp)"
+    # end
+    @info "Found λsp " λsp_old
+    return λsp_old, new_χλ(χ_in, λsp_old, sP)
 end
 
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
@@ -137,8 +143,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kGrid, mP, sP)
     searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[usable_ω_λc,:]), kGrid, mP, init=init_sp)
     searchInterval_spch = [-Inf, Inf]
-    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, rhs, kGrid, mP.β, sP.χFillType, sP)
-
+    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, rhs, kGrid, mP.β, sP)
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     λ_new = [0.0, 0.0]
     #extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, mP, sP)
@@ -153,4 +158,28 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     end
     @info "new lambda correction: λsp=$(λ_new[1]) and λch=$(λ_new[2])"
     return λsp, λ_new, searchInterval_sp, searchInterval_spch
+end
+
+function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
+                            x0::Float64; nsteps=1000, atol=1e-10)
+    done = false
+    δ = 0.01
+    xi = x0 + δ
+    xbak = x0
+    xlast = Inf
+    i = 1
+    while !done
+        fi = f(xi)
+        dfi = df(xi)
+        xi = x0 - fi / dfi
+        if xi < x0               # only ever search to the right!
+            δ  /= 2
+            xi  = -1/xbak + δ
+        else
+            x0 = xi
+        end
+        (i >= nsteps || abs2(xlast - xi) < atol) && (done = true)
+        i += 1
+    end
+    return xi
 end
