@@ -38,14 +38,14 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     f(λint) = sum_freq(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1], [1], sh, β)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, β)[1]
     X = @interval(searchInterval[1],searchInterval[2])
-    tol = maximum(1e-10, (1e-5)*abs(searchInterval[2] - searchInterval[1]))
+    tol = maximum([1e-9, (1e-5)*abs(searchInterval[2] - searchInterval[1])])
     r = roots(f, df, X, Newton, tol)
     #r2 = find_zeros(f, -0.004, 0.07, verbose=true)
     #@info "Method 2 root:" r2
 
     if isempty(r)
        @warn "   ---> WARNING: no lambda roots found!!!"
-       return 0.0, convert(SharedArray, χ_λ(χr, 0.0))
+       return 0.0, convert(SharedArray{eltype(χ_in),ndims(χ_in)}, χ_λ(χr, 0.0))
     else
         λsp = mid(maximum(filter(x->!isempty(x),interval.(r))))
         @info "Found λsp " λsp
@@ -57,7 +57,7 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
             copy!(res, χsp) 
             res[usable_ω,:] =  χ_λ(χ_in[usable_sp,:], λsp) 
         end
-        return λsp, convert(SharedArray,res)
+        return λsp, convert(SharedArray{eltype(χ_in),ndims(χ_in)},res)
     end
 end
 
@@ -120,7 +120,7 @@ function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::Reduce
     nh    = ceil(Int64, size(χr,1)/2)
     χ_min    = -minimum(1 ./ χr[nh,:])
     int = if init === nothing
-        rval = χ_min > 0 ? χ_min + 10/kGrid.Ns + 10/mP.β : minimum([10*abs(χ_min), χ_min + 10/kGrid.Ns + 10/mP.β])
+        rval = χ_min > 0 ? χ_min + 10/kGrid.Ns + 20/mP.β : minimum([20*abs(χ_min), χ_min + 10/kGrid.Ns + 20/mP.β])
         [χ_min, rval]
     else
         [init - init_prct*abs(init), init + init_prct*abs(init)]
