@@ -75,8 +75,9 @@ function readConfig(file)
     @warn "hardcoded 3D cP lattice with t = 0.4082"
     kGrids = []
     qGrids = []
+    tsc = mP.D == 3 ? 0.40824829046386301636 : 0.5
     for Nk in tml["Simulation"]["Nk"]
-        kGrid = gen_cP_kGrid(Nk, mP.D, 0.40824829046386301636)
+        kGrid = gen_cP_kGrid(Nk, mP.D, tsc)
         qGrid = reduceKGrid(kGrid)
         push!(kGrids, kGrid)
         push!(qGrids, qGrid)
