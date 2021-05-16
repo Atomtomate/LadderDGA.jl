@@ -41,8 +41,8 @@ setup_colors() {
         NOFORMAT='' RED='' GREEN='' ORANGE='' BLUE='' PURPLE='' CYAN='' YELLOW=''
     fi
 
-    success=" [ ${GREEN}\xE2\x9C\x94${NOFORMAT} ]"
-    failure=" [ ${RED}\xE2\x9D\x8C${NOFORMAT} ]"
+    success=" [ ${GREEN}\xE2\x9C\x94${NOFORMAT} ] "
+    failure=". [ ${RED}\xE2\x9D\x8C${NOFORMAT}] "
 }
 
 function check_dependencies() {
@@ -163,13 +163,15 @@ spinner()
     while kill -0 $pid 2>/dev/null
     do
         local i=$(((i + $charwidth) % ${#spin}))
-        printf "${YELLOW}%s${NOFORMAT}" "${spin:$i:$charwidth}"
-        echo -en " ] \033[7D [ "
+        v=$(printf "${YELLOW}%s${NOFORMAT}" "${spin:$i:$charwidth}")
+        echo -en "\b\b\b\b\b\b [ $v ]"
         sleep $delay
     done
-    echo -en "\b\b\b"
+    echo -en "\b\b\b\b\b\b"
     stty echo
     tput cnorm
+    wait $pid
+    return $?
 }
 
 msg() {
@@ -180,19 +182,22 @@ msg() {
 status_msg() {
     let lc++
     s1=$(echo -e $1 | sed "s/$(echo -e "\e")[^m]*m//g")
-    pad=$(printf '\x4.%.0s' $(seq "$cols") )
+    pad=$(printf '%0.1s' "."{1..120})
+    s2=$(echo -e $success | sed "s/$(echo -e "\e")[^m]*m//g")
+    printf '%s ' $1
     if [ -z $! ]                    # only print status
     then
-        s2=$(echo -e $2 | sed "s/$(echo -e "\e")[^m]*m//g")
-        echo >&2 -e -n "$1"
-        printf '%*.*s' 0 $((cols - ${#s1} - ${#s2} )) "$pad"
-        echo >&2 -e "$2"
+        printf '%*.*s' 0 $((cols - ${#s1} - 12 )) "$pad"
+        ([[ $2 -eq 0 ]] && echo >&2 -e "$success") || echo >&2 -e "$failure"
     else                            # in "waiting for background process" mode
-        s2=$(echo -e $success | sed "s/$(echo -e "\e")[^m]*m//g")
-        echo >&2 -e -n "$1"
-        printf '%*.*s' 0 $((cols - ${#s1} - ${#s2} )) "$pad"
+        printf '%*.*s' 0 $((cols - ${#s1} - 6 )) "$pad"
         spinner 9
-        echo >&2 -e "$success"
+        if [ $? -eq 0 ]
+        then
+            echo >&2 -e "$success"
+        else
+            echo >&2 -e "$failure"
+        fi
     fi
 }
 
@@ -225,16 +230,16 @@ function install_linux() {
     arch_in=$(uname -m)
     [[ $arch_in == *"64" ]] && arch="x64" || arch="x86"
     jpath=$(which julia)
-    if [ $? -eq 1 ]
+    if [ $? -eq 0 ]
     then
-        msg "   (1): Julia installed at [$jpath]\t\t${GREEN}\u2714${NOFORMAT}"
+        status_msg "Julia installed " 0
     else
         jpath=$(get_input "Where should Julia be installed " "${HOME}/julia")
         while [ "${jpath:0:1}" != "/" ]; do
             jpath=$(get_input "Where should Julia be installed, please provide an absolute path " "${HOME}/julia")
         done
-        mkdir -p $jpath || die
-        cd $jpath || die
+        mkdir -p $jpath || die "Could no create $jpath"
+        cd $jpath || die "Could no find $jpath"
         fpath="linux/$arch/$jversion/julia-$jversion_minor-linux-$arch_in.tar.gz"
 
         url=https://julialang-s3.julialang.org/bin/$fpath
@@ -256,16 +261,53 @@ function install_linux() {
             if [ lastin ]
             then
                 echo "export PATH=$jpath/bin:\$PATH" >>~/.bash_profile
-                status_msg "Julia added to PATH" $success
+                status_msg "Julia added to PATH " 0
             else
-                status_msg "Julia added to PATH" $failure
+                status_msg "Julia added to PATH " 1
             fi
+        else
+                status_msg "Julia added to PATH " 0
         fi
     fi
 }
 
 function install_mac() {
     msg "${RED}Error:${NOFORMAT} mac installation not supported yet!"
+}
+
+function git_clone(){
+    projects=("EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl")
+    for p in $projects
+    do
+        if [ ! -d $p ]
+        then
+            git clone "https://github.com/Atomtomate/$p" --quiet || die "Could not clone $p"
+        fi
+    done
+}
+
+function setup_julia_deps() {
+    cw=$(pwd)
+    cd $lDGApath
+#     julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots"])'
+    for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
+    do
+        cd $p
+        git pull --quiet
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(io=devnull);' 2> /dev/null & status_msg "Updating ${p-} "
+        cd ..
+    done
+    cd $cw
+}
+
+function install_lDGA() {
+    lDGApath=$(get_input "Where should the ladder DGA tools be installed " "${HOME}/lDGATools")
+    while [ "${jpath:0:1}" != "/" ]; do
+        lDGApath=$(get_input "Where should the ladder DGA tools be installed " "${HOME}/lDGATools")
+    done
+    mkdir -p $lDGApath || die "Could no create $lDGApath"
+    cd $lDGApath || die "Could no find $lDGApath"
+    git_clone & status_msg "Cloning lDGA tools "
 }
 
 function startup() {
@@ -283,7 +325,9 @@ function startup() {
         echo "Unsupported platform $(platform)" >&2
         exit 1
         ;;
-esac
+    esac
+    install_lDGA
+    setup_julia_deps
 }
 
 parse_params "$@"
