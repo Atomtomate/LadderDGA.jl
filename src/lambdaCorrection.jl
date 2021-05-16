@@ -35,7 +35,7 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))
-          rhs: $(rhs)"""
+          χch sum = $(χch_sum), rhs = $(rhs)"""
 
     return rhs, usable_ω
 end
@@ -168,7 +168,6 @@ function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
     δ = 0.01
     x0 = start + δ
     xi = x0
-    xlast = Inf
     i = 1
     while !done
         fi = f(xi)
@@ -181,7 +180,7 @@ function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
         else
             x0 = xi
         end
-        (i >= nsteps || abs2(xlast - xi) < atol) && (done = true)
+        (i >= nsteps ) && (done = true)
         i += 1
     end
     return xi

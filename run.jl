@@ -10,7 +10,8 @@ using Logging
 @everywhere using LadderDGA
 
 
-io = open("lDGA.log","w+")
+#io = open("lDGA.log","w+")
+io = stdout
 #logger = ConsoleLogger(io, Logging.Info, 
 #                  meta_formatter=Logging.default_metafmt,
 #                  show_limited=true, right_justify=0)
