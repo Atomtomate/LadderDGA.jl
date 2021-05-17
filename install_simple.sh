@@ -16,14 +16,19 @@ cw=$(pwd)
 lDGApath="${HOME}/lDGATools"
 mkdir -p $lDGApath
 cd $lDGApath
-projects=("EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl")
-for p in $projects
+for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
 do
     if [ ! -d $p ]
     then
         git clone "https://github.com/Atomtomate/$p"
     fi
+    cd $p
+    local cwd=$(pwd)
+    julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();' >> "$lDGApath/install.log" 2>&1
+    julia -e "using Pkg; Pkg.add(path=\"$cwd\")"
+    cd ..
 done
 cd $cw
+julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5"])' >> "$lDGApath/install.log" 2>&1
 dir="$lDGApath/LadderDGA.jl/notebooks"
 julia -e "using IJulia; notebook(dir=\"$dir\")"

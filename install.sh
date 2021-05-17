@@ -310,14 +310,16 @@ git_clone(){
 }
 
 setup_julia_deps() {
-    julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots"])' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating Julia "
-    cw=$(pwd)
+    julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5"])' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating Julia "
+    local cw=$(pwd)
     cd $lDGApath
     for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
     do
         cd $p
+        local cwd=$(pwd)
         git pull --quiet
         julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating ${p-} "
+        julia -e "using Pkg; Pkg.add(path=\"$cwd\")"
         cd ..
     done
     cd $cw
