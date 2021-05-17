@@ -80,3 +80,45 @@ function computeΓ(freqList::Array, χ::Array{T,3}, χ0::Dict{Tuple{Int,Int},Com
     return res
 end
 
+function gen_config(U::Float64, β::Float6, nden::Float64, t::Float64)
+cfg="""[Model]
+U    = $U
+mu   = $(U/2.0)
+beta = $β
+nden = $nden
+kGrid = "2Dsc-$t"
+
+[Simulation]
+Nk        = [4,20]                      # number of k points in each dimension
+tail_correction = "Nothing"             # improvement algorithm for sum extrapolations. possible values: Nothing, Richardson, Shanks
+lambda_correction = "sp"                # nothing, sp, sp_ch
+bosonic_sum = "common"                  # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
+force_full_bosonic_chi = true           # compute all omega frequencies for chi and trilex
+chi_unusable_fill_value = "chi_lambda"  # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
+rhs  = "native"                         # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
+fermionic_tail_coeffs = [0,1,2,3,4]     # internal parameter for richardson sum extrapolation
+bosonic_tail_coeffs = [0,1,2,3,4]       # internal parameter for richardson sum extrapolation
+usable_prct_reduction = 0.1             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+
+
+[Environment]
+inputDataType = "jld2"                  # LEGACY, do not change
+writeFortran = false                    # LEGACY, do not change
+loadAsymptotics = false                 # LEGACY, do not change
+inputDir = ""                           # absolute path to input dir
+freqFile = ""                           # absolute path to freqList.jld2 file
+inputVars = "triqs_out.jld2"
+asymptVars = "vars_asympt_sums.jld"     # LEGACY, do not change
+cast_to_real = false                    # TODO: not implemented. cast all arrays with vanishing imaginary part to real
+loglevel = "debug"                      # error, warn, info, debug
+logfile = "stderr"                      # STDOUT, STDERR, filename
+progressbar = false                     # LEGACY, do not change
+
+[legacy]
+lambda_correction = true                # Should a lambda-correction be performed only in the spin-channel?
+
+[Debug]
+read_bubble = false                     # LEGACY, do not change
+"""
+    return cfg
+end

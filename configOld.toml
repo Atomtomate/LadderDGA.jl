@@ -1,0 +1,40 @@
+[Model]
+U    = 1.0
+mu   = 0.5
+beta = 15.0
+nden = 1.0
+Dimensions = 3
+
+[Simulation]
+kGrid = "3D-sc-tp--0.40824829046386301636" # TODO: this needs to be parsed!!
+Nk        = [10, 20,30]            # IMPORTANT: in Fortran this is Nk x Nk and generated bei make_klist. TODO: remove this, read kGrid instead
+tail_correction = "Nothing" #"Richardson" # Nothing, Richardson, Shanks
+lambda_correction = "sp"     # nothing, spin, spin_charge
+bosonic_sum = "common"             # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
+force_full_bosonic_chi = true        # compute all omega frequencies for chi and trilex
+chi_unusable_fill_value = "chi_lambda" # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
+rhs  = "native"                 # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
+fermionic_tail_coeffs = [0,1,2,3,4]
+bosonic_tail_coeffs = [0,1,2,3,4]
+usable_prct_reduction = 0.1  # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+
+
+[Environment]
+inputDataType = "jld2"      # jld2, text, parquet, TODO: implement hdf5
+writeFortran = false
+loadAsymptotics = false
+#inputDir = "/home/julian/Hamburg/ladderDGA3D_FFT_small"
+inputDir = "/home/julian/Hamburg/lDGA_shift_tests/data/20_20_s0_b15_u1.0"
+freqFile = "/home/julian/Hamburg/lDGA_shift_tests/data/20_s0_b8_u1.5/freqList.jld2"
+inputVars = "ED_out.jld2"
+asymptVars = "vars_asympt_sums.jld"
+cast_to_real = false             # TODO: not implemented. cast all arrays with vanishing imaginary part to real
+loglevel = "debug"        # error, warn, info, debug
+logfile = "stderr" #"run.out"        # STDOUT, STDERR, filename
+progressbar = false        # true/false enable or disable progress bar
+
+[legacy]
+lambda_correction = true    # Should a lambda-correction be performed only in the spin-channel?
+
+[Debug]
+read_bubble = false

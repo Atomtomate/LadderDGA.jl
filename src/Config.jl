@@ -17,7 +17,6 @@ struct ModelParameters <: ConfigStruct
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
     n::Float64              # number density
-    D::Int64
 end
 # TODO: save kgrid info here: kGrid::String           # String encoding information about the grid
 

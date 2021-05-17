@@ -59,8 +59,7 @@ function readConfig(file)
     mP = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
-                            tml["Model"]["nden"],
-                            tml["Model"]["Dimensions"])
+                            tml["Model"]["nden"])
     sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type,
                                λc_type,
@@ -75,14 +74,13 @@ function readConfig(file)
     @warn "hardcoded 3D cP lattice with t = 0.4082"
     kGrids = []
     qGrids = []
-    tsc = mP.D == 3 ? 0.40824829046386301636 : 0.5
     for Nk in tml["Simulation"]["Nk"]
-        kGrid = gen_cP_kGrid(Nk, mP.D, tsc)
+        kGrid = gen_kGrid(tml["Model"]["kGrid"], Nk)
         qGrid = reduceKGrid(kGrid)
         push!(kGrids, kGrid)
         push!(qGrids, qGrid)
     end
-    qGridLoc = reduceKGrid(gen_cP_kGrid(1, mP.D, 0.))
+    qGridLoc = reduceKGrid(gen_kGrid(tml["Model"]["kGrid"], 1))
     return mP, sP, env, kGrids, qGrids, qGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
 end
 

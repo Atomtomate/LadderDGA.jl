@@ -91,7 +91,12 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
         gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
-        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], mP.D)...)), gLoc))
+        #TODO: this should be handled insided Dispersions.jl
+        gLoc_fft_in = if typeof(kGrid) === FullKGrid{cP_2D}
+            flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], 2)...)), gLoc))
+        else
+            flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], 3)...)), gLoc))
+        end
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
     gImp_fft = SharedArray{Complex{Float64}}(size(gImp),pids=procs());copy!(gImp_fft, gImp)

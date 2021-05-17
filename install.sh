@@ -5,6 +5,7 @@
 #set -Eeuo pipefail
 #trap cleanup SIGINT SIGTERM ERR EXIT
 
+failstate=0
 start_dir=$(pwd)
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 jversion="1.6"
@@ -30,6 +31,10 @@ EOF
 }
 
 cleanup() {
+    if [ $failstate -eq 1 ]
+    then
+        msg "There have been errors. A log has been written to $lDGApath/install.log"
+    fi
     trap - SIGINT SIGTERM ERR EXIT
     tput cnorm
     stty echo
@@ -97,9 +102,10 @@ confirm() {
 }
 
 die() {
+  failstate=1
   local msg=$1
   local code=${2-1} # default exit status 1
-  msg "$msg"
+  msg "$msg, a log has been written to $lDGApath/install.log"
   exit "$code"
 }
 
@@ -221,6 +227,7 @@ status_msg() {
     else
         tmp=$(echo >&2 -e "${falure}")
         screen_state="$screen_state$failure\n"
+        failstate=1
     fi
     printf "${tmp}"
 }
@@ -310,7 +317,7 @@ git_clone(){
 }
 
 setup_julia_deps() {
-    julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5"])' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating Julia "
+    julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5", "JLD2", "Printf", "DataStructures"])' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating Julia "
     local cw=$(pwd)
     cd $lDGApath
     for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
@@ -319,7 +326,7 @@ setup_julia_deps() {
         local cwd=$(pwd)
         git pull --quiet
         julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating ${p-} "
-        julia -e "using Pkg; Pkg.add(path=\"$cwd\")"
+        julia -e "using Pkg; Pkg.add(path=\"$cwd\")" >> "$lDGApath/install.log" 2>&1 & status_msg "Precompiling ${p-} "
         cd ..
     done
     cd $cw

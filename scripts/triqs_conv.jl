@@ -6,10 +6,8 @@ using SparseVertex
 include("./triqs_conv_functions.jl")
 
 
-
-
 file = ARGS[1]
-println("$(@__DIR__), $(@__FILE__)")
+outdir = ARGS[2]
 # Gimp
 gImp = triqs_read_gf(file, "G_imp")
 
@@ -40,15 +38,14 @@ println("bose grid $(bGrid), fermi grid $(fGrid)")
 Σ = triqs_read_gf(file, "Sigma_imp")
 
 
-outdir = (@__DIR__)*"/"*file*"_outdir"
 mkpath(outdir)
 mkpath(outdir*"/chi_dir")
 mkpath(outdir*"/gamma_dir")
-SparseVertex.write_fort_dir("gamma", freqList, Γch, Γsp, outdir*"/gamma_dir", nBose, nFermi)
-SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", nBose, nFermi)
+#SparseVertex.write_fort_dir("gamma", freqList, Γch, Γsp, outdir*"/gamma_dir", nBose, nFermi)
+#SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", nBose, nFermi)
 
 
 # Grid stuff
-include("/home/julian/JuliansBastelecke/EquivalenceClassesConstructor.jl/triqs_gen.jl")
+include("./triqs_grid_gen.jl")
 
 JLD2.save(outdir*"/triqs_out.jld2", "Γch", Γch, "Γsp", Γsp, "χDMFTch", χch, "χDMFTsp", χsp, "gImp", gImp, "SigmaLoc", Σ, "beta", β)
