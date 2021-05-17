@@ -10,6 +10,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
 jversion="1.6"
 jversion_minor="1.6.1"
 lc=0
+screen_state=""
 
 usage() {
   cat <<EOF
@@ -76,6 +77,11 @@ get_input() {
         : ${res:=$2}
     fi
     echo $res
+}
+
+redraw() {
+    clear
+    printf "$screen_state"
 }
 
 confirm() {
@@ -176,7 +182,17 @@ spinner()
 
 msg() {
     let lc++
-    echo >&2 -e "${1-}"
+    local tmp=$(echo >&2 -e "${1-}")
+    printf "$tmp"
+    screen_state="$screen_state$tmp\n"
+}
+
+center_msg() {
+    let lc++
+    s1=$(echo -e $1 | sed "s/$(echo -e "\e")[^m]*m//g")
+    local tmp=$(printf '%*s\n' $(((${#s1}+$cols)/2)) "$1\n")
+    printf "$tmp"
+    screen_state="${screen_state}${tmp}"
 }
 
 status_msg() {
@@ -184,21 +200,30 @@ status_msg() {
     s1=$(echo -e $1 | sed "s/$(echo -e "\e")[^m]*m//g")
     pad=$(printf '%0.1s' "."{1..120})
     s2=$(echo -e $success | sed "s/$(echo -e "\e")[^m]*m//g")
-    printf '%s ' $1
+    local tmp=$(printf '%s ' "$1")
+    printf "$tmp"
+    screen_state="$screen_state$tmp"
     if [ -z $! ]                    # only print status
     then
-        printf '%*.*s' 0 $((cols - ${#s1} - 12 )) "$pad"
-        ([[ $2 -eq 0 ]] && echo >&2 -e "$success") || echo >&2 -e "$failure"
+        tmp=$(printf '%*.*s' 0 $((cols - ${#s1} - 12 )) "$pad")
+        printf "$tmp"
+        local state=$2
     else                            # in "waiting for background process" mode
-        printf '%*.*s' 0 $((cols - ${#s1} - 6 )) "$pad"
+        tmp=$(printf '%*.*s' 0 $((cols - ${#s1} - 6 )) "$pad")
+        printf "$tmp"
         spinner 9
-        if [ $? -eq 0 ]
-        then
-            echo >&2 -e "$success"
-        else
-            echo >&2 -e "$failure"
-        fi
+        local state=$?
     fi
+    screen_state="${screen_state}${tmp}"
+    if [ $state -eq 0 ]
+    then
+        tmp=$(echo >&2 -e "${success}")
+        screen_state="$screen_state$success\n"
+    else
+        tmp=$(echo >&2 -e "${falure}")
+        screen_state="$screen_state$failure\n"
+    fi
+    printf "${tmp}"
 }
 
 
@@ -238,6 +263,7 @@ function install_linux() {
         while [ "${jpath:0:1}" != "/" ]; do
             jpath=$(get_input "Where should Julia be installed, please provide an absolute path " "${HOME}/julia")
         done
+        redraw
         mkdir -p $jpath || die "Could no create $jpath"
         cd $jpath || die "Could no find $jpath"
         fpath="linux/$arch/$jversion/julia-$jversion_minor-linux-$arch_in.tar.gz"
@@ -305,17 +331,22 @@ function install_lDGA() {
     while [ "${jpath:0:1}" != "/" ]; do
         lDGApath=$(get_input "Where should the ladder DGA tools be installed " "${HOME}/lDGATools")
     done
+    redraw
     mkdir -p $lDGApath || die "Could no create $lDGApath"
     cd $lDGApath || die "Could no find $lDGApath"
     git_clone & status_msg "Cloning lDGA tools "
 }
 
 function startup() {
-    cols=$(stty size | cut -d ' ' -f 2)
+    cols=$(tput cols)
     cols=$(( cols > 120 ? 120 : cols ))
     rows=$(stty size | cut -d ' ' -f 1)
-    msg "This script will try to install julia, LadderDGA.jl and all its dependencies."
-    msg "============================================================================="
+    printf "\033c"
+    center_msg "============================================================================="
+    center_msg "This script will try to install julia, LadderDGA.jl and all its dependencies."
+    center_msg "If LadderDGA.jl is already installed, this script will try to"
+    center_msg "update the packages instead."
+    center_msg "============================================================================="
     msg "\n"
     platform="$(uname -s)"
     case "${platform}" in
