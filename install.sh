@@ -5,12 +5,13 @@
 #set -Eeuo pipefail
 #trap cleanup SIGINT SIGTERM ERR EXIT
 
+start_dir=$(pwd)
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd -P)
-
 jversion="1.6"
 jversion_minor="1.6.1"
 lc=0
 screen_state=""
+lDGApath="${HOME}/lDGATools"
 
 usage() {
   cat <<EOF
@@ -29,10 +30,10 @@ EOF
 }
 
 cleanup() {
+    trap - SIGINT SIGTERM ERR EXIT
     tput cnorm
     stty echo
-  #trap 'catch $? $LINENO' SIGTERM ERR EXIT
-  #trap 'aborted' SIGINT 
+    cd $start_dir
 }
 
 setup_colors() {
@@ -46,7 +47,7 @@ setup_colors() {
     failure=". [ ${RED}\xE2\x9D\x8C${NOFORMAT}] "
 }
 
-function check_dependencies() {
+check_dependencies() {
     deps=("wget" "sed" "stty" "tput")
     for p in $deps
     do
@@ -89,11 +90,9 @@ confirm() {
     read -r -p "${1} [y/N]: " response
     case "$response" in
         [yY][eE][sS]|[yY]) 
-            true
-            ;;
+            return 0 ;;
         *)
-            false
-            ;;
+            return 1 ;;
     esac
 }
 
@@ -251,7 +250,7 @@ parse_params() {
   return 0
 }
 
-function install_linux() {
+install_linux() {
     arch_in=$(uname -m)
     [[ $arch_in == *"64" ]] && arch="x64" || arch="x86"
     jpath=$(which julia)
@@ -283,8 +282,7 @@ function install_linux() {
         source $HOME/.bash_profile
         if [[ ":$PATH:" != *":$jpath/bin:"*  ]]
         then
-            lastin=$(confirm "Should julia be added to your PATH?")
-            if [ lastin ]
+            if confirm "Should julia be added to your PATH?"
             then
                 echo "export PATH=$jpath/bin:\$PATH" >>~/.bash_profile
                 status_msg "Julia added to PATH " 0
@@ -297,36 +295,36 @@ function install_linux() {
     fi
 }
 
-function install_mac() {
+install_mac() {
     msg "${RED}Error:${NOFORMAT} mac installation not supported yet!"
 }
 
-function git_clone(){
+git_clone(){
     projects=("EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl")
     for p in $projects
     do
         if [ ! -d $p ]
         then
-            git clone "https://github.com/Atomtomate/$p" --quiet || die "Could not clone $p"
+           git clone "https://github.com/Atomtomate/$p" >> "$lDGApath/install.log" 2>&1 || die "Could not clone $p"
         fi
     done
 }
 
-function setup_julia_deps() {
+setup_julia_deps() {
+    julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots"])' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating Julia "
     cw=$(pwd)
     cd $lDGApath
-#     julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots"])'
     for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
     do
         cd $p
         git pull --quiet
-        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate(io=devnull);' 2> /dev/null & status_msg "Updating ${p-} "
+        julia -e 'using Pkg; Pkg.activate("."); Pkg.instantiate();' >> "$lDGApath/install.log" 2>&1 & status_msg "Updating ${p-} "
         cd ..
     done
     cd $cw
 }
 
-function install_lDGA() {
+install_lDGA() {
     lDGApath=$(get_input "Where should the ladder DGA tools be installed " "${HOME}/lDGATools")
     while [ "${jpath:0:1}" != "/" ]; do
         lDGApath=$(get_input "Where should the ladder DGA tools be installed " "${HOME}/lDGATools")
@@ -334,10 +332,24 @@ function install_lDGA() {
     redraw
     mkdir -p $lDGApath || die "Could no create $lDGApath"
     cd $lDGApath || die "Could no find $lDGApath"
+    > "install.log"
     git_clone & status_msg "Cloning lDGA tools "
 }
 
-function startup() {
+start_example() {
+    if confirm "LadderDGA.jl installed and updated. Would you like to start the tutorial?"
+    then
+        echo "starting Jupyter-Notebook. Press ctrl+c to exit."
+#        cd "$lDGApath/LadderDGA.jl/notebooks"
+ #       echo `pwd`
+        local dir="$lDGApath/LadderDGA.jl/notebooks"
+        julia -e "using IJulia; notebook(dir=\"$dir\")"
+    else
+        echo "all done, exiting."
+    fi
+}
+
+startup() {
     cols=$(tput cols)
     cols=$(( cols > 120 ? 120 : cols ))
     rows=$(stty size | cut -d ' ' -f 1)
@@ -346,6 +358,8 @@ function startup() {
     center_msg "This script will try to install julia, LadderDGA.jl and all its dependencies."
     center_msg "If LadderDGA.jl is already installed, this script will try to"
     center_msg "update the packages instead."
+    center_msg "All outputs of the LadderDGA.jl installation can be found in the install.log"
+    center_msg "file, inside the install directory"
     center_msg "============================================================================="
     msg "\n"
     platform="$(uname -s)"
@@ -359,6 +373,8 @@ function startup() {
     esac
     install_lDGA
     setup_julia_deps
+    cleanup
+    start_example
 }
 
 parse_params "$@"
