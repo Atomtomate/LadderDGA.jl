@@ -279,12 +279,12 @@ install_linux() {
         fi 
         tar zxf julia.tar.gz -C $jpath --strip-components 1 & status_msg "Installing Julia "
         rm julia.tar.gz
-        source $HOME/.bash_profile
+        source $HOME/.bashrc
         if [[ ":$PATH:" != *":$jpath/bin:"*  ]]
         then
             if confirm "Should julia be added to your PATH?"
             then
-                echo "export PATH=$jpath/bin:\$PATH" >>~/.bash_profile
+                echo "export PATH=$jpath/bin:\$PATH" >>~/.bashrc
                 status_msg "Julia added to PATH " 0
             else
                 status_msg "Julia added to PATH " 1
@@ -300,8 +300,7 @@ install_mac() {
 }
 
 git_clone(){
-    projects=("EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl")
-    for p in $projects
+    for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
     do
         if [ ! -d $p ]
         then
