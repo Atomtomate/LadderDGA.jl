@@ -71,7 +71,6 @@ function readConfig(file)
                                tml["Simulation"]["fermionic_tail_coeffs"],
                                tml["Simulation"]["usable_prct_reduction"]
     )
-    @warn "hardcoded 3D cP lattice with t = 0.4082"
     kGrids = []
     qGrids = []
     for Nk in tml["Simulation"]["Nk"]
