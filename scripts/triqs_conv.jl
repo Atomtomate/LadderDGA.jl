@@ -41,8 +41,8 @@ println("bose grid $(bGrid), fermi grid $(fGrid)")
 mkpath(outdir)
 mkpath(outdir*"/chi_dir")
 mkpath(outdir*"/gamma_dir")
-#SparseVertex.write_fort_dir("gamma", freqList, Γch, Γsp, outdir*"/gamma_dir", nBose, nFermi)
-#SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", nBose, nFermi)
+SparseVertex.write_fort_dir("gamma", freqList, Γch, Γsp, outdir*"/gamma_dir", nBose, nFermi)
+SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", nBose, nFermi)
 
 
 # Grid stuff

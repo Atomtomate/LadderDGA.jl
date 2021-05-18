@@ -80,10 +80,10 @@ function computeΓ(freqList::Array, χ::Array{T,3}, χ0::Dict{Tuple{Int,Int},Com
     return res
 end
 
-function gen_config(U::Float64, β::Float6, nden::Float64, t::Float64)
+function gen_config(U::Float64, μ::Float64, β::Float64, nden::Float64, t::Float64)
 cfg="""[Model]
 U    = $U
-mu   = $(U/2.0)
+mu   = $μ
 beta = $β
 nden = $nden
 kGrid = "2Dsc-$t"
