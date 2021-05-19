@@ -29,6 +29,6 @@ do
     cd ..
 done
 cd $cw
-julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5"])' >> "$lDGApath/install.log" 2>&1
+julia -e 'using Pkg; Pkg.add.(["IJulia", "Plots", "HDF5", "JLD2", "Printf", "DataStructures"])' 
 dir="$lDGApath/LadderDGA.jl/notebooks"
 julia -e "using IJulia; notebook(dir=\"$dir\")"

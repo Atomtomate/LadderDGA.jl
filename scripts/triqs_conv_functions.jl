@@ -72,9 +72,9 @@ end
 function computeΓ(freqList::Array, χ::Array{T,3}, χ0::Dict{Tuple{Int,Int},Complex{Float64}}, bGrid, fGrid) where T
     res = Array{T}(undef, length(bGrid), length(fGrid), length(fGrid))
     for (ωn,ω) in enumerate(bGrid)
-        res[ωn,:,:] = -1.0 .* inv(χ[ωn,:,:])
+        res[ωn,:,:] = inv(χ[ωn,:,:])
         for (νn,ν) in enumerate(fGrid)
-            res[ωn,νn,νn] += 1.0/χ0[(ω,ν)]
+            res[ωn,νn,νn] -= 1.0/χ0[(ω,ν)]
         end
     end
     return res

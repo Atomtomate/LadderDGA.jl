@@ -55,11 +55,23 @@ function readConfig(file)
                              lowercase(tml["Environment"]["logfile"]),
                              tml["Environment"]["progressbar"]
                             )
-    JLD2.@load env.freqFile freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
     mP = ModelParameters(tml["Model"]["U"], 
                             tml["Model"]["mu"], 
                             tml["Model"]["beta"], 
                             tml["Model"]["nden"])
+
+    freqFilePath = ""
+    if !isfile(env.freqFile)
+        m = match(r"b(?<bf>\d+)f(?<ff>\d+)",env.freqFile)
+        nBose = parse(Int, m[:bf])
+        nFermi = parse(Int, m[:ff])
+        freqFilePath = "$(@__DIR__)/../scripts/freqList.jld2"
+        gen_mesh(nBose, nFermi, 0, freqFilePath)
+    else
+        freqFilePath = env.freqFile
+    end
+    JLD2.@load freqFilePath freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
+
     sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type,
                                λc_type,

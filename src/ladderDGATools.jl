@@ -39,6 +39,8 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         end
 
     νIndices = 1:size(bubble,3)
+    lower_flag = false
+    upper_cut = false
     @sync @distributed for ωi in ωindices
 
         Γview = view(Γr,ωi,νIndices,νIndices)
@@ -53,7 +55,9 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         χ_ω[ωi] = kintegrate(kGrid, χ[ωi,:])[1]
         if (!sP.fullChi && !fixed_ω)
             usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
-            first(usable) > ωi && break
+            first(usable) > ωi && lower_flag = true
+            last(usable) < ωi && upper_flag = true
+            (lower_flag && upper_flag) && break
         end
     end
     usable = !fixed_ω ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices

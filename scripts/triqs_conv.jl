@@ -12,8 +12,6 @@ outdir = ARGS[2]
 gImp = triqs_read_gf(file, "G_imp")
 
 # chi
-println("Assuming equal grids for chi updo and chi upup")
-println("Assuming axis nup,nu,w")
 chiupdo_mesh = h5read(file, "chi_updn_ph_imp/mesh")
 mesh = triqs_build_freqGrid(chiupdo_mesh);
 chiupdo_raw = h5read(file, "chi_updn_ph_imp/data")
@@ -29,7 +27,7 @@ fGrid = freqList[1][2]:freqList[end][2]
 nBose = length(bGrid)
 nFermi = length(fGrid)
 shift = 0
-println("bose grid $(bGrid), fermi grid $(fGrid)")
+println("Generating freqency mesh with bosonic $(bGrid), fermionic $(fGrid) indices")
 β = h5read(file, "chi_updn_ph_imp/mesh/MeshComponent0/domain/beta")
 
 χ0_full = computeχ0(bGrid, fGrid, gImp, β)
@@ -46,6 +44,6 @@ SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", 
 
 
 # Grid stuff
-include("./triqs_grid_gen.jl")
+include("./genFreqMesh.jl")
 
 JLD2.save(outdir*"/triqs_out.jld2", "Γch", Γch, "Γsp", Γsp, "χDMFTch", χch, "χDMFTsp", χsp, "gImp", gImp, "SigmaLoc", Σ, "beta", β)
