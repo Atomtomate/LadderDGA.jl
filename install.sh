@@ -175,10 +175,10 @@ spinner()
     do
         local i=$(((i + $charwidth) % ${#spin}))
         v=$(printf "${YELLOW}%s${NOFORMAT}" "${spin:$i:$charwidth}")
-        echo -en "\b\b\b\b\b\b [ $v ]"
+        printf "\b\b\b\b\b\b [ $v ]"
         sleep $delay
     done
-    echo -en "\b\b\b\b\b\b"
+    printf "\b\b\b\b\b\b"
     stty echo
     tput cnorm
     wait $pid
@@ -187,14 +187,14 @@ spinner()
 
 msg() {
     let lc++
-    local tmp=$(echo >&2 -e "${1-}")
+    local tmp=$(printf >&2 "${1-}\n")
     printf "$tmp"
     screen_state="$screen_state$tmp\n"
 }
 
 center_msg() {
     let lc++
-    s1=$(echo -e $1 | sed "s/$(echo -e "\e")[^m]*m//g")
+    s1=$(printf "$1\n" | sed "s/$(printf "\e\n")[^m]*m//g")
     local tmp=$(printf '%*s\n' $(((${#s1}+$cols)/2)) "$1\n")
     printf "$tmp"
     screen_state="${screen_state}${tmp}"
@@ -202,9 +202,9 @@ center_msg() {
 
 status_msg() {
     let lc++
-    s1=$(echo -e $1 | sed "s/$(echo -e "\e")[^m]*m//g")
+    s1=$(printf "$1\n" | sed "s/$(printf "\e\n")[^m]*m//g")
     pad=$(printf '%0.1s' "."{1..120})
-    s2=$(echo -e $success | sed "s/$(echo -e "\e")[^m]*m//g")
+    s2=$(printf "$success\n" | sed "s/$(printf "\e\n")[^m]*m//g")
     local tmp=$(printf '%s ' "$1")
     printf "$tmp"
     screen_state="$screen_state$tmp"
@@ -222,10 +222,10 @@ status_msg() {
     screen_state="${screen_state}${tmp}"
     if [ $state -eq 0 ]
     then
-        tmp=$(echo >&2 -e "${success}")
+        tmp=$(printf >&2 "${success}\n")
         screen_state="$screen_state$success\n"
     else
-        tmp=$(echo >&2 -e "${falure}")
+        tmp=$(printf >&2 "${failure}\n")
         screen_state="$screen_state$failure\n"
         failstate=1
     fi
@@ -303,7 +303,15 @@ install_linux() {
 }
 
 install_mac() {
-    msg "${RED}Error:${NOFORMAT} mac installation not supported yet!"
+    jpath=$(which julia)
+        if [ $? -eq 0 ]
+        then
+            status_msg "Julia installed " 0
+        else
+        brew install --cask julia
+        fi
+
+    jpath=$(which julia)
 }
 
 git_clone(){
