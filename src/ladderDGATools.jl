@@ -25,6 +25,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
                        mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: Union{ReducedKGrid,Nothing}}
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
+    γ_2 = Array{eltype(bubble), 1}(size(bubble,3))
     χ_ω = SharedArray{eltype(bubble), 1}(size(bubble)[1])  # ωₙ (summed over νₙ and ωₙ)
 
     indh = ceil(Int64, size(bubble,1)/2)
@@ -51,12 +52,17 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             χ_full = (bubbleD * Γview + UnitM)\bubbleD
             @inbounds χ[ωi, qi] = sum_freq(χ_full, [1,2], sumHelper, mP.β)[1,1]
             @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], Naive(), 1.0)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
+            if sP.tc_type != :nothing
+                @inbounds γ_2[:] = sum(χ_full, dims=[2])[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
+                #extend_γ!(view(γ,ωi, qi, :), γ_2)
+                extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
+            end
         end
         χ_ω[ωi] = kintegrate(kGrid, χ[ωi,:])[1]
         if (!sP.fullChi && !fixed_ω)
             usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
-            first(usable) > ωi && lower_flag = true
-            last(usable) < ωi && upper_flag = true
+            (first(usable) > ωi) && (lower_flag = true)
+            (last(usable) < ωi) && (upper_flag = true)
             (lower_flag && upper_flag) && break
         end
     end

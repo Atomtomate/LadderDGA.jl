@@ -106,33 +106,19 @@ julia> sum_freq(arr, [2,3], Naive(), 1.0)
 ```
 """
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
-        corr::Float64=0.0) where {T1 <: Number, T2 <: SumHelper}
-
+        corr::Float64=0.0) where {T1 <: Real, T2 <: SumHelper}
     res = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), f, dims=dims)
     return res/(β^length(dims))
 end
 
+function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
+        corr::Float64=0.0) where {T1 <: Complex, T2 <: SumHelper}
+    res_re = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), real.(f), dims=dims)
+    res_im = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), imag.(f), dims=dims)
+    res = res_re + res_im*im
+    return res/(β^length(dims))
+end
 
-"""
-    find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
-
-Finds a usable interval of indices for ``\\chi (\\omega_i)``, i.e. an interval where
-known physical properties hold.
-
-Description
--------------
-Returns range of indices `i` where the following conditions hold:
- - arr[i] is positive
- - arr[i] is decreasing (for ``|i-i_0|``, ``i_0`` index of 0 frequency).
-
-Arguments
--------------
- - **`arr`**      : array, containing ``\\chi (\\omega_i)``
- - **`sum_type`** : Optional. `:full` will always return `eachindex()`, any `Tuple{Int,Int}` 
-                    will be itnerpreted as fixed limits and the range will be fixed to these.
- - **`reduce_range_prct`** : Optional. Will reduce the range by given percentage (usefull to
-                    reduce effect of bad tails).
-"""
 function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
     mid_index = Int(ceil(length(arr)/2))
     if sum_type == :full
@@ -204,19 +190,148 @@ function find_usable_γ(arr)
     return range
 end
 
-"""
-    extend_γ(arr, usable_ν)
 
-Not tested yet!
 """
-function extend_γ(arr, usable_ν)
-    res = copy(arr)
-    val = arr[first(usable_ν)]
-    res[setdiff(1:length(arr), usable_ν)] .= 1.0
-    return res
+    find_usable_γ(arr; threshold=50, prct_red=0.05)
+
+Usable νₙ range for γ.
+Arguments
+-------------
+- **`arr`**    : 1D γ(νₙ) slice for fixed ω and q
+- **`threshold`** : Optional, default `50`, unusable if `arr[i]/arr[i±1] > threshold`
+- **`prct_red`**  : Optional, default `0.05`, reduce unusble range by this amount
+"""
+function find_usable_γ(arr; threshold=50, prct_red=0.05)
+    indh = ceil(Int, length(arr)/2)
+    i = indh + floor(Int,indh/5)
+    red = ceil(Int,length(arr)*prct_red)
+    lo = 1
+    up = length(arr)
+    while i <= length(arr)
+        change = abs(real(arr[i]/arr[i-1]))
+        (change > threshold) && (up = i-1; break)
+        i += 1
+    end
+    i = indh - floor(Int,indh/5)
+    while i > 0
+        change = abs(real(arr[i]/arr[i+1]))
+        (change > threshold) && (lo = i+1; break)
+        i -= 1
+    end
+    (lo > 1) && (lo += red)
+    (up < length(arr)) && (up -= red)
+    return lo,up
 end
 
-function extend_γ!(arr, usable_ν)
-    val = arr[first(usable_ν)]
-    arr[setdiff(1:length(arr), usable_ν)] .= 1.0
+
+"""
+    extend_γ!(arr::AbstractArray{Complex{Float64},1})
+
+Extends γ for fermionic frequencies, for which the sum extrapolation failed.
+See also (`extend_γ(::AbstractArray, ::AbstractArray)`) for a version, that uses
+the naive sum as reference.
+
+Description
+-------------
+Assuming that ∀ ωₙ,q  γ[ωₙ,q,νₙ] → 1 + 0i for ν → ∞, this function cuts off
+typical overfitting spikes for large νₙ. It is furthermore assumed, that
+γ[ωₙ,q,νₙ] /  γ[ωₙ,q,νₙ ± ν_{n+1}] never exceeds 50.
+If such a large change is detected all γ[ωₙ,q,νₙ] after that point are
+set to df⋅γ[ωₙ,q,νₙ ∓ ν{n}], df being the difference between the last
+accepted elements.
+The tail behavior is approximated by the 0th to 2nd Taylor terms.
+This will most likely lead to a discontinuiety at the first altered frequency
+in the second derivative.
+Since it is know, that the real part tends towards 1 and the imaginary part
+towards 0, a frequency depndended dampening factor is multiplied with the 
+first and second derivative. I.e. `arr[i] = (1 + df/h + ddf/h^2) arr[i-1]`
+and `df = weight * df`, `ddf = weight^2 ddf` at each iteration.
+
+
+Arguments
+-------------
+- **`arr`**    : 1D array containing sum-extrapolated γ[νₙ] (for fixed ωₙ and q)
+- **`h`**      : 2 pi/ beta 
+- **`weight`** : Optional, default `0.9`, see description above for effect of weight.
+
+Examples
+-------------
+```
+extend_γ!(view(γ,1,1,:), 0.5235987755982988)
+ """
+function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0.9)
+    indh = ceil(Int, length(arr)/2)
+    lo,up = find_usable_γ(arr)
+    # left
+    i = lo
+    df = -(arr[i] - arr[i+1])/h
+    ddf = -(arr[i+2] - 2*arr[i+1] + arr[i])/(2*h^2)
+    while i > 1
+        i -= 1
+        arr[i] = (ddf + df + 1) * arr[i+1]
+        df = df * weight
+        ddf = ddf * weight^2
+    end
+    # right
+    i = up
+    df = -(arr[i] - arr[i-1])/h
+    ddf = -(arr[i-2] - 2*arr[i-1] + arr[i])/(2*h^2)
+    while i < length(arr)
+        i += 1
+        arr[i] = (ddf + df + 1) * arr[i-1]
+        df = df * weight
+        ddf = ddf * weight^2
+    end
+end
+
+"""
+    extend_γ!(arr::AbstractArray{Complex{Float64},1}, ref::AbstractArray{Complex{Float64},1})
+
+Extends γ for fermionic frequencies, for which the sum extrapolation failed.
+See also (`extend_γ(::AbstractArray)`) for a version, that does not require
+the naive sum as input.
+
+Description
+-------------
+Assuming that ∀ ωₙ,q  γ[ωₙ,q,νₙ] → 0 for ν → ∞, this function cuts off
+typical overfitting spikes for large νₙ. It is furthermore assumed, that
+γ[ωₙ,q,νₙ] /  γ[ωₙ,q,νₙ ± ν_{n+1}] never exceeds 50.
+If such a large change is detected all γ[ωₙ,q,νₙ] after that point are
+set to df⋅γ[ωₙ,q,νₙ ∓ ν{n}], df being the difference between the last
+accepted elements.
+This will most likely lead to a discontinuiety at the first altered frequency.
+See also (`extend_γ(::AbstractArray, ::AbstractArray)`) for a version, that uses
+the naive sum as reference.
+
+
+Arguments
+-------------
+- **`arr`**    : 1D array containing sum-extrapolated γ[νₙ] (for fixed ωₙ and q)
+- **`ref`**    : 1D array containing naively summed γ[νₙ] (for fixed ωₙ and q)
+
+Examples
+-------------
+```
+extend_γ!(view(γ,1,1,:), view(γ_ref,1,1,:))
+ """
+function extend_γ!(arr::AbstractArray{Complex{Float64},1}, ref::AbstractArray{Complex{Float64},1})
+    indh = ceil(Int, length(arr)/2)
+    i = floor(Int,indh/5)
+    override= false
+    # right
+    while i <= length(arr)
+        change = abs(arr[i]/arr[i-1])
+        (!override && change > 50) && (arr[i-1]=ref[i-1];override = true)
+        override && (arr[i] = ref[i])
+        i += 1
+    end
+    # left
+    i = floor(Int,indh/5)
+    override= false
+    while i > 0
+        change = abs(arr[i]/arr[i+1])
+        (!override && change > 50) && (arr[i+1]=ref[i+1];override = true)
+        override && (arr[i] = ref[i])
+        i -= 1
+    end
 end

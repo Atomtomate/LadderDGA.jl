@@ -1,5 +1,3 @@
-include("../bak/dispersions.jl")
-
 
 @testset "conv" begin
     arr1 = reshape(1:16,(4,4))
