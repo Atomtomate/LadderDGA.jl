@@ -25,7 +25,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
                        mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: Union{ReducedKGrid,Nothing}}
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
-    γ_2 = Array{eltype(bubble), 1}(size(bubble,3))
+    #γ_2 = Array{eltype(bubble), 1}(size(bubble,3))
     χ_ω = SharedArray{eltype(bubble), 1}(size(bubble)[1])  # ωₙ (summed over νₙ and ωₙ)
 
     indh = ceil(Int64, size(bubble,1)/2)
@@ -51,10 +51,8 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             bubbleD = Diagonal(bubble_i)
             χ_full = (bubbleD * Γview + UnitM)\bubbleD
             @inbounds χ[ωi, qi] = sum_freq(χ_full, [1,2], sumHelper, mP.β)[1,1]
-            @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], Naive(), 1.0)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
+            @inbounds γ[ωi, qi, νIndices] .= sum_freq(χ_full, [2], sumHelper, 1.0)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
             if sP.tc_type != :nothing
-                @inbounds γ_2[:] = sum(χ_full, dims=[2])[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
-                #extend_γ!(view(γ,ωi, qi, :), γ_2)
                 extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
             end
         end
@@ -105,11 +103,10 @@ end
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
                 sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  ReducedKGrid, T2 <: SumHelper}
-    Nk = kGrid.Nk
     #TODO: move transform stuff to Dispersions.jl
     νZero = sP.n_iν
     ωZero = sP.n_iω
-    ωindices = 1:size(bubble,1) # intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
@@ -117,6 +114,6 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
     Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,
         Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ Nk, [2,1])
+    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ kGrid.Nk, [2,1])
     return  res
 end

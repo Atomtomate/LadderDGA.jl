@@ -113,6 +113,7 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     #TODO: unify checks
     (sP.ωsum_type == :full && (sP.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
     sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
+    ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type != :nothing)) && println(stderr, "Improved sums usually require at least 30 positive fermionic frequencies")
 
 
     #TODO: this should no assume consecutive frequencies
@@ -123,7 +124,7 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     end
     #TODO: fix this! do not assume anything about freqGrid without reading from file
 
-    sh_f = get_sum_helper(2*sP.n_iν, sP)
+    sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, mP.β)[:,1,1]
     χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, mP.β)[:,1,1]
@@ -136,8 +137,8 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         usable_loc_sp = loc_range
     end
 
-    sh_b_sp = get_sum_helper(usable_loc_sp, sP)
-    sh_b_ch = get_sum_helper(usable_loc_ch, sP)
+    sh_b_sp = get_sum_helper(usable_loc_sp, sP, :f)
+    sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
 
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]

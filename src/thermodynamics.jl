@@ -51,6 +51,9 @@ end
 Specialized function for DGA potential energy. Better performance than calc_E.
 """
 function calc_E_pot(G, Σ, tail, tail_inv, qM, norm)
+    println(size(G))
+    println(size(Σ))
+    println(size(tail))
     E_pot = real.(G .* Σ .- tail);
     return sum((2 .* sum(E_pot, dims=[1])[1,:] .+ tail_inv) .* qM) / norm
 end

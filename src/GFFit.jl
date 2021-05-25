@@ -49,7 +49,7 @@ function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where
 end
 
 default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
-default_fit_range(s::Int) = ceil(Int,s/4):ceil(Int, s/2)
+default_fit_range(s::Int) = ceil(Int,s/5):ceil(Int, s/2)
 
 """
     get_sum_helper(range, sP::SimulationParameters)
@@ -59,12 +59,12 @@ Description
 Construct helper for (improved) sums from setting in
 `sP` over a given fit range `range`.
 """
-function get_sum_helper(range, sP::SimulationParameters)
-    fitRange = default_fit_range(range)
+function get_sum_helper(range, sP::SimulationParameters, type)
     sumHelper = if sP.tc_type == :nothing
         Naive()
     elseif sP.tc_type == :richardson
-        Richardson(fitRange, sP.fermionic_tail_coeffs)
+        fitRange = default_fit_range(range)
+        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:rohringer) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:rohringer)
     else
         @error("Unrecognized tail correction, falling back to naive sums!")
         Naive()
@@ -167,31 +167,6 @@ end
 
 
 """
-    find_usable_γ(arr)
-
-Not tested yet!
-"""
-function find_usable_γ(arr)
-    nh = ceil(Int64,length(arr)/2)
-    darr = abs.(diff(real.(arr)))
-    max_ok = darr[nh]
-    i = 1
-    @inbounds while (i < floor(Int64,length(arr)/2))
-        if findmax(darr[nh-i:nh+i])[1] > max_ok
-            max_ok = findmax(darr[nh-i:nh+i])[1]
-        else
-            break
-        end
-        i += 1
-    end
-    @inbounds max_range_i = findfirst(darr[nh:end] .> max_ok)
-
-    range = max_range_i === nothing ? (1:length(arr)) : (nh-max_range_i+2):(nh+max_range_i-1)
-    return range
-end
-
-
-"""
     find_usable_γ(arr; threshold=50, prct_red=0.05)
 
 Usable νₙ range for γ.
@@ -264,23 +239,27 @@ function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0
     lo,up = find_usable_γ(arr)
     # left
     i = lo
-    df = -(arr[i] - arr[i+1])/h
-    ddf = -(arr[i+2] - 2*arr[i+1] + arr[i])/(2*h^2)
+    df = -conj(arr[i] - arr[i+1])/h
+    ddf = -conj(arr[i+2] - 2*arr[i+1] + arr[i])/(2*h^2)
+    wi = weight
     while i > 1
         i -= 1
-        arr[i] = (ddf + df + 1) * arr[i+1]
-        df = df * weight
-        ddf = ddf * weight^2
+        arr[i] = (ddf*wi + df*wi + 1) * arr[i+1]
+        #df = df * wi
+        #ddf = ddf * wi
+        wi = 10*(arr[i] - 1.0 + 0im)
     end
     # right
     i = up
-    df = -(arr[i] - arr[i-1])/h
-    ddf = -(arr[i-2] - 2*arr[i-1] + arr[i])/(2*h^2)
+    df = -conj(arr[i] - arr[i-1])/h
+    ddf = -conj(arr[i-2] - 2*arr[i-1] + arr[i])/(2*h^2)
+    wi = weight
     while i < length(arr)
         i += 1
-        arr[i] = (ddf + df + 1) * arr[i-1]
-        df = df * weight
-        ddf = ddf * weight^2
+        arr[i] = (ddf*wi + df*wi + 1) * arr[i-1]
+        #df = df * wi
+        #ddf = ddf * wi
+        wi = 10000*(arr[i] - 1.0 + 0im)
     end
 end
 

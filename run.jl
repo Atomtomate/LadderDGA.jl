@@ -57,7 +57,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         
         @info "Calculating λ correction: "
         flush(io)
-        λ_sp, λ_spch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qG, mP, sP, init_sp=last_λsp, init_spch=last_λspch)
+        λ_sp, λ_spch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qG, νGrid, mP, sP, init_sp=last_λsp, init_spch=last_λspch)
         last_λsp = λ_sp
         last_λspch = λ_spch
 
