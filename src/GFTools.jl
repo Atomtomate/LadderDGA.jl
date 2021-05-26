@@ -21,6 +21,32 @@ function FUpDo_from_χDMFT(χupdo, GImp, freqList, mP, sP)
     return FUpDo
 end
 
+
+"""
+    G(ind::Int64, Σ::Array{Complex{Float64},1}, ϵkGrid, β::Float64, μ)
+
+Constructs GF from k-independent self energy, using the Dyson equation
+and the dispersion relation of the lattice.
+"""
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},1}, 
+                   ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
+    Σν = get_symm_f(Σ,ind)
+    return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
+end
+
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},2}, 
+                   ϵkGrid, β::Float64, μ::Float64)
+    Σνk = get_symm_f(Σ,ind)
+    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
+end
+
+@inline function G(ind::Int64, Σ::Array{Complex{Interval{Float64}},2}, 
+                   ϵkGrid, β::Float64, μ::Float64)
+    Σνk = get_symm_f(Σ,ind)
+    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
+end
+
+
 function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3) 
     @inbounds Σ::Array{Complex{Float64},1} =  1 ./ GBath .- 1 ./ GImp
     return Σ
