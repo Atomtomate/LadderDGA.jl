@@ -24,11 +24,6 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - run: julia --project=. -e '
-            using Pkg;
-            Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate()'
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
