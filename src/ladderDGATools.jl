@@ -49,10 +49,11 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             bubble_i = view(bubble,ωi, qi, νIndices)
             bubbleD = Diagonal(bubble_i)
             χ_full = (bubbleD * Γview + UnitM)\bubbleD
-            @inbounds χ[ωi, qi] = sum_freq_full(χ_full, sumHelper, mP.β)[1,1]
+            @inbounds χ[ωi, qi] = sum_freq_full(χ_full, sumHelper, mP.β)
             #TODO: absor this loop into sum_freq
+            tmp = (bubble_i * (1.0 + U * χ[ωi, qi]))
             for νp in νIndices
-                @inbounds γ[ωi, qi, νIndices] .= sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0)[:,1] ./ (bubble_i * (1.0 + U * χ[ωi, qi]))
+                @inbounds γ[ωi, qi, νp] .= sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0) ./ tmp
             end
             if sP.tc_type != :nothing
                 extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
@@ -80,7 +81,7 @@ function Σ_internal2!(tmp, ωindices, bubble::BubbleT, FUpDo, sumHelper::T) whe
         for qi in 1:size(bubble,2)
             for νi in 1:size(tmp,3)
                 val = bubble[ωₙ,qi,:] .* FUpDo[ωₙ,νi,:]
-                @inbounds tmp[ωi, qi, νi] = sum_freq_full(val, sumHelper, 1.0)[1]
+                @inbounds tmp[ωi, qi, νi] = sum_freq_full(val, sumHelper, 1.0)
             end
         end
     end
