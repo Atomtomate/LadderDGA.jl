@@ -143,7 +143,7 @@ sum_freq_full(f::AbstractArray{Float64}, type::T2, β::Float64;corr::Float64=0.0
 
 function sum_freq_full(f::AbstractArray{Complex{Float64}}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper}
     tmp = build_fνmax_fast(f, 1) .+ corr
-    return (esum_c(real.(tmp)) .+ esum_c(imag.(tmp)).*im)/(β)
+    return (esum_c(real.(tmp), type) .+ esum_c(imag.(tmp), type).*im)/(β)
 end
 
 
