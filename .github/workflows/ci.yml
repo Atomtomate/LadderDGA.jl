@@ -34,6 +34,7 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+      - uses: julia-actions/setup-julia@latest
       - name: Install dependencies
         run: julia --project=. -e '
             using Pkg;
