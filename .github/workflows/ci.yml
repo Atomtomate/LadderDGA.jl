@@ -24,8 +24,7 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - name: Install dependencies
-        run: julia --project=. -e '
+      - run: julia --project=. -e '
             using Pkg;
             Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
             Pkg.develop(PackageSpec(path=pwd()));

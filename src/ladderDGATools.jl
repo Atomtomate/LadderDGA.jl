@@ -53,7 +53,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             #TODO: absor this loop into sum_freq
             tmp = (bubble_i * (1.0 + U * χ[ωi, qi]))
             for νp in νIndices
-                @inbounds γ[ωi, qi, νp] .= sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0) ./ tmp
+                @inbounds γ[ωi, qi, νp] .= sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0) / tmp
             end
             if sP.tc_type != :nothing
                 extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
