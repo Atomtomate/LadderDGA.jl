@@ -13,36 +13,11 @@ function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
     return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
 end
 
-function convert_to_real(f; eps=10E-12)
-    if maximum(imag.(f)) > eps
-        throw(InexactError("Imaginary part too large for conversion!"))
-    end
-    return real.(f)
-end
-
 iω(n) = 1im*2*n*π/(mP.β);
 
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
 split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
-
-"""
-    padlength(a,b)
-
-computes the length of zero-padding required for convolution, using fft
-This is the next larger or equally large number to max(a,b)
-TODO: does only support padding for cube like arrays (i.e. all dimension have the same size).
-
-# Examples
-```
-julia> padlength(1:5,1:14)
-8
-julia> padlength(1:4,1:13)
-4
-```
-"""
-padlength(a,b) = 2^floor(Int, log(2,size(a,1)+size(b,1)-1))
-
 
 """
     print 4 digits of the real part of `x`
@@ -162,18 +137,6 @@ function flatten_2D(arr)
     end
     return res
 end
-
-macro slice_middle(arr, n)
-    :($arr[($n:(length($arr))-$n)])
-end
-
-macro slice_usable(arr, usable)
-    n = :(ceil(Int64,(length($arr)-length($usable)+2)/2))
-    :($arr[($n:(length($arr))-$n+1)])
-end
-
-stripped_type(t) = (t |> typeof |> Base.typename).wrapper
-sum_drop(arr::AbstractArray) = sum(a,dims=dims)[[(i in dims ? 1 : axes(a,i)) for i in 1:ndims(a)]...]
 
 # ================== FFT + Intervals Workaround ==================
 lo(arr::Array{Interval{Float64}}) = map(x->x.lo,arr)

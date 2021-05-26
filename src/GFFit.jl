@@ -1,6 +1,5 @@
 """
-    build_fνmax_fast(f::AbstractArray{T,1}, nmin::Int)::Array{T, 1} where T <: Number
-    build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast(f::AbstractArray{T}, nmin::Int)::Array{T, 1} where T <: Number
 
 Description
 -------------
@@ -18,35 +17,45 @@ julia> LadderDGA.build_fνmax_fast(arr,2)
 [17, 65]
 ```
 """
-function build_fνmax_fast(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
+function build_fνmax_fast(f::AbstractArray{T}, nmin::Int)::Array{T, 1} where T <: Number
     n_iν       = minimum(size(f))
     lo = ceil(Int,n_iν/2) - (nmin - 1)
     up = ceil(Int,n_iν/2) + iseven(n_iν) + (nmin - 1)
-    f_νmax  = Array{eltype(f), 1}(undef, lo)
+    f_νmax  = Array{T, 1}(undef, lo)
+    build_fνmax_fast!(f_νmax, f, lo, up)
+    return f_νmax
+end
 
+"""
+    build_fνmax_fast!(f::AbstractArray{T,1}, nmin::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast!(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
+
+Description
+-------------
+Constructs array of partial sums of one or two-dimensional array `f` starting
+at with `lo` and ending wie `up` summands.
+This assumes, that the array is symmetric around the mid index.
+For a more convenient, but possible slower version, see also [`build_fνmax_fast`](@ref build_fνmax_fast!)
+"""
+function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,2}, lo::Int, up::Int) where T <: Number
     f_νmax[1] = sum(f[lo:up, lo:up])
     for i in 2:length(f_νmax)
         lo = lo - 1
         up = up + 1
-        f_νmax[i] = f_νmax[i-1] + sum(f[lo, lo:up]) + sum(f[up, lo:up]) + 
+        @inbounds f_νmax[i] = f_νmax[i-1] + sum(f[lo, lo:up]) + sum(f[up, lo:up]) + 
                     sum(f[(lo+1):(up-1),lo]) + sum(f[(lo+1):(up-1),up]) 
     end
-    return f_νmax
 end
 
-function build_fνmax_fast(f::AbstractArray{T, 1}, nmin::Int)::Array{T, 1} where T <: Number
-    n_iν       = minimum(size(f))
-    lo = ceil(Int,n_iν/2) - (nmin - 1)
-    up = ceil(Int,n_iν/2) + iseven(n_iν) + (nmin - 1)
-    f_νmax  = Array{eltype(f), 1}(undef, lo)
+function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,1}, lo::Int, up::Int) where T <: Number
     f_νmax[1] = sum(f[lo:up])
     for i in 2:length(f_νmax)
         lo = lo - 1
         up = up + 1
-        f_νmax[i] = f_νmax[i-1] + f[lo] + f[up]
+        @inbounds f_νmax[i] = f_νmax[i-1] + f[lo] + f[up]
     end
-    return f_νmax
 end
+
 
 default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
 default_fit_range(s::Int) = ceil(Int,s/5):ceil(Int, s/2)
@@ -64,7 +73,7 @@ function get_sum_helper(range, sP::SimulationParameters, type)
         Naive()
     elseif sP.tc_type == :richardson
         fitRange = default_fit_range(range)
-        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:rohringer) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:rohringer)
+        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
     else
         @error("Unrecognized tail correction, falling back to naive sums!")
         Naive()
@@ -82,6 +91,7 @@ Wrapper for estimation of initite Matsubara sums from a finite set
 of samples. Computes ``\\frac{1}{\\beta}^D \\sum_{n} f(i\\omega_n)``.
 For convenience, a correction term (being the analytic sum over a
 previously subtracted tail) can also be provided throught the `corr` argument.
+For a faster version of 1D arrays, see also [`sum_freq_1D`](@ref sum_freq_1D).
 
 Arguments
 -------------
@@ -107,17 +117,35 @@ julia> sum_freq(arr, [2,3], Naive(), 1.0)
 """
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
         corr::Float64=0.0) where {T1 <: Real, T2 <: SumHelper}
+    length(dims) == ndims(f) && return  sum_freq_full(f,type,β,corr=corr)
     res = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), f, dims=dims)
     return res/(β^length(dims))
 end
 
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
         corr::Float64=0.0) where {T1 <: Complex, T2 <: SumHelper}
+    length(dims) == ndims(f) && return  sum_freq_full(f,type,β,corr=corr)
     res_re = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), real.(f), dims=dims)
     res_im = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), imag.(f), dims=dims)
     res = res_re + res_im*im
     return res/(β^length(dims))
 end
+
+"""
+    sum_freq_full(f, type::T, β::Float64; corr::Float64=0.0) where T <: SumHelper
+
+Description
+-------------
+Fast wrapper of [`sum_freq`](@ref sum_freq), lacking the `dims` argument.
+"""
+sum_freq_full(f::AbstractArray{Float64}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper} = 
+    esum_c(build_fνmax_fast(f, 1) .+ corr, type)/β
+
+function sum_freq_full(f::AbstractArray{Complex{Float64}}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper}
+    tmp = build_fνmax_fast(f, 1) .+ corr
+    return (esum_c(real.(tmp)) .+ esum_c(imag.(tmp)).*im)/(β)
+end
+
 
 function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
     mid_index = Int(ceil(length(arr)/2))
@@ -169,7 +197,9 @@ end
 """
     find_usable_γ(arr; threshold=50, prct_red=0.05)
 
-Usable νₙ range for γ.
+Usable νₙ range for γ. γ(ωₙ) is usable, for a range in which `γ[n]/γ[n-1]` does not
+exceed some threshold value. See also [`extend_γ!`](@ref extend_γ!)
+
 Arguments
 -------------
 - **`arr`**    : 1D γ(νₙ) slice for fixed ω and q
@@ -259,7 +289,7 @@ function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0
         arr[i] = (ddf*wi + df*wi + 1) * arr[i-1]
         #df = df * wi
         #ddf = ddf * wi
-        wi = 10000*(arr[i] - 1.0 + 0im)
+        wi = 10*(arr[i] - 1.0 + 0im)
     end
 end
 

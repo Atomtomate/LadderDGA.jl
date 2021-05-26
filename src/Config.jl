@@ -29,7 +29,18 @@ the [`readConfig`](@ref readConfig) function.
 
 Fields
 -------------
-TODO: describe implications of all fields
+- **`n_iω`**    : Number of positive bosonic frequencies (full number will be `2*n_iω+1` 
+- **`n_iν`**    : Number of positive fermionic frequencies (full number will be `2*n_iν` 
+- **`shift`**   : Flag specifying if `-n_iν:n_iν-1` is shifted by `-ωₙ/2` at each `ωₙ` slice (centering the main features)
+- **`tc_type`** : Symbol specifying te type of tail correction. Implemented for `:nothing` (naive sum) and `:richardson`. See `SeriesAcceleration` package for more details.
+- **`λc_type`** : Symbol specifying the type of λ-correction. `:nothing` for no correction, `:sp` for correction in spin channel, using the filling of the model as reference for the fit, `:sp_ch` for λ-corrections in spin an charge channel, `:sp_ch_q` for k-vector dependent λ correction in both channels.
+- **`ωsum_type`**  :
+- **`λ_rhs`**   :
+- **`fullChi`** :
+- **`χFillType`**  :
+- **`bosonic_tail_coeffs`**   :
+- **`fermionic_tail_coeffs`** :
+- **`usable_prct_reduction`** :
 """
 struct SimulationParameters <: ConfigStruct
     n_iω::Int64             # number of bosonic frequencies

@@ -13,12 +13,12 @@
 end
 
 @testset "get_sum_helper" begin
-    LadderDGA.get_sum_helper(1:4, sP_1) === typeof(Naive())   
-    LadderDGA.get_sum_helper(1:4, sP_2) === typeof(Richardson(1:3,0:2))
+    LadderDGA.get_sum_helper(1:4, sP_1, :f) === typeof(Naive())   
+    LadderDGA.get_sum_helper(1:4, sP_2, :f) === typeof(Richardson(1:3,0:2))
 end
 
 @testset "sum_freq" begin
-
+    #TODO: write wrapper tests...
 end
 
 @testset "extend_γ" begin

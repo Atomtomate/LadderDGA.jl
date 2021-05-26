@@ -23,9 +23,9 @@ function new_χλ(χ_in::SharedArray{Complex{Float64},2}, λ::Float64, sP::Simul
 end
 
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kGrid::T1, mP::ModelParameters, sP::SimulationParameters) where T1 <: ReducedKGrid
-    @warn "currently using min(usable_sp, usable_ch) for all calculations. relax this?"
     χch_ω = kintegrate(kGrid, nlQ_ch.χ, dim=2)[:,1]
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
     sh = get_sum_helper(usable_ω, sP, :b)
     χch_sum = real(sum_freq(χch_ω[usable_ω], [1], sh, mP.β)[1])
     rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
