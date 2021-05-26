@@ -24,6 +24,13 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - uses: julia-actions/setup-julia@latest
+      - name: Install dependencies
+        run: julia --project=. -e '
+            using Pkg;
+            Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
+            Pkg.develop(PackageSpec(path=pwd()));
+            Pkg.instantiate()'
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -34,13 +41,6 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/setup-julia@latest
-      - name: Install dependencies
-        run: julia --project=. -e '
-            using Pkg;
-            Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate()'
       - name: Build and deploy
       - uses: julia-actions/julia-buildpkg@master
       - uses: julia-actions/julia-runtest@master
