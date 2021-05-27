@@ -51,7 +51,7 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     #TODO: new method needs testing
      X = @interval(0.02,20.0)
      tol = maximum([1e-7, (1e-4)*abs(searchInterval[2] - searchInterval[1])])
-     r = roots(f, df, X, Newton, tol)
+     #r = roots(f, df, X, Newton, tol)
      r2 = find_zeros(f, 0.00, 20.0, verbose=true)
      @info "Method 2 root:" r2
      #ln = empty(r2) ? 0.0 : mid(maximum(filter(x->!isempty(x),interval.(r))))
@@ -146,7 +146,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, rhs, kGrid, mP.β, sP)
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     #λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, νGrid, mP, sP; λsp_guess=λsp)
-    #λ_new = [0.0, 0.0]
+    λ_new = [0.0, 0.0]
     if sP.λc_type == :sp
         nlQ_sp.χ = χsp_λ
         nlQ_sp.λ = λsp

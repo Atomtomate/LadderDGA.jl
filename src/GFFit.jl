@@ -139,11 +139,11 @@ Description
 Fast wrapper of [`sum_freq`](@ref sum_freq), lacking the `dims` argument.
 """
 sum_freq_full(f::AbstractArray{Float64}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper} = 
-    esum_c(build_fνmax_fast(f, 1) .+ corr, type)/β
+    esum_c(build_fνmax_fast(f, 1) .+ corr, type)/(β^ndims(f))
 
 function sum_freq_full(f::AbstractArray{Complex{Float64}}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper}
     tmp = build_fνmax_fast(f, 1) .+ corr
-    return (esum_c(real.(tmp), type) .+ esum_c(imag.(tmp), type).*im)/(β)
+    return (esum_c(real.(tmp), type) .+ esum_c(imag.(tmp), type).*im)/(β^ndims(f))
 end
 
 

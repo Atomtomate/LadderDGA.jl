@@ -49,3 +49,8 @@ s = ArgParseSettings()
 end
 
 args = parse_args([], s)
+io = stdout
+metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
+logger = ConsoleLogger(io, Logging.Info, meta_formatter=metafmt, show_limited=true, right_justify=0)
+global_logger(logger)
+
