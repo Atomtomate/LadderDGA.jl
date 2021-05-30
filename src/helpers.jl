@@ -135,7 +135,7 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     @info """Inputs Read. Starting Computation.
       Local susceptibilities iwth ranges are:
       χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc)) 
-      sum χupup check: $(imp_density_sub) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+      sum χupup check: $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
       """
     return νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
 end
