@@ -62,3 +62,16 @@ end
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 @inline G_from_Σ(Σ::Array{Complex{Interval{Float64}}}, ϵkGrid, 
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
+
+function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{Complex{Float64},1}) where T <: Number
+    res = Array{eltype(inp),1}(undef, length(inp))
+    for n in 1:length(inp)
+        if iω[n] != 0
+            res[n] = inp[n] - (c/(iω[n]^2))
+        else
+            res[n] = inp[n]
+        end
+    end
+    return res
+end

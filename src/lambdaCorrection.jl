@@ -161,9 +161,9 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
 end
 
 function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
-                            start::Float64; nsteps=5000, atol=1e-10)
+                            start::Float64; nsteps=5000, atol=1e-8)
     done = false
-    δ = 0.01
+    δ = 0.1
     x0 = start + δ
     xi = x0
     i = 1
@@ -172,9 +172,11 @@ function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
         dfi = df(xi)
         xlast = xi
         xi = x0 - fi / dfi
+        (abs2(xi-x0) < atol) && break
         if xi < x0               # only ever search to the right!
             δ  = δ/2.0
             x0  = start + δ      # reset with smaller delta
+            xi = x0
         else
             x0 = xi
         end

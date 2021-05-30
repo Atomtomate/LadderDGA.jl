@@ -13,7 +13,6 @@ function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
     return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
 end
 
-iω(n) = 1im*2*n*π/(mP.β);
 
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
@@ -112,20 +111,32 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         usable_loc_sp = loc_range
     end
 
-    sh_b_sp = get_sum_helper(usable_loc_sp, sP, :f)
+    @warn "assuming ED calculation for E_kin!! gm_wim and hubb.andpar need to be present"
+    iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
+    ϵₖ, Vₖ, μ    = read_anderson_parameters(env.inputDir * "/hubb.andpar");
+    E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:100], ϵₖ, Vₖ, GImp[1:100], mP)
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
+
+    χupup_ω = 0.5*(χLocsp_ω .+ χLocch_ω)
+    χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
+
+
+    sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
     sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
+    sh_b_upup = get_sum_helper(loc_range, sP, :b)
 
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
 
     impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
     impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)
+    imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
 
     @info """Inputs Read. Starting Computation.
-    Found usable intervals for local susceptibility of length 
-      sp: $(length(impQ_sp.usable_ω))
-      ch: $(length(impQ_ch.usable_ω)) 
-      χLoc_sp = $(printr_s(impQ_sp.χ_loc)), χLoc_ch = $(printr_s(impQ_ch.χ_loc))"""
+      Local susceptibilities iwth ranges are:
+      χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc)) 
+      sum χupup check: $(imp_density_sub) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+      """
     return νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
 end
 

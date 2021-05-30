@@ -111,7 +111,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     νZero = sP.n_iν
     ωZero = sP.n_iω
     ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    sh_b = get_sum_helper(ωindices, sP, :b)
+    sh_b = Naive() #get_sum_helper(ωindices, sP, :b)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
@@ -119,6 +119,6 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
     Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, false, Q_sp.χ, Q_ch.χ,
         Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], sh_b, mP.β)[1,:,:] ./ kGrid.Nk, [2,1])
+    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ kGrid.Nk, [2,1])
     return  res
 end

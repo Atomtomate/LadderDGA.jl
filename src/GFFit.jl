@@ -73,7 +73,7 @@ function get_sum_helper(range, sP::SimulationParameters, type)
         Naive()
     elseif sP.tc_type == :richardson
         fitRange = default_fit_range(range)
-        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
+        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:rohringer) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:rohringer)
     else
         @error("Unrecognized tail correction, falling back to naive sums!")
         Naive()
@@ -122,6 +122,8 @@ function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float6
     return res/(β^length(dims))
 end
 
+#TODO: provide interface for tail subtraction in sum_freq
+
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
         corr::Float64=0.0) where {T1 <: Complex, T2 <: SumHelper}
     length(dims) == ndims(f) && return  sum_freq_full(f,type,β,corr=corr)
@@ -145,6 +147,7 @@ function sum_freq_full(f::AbstractArray{Complex{Float64}}, type::T2, β::Float64
     tmp = build_fνmax_fast(f, 1) .+ corr
     return (esum_c(real.(tmp), type) .+ esum_c(imag.(tmp), type).*im)/(β^ndims(f))
 end
+
 
 
 function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)

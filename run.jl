@@ -40,6 +40,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         locQ_sp = calc_χ_trilex(impQ_sp.Γ, bubbleLoc, qGridLoc, νGrid, sumHelper_f, mP.U, mP, sP);
         locQ_ch = calc_χ_trilex(impQ_ch.Γ, bubbleLoc, qGridLoc, νGrid, sumHelper_f, -mP.U, mP, sP);
 
+
         Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, GImp_fft, FUpDo,
                              qGridLoc, sumHelper_f, mP, sP)
         Σ_ladderLoc = Σ_ladderLoc .+ mP.n * mP.U/2.0;
