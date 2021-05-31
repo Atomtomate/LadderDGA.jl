@@ -8,7 +8,8 @@ struct ImpurityQuantities
     χ::SharedArray{Complex{Float64},3}
     χ_ω::SharedArray{Complex{Float64},1}
     χ_loc::Complex{Float64}
-    usable_ω::AbstractArray
+    usable_ω::AbstractArray{Int,1}
+    tailCoeffs::AbstractArray{Float64,1}
 end
 
 """

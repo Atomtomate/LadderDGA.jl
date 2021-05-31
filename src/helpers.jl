@@ -105,8 +105,8 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
 
     usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=sP.ωsum_type)
     usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=sP.ωsum_type)
+    loc_range = intersect(usable_loc_sp, usable_loc_ch)
     if sP.ωsum_type == :common
-        loc_range = intersect(usable_loc_sp, usable_loc_ch)
         usable_loc_ch = loc_range
         usable_loc_sp = loc_range
     end
@@ -114,12 +114,7 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     @warn "assuming ED calculation for E_kin!! gm_wim and hubb.andpar need to be present"
     iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
     ϵₖ, Vₖ, μ    = read_anderson_parameters(env.inputDir * "/hubb.andpar");
-    E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:100], ϵₖ, Vₖ, GImp[1:100], mP)
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
-
-    χupup_ω = 0.5*(χLocsp_ω .+ χLocch_ω)
-    χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
-
+    E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:length(GImp)], ϵₖ, Vₖ, GImp, mP)
 
     sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
     sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
@@ -128,8 +123,12 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
 
-    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp)
-    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch)
+    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,E_kin_ED])
+    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch, [0,0,E_kin_ED])
+
+    χupup_ω = 0.5 * (χLocsp_ω + χLocch_ω)
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
+    χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
     imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
 
     @info """Inputs Read. Starting Computation.
