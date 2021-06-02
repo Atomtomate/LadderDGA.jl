@@ -2,7 +2,7 @@ using EquivalenceClassesConstructor
 using Printf, DataStructures
 using JLD2
 
-#include("$(@__DIR__)/vertexIntTriple.jl")
+include("$(@__DIR__)/vertexIntTriple.jl")
 
 #const nBose = 20
 #const nFermi = 20

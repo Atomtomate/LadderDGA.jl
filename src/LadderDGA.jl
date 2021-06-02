@@ -3,8 +3,7 @@ module LadderDGA
 
 include("DepsInit.jl")
 
-export sum_q, get_sum_helper
-export gen_kGrid, squareLiattice_ekGrid, reduce_kGrid, kGrid_multiplicity #TODO: this should be in the dispersions package
+export sum_q, sum_freq, get_sum_helper
 export ModelParameters, SimulationParameters, FreqGrid, EnvironmentVars
 export LocalQuantities, NonLocalQuantities, ΓT, BubbleT, GνqT
 export readConfig, setup_LDGA, calc_bubble, calc_χ_trilex, calc_Σ, full_run

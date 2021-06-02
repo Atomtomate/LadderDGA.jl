@@ -563,7 +563,6 @@ function writeFortranEnergies(E_Kin, E_Pot, β, dirName::String)
     νGrid = 0:(length(E_Kin)-1)
     iν_n = iν_array(β, νGrid)
 
-    println(length(E_Kin))
     fn_DGA = dirName * "/energiesDGA.dat"
     open(fn_DGA, "w") do f
         for i in 1:length(E_Kin)

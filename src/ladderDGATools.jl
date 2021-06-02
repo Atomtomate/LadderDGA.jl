@@ -8,7 +8,7 @@ function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{F
         for (j,νₙ) in enumerate(νGrid[ωi])
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
-            res[ωi,:,j] .= -mP.β .* conv_transform(kGrid, v1 .* v2)
+            res[ωi,:,j] .= -mP.β .* conv_fft(kGrid, v1, v2)
         end
     end
     return res
@@ -90,16 +90,14 @@ end
 #TODO: use views here
 function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γch, Gνω,
                      tmp, U::Float64, kGrid)
-    transformK(x) = (kGrid.Nk == 1) ? identity(x) : fft(expandKArr(kGrid, x))
     @sync @distributed for ωi in 1:length(ωindices)
         ωₙ = ωindices[ωi]
         @inbounds f1 = 1.5 .* (1 .+ U*χsp[ωₙ, :])
         @inbounds f2 = 0.5 .* (1 .- U*χch[ωₙ, :])
         νZerop = νZero + shift*(trunc(Int64,(ωₙ - ωZero - 1)/2) + 1)
         for νi in 1:size(Σ,3)
-            @inbounds val = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
-            Kνωq = transformK(val)
-            @inbounds Σ[ωi,:, νi] = conv_transform(kGrid, Kνωq[:] .* view(Gνω,νZero + νi + ωₙ - 1,:))
+            @inbounds Kνωq = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
+            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq[:], view(Gνω,νZero + νi + ωₙ - 1,:))
         end
     end
 end

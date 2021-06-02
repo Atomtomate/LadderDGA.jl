@@ -45,5 +45,6 @@ SparseVertex.write_fort_dir("chi", freqList, χupup, χupdo, outdir*"/chi_dir", 
 
 # Grid stuff
 include("./genFreqMesh.jl")
+gen_mesh(freqList[end][1], freqList[end][2], shift, outdir)
 
 JLD2.save(outdir*"/triqs_out.jld2", "Γch", Γch, "Γsp", Γsp, "χDMFTch", χch, "χDMFTsp", χsp, "gImp", gImp, "SigmaLoc", Σ, "beta", β)

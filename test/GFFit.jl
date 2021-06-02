@@ -1,24 +1,27 @@
 @testset "build fν max" begin
-    @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],1) .== [1, 5, 11])
+    @test all(LadderDGA.build_fνmax_fast([4,3,2,1,2,3,4],2) .== [11, 19])
+    @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],3) .== [1, 5, 11])
     @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],2) .== [5, 11])
-    @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],3) .== [11])
-    @test all(LadderDGA.build_fνmax_fast([3,2,1,1,2,3],1) .== [2, 6, 12])
+    @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],1) .== [11])
+    @test all(LadderDGA.build_fνmax_fast([3,2,1,1,2,3],3) .== [2, 6, 12])
     @test all(LadderDGA.build_fνmax_fast([3,2,1,1,2,3],2) .== [6, 12])
-    @test all(LadderDGA.build_fνmax_fast([3,2,1,1,2,3],3) .== [12])
+    @test all(LadderDGA.build_fνmax_fast([3,2,1,1,2,3],1) .== [12])
     a = [3 3 3 3 3; 3 2 2 2 3; 3 2 1 2 3; 3 2 2 2 3; 3 3 3 3 3]
     test = [1, 1+8*2, 1+8*2+16*3]
-    @test all(LadderDGA.build_fνmax_fast(a, 1) .== test)
+    @test all(LadderDGA.build_fνmax_fast(a, 3) .== test)
     @test all(LadderDGA.build_fνmax_fast(a, 2) .== test[2:3])
-    @test all(LadderDGA.build_fνmax_fast(a, 3) .== test[3])
+    @test all(LadderDGA.build_fνmax_fast(a, 1) .== test[3])
 end
 
 @testset "get_sum_helper" begin
+#    LadderDGA.default_fit_range()
     LadderDGA.get_sum_helper(1:4, sP_1, :f) === typeof(Naive())   
-    LadderDGA.get_sum_helper(1:4, sP_2, :f) === typeof(Richardson(1:3,0:2))
+    LadderDGA.get_sum_helper(1:12, sP_2, :f) === typeof(Richardson(1:3,0:2))
 end
 
 @testset "sum_freq" begin
-    #TODO: write wrapper tests...
+    test = [1/n^k for k in 2:2:8, n in 1:10]
+    @test all(LadderDGA.sum_freq(test, [2], Naive(), Float64(π)) .≈ sum(test,dims=[2]) ./ π)
 end
 
 @testset "extend_γ" begin

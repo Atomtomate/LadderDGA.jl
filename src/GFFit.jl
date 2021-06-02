@@ -1,10 +1,10 @@
 """
-    build_fνmax_fast(f::AbstractArray{T}, nmin::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast(f::AbstractArray{T}, n::Int)::Array{T, 1} where T <: Number
 
 Description
 -------------
-Constructs array of partial sums of one or two-dimensional array `f` starting
-at with `rmin` summands.
+Constructs array of partial sums of one or two-dimensional array `f` with
+`n` partial sum terms.
 This assumes, that the array is symmetric around the mid index.
 
 Examples
@@ -17,18 +17,18 @@ julia> LadderDGA.build_fνmax_fast(arr,2)
 [17, 65]
 ```
 """
-function build_fνmax_fast(f::AbstractArray{T}, nmin::Int)::Array{T, 1} where T <: Number
-    n_iν       = minimum(size(f))
-    lo = ceil(Int,n_iν/2) - (nmin - 1)
-    up = ceil(Int,n_iν/2) + iseven(n_iν) + (nmin - 1)
+function build_fνmax_fast(f::AbstractArray{T}, n::Int)::Array{T, 1} where T <: Number
+    n_iν = minimum(size(f))
+    lo = n
+    up = n_iν - n + 1 
     f_νmax  = Array{T, 1}(undef, lo)
     build_fνmax_fast!(f_νmax, f, lo, up)
     return f_νmax
 end
 
 """
-    build_fνmax_fast!(f::AbstractArray{T,1}, nmin::Int)::Array{T, 1} where T <: Number
-    build_fνmax_fast!(f::AbstractArray{T,2}, nmin::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast!(f::AbstractArray{T,1}, lo::Int, up::Int)::Array{T, 1} where T <: Number
+    build_fνmax_fast!(f::AbstractArray{T,2}, lo::Int, up::Int)::Array{T, 1} where T <: Number
 
 Description
 -------------
@@ -37,6 +37,15 @@ at with `lo` and ending wie `up` summands.
 This assumes, that the array is symmetric around the mid index.
 For a more convenient, but possible slower version, see also [`build_fνmax_fast`](@ref build_fνmax_fast!)
 """
+function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,1}, lo::Int, up::Int) where T <: Number
+    f_νmax[1] = sum(f[lo:up])
+    for i in 2:length(f_νmax)
+        lo = lo - 1
+        up = up + 1
+        @inbounds f_νmax[i] = f_νmax[i-1] + f[lo] + f[up]
+    end
+end
+
 function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,2}, lo::Int, up::Int) where T <: Number
     f_νmax[1] = sum(f[lo:up, lo:up])
     for i in 2:length(f_νmax)
@@ -47,18 +56,8 @@ function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,2}, 
     end
 end
 
-function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,1}, lo::Int, up::Int) where T <: Number
-    f_νmax[1] = sum(f[lo:up])
-    for i in 2:length(f_νmax)
-        lo = lo - 1
-        up = up + 1
-        @inbounds f_νmax[i] = f_νmax[i-1] + f[lo] + f[up]
-    end
-end
-
-
 default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
-default_fit_range(s::Int) = ceil(Int,s/5):ceil(Int, s/2)
+default_fit_range(s::Int) = ceil(Int,s/5):floor(Int, s/2)
 
 """
     get_sum_helper(range, sP::SimulationParameters)
@@ -118,7 +117,7 @@ julia> sum_freq(arr, [2,3], Naive(), 1.0)
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
         corr::Float64=0.0) where {T1 <: Real, T2 <: SumHelper}
     length(dims) == ndims(f) && return  sum_freq_full(f,type,β,corr=corr)
-    res = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), f, dims=dims)
+    res = mapslices(x -> esum_c(build_fνmax_fast(x, npartial_sums(type)) .+ corr, type), f, dims=dims)
     return res/(β^length(dims))
 end
 
@@ -126,9 +125,9 @@ end
 
 function sum_freq(f::AbstractArray{T1}, dims::Array{Int,1}, type::T2, β::Float64; 
         corr::Float64=0.0) where {T1 <: Complex, T2 <: SumHelper}
-    length(dims) == ndims(f) && return  sum_freq_full(f,type,β,corr=corr)
-    res_re = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), real.(f), dims=dims)
-    res_im = mapslices(x -> esum_c(build_fνmax_fast(x, 1) .+ corr, type), imag.(f), dims=dims)
+    length(dims) == ndims(f) && return sum_freq_full(f,type,β,corr=corr)
+    res_re = mapslices(x -> esum_c(build_fνmax_fast(x,npartial_sums(type)) .+ corr, type), real.(f), dims=dims)
+    res_im = mapslices(x -> esum_c(build_fνmax_fast(x,npartial_sums(type)) .+ corr, type), imag.(f), dims=dims)
     res = res_re + res_im*im
     return res/(β^length(dims))
 end
@@ -141,10 +140,10 @@ Description
 Fast wrapper of [`sum_freq`](@ref sum_freq), lacking the `dims` argument.
 """
 sum_freq_full(f::AbstractArray{Float64}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper} = 
-    esum_c(build_fνmax_fast(f, 1) .+ corr, type)/(β^ndims(f))
+    esum_c(build_fνmax_fast(f, npartial_sums(type)) .+ corr, type)/(β^ndims(f))
 
 function sum_freq_full(f::AbstractArray{Complex{Float64}}, type::T2, β::Float64;corr::Float64=0.0) where {T2 <: SumHelper}
-    tmp = build_fνmax_fast(f, 1) .+ corr
+    tmp = build_fνmax_fast(f, npartial_sums(type)) .+ corr
     return (esum_c(real.(tmp), type) .+ esum_c(imag.(tmp), type).*im)/(β^ndims(f))
 end
 

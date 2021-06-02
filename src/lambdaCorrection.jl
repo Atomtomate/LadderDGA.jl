@@ -52,7 +52,6 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
                             searchInterval::AbstractArray{Float64,1}, EKin::Float64,
                             rhs::Float64, kGrid::T1, mP::ModelParameters, sP::SimulationParameters) where T1 <: ReducedKGrid
     χr    = real.(χ_in[usable_ω,:])
-    sh = get_sum_helper(usable_ω, sP, :b)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
@@ -146,7 +145,7 @@ end
 
 function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
-                      kGrid::ReducedKGrid, νGrid,
+                      kGrid::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
     rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kGrid, mP, sP)
