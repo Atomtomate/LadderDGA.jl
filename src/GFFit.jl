@@ -68,11 +68,15 @@ Construct helper for (improved) sums from setting in
 `sP` over a given fit range `range`.
 """
 function get_sum_helper(range, sP::SimulationParameters, type)
-    sumHelper = if sP.tc_type == :nothing
+    tc = if type == :f sP.tc_type_f else sP.tc_type_b end
+    sumHelper = if tc == :nothing
         Naive()
-    elseif sP.tc_type == :richardson
+    elseif tc == :richardson
         fitRange = default_fit_range(range)
         (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:rohringer) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:rohringer)
+    elseif tc == :coeffs
+        #TODO: move coeffs to SeriesAccelleration
+        Naive()
     else
         @error("Unrecognized tail correction, falling back to naive sums!")
         Naive()

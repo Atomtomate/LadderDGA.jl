@@ -85,9 +85,9 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         χspAsympt = asympt_vars["chi_sp_asympt"]
     end
     #TODO: unify checks
-    (sP.ωsum_type == :full && (sP.tc_type != :nothing)) && println(stderr, "Full Sums combined with tail correction will probably yield wrong results due to border effects.")
+    (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
     sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
-    ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type != :nothing)) && println(stderr, "Improved sums usually require at least 30 positive fermionic frequencies")
+    ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
 
     #TODO: this should no assume consecutive frequencies
@@ -111,10 +111,17 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         usable_loc_sp = loc_range
     end
 
-    @warn "assuming ED calculation for E_kin!! gm_wim and hubb.andpar need to be present"
-    iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
-    ϵₖ, Vₖ, μ    = read_anderson_parameters(env.inputDir * "/hubb.andpar");
-    E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:length(GImp)], ϵₖ, Vₖ, GImp, mP)
+    E_kin_ED, E_pot_ED = 0.0, 0.0
+    if sP.tc_type_b == :coeff 
+    if isfile(env.inputDir * "/gm_wim") && isfile(env.inputDir * "/hubb.andpar")
+        @info "Computing kinetic energie for improved bosonic sums."
+        iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
+        ϵₖ, Vₖ, μ    = read_anderson_parameters(env.inputDir * "/hubb.andpar");
+        E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:length(GImp)], ϵₖ, Vₖ, GImp, mP)
+    else
+        @warn "Could not find hubb.andpar and gm_wim for kinetic energy. proceding without improved bosonic sums!"
+    end
+    end
 
     sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
     sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)

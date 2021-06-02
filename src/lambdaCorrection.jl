@@ -36,7 +36,7 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     #χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
     #imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
 
-    rhs = ((sP.tc_type != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
+    rhs = ((sP.tc_type_b != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
     #@info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
 
     @info """Found usable intervals for non-local susceptibility of length 

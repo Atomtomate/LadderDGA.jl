@@ -1,3 +1,5 @@
+import Base.copy
+
 """
     ImpurityQuantities
 
@@ -23,6 +25,8 @@ mutable struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: 
     usable_ω::AbstractArray
     λ::Float64
 end
+
+Base.copy(x::T) where T <: Union{NonLocalQuantities, ImpurityQuantities} = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)
 
 const ΓT = SharedArray{Complex{Float64},3}
 const BubbleT = SharedArray{Complex{Float64},3}

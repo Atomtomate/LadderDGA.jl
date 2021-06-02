@@ -7,12 +7,13 @@ kGrid = "2Dsc-0.25" #3Dscp-0.40824829046386301636
 
 [Simulation]
 Nk        = [4, 20]                           # number of k points in each dimension
-tail_correction = "Nothing"             # improvement algorithm for sum extrapolations. possible values: Nothing, Richardson, Shanks
+fermionic_tail_correction = "nothing"   # improvement algorithm for sum extrapolations. possible values: Nothing, Richardson, Shanks
+bosonic_tail_correction = "coeffs"      # nothing (normal sum), Richardson, Shanks, coeffs (known tail coefficients, this should be the default)
 lambda_correction = "sp"                # nothing, sp, sp_ch
-rhs  = "native"                         # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch)
+rhs  = "native"                         # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch). For small frequency grids, one should always use error_comp
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-bosonic_sum = "common"                  # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
+bosonic_sum_range = "common"            # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
 force_full_bosonic_chi = true           # compute all omega frequencies for chi and trilex
 chi_unusable_fill_value = "chi_lambda"  # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
 fermionic_tail_coeffs = [0,1,2,3,4]     # internal parameter for richardson sum extrapolation

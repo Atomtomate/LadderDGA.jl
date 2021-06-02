@@ -20,15 +20,19 @@ function readConfig(file)
     else
         error("could not parse chi fill value")
     end
-    tc_type = Symbol(lowercase(tml["Simulation"]["tail_correction"]))
-    if !(tc_type in [:nothing, :richardson, :shanks])
-        error("Unrecognized tail correction type \"$(tc_type)\"")
+    tc_type_f = Symbol(lowercase(tml["Simulation"]["fermionic_tail_correction"]))
+    if !(tc_type_f in [:nothing, :richardson, :shanks])
+        error("Unrecognized tail correction type \"$(tc_type_f)\"")
+    end
+    tc_type_b = Symbol(lowercase(tml["Simulation"]["bosonic_tail_correction"]))
+    if !(tc_type_b in [:nothing, :richardson, :shanks, :coeffs])
+        error("Unrecognized tail correction type \"$(tc_type_b)\"")
     end
     λc_type = Symbol(lowercase(tml["Simulation"]["lambda_correction"]))
     if !(λc_type in [:nothing, :sp, :sp_ch])
         error("Unrecognized tail correction type \"$(λc_type)\"")
     end
-    ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum"])
+    ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum_range"])
     m = match(rr, ωsum_inp)
     ωsum_type = if m !== nothing
         tuple(parse.(Int, m.captures)...)
@@ -73,7 +77,8 @@ function readConfig(file)
     JLD2.@load freqFilePath freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
 
     sP = SimulationParameters(nBose,nFermi,shift,
-                               tc_type,
+                               tc_type_f,
+                               tc_type_b,
                                λc_type,
                                ωsum_type,
                                λrhs_type,

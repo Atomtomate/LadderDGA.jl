@@ -58,7 +58,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         
         @info "Calculating λ correction: "
         flush(io)
-        λ_sp, λ_spch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qG, mP, sP, init_sp=last_λsp, init_spch=last_λspch)
+        λ_sp, λ_spch  = λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, bubble, GLoc_fft, qG, νGrid, mP, sP, init_sp=last_λsp, init_spch=last_λspch)
         last_λsp = λ_sp
         last_λspch = λ_spch
 
@@ -70,7 +70,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         flush(io)
 
         if save_results
-        fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(qG.Ns)_"*String(sP.tc_type)*"_lambda"*String(sP.λc_type)*res_postfix*".jld2"
+        fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(qG.Ns)_"*String(sP.tc_type_f)*"_lambda"*String(sP.λc_type)*res_postfix*".jld2"
         @info "Writing to $(fname)"
         save(fname, "λ_sp", λ_sp, "λ_spch", λ_spch, "bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "bubble", bubble, "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "Σ_ladder", Σ_ladder, "Σ_ladderLoc", Σ_ladderLoc)
         end
