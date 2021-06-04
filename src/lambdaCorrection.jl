@@ -16,7 +16,7 @@ function new_χλ(χ_in::SharedArray{Complex{Float64},2}, λ::Float64, sP::Simul
     elseif sP.χFillType == lambda_χ_fill
         res =  χ_λ(χ_in, λ) 
     else
-        copy!(res, χsp) 
+        res[:] = deepcopy(χsp)
         res[usable_ω,:] =  χ_λ(χ_in[usable_ω,:], λ) 
     end
     return res
@@ -169,7 +169,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
 end
 
 function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
-                            start::Float64; nsteps=5000, atol=1e-8)
+                            start::Float64; nsteps=5000, atol=1e-11)
     done = false
     δ = 0.1
     x0 = start + δ

@@ -43,6 +43,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
     upper_cut = false
     @sync @distributed for ωi in ωindices
 
+        #Γview = view(Γr,ωi,νIndices,νIndices)
         Γview = view(Γr,ωi,νIndices,νIndices)
         UnitM = Matrix{eltype(Γr)}(I, length(νIndices),length(νIndices))
         for qi in 1:size(bubble, 2)
@@ -53,7 +54,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             #TODO: absor this loop into sum_freq
             tmp = (bubble_i * (1.0 + U * χ[ωi, qi]))
             for νp in νIndices
-                @inbounds γ[ωi, qi, νp] = sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0) / tmp[νp]
+                @inbounds γ[ωi, qi, νp] = sum_freq_full((@view χ_full[νp,:]) / tmp[νp], sumHelper, 1.0) 
             end
             if sP.tc_type_f != :nothing
                 extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
@@ -64,7 +65,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
             (first(usable) > ωi) && (lower_flag = true)
             (last(usable) < ωi) && (upper_flag = true)
-            (lower_flag && upper_flag) && break
+            #(lower_flag && upper_flag) && break
         end
     end
     usable = !fixed_ω ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
@@ -97,7 +98,7 @@ function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γ
         νZerop = νZero + shift*(trunc(Int64,(ωₙ - ωZero - 1)/2) + 1)
         for νi in 1:size(Σ,3)
             @inbounds Kνωq = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
-            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq[:], view(Gνω,νZero + νi + ωₙ - 1,:))
+            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq[:], view(Gνω,νZero + νi + ωₙ - 1,:)) #./ kGrid.Nk
         end
     end
 end
@@ -115,8 +116,9 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
 
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
-    Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, false, Q_sp.χ, Q_ch.χ,
+    #tmp .= 0.0 + 0.0im
+    Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,
         Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:] ./ kGrid.Nk, [2,1])
-    return  res
+    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2,1])
+    return  res, tmp
 end
