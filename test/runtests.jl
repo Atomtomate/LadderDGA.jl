@@ -3,8 +3,8 @@ using SeriesAcceleration
 using Test
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4)
-sP_1 = SimulationParameters(1,2,false,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
-sP_2 = SimulationParameters(1,2,false,:richardson,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
+sP_1 = SimulationParameters(1,2,false,:nothing,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
+sP_2 = SimulationParameters(1,2,false,:richardson,:coeffs,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
 
 @testset "Config" begin
     include("Config.jl")

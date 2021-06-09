@@ -14,6 +14,13 @@ function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
 end
 
 
+function reduce_range(range::AbstractArray, red_prct::Float64)
+    sub = floor(Int, length(range)/2 * red_prct)
+    lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
+    fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
+    return fst:lst
+end
+
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
 split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
@@ -103,16 +110,22 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, mP.β)[:,1,1]
     χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, mP.β)[:,1,1]
 
+
     usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=sP.ωsum_type)
     usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=sP.ωsum_type)
+    #if sP.tc_type_f != :nothing
+    #    usable_loc_sp = reduce_range(usable_loc_sp, 1.0)
+    #    usable_loc_ch = reduce_range(usable_loc_ch, 1.0)
+    #end
     loc_range = intersect(usable_loc_sp, usable_loc_ch)
     if sP.ωsum_type == :common
+        @info "setting usable ranges of sp and ch channel from $usable_loc_sp and $usable_loc_ch to the same range of $loc_range"
         usable_loc_ch = loc_range
         usable_loc_sp = loc_range
     end
 
     E_kin_ED, E_pot_ED = 0.0, 0.0
-    if sP.tc_type_b == :coeff 
+    if sP.tc_type_b == :coeffs
     if isfile(env.inputDir * "/gm_wim") && isfile(env.inputDir * "/hubb.andpar")
         @info "Computing kinetic energie for improved bosonic sums."
         iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
@@ -135,12 +148,15 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
     χupup_ω = 0.5 * (χLocsp_ω + χLocch_ω)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
     χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
-    imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
+
+    sh_b = get_sum_helper(loc_range, sP, :b)
+    imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
+    imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], sh_b, mP.β, corr=-E_kin_ED*mP.β^2/12))
 
     @info """Inputs Read. Starting Computation.
-      Local susceptibilities iwth ranges are:
+      Local susceptibilities with ranges are:
       χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc)) 
-      sum χupup check (normal/improved sum, tail sub sum, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+      sum χupup check (fit, tail sub, tail sub + fit, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density_pure) ?=? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
       """
     return νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
 end

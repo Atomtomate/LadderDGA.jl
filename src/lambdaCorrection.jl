@@ -82,25 +82,27 @@ end
 
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
-        Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, νGrid, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
+        Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
     # --- prepare auxiliary vars ---
 
     νZero = sP.n_iν
     ωZero = sP.n_iω
     ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
 
     Σ_hartree = mP.n * mP.U/2
-    norm = mP.β * kGrid.Nk
     E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))
-    @warn "new lambda correction not working with shiftet grids atm"
     E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, 0:sP.n_iν-1) .^ 2)
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
 
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
-    sh_b = get_sum_helper(length(ωindices), sP, :b)
+    sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(kGrid.kInd), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
-    Σ_internal2!(tmp, ωindices, bubble, FUpDo, Naive())
+    Σ_internal2!(tmp, ωindices, bubble, FUpDo, sh_f)
+
+    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
+    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
 
     function cond_both!(F, λ)
         χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
@@ -109,25 +111,28 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         χupup_ω = SharedArray{eltype(χsp_λ),1}(length(ωindices))
         Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, χsp_λ, χch_λ,
                 nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, kGrid)
-        Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), 1.0)[1,:,:] ./ norm, [2, 1])
-        Σ_corr = Σ_new .- Σ_ladderLoc .+ Σ_loc_pos[1:size(Σ_new,1)]
+        Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), 1.0)[1,:,:], [2, 1])
+        Σ_corr = Σ_new .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)]
 
         t = G_from_Σ(Σ_corr .+ Σ_hartree, kGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
         G_corr = flatten_2D(t);
-        E_pot_DGA = calc_E_pot(G_corr, Σ_corr .+ Σ_hartree, E_pot_tail, E_pot_tail_inv, kGrid.kMult, norm)
+        E_pot_DGA = calc_E_pot(kGrid, G_corr, Σ_corr .+ Σ_hartree, view(E_pot_tail,1:size(Σ_new, 1),:), E_pot_tail_inv)
 
         for (wi,w) in enumerate(ωindices)
-            χupdo_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .- χsp_λ[w,:])[1]
-            χupup_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .+ χsp_λ[w,:])[1]
+            χupup_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .+ χsp_λ[w,:])[1] ./ 2
+            χupdo_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .- χsp_λ[w,:])[1] ./ 2
         end
-        rhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β)[1])
-        rhs_c2 = mP.U * real(sum_freq(χupdo_ω, [1], sh_b, mP.β)[1])
 
-        lhs_c1 = 2 * mP.n/2 * (1 - mP.n/2)
-        F[1] = rhs_c1 - lhs_c1
-        F[2] = rhs_c2 + E_pot_DGA 
+        χch_ω_sub = subtract_tail(χupup_ω, tail_coeffs_upup[3], iωn)
+        lhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β, corr=-tail_coeffs_upup[3]*mP.β^2/12)[1])
+        lhs_c2 = real(sum_freq(χupdo_ω, [1], sh_b, mP.β)[1])
+
+        rhs_c1 = mP.n/2 * (1 - mP.n/2)
+        rhs_c2 = E_pot_DGA/mP.U + mP.U * (mP.n/2) * (mP.n/2)
+        F[1] = lhs_c1 - rhs_c1
+        F[2] = lhs_c2 - rhs_c2
     end
-    return nlsolve(cond_both!, [ λsp_guess; -0.8]).zero
+    return nlsolve(cond_both!, [ λsp_guess; 0.0]).zero
 end
 
 function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)
@@ -153,8 +158,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     searchInterval_spch = [-Inf, Inf]
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kGrid, mP, sP)
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-    #λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, νGrid, mP, sP; λsp_guess=λsp)
-    λ_new = [0.0, 0.0]
+    λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
     if sP.λc_type == :sp
         nlQ_sp.χ = χsp_λ
         nlQ_sp.λ = λsp

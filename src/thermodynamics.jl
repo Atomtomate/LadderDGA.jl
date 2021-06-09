@@ -21,7 +21,7 @@ end
 function calc_E(Σ, qG, mP::ModelParameters, sP::SimulationParameters)
     #println("TODO: E_pot function has to be tested")
     #println("TODO: use GNew/GLoc/GImp instead of Sigma")
-    #println("TODO: make frequency summation with sum_freq an optional")
+    #println("TODO: make frequency summation with sum_freq optional")
     νGrid = 0:sP.n_iν-1
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
@@ -50,11 +50,8 @@ end
 Specialized function for DGA potential energy. Better performance than calc_E.
 """
 function calc_E_pot(qG, G, Σ, tail, tail_inv)
-    println(size(G))
-    println(size(Σ))
-    println(size(tail))
     E_pot = real.(G .* Σ .- tail);
-    return kintegrate(qG, 2 .* sum(E_pot, dims=[1])[1,:] .+ tail_inv)
+    return kintegrate(qG, 2 .* sum(E_pot, dims=[1])[1,:] .+ tail_inv)[1]
 end
 
 function calc_E_pot_νn(qG, G, Σ, tail, tail_inv)

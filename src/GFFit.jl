@@ -56,8 +56,9 @@ function build_fνmax_fast!(f_νmax::AbstractArray{T,1}, f::AbstractArray{T,2}, 
     end
 end
 
+#TODO: write function to tune for best range/exps. use usable_ω for that purpose
 default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
-default_fit_range(s::Int) = ceil(Int,s/5):floor(Int, s/2)
+default_fit_range(s::Int) = ceil(Int,s/3):floor(Int, s/2)
 
 """
     get_sum_helper(range, sP::SimulationParameters)
@@ -69,14 +70,16 @@ Construct helper for (improved) sums from setting in
 """
 function get_sum_helper(range, sP::SimulationParameters, type)
     tc = if type == :f sP.tc_type_f else sP.tc_type_b end
+    fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(sP.bosonic_tail_coeffs)) 
+
     sumHelper = if tc == :nothing
         Naive()
     elseif tc == :richardson
-        fitRange = default_fit_range(range)
-        (type) == :f ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:rohringer) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:rohringer)
+        (type == :f) ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
     elseif tc == :coeffs
         #TODO: move coeffs to SeriesAccelleration
-        Naive()
+        #Naive()
+        (type == :f) ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
     else
         @error("Unrecognized tail correction, falling back to naive sums!")
         Naive()

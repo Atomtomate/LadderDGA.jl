@@ -9,7 +9,8 @@ end
     @test sP_1.n_iω == 1
     @test sP_1.n_iν == 2
     @test sP_1.shift == false
-    @test sP_1.tc_type == :nothing
+    @test sP_1.tc_type_f == :nothing
+    @test sP_1.tc_type_b == :nothing
     @test sP_1.λc_type == :nothing
     @test sP_1.ωsum_type == :common
     @test sP_1.λ_rhs == :native
