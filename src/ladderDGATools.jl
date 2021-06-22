@@ -25,7 +25,8 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
                        mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: Union{ReducedKGrid,Nothing}}
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
-    χ_ω = SharedArray{eltype(bubble), 1}(size(bubble)[1])  # ωₙ (summed over νₙ and ωₙ)
+    χ_ω = Array{Float64, 1}(undef, size(bubble,1))  # ωₙ (summed over νₙ and ωₙ)
+    ωZero = sP.n_iω
 
     indh = ceil(Int64, size(bubble,1)/2)
     fixed_ω = typeof(sP.ωsum_type) == Tuple{Int,Int}
@@ -59,18 +60,28 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
                 extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
             end
         end
-        χ_ω[ωi] = kintegrate(kGrid, χ[ωi,:])[1]
         if (!sP.fullChi && !fixed_ω)
-            usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
-            (first(usable) > ωi) && (lower_flag = true)
-            (last(usable) < ωi) && (upper_flag = true)
-            (lower_flag && upper_flag) && break
+            @warn "Deactivating the fullChi option can lead to issues and is not recomended for this version."
+            #usable = find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
+            #(first(usable) > ωi) && (lower_flag = true)
+            #(last(usable) < ωi) && (upper_flag = true)
+            #(lower_flag && upper_flag) && break
         end
     end
-    usable = !fixed_ω ? find_usable_interval(real(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
-    # if sP.tc_type != :nothing
-    #    γ = convert(SharedArray, mapslices(x -> extend_γ(x, find_usable_γ(x)), γ, dims=[3]))
-    # end
+
+    if sP.ω_smoothing == :full
+        for qi in 1:size(bubble, 2)
+            filter_MA!(χ[1:ωZero,qi],3,χ[1:ωZero,qi])
+            filter_MA!(χ[ωZero:end,qi],3,χ[ωZero:end,qi])
+        end
+        χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+    elseif sP.ω_smoothing == :range
+        χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        filter_MA!(χ_ω[1:ωZero],3,χ_ω[1:ωZero])
+        filter_MA!(χ_ω[ωZero:end],3,χ_ω[ωZero:end])
+    end
+
+    usable = !fixed_ω ? find_usable_interval(χ_ω, sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction) : ωindices
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
@@ -106,16 +117,14 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
                 Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
                 sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  ReducedKGrid, T2 <: SumHelper}
     #TODO: move transform stuff to Dispersions.jl
-    νZero = sP.n_iν
-    ωZero = sP.n_iω
-    ωindices = intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices = sP.dbg_full_eom_omega ? (1:size(bubble,1)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     sh_b = Naive() #get_sum_helper(ωindices, sP, :b)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
 
     Σ_internal2!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
-    Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, Q_sp.χ, Q_ch.χ,
+    Σ_internal!(Σ_ladder_ω, ωindices, sP.n_iω, sP.n_iν, sP.shift, Q_sp.χ, Q_ch.χ,
         Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid)
     res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2,1])
     return  res

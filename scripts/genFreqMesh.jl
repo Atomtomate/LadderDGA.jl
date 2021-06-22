@@ -10,7 +10,6 @@ include("$(@__DIR__)/vertexIntTriple.jl")
 #path = "."
 function gen_mesh(nBose, nFermi, shift, path)
 # ===== Test with integers =====
-println("Integer test")
 nB = UInt32(2*maximum((2*nFermi+shift*ceil(nBose/2),2*nBose+1))+1)
 nBh = floor(UInt32, nB/2)
 (nB^2 > typemax(UInt32)) && throw(ArgumentError("nBose or nFermi too large for UInt32 operations."))

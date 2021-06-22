@@ -41,9 +41,15 @@ function readConfig(file)
     else
         error("Could not parse bosonic_sum. Allowed input is: common, individual, full, fixed:N:M")
     end
+    smoothing = Symbol(lowercase(tml["Simulation"]["omega_smoothing"]))
+    if !(smoothing in [:nothing, :range, :full])
+        error("Unrecognized smoothing type \"$(smoothing)\"")
+    end
 
     λrhs_type = Symbol(lowercase(tml["Simulation"]["rhs"]))
     !(λrhs_type in [:native, :fixed, :error_comp]) && error("Could not parse rhs type for lambda correction. Options are native, fixed, error_comp.")
+
+    dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
         
 
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
@@ -86,7 +92,9 @@ function readConfig(file)
                                χfill,
                                tml["Simulation"]["bosonic_tail_coeffs"],
                                tml["Simulation"]["fermionic_tail_coeffs"],
-                               tml["Simulation"]["usable_prct_reduction"]
+                               tml["Simulation"]["usable_prct_reduction"],
+                               smoothing,
+                               dbg_full_eom_omega
     )
     kGrids = []
     qGrids = []

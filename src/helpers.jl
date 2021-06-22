@@ -109,10 +109,28 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
 
     χLocsp_ω = sum_freq(χDMFTsp, [2,3], sh_f, mP.β)[:,1,1]
     χLocch_ω = sum_freq(χDMFTch, [2,3], sh_f, mP.β)[:,1,1]
+    ωZero = sP.n_iω
+    χLocsp_ω_tmp = deepcopy(χLocsp_ω)
+    χLocch_ω_tmp = deepcopy(χLocch_ω)
 
 
-    usable_loc_sp = find_usable_interval(real(χLocsp_ω), sum_type=sP.ωsum_type)
-    usable_loc_ch = find_usable_interval(real(χLocch_ω), sum_type=sP.ωsum_type)
+    if sP.ω_smoothing == :full
+        filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
+        filter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
+        filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
+        filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
+        χLocsp_ω_tmp = deepcopy(χLocsp_ω)
+        χLocch_ω_tmp = deepcopy(χLocch_ω)
+    elseif sP.ω_smoothing == :range
+        χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
+        χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
+        χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
+        χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
+    end
+
+
+    usable_loc_sp = find_usable_interval(real(χLocsp_ω_tmp), sum_type=sP.ωsum_type)
+    usable_loc_ch = find_usable_interval(real(χLocch_ω_tmp), sum_type=sP.ωsum_type)
     #if sP.tc_type_f != :nothing
     #    usable_loc_sp = reduce_range(usable_loc_sp, 1.0)
     #    usable_loc_ch = reduce_range(usable_loc_ch, 1.0)
@@ -166,6 +184,35 @@ function flatten_2D(arr)
     res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
     for i in 1:length(arr)
         res[i,:] = arr[i][:]
+    end
+    return res
+end
+
+# ================== Noise Filter ==================
+
+function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
+    res = deepcopy(X) 
+    offset = trunc(Int,m/2)
+    res[1+offset] = sum(@view X[1:m])/m
+    for (ii,i) in enumerate((2+offset):(length(X)-offset))
+        res[i] = res[i-1] + (X[m+ii] - X[ii])/m
+    end
+    return res
+end
+
+function filter_MA!(res::AbstractArray{T,1}, m::Int, X::AbstractArray{T,1}) where T <: Number 
+    offset = trunc(Int,m/2)
+    res[1+offset] = sum(@view X[1:m])/m
+    for (ii,i) in enumerate((2+offset):(length(X)-offset))
+        res[i] = res[i-1] + (X[m+ii] - X[ii])/m
+    end
+    return res
+end
+
+function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
+    res = filter_MA(m, X)
+    for ki in 2:k
+        res = filter_MA!(res, m, res)
     end
     return res
 end
