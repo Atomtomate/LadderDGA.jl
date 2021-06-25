@@ -70,7 +70,7 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
         FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, mP, sP)
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
-        gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid), fft_range, mP);
+        gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
         gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc))
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
