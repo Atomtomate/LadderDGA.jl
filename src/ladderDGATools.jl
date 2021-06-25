@@ -69,6 +69,11 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
         end
     end
 
+    if sP.ω_smoothing != :full
+        for ωi in ωindices
+            χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        end
+    end
     if sP.ω_smoothing == :full
         for qi in 1:size(bubble, 2)
             filter_MA!(χ[1:ωZero,qi],3,χ[1:ωZero,qi])
@@ -78,9 +83,6 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
         end
     elseif sP.ω_smoothing == :range
-        for ωi in ωindices
-            χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
-        end
         filter_MA!(χ_ω[1:ωZero],3,χ_ω[1:ωZero])
         filter_MA!(χ_ω[ωZero:end],3,χ_ω[ωZero:end])
     end
