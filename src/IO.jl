@@ -97,15 +97,12 @@ function readConfig(file)
                                dbg_full_eom_omega
     )
     kGrids = []
-    qGrids = []
     for Nk in tml["Simulation"]["Nk"]
         kGrid = gen_kGrid(tml["Model"]["kGrid"], Nk)
-        qGrid = reduceKGrid(kGrid)
         push!(kGrids, kGrid)
-        push!(qGrids, qGrid)
     end
-    qGridLoc = reduceKGrid(gen_kGrid(tml["Model"]["kGrid"], 1))
-    return mP, sP, env, kGrids, qGrids, qGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
+    kGridLoc = gen_kGrid(tml["Model"]["kGrid"], 1)
+    return mP, sP, env, kGrids, kGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
 end
 
 function convertGF!(GF, storedInverse, storeFull)

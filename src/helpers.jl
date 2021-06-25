@@ -32,7 +32,7 @@ printr_s(x::Complex{Float64}) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
-function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
+function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
     fft_range = -(sP.n_iν+sP.n_iω):(sP.n_iν+sP.n_iω-1)
     in_file = env.inputVars
     if(myid() == 1)
@@ -70,13 +70,8 @@ function setup_LDGA(kGrid::FullKGrid, freqList::AbstractArray, mP::ModelParamete
         FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, mP, sP)
         gImp_sym = store_symm_f(gImp_in, fft_range)
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
-        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
-        #TODO: this should be handled insided Dispersions.jl
-        gLoc_fft_in = if typeof(kGrid) <: FullKGrid{cP_2D}
-            flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], 2)...)), gLoc))
-        else
-            flatten_2D(map(x->fft(reshape(x, repeat([kGrid.Ns], 3)...)), gLoc))
-        end
+        gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid), fft_range, mP);
+        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc))
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
     gImp_fft = SharedArray{Complex{Float64}}(size(gImp),pids=procs());copy!(gImp_fft, gImp)

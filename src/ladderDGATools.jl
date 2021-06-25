@@ -8,7 +8,7 @@ function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{F
         for (j,νₙ) in enumerate(νGrid[ωi])
             v1 = view(Gνω, νₙ+sP.n_iω, :)
             v2 = view(Gνω, νₙ+ωi-1, :)
-            res[ωi,:,j] .= -mP.β .* conv_fft(kGrid, v1, v2)
+            res[ωi,:,j] .= -mP.β .* conv_fft(kGrid, v1, v2)[:]
         end
     end
     return res
@@ -22,7 +22,7 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 """
 function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArray{Complex{Float64},3}, 
                        kGrid::T2, νGrid, sumHelper::T1, U::Float64,
-                       mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: Union{ReducedKGrid,Nothing}}
+                       mP::ModelParameters, sP::SimulationParameters) where {T1 <: SumHelper, T2 <: ReducedKGrid}
     χ = SharedArray{eltype(bubble), 2}((size(bubble)[1:2]...))
     γ = SharedArray{eltype(bubble), 3}((size(bubble)...))
     χ_ω = Array{Float64, 1}(undef, size(bubble,1))  # ωₙ (summed over νₙ and ωₙ)
@@ -74,9 +74,13 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             filter_MA!(χ[1:ωZero,qi],3,χ[1:ωZero,qi])
             filter_MA!(χ[ωZero:end,qi],3,χ[ωZero:end,qi])
         end
-        χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        for ωi in ωindices
+            χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        end
     elseif sP.ω_smoothing == :range
-        χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        for ωi in ωindices
+            χ_ω[ωi] = real.(kintegrate(kGrid, χ[ωi,:])[1])
+        end
         filter_MA!(χ_ω[1:ωZero],3,χ_ω[1:ωZero])
         filter_MA!(χ_ω[ωZero:end],3,χ_ω[ωZero:end])
     end
@@ -108,7 +112,7 @@ function Σ_internal!(Σ, ωindices, ωZero, νZero, shift, χsp, χch, γsp, γ
         νZerop = νZero + shift*(trunc(Int64,(ωₙ - ωZero - 1)/2) + 1)
         for νi in 1:size(Σ,3)
             @inbounds Kνωq = γsp[ωₙ, :, νZerop+νi] .* f1 .- γch[ωₙ, :, νZerop+νi] .* f2 .- 1.5 .+ 0.5 .+ tmp[ωi,:,νZerop+νi]
-            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq[:], view(Gνω,νZero + νi + ωₙ - 1,:))
+            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq[:], view(Gνω,νZero + νi + ωₙ - 1,:))[:]
         end
     end
 end
