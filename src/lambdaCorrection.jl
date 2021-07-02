@@ -98,54 +98,6 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
 end
 
 
-function calc_λch_correction(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-        Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, λch::Float64,
-        Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
-    # --- prepare auxiliary vars ---
-    νZero = sP.n_iν
-    ωZero = sP.n_iω
-    ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
-
-    tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(kGrid.kInd), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
-    χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
-    χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
-    χsp_λ = SharedArray{eltype(nlQ_sp.χ),2}(length(ωindices),size(nlQ_sp.χ,2))
-    χch_λ = SharedArray{eltype(nlQ_sp.χ),2}(length(ωindices),size(nlQ_ch.χ,2))
-
-    Σ_hartree = mP.n * mP.U/2
-    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))
-    E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, 0:sP.n_iν-1) .^ 2)
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
-
-    Σ_internal2!(tmp, ωindices, bubble, FUpDo, sh_f)
-
-    χsp_λ = nlQ_sp.χ
-
-        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λch))
-        Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, χsp_λ, χch_λ, nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, kGrid)
-        Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2, 1])
-        Σ_λ = Σ_new .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)]
-
-        
-        G_λ = G_from_Σ(Σ_λ .+ Σ_hartree, kGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
-        E_pot_DGA = calc_E_pot(kGrid, flatten_2D(G_λ), Σ_λ, view(E_pot_tail,1:size(Σ_new, 1),:), E_pot_tail_inv)
-
-        for (wi,w) in enumerate(ωindices)
-            χupup_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .+ χsp_λ[w,:])[1] ./ 2
-            χupdo_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .- χsp_λ[w,:])[1] ./ 2
-        end
-
-        χch_ω_sub = subtract_tail(χupup_ω, tail_coeffs_upup[3], iωn)
-        lhs_c2 = real(sum_freq(χupdo_ω, [1], Naive(), mP.β)[1])
-
-        rhs_c2 = E_pot_DGA/(mP.U*mP.β) + (mP.n/2) * (mP.n/2)
-        #nlsolve(cond_both!, [ λsp_guess; 0.0]).zero
-        return lhs_c2, rhs_c2
-end
-
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
         Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
@@ -174,7 +126,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     function cond_both!(F, λ)
         χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
         χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
-        Σ_internal!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, χsp_λ, χch_λ, nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, kGrid)
+        calc_Σ_ω!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, χsp_λ, χch_λ, nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, kGrid, sP)
         Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2, 1])
         Σ_λ = Σ_new .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)]
 
@@ -222,8 +174,8 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     searchInterval_spch = [-Inf, Inf]
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kGrid, mP, sP)
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-    #λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
-    λ_new = [0.0, 0.0]
+    λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
+    #λ_new = [0.0, 0.0]
     if sP.λc_type == :sp
         nlQ_sp.χ = χsp_λ
         nlQ_sp.λ = λsp

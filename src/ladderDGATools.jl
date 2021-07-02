@@ -130,8 +130,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), sP.n_iν-sP.shift*(trunc(Int,sP.n_iω/2) + 1))
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
-    calc_Σ_ω!(Σ_ladder_ω, ωindices, sP.n_iω, sP.n_iν, sP.shift, Q_sp.χ, Q_ch.χ,
-        Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, sP)
+    calc_Σ_ω!(Σ_ladder_ω, ωindices, sP.n_iω, sP.n_iν, sP.shift, Q_sp.χ, Q_ch.χ, Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, sP)
     res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2,1])
-    return  res, Σ_ladder_ω
+    return  res
 end
