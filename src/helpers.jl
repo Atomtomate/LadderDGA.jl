@@ -96,7 +96,7 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     #νGrid = [(i,j) for i in 1:(2*sP.n_iω+1) for j in (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-sP.n_iω-1)/2)]
     νGrid = Array{AbstractArray}(undef, 2*sP.n_iω+1);
     for i in 1:length(νGrid)
-        νGrid[i] = (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-sP.n_iω-1)/2)
+        νGrid[i] = (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-1-sP.n_iω)/2)
     end
     #TODO: fix this! do not assume anything about freqGrid without reading from file
 

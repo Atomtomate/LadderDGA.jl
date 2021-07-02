@@ -195,9 +195,8 @@ function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tupl
     end
 
     if length(res) < 1
-        println(stderr, "   ---> WARNING: could not determine usable range. Defaulting to single frequency!")
+        @warn "   ---> WARNING: could not determine usable range. Defaulting to single frequency!"
         res = [mid_index]
-        println(res)
     end
     return res
 end

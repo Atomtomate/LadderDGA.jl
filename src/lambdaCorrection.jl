@@ -150,9 +150,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
         Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
     # --- prepare auxiliary vars ---
-    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
-    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
-
     νZero = sP.n_iν
     ωZero = sP.n_iω
     ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -161,7 +158,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
 
     tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), length(kGrid.kInd), trunc(Int,sP.n_iν-sP.shift*sP.n_iω/2))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), sP.n_iν-sP.shift*(trunc(Int,sP.n_iω/2) + 1))
     χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
     χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
     χsp_λ = SharedArray{eltype(nlQ_sp.χ),2}(length(ωindices),size(nlQ_sp.χ,2))
