@@ -100,7 +100,7 @@ end
 
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
-        Σ_loc_pos, Σ_ladderLoc,kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
+        Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
     # --- prepare auxiliary vars ---
     νZero = sP.n_iν
     ωZero = sP.n_iω
@@ -121,7 +121,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, 0:sP.n_iν-1) .^ 2)
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
 
-    Σ_internal2!(tmp, ωindices, bubble, FUpDo, sh_f)
+    Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
 
     function cond_both!(F, λ)
         χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
@@ -144,9 +144,10 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         lhs_c2 = real(sum_freq(χupdo_ω, [1], sh_b, mP.β)[1])
 
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot_DGA/mP.U + mP.U * (mP.n/2) * (mP.n/2)
+        rhs_c2 = E_pot_DGA/mP.U + (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
+        println("-> $(F[1]), $(F[2])")
     end
     return nlsolve(cond_both!, [ λsp_guess; 0.0]).zero
 end
