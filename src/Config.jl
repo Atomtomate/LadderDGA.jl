@@ -1,3 +1,5 @@
+import Base.show
+
 abstract type ConfigStruct end
 
 #TODO: this type is probably not needed anymore
@@ -81,4 +83,29 @@ struct EnvironmentVars <: ConfigStruct
     loglevel::String      # disabled, error, warn, info, debug
     logfile::String       # STDOUT, STDERR, filename
     progressbar::Bool     # true/false enable or disable progress bar
+end
+
+"""
+	Base.show(io::IO, m::SimulationParameters)
+
+Custom output for SimulationParameters
+"""
+function Base.show(io::IO, m::SimulationParameters)
+    compact = get(io, :compact, false)
+
+    if !compact
+        println(io, "B/F range    : $(m.n_iω)/$(m.n_iν) $(m.shift ? "with" : "without") shifted fermionic frequencies")
+        println(io, "   ωsum type = $(m.ωsum_type) $(m.fullChi ? "with" : "without") full χ(ω) range computation (filled as $(m.χFillType), $(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM.")
+        println(io, "B/F sum type : $(m.tc_type_b)/$(m.tc_type_f)")
+        println(io, "   $(100*m.usable_prct_reduction) % reduction of usable range and ω smoothing $(m.usable_prct_reduction)")
+        println(io, "λ-Correction : $(m.λc_type) with rhs $(m.λ_rhs)")
+    else
+        print(io, "SimulationParams[nB=$m.n_iω, nF=m.n_iν, shift=m.shift]")
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", m::SimulationParameters)
+ 
+    println(io, "LadderDGA.jl SimulationParameters:")
+    show(io, m)
 end

@@ -32,30 +32,23 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     χch_ω = kintegrate(kGrid, nlQ_ch.χ[usable_ω,:], dim=2)[:,1]
     @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
-    #sh = get_sum_helper(usable_ω, sP, :b)
+    sh = Naive() #get_sum_helper(usable_ω, sP, :b)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω_sub = subtract_tail(χch_ω, impQ_ch.tailCoeffs[3], iωn)
-    χch_sum = real(sum_freq(χch_ω_sub, [1], Naive(), mP.β, corr=-impQ_ch.tailCoeffs[3]*mP.β^2/12)[1])
-
-    #χupup_ω = 0.5*(χLocsp_ω .+ χLocch_ω)
-    #χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
-    #imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
+    χch_sum = real(sum_freq(χch_ω_sub, [1], sh, mP.β, corr=-impQ_ch.tailCoeffs[3]*mP.β^2/12)[1])
 
     rhs = ((sP.tc_type_b != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
-    #@info "tc:  $(sP.tc_type), rhs =  $rhs , $χch_sum , $(real(impQ_ch.χ_loc)) , $(real(impQ_sp.χ_loc)), $(real(χch_sum))"
 
     @info """Found usable intervals for non-local susceptibility of length 
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
           ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
           usable: $(usable_ω), length: $(length(usable_ω))
           χch sum = $(χch_sum), rhs = $(rhs)"""
-
     return rhs, usable_ω
 end
 
 function λsp(χr::Array{Float64,2}, iωn::Array{Complex{Float64},1}, EKin::Float64,
                             rhs::Float64, kGrid::T1, mP::ModelParameters) where T1 <: ReducedKGrid
-    #tmp = Array{Float64,2}(undef, size(χr)...)
     f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
 
@@ -73,28 +66,11 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
     f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
     df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
 
-    #TODO: new method needs testing
-     X = @interval(0.02,20.0)
-     tol = maximum([1e-7, (1e-4)*abs(searchInterval[2] - searchInterval[1])])
-     #r = roots(f, df, X, Newton, tol)
-     r2 = find_zeros(f, 0.00, 20.0, verbose=true)
-     @info "Method 2 root:" r2
-     #ln = empty(r2) ? 0.0 : mid(maximum(filter(x->!isempty(x),interval.(r))))
-     #@info "Interval" ln
-     
-
     nh    = ceil(Int64, size(χr,1)/2)
-    χ_min    = -minimum(1 ./ χr[nh,:])
-    λsp_old = newton_right(χr, f, df, χ_min)
-    # if isempty(r) 
-    #   @warn "   ---> WARNING: no lambda roots with new method found!!!"
-    # end
-    # λsp = mid(maximum(filter(x->!isempty(x),interval.(r))))
-    # if !isempty(r) && abs2(λsp_old - λsp) > 1e-5
-    #    @warn "   ---> WARNING: old and new λ not matching!!! $(λsp_old) != $(λsp)"
-    # end
-    @info "Found λsp " λsp_old
-    return λsp_old, new_χλ(χ_in, λsp_old, sP)
+    χ_min    = -1 / maximum(χr[nh,:])
+    λsp = newton_right(χr, f, df, χ_min)
+    @info "Found λsp " λsp
+    return λsp, new_χλ(χ_in, λsp, sP)
 end
 
 
@@ -131,7 +107,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         Σ_λ = Σ_new .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)]
 
         
-        G_λ = G_from_Σ(Σ_λ .+ Σ_hartree, kGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
+        G_λ = G_from_Σ(Σ_λ, kGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
         E_pot_DGA = calc_E_pot(kGrid, flatten_2D(G_λ), Σ_λ, view(E_pot_tail,1:size(Σ_new, 1),:), E_pot_tail_inv)
 
         for (wi,w) in enumerate(ωindices)
@@ -175,7 +151,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
     searchInterval_spch = [-Inf, Inf]
     λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kGrid, mP, sP)
     #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-    λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
+    λ_new = [0.0, 0.0]#extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
     #λ_new = [0.0, 0.0]
     if sP.λc_type == :sp
         nlQ_sp.χ = χsp_λ
@@ -187,7 +163,7 @@ function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_s
         nlQ_ch.λ = λ_new[2]
     end
     @info "new lambda correction: λsp=$(λ_new[1]) and λch=$(λ_new[2])"
-    return λsp, λ_new, searchInterval_sp, searchInterval_spch
+    return λsp, λ_new
 end
 
 function newton_right(χr::Array{Float64,2}, f::Function, df::Function,

@@ -156,7 +156,7 @@ end
 
 
 
-function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.0)
+function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
     mid_index = Int(ceil(length(arr)/2))
     if sum_type == :full
         return 1:length(arr)

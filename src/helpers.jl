@@ -88,6 +88,7 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     end
     #TODO: unify checks
     (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
+    (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @warn "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
     sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
     ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
@@ -124,8 +125,8 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     end
 
 
-    usable_loc_sp = find_usable_interval(real(χLocsp_ω_tmp), sum_type=sP.ωsum_type)
-    usable_loc_ch = find_usable_interval(real(χLocch_ω_tmp), sum_type=sP.ωsum_type)
+    usable_loc_sp = find_usable_interval(real(χLocsp_ω_tmp), reduce_range_prct=sP.usable_prct_reduction)
+    usable_loc_ch = find_usable_interval(real(χLocch_ω_tmp), reduce_range_prct=sP.usable_prct_reduction)
     #if sP.tc_type_f != :nothing
     #    usable_loc_sp = reduce_range(usable_loc_sp, 1.0)
     #    usable_loc_ch = reduce_range(usable_loc_ch, 1.0)

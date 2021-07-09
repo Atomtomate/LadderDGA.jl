@@ -55,13 +55,10 @@ end
 @inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Float64}) where T <: Real =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 
-@inline G_from_Σ(Σ::Array{Complex{Float64}}, ϵkGrid, 
+@inline G_from_Σ(Σ, ϵkGrid, 
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
-@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Interval{Float64}}) where T <: Real =
-                    1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
-@inline G_from_Σ(Σ::Array{Complex{Interval{Float64}}}, ϵkGrid, 
-                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Interval{Float64}}) where T <: Real =   1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 
 
 function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{Complex{Float64},1}) where T <: Number
