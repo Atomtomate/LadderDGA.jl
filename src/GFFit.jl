@@ -189,9 +189,9 @@ function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tupl
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
     if length(arr)%2 == 1
-        res = ((mid_index-range+1):(mid_index+range-2) .+ 1)
+        res = ((mid_index-range):(mid_index+range-1) .+ 1)
     else
-        res = ((mid_index-range+1):(mid_index+range-2) .+ 2)
+        res = ((mid_index-range):(mid_index+range-1) .+ 2)
     end
 
     if length(res) < 1

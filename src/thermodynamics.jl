@@ -41,9 +41,9 @@ function calc_E(Σ, kGrid, mP::ModelParameters, sP::SimulationParameters)
     E_pot = real.(G_corr .* Σ_corr .- E_pot_tail);
     E_kin = kGrid.ϵkGrid' .* real.(G_corr .- E_kin_tail);
 
-    E_pot = [kintegrate(kGrid, 2 .* sum(E_pot[1:i,:], dims=[1])[1,:] .+ E_pot_tail_inv) for i in 1:νmax]
-    E_kin = [kintegrate(kGrid, 4 .* sum(E_kin[1:i,:], dims=[1])[1,:] .+ E_kin_tail_inv) for i in 1:νmax]
-    return E_kin, E_pot
+    E_pot = [kintegrate(kGrid, 2 .* sum(E_pot[1:i,:], dims=[1])[1,:] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
+    E_kin = [kintegrate(kGrid, 4 .* sum(E_kin[1:i,:], dims=[1])[1,:] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β
+    return E_kin[end], E_pot[end]
 end
 
 """

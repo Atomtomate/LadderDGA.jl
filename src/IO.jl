@@ -102,7 +102,7 @@ function readConfig(file)
         push!(kGrids, kGrid)
     end
     kGridLoc = gen_kGrid(tml["Model"]["kGrid"], 1)
-    return mP, sP, env, kGrids, kGridLoc, freqRed_map, freqList, freqList_min, parents, ops, nFermi, nBose, shift, base, offset
+    return mP, sP, env, kGrids, kGridLoc, freqList
 end
 
 function convertGF!(GF, storedInverse, storeFull)
