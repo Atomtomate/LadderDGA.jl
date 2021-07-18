@@ -272,7 +272,7 @@ Examples
 ```
 extend_γ!(view(γ,1,1,:), 0.5235987755982988)
  """
-function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0.9)
+function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0.01)
     indh = ceil(Int, length(arr)/2)
     lo,up = find_usable_γ(arr)
     # left
@@ -350,5 +350,28 @@ function extend_γ!(arr::AbstractArray{Complex{Float64},1}, ref::AbstractArray{C
         (!override && change > 50) && (arr[i+1]=ref[i+1];override = true)
         override && (arr[i] = ref[i])
         i -= 1
+    end
+end
+
+"""
+    extend_tmp!(arr::AbstractArray{Complex{Float64},3})
+
+Extends the `tmp(ω,ν) = Σ_νp Fupdo(ω,ν,νp) ⋅ G(νp) ⋅ G(νp+ω)` term outside it's
+stability range. This assumes, that `tmp(ω,ν) → tmp(ω)` for large ν and `tmp(ω,ν) < 0`.
+TODO: Especially the second assumption may be violated outside half filling!!
+"""
+function extend_tmp!(arr::AbstractArray{Float64,3})
+    indh = trunc(Int, size(arr,3)/2) + 1
+    for qi in axes(arr,2)
+        override = false
+        for νi in (indh+1):size(arr,3)
+            (!override) && any(arr[:,qi,νi] .> 0) && (override = true)  # if overide switch not set and any positive value found: set override switch
+            override && (arr[:,qi,νi] .= arr[:,qi,νi-1])               # if override set: replace values with last known good values
+        end
+        override = false
+        for νi in (indh-2):-1:1
+            (!override) && any(arr[:,qi,νi] .> 0) && (override = true)
+            override && (arr[:,qi,νi] .= arr[:,qi,νi+1])
+        end
     end
 end

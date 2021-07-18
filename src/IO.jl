@@ -50,7 +50,7 @@ function readConfig(file)
     !(λrhs_type in [:native, :fixed, :error_comp]) && error("Could not parse rhs type for lambda correction. Options are native, fixed, error_comp.")
 
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
-        
+
 
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
@@ -65,11 +65,24 @@ function readConfig(file)
                              lowercase(tml["Environment"]["logfile"]),
                              tml["Environment"]["progressbar"]
                             )
-    mP = ModelParameters(tml["Model"]["U"], 
-                            tml["Model"]["mu"], 
-                            tml["Model"]["beta"], 
-                            tml["Model"]["nden"])
 
+
+    mP = open(env.inputDir*"/"*env.inputVars) do f 
+        EPot_DMFT = 0.0
+        EKin_DMFT = 0.0
+        if haskey(f, "E_kin_ED")
+            EPot_DMFT = f["E_pot_ED"]
+            EKin_DMFT = f["E_kin_ED"]
+        else
+            @warn "Could not find hubb.andpar and gm_wim for kinetic energy. proceding without improved bosonic sums!"
+        end
+        U, μ, β, nden = if haskey(f, "U")
+            f["U"], f["μ"], f["β"], f["nden"]
+        else
+            tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"]
+        end
+        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT)
+    end
     freqFilePath = ""
     if !isfile(env.freqFile)
         m = match(r"b(?<bf>\d+)f(?<ff>\d+)",env.freqFile)
@@ -81,6 +94,7 @@ function readConfig(file)
         freqFilePath = env.freqFile
     end
     JLD2.@load freqFilePath freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
+
 
     sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type_f,
@@ -348,6 +362,15 @@ function readFortranBubble(dirName::String, nBose, nFermi, nQ)
 
     bubble = permutedims(bubble, [1,3,2])
     return bubble
+end
+function read_hubb_dat(file)
+    content = open(file) do f
+        readlines(f)
+    end
+    U = parse(Float64,split(replace(content[2], "d0" => ""), r"(\s|,)+")[1])
+    β = parse(Float64,split(replace(content[4], "d0" => ""), r"(\s|,)+")[1])
+    n = parse(Float64,split(replace(content[8], "d0" => ""), r"(\s|,)+")[2])
+    return U, β, n
 end
 
 function read_anderson_parameters(file)

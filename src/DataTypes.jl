@@ -26,9 +26,10 @@ mutable struct NonLocalQuantities{T1 <: Union{Complex{Float64}, Float64}, T2 <: 
     λ::Float64
 end
 
+
 Base.copy(x::T) where T <: Union{NonLocalQuantities, ImpurityQuantities} = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)
 
 const ΓT = SharedArray{Complex{Float64},3}
 const BubbleT = SharedArray{Complex{Float64},3}
-const GνqT = SharedArray{Complex{Float64},2}
+const GνqT = OffsetArray{Complex{Float64},2}
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}

@@ -137,8 +137,8 @@ uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
 version = "1.0.2"
 
 [[Dispersions]]
-deps = ["Combinatorics", "Coverage", "Documenter", "FFTW", "Pkg", "Test"]
-git-tree-sha1 = "bf6b9ba84874f609f2427945a5ac09e38a6e0e8e"
+deps = ["Combinatorics", "Coverage", "Documenter", "FFTW", "HDF5", "Pkg", "Test"]
+git-tree-sha1 = "c676de0ef64e5584e25792b64c4d04a55a1326b8"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
@@ -483,9 +483,9 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[Polynomials]]
 deps = ["Intervals", "LinearAlgebra", "MutableArithmetics", "RecipesBase"]
-git-tree-sha1 = "924935e4a24604784a79244cac529caa0e6b7aff"
+git-tree-sha1 = "0bbfdcd8cda81b8144de4be8a67f5717e959a005"
 uuid = "f27b6e38-b328-58d1-80ce-0feddd5e7a45"
-version = "2.0.13"
+version = "2.0.14"
 
 [[Preferences]]
 deps = ["TOML"]

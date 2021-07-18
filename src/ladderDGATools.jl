@@ -1,14 +1,15 @@
 #TODO: define GF type that knows about which dimension stores which variable
 using Base.Iterators
 
-function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::SharedArray{Complex{Float64},2}, kGrid::T, 
+function calc_bubble(νGrid::Vector{AbstractArray}, Gνω::GνqT, kGrid::T, 
         mP::ModelParameters, sP::SimulationParameters) where T <: Union{ReducedKGrid,Nothing}
     res = SharedArray{Complex{Float64},3}(2*sP.n_iω+1, length(kGrid.kMult), 2*sP.n_iν)
-    @sync @distributed for ωi in 1:2*sP.n_iω+1
-        for (j,νₙ) in enumerate(νGrid[ωi])
-            v1 = view(Gνω, νₙ+sP.n_iω, :)
-            v2 = view(Gνω, νₙ+ωi-1, :)
-            res[ωi,:,j] .= -mP.β .* conv_fft(kGrid, v1, v2)[:]
+    @sync @distributed for ωi in axes(res,1)
+        for νi in axes(res,3)
+            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
+            v1 = view(Gνω, νn, :)
+            v2 = view(Gνω, νn+ωn, :)
+            res[ωi,:,νi] .= -mP.β .* conv_fft(kGrid, v1, v2)[:]
         end
     end
     return res
@@ -39,19 +40,18 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
             [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in 1:size(bubble,1)]
         end
 
-    νIndices = 1:size(bubble,3)
+    UnitM = Matrix{eltype(Γr)}(I, size(bubble,3), size(bubble,3))
     lower_flag = false
     upper_cut = false
     @sync @distributed for ωi in ωindices
-        Γview = view(Γr,ωi,νIndices,νIndices)
-        UnitM = Matrix{eltype(Γr)}(I, length(νIndices),length(νIndices))
-        for qi in 1:size(bubble, 2)
-            bubble_i = view(bubble,ωi, qi, νIndices)
-            bubbleD = Diagonal(bubble_i)
-            χ_full = (bubbleD * Γview + UnitM)\bubbleD
+        Γview = view(Γr,ωi,:,:)
+        for qi in axes(bubble,2)
+            bubble_i = view(bubble,ωi, qi, :)
+            bubbleD  = Diagonal(bubble_i)
+            χ_full   = (bubbleD * Γview + UnitM)\bubbleD
             @inbounds χ[ωi, qi] = sum_freq_full(χ_full, sumHelper, mP.β)
             #TODO: absor this loop into sum_freq, partial sum is carried out twice
-            for νp in νIndices
+            for νp in axes(γ, 3)
                 @inbounds γ[ωi, qi, νp] = sum_freq_full((@view χ_full[νp,:]), sumHelper, 1.0) / (bubble[ωi, qi, νp] * (1.0 + U * χ[ωi, qi]))
             end
             (sP.tc_type_f != :nothing) && extend_γ!(view(γ,ωi, qi, :), 2*π/mP.β)
@@ -88,28 +88,40 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
 end
 
 
-function Σ_internal!(tmp, ωindices, bubble::BubbleT, FUpDo, sumHelper::T) where T <: SumHelper
-    @sync @distributed for ωi in 1:length(ωindices)
-        ωₙ = ωindices[ωi]
-        for qi in 1:size(bubble,2)
-            for νi in 1:size(tmp,3)
-                val = bubble[ωₙ,qi,:] .* FUpDo[ωₙ,νi,:]
-                @inbounds tmp[ωi, qi, νi] = sum_freq_full(val, sumHelper, 1.0)
+function Σ_internal!(tmp::SharedArray{Float64,3}, ωindices::AbstractArray{Int,1}, bubble::BubbleT, 
+                     FUpDo, sumHelper::T) where T <: SumHelper
+    @sync @distributed for ωii in 1:length(ωindices)
+        ωi = ωindices[ωii]
+        for qi in axes(bubble,2)
+            for νi in axes(tmp,3)
+                @inbounds tmp[ωii, qi, νi] = real(sum_freq_full(FUpDo[ωi,νi,:] .* bubble[ωi,qi,:], sumHelper, 1.0))
             end
         end
     end
 end
 
+"""
+    calc_Σ_ω!
 
-function calc_Σ_ω!(Σ::SharedArray{Complex{Float64},3}, ωindices::AbstractArray{Int,1}, ωZero::Int, νZero::Int, shift::Bool, χsp, χch, γsp, γch, Gνω,
-                     tmp::SharedArray{Complex{Float64},3}, U::Float64, kGrid::ReducedKGrid, sP)
-    @sync @distributed for ωi in 1:length(ωindices)
-        ωₙ = ωindices[ωi]
-        fsp = 1.5 .* (1 .+ U*χsp[ωₙ, :])
-        fch = 0.5 .* (1 .- U*χch[ωₙ, :])
-        for νi in 1:size(Σ,3)
-            Kνωq = γsp[ωₙ, :, νi] .* fsp .- γch[ωₙ, :, νi] .* fch .- 1.5 .+ 0.5 .+ tmp[ωi,:,νi]
-            @inbounds Σ[ωi,:, νi] = conv_fft1(kGrid, Kνωq, view(Gνω, νi + ωₙ - 1,:))
+TODO: docstring
+- provide `Σ` with `ν` range (third rank) half size in order to only compute positive fermionic indices.
+"""
+function calc_Σ_ω!(Σ::SharedArray{Complex{Float64},3}, ωindices::AbstractArray{Int,1}, Q_sp::TQ, Q_ch::TQ,
+                    Gνω::GνqT, tmp::SharedArray{Float64,3}, U::Float64, kGrid::ReducedKGrid, 
+                    νZero::Int,
+                    sP::SimulationParameters) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
+    @sync @distributed for ωii in 1:length(ωindices)
+        Σ[:,:, ωii] .= 0
+        ωi = ωindices[ωii]
+        fsp = 1.5 .* (1 .+ U*Q_sp.χ[ωi, :])
+        fch = 0.5 .* (1 .- U*Q_ch.χ[ωi, :])
+        for (i,νi) in enumerate(νZero:size(Q_sp.γ,3))
+            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
+            is = i - sP.shift*(trunc(Int,ωn/2))
+            if is > 0 && is <= size(Σ,1)
+                Kνωq = Q_sp.γ[ωi, :, νi] .* fsp .- Q_ch.γ[ωi, :, νi] .* fch .- 1.5 .+ 0.5 .+ tmp[ωii,:,νi]
+                Σ[is,:, ωii] = conv_fft1(kGrid, Kνωq, view(Gνω, νn + ωn,:))
+            end
         end
     end
 end
@@ -117,33 +129,34 @@ end
 function calc_Σ_dbg(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
                 sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  ReducedKGrid, T2 <: SumHelper}
-    #TODO: move transform stuff to Dispersions.jl
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    sh_b = Naive() #get_sum_helper(ωindices, sP, :b)
+    sh_b = Naive()#get_sum_helper(ωindices, sP, :b)
 
-    tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2),size(bubble,3))# sP.n_iν-sP.shift*(trunc(Int,sP.n_iω/2) ))
+    tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), size(bubble,1))
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
-    calc_Σ_ω!(Σ_ladder_ω, ωindices, sP.n_iω, sP.n_iν, sP.shift, Q_sp.χ, Q_ch.χ, Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, sP)
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2,1])
+    (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
+
+    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, 1, sP)
+    res = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
+    Σ_ladder_ω = permutedims(Σ_ladder_ω, [3,2,1])
     return  res, Σ_ladder_ω, tmp
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::SharedArray{Complex{Float64},3}, kGrid::T1,
                 sumHelper_f::T2, mP::ModelParameters, sP::SimulationParameters) where {T1 <:  ReducedKGrid, T2 <: SumHelper}
-    #TODO: move transform stuff to Dispersions.jl
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    sh_b = Naive() #get_sum_helper(ωindices, sP, :b)
+    sh_b = Naive()#get_sum_helper(ωindices, sP, :b)
 
-    tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2),size(bubble,3))# sP.n_iν-sP.shift*(trunc(Int,sP.n_iω/2) ))
-    @warn "Cutting off Σ_ω by hand, fix this!"
+    tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), length(ωindices))
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
-    calc_Σ_ω!(Σ_ladder_ω, ωindices, sP.n_iω, sP.n_iν, sP.shift, Q_sp.χ, Q_ch.χ, Q_sp.γ, Q_ch.γ,Gνω, tmp, mP.U, kGrid, sP)
-    Σ_ladder_ω = Σ_ladder_ω[:,:,(sP.n_iν+1):(end-sP.shift*(trunc(Int,sP.n_iω/2) ))]
-    res = permutedims( mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2,1])
+    (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
+    @warn "TODO: inefficient EoM calculation (throwing away 1/2 of array)"
+    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, 1, sP)
+    res = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
     return  res
 end

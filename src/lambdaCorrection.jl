@@ -3,9 +3,17 @@ using IntervalRootFinding
 
 χ_λ(χ::AbstractArray, λ::Union{Float64,Interval{Float64}}) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
-function χ_λ!(χ_λ, χ, λ::Union{Float64,Interval{Float64}})
+
+function χ_λ!(χ_λ, χ, λ::Float64)
     for i in eachindex(χ_λ)
         χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
+    end
+end
+
+
+function χ_λ!(χ_λ::AbstractArray{Complex{Float64},2}, χ::AbstractArray{Complex{Float64},2}, λ::Float64, ωindices::AbstractArray{Int,1})
+    for i in ωindices
+        χ_λ[i,:] = 1.0 ./ ((1.0 ./ χ[i,:]) .+ λ)
     end
 end
 
@@ -75,40 +83,52 @@ end
 
 
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-        Gνω::AbstractArray{Complex{Float64},2}, FUpDo::AbstractArray{Complex{Float64},3}, 
+        Gνω::GνqT, FUpDo::AbstractArray{Complex{Float64},3}, 
         Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
     # --- prepare auxiliary vars ---
-    νZero = sP.n_iν
-    ωZero = sP.n_iω
-    ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
     sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
 
-    tmp = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}(length(ωindices), size(bubble,2), sP.n_iν-sP.shift*(trunc(Int,sP.n_iω/2) + 1))
+    tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), length(ωindices))
     χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
     χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
-    χsp_λ = SharedArray{eltype(nlQ_sp.χ),2}(length(ωindices),size(nlQ_sp.χ,2))
-    χch_λ = SharedArray{eltype(nlQ_sp.χ),2}(length(ωindices),size(nlQ_ch.χ,2))
+    nlQ_ch_int = deepcopy(nlQ_ch)
+    nlQ_sp_int = deepcopy(nlQ_sp)
 
-    Σ_hartree = mP.n * mP.U/2
-    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))
-    E_pot_tail = E_pot_tail_c' ./ (iν_array(mP.β, 0:sP.n_iν-1) .^ 2)
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c])
-
+    # Prepare data
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
+    (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
+    nh    = ceil(Int64, length(ωindices(bubble,1))/2)
+    χsp_min    = -minimum(1 ./ nlQ_sp.χ[nh,:]) .+ 0.01
+    χch_min    = -minimum(1 ./ nlQ_ch.χ[nh,:]) .+ 0.01
+
+    νmax = trunc(size(bubble,3)/3)
+    νGrid = 0:(νmax-1)
+    iν_n = iν_array(mP.β, νGrid)
+    Σ_hartree = mP.n * mP.U/2
+    E_kin_tail_c = [zeros(size(kGrid.ϵkGrid)), (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ)]
+    E_pot_tail_c = [zeros(size(kGrid.ϵkGrid)),
+                    (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))]
+    tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
+    E_pot_tail = sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail))
+    E_kin_tail = sum(E_kin_tail_c[i]' .* tail[i] for i in 1:length(tail))
+    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+    E_kin_tail_inv = sum(map(x->x .* (mP.β/2) .* kGrid.ϵkGrid , [1, -(mP.β) .* E_kin_tail_c[2]]))
 
     function cond_both!(F, λ)
-        χsp_λ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
-        χch_λ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
-        calc_Σ_ω!(Σ_ladder_ω, ωindices, ωZero, νZero, sP.shift, χsp_λ, χch_λ, nlQ_sp.γ, nlQ_ch.γ, Gνω, tmp, mP.U, kGrid, sP)
-        Σ_new = permutedims(mP.U .* sum_freq(Σ_ladder_ω, [1], Naive(), mP.β)[1,:,:], [2, 1])
-        Σ_λ = Σ_new .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)]
-
-        
-        G_λ = G_from_Σ(Σ_λ, kGrid.ϵkGrid, 0:size(Σ_new, 1)-1, mP)
-        E_pot_DGA = calc_E_pot(kGrid, flatten_2D(G_λ), Σ_λ, view(E_pot_tail,1:size(Σ_new, 1),:), E_pot_tail_inv)
+        χ_λ!(nlQ_sp_int.χ, nlQ_sp.χ, λ[1], ωindices)
+        χ_λ!(nlQ_ch_int.χ, nlQ_ch.χ, λ[2], ωindices)
+        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kGrid, sP.n_iν+1, sP)
+        Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
+        Σ_λ = Σ_new[sP.n_iν+1] .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)] .+ Σ_hartree
+        G_λ = flatten_2D(G_from_Σ(Σ_λ, kGrid.ϵkGrid, νGrid, mP));
+        E_pot = real.(G_λ .* Σ_λ .- E_pot_tail);
+        #E_kin = kGrid.ϵkGrid' .* real.(G_corr .- E_kin_tail);
+        E_pot = kintegrate(kGrid, 2 .* sum(E_pot[1:νmax,:], dims=[1])[1,:] .+ E_pot_tail_inv) / mP.β
 
         for (wi,w) in enumerate(ωindices)
             χupup_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .+ χsp_λ[w,:])[1] ./ 2
@@ -125,7 +145,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         F[2] = lhs_c2 - rhs_c2
         println("-> $(F[1]), $(F[2])")
     end
-    return nlsolve(cond_both!, [ λsp_guess; 0.0]).zero
+    return nlsolve(cond_both!, [χsp_min; χch_min]).zero
 end
 
 function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)
@@ -142,7 +162,7 @@ function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::Reduce
 end
 
 function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
-                      bubble::BubbleT, Gνω::SharedArray{Complex{Float64},2}, 
+                      bubble::BubbleT, Gνω::GνqT, 
                       kGrid::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."

@@ -33,7 +33,7 @@ printr_s(x::Float64) = round(x, digits=4)
 
 
 function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
-    fft_range = -(sP.n_iν+sP.n_iω):(sP.n_iν+sP.n_iω-1)
+    fft_range = -(sP.n_iν+2*sP.n_iω):(sP.n_iν+2*sP.n_iω)
     in_file = env.inputVars
     if(myid() == 1)
         if env.inputDataType == "text"
@@ -72,15 +72,16 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
         gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
         gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc))
+        gLoc = flatten_2D(gLoc)
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
-    gImp_fft = SharedArray{Complex{Float64}}(size(gImp),pids=procs());copy!(gImp_fft, gImp)
-    gLoc_fft = SharedArray{Complex{Float64}}(size(gLoc_fft_in),pids=procs());copy!(gLoc_fft, gLoc_fft_in)
+    gImp = OffsetArray(gImp, fft_range, :) 
+    gLoc = OffsetArray(gLoc, fft_range, :) 
+    gLoc_fft = OffsetArray(gLoc_fft_in, fft_range, :) 
     χDMFTch_new = SharedArray{Complex{Float64},3}(size(χDMFTch),pids=procs());copy!(χDMFTch_new, χDMFTch)
     χDMFTsp_new = SharedArray{Complex{Float64},3}(size(χDMFTsp),pids=procs());copy!(χDMFTsp_new, χDMFTsp)
     Γch_new = SharedArray{Complex{Float64},3}(size(Γch),pids=procs());copy!(Γch_new, Γch)
     Γsp_new = SharedArray{Complex{Float64},3}(size(Γsp),pids=procs());copy!(Γsp_new, Γsp)
-    @warn "TODO: check beta consistency, config <-> g0man, chi_dir <-> gamma dir"
     if env.loadAsymptotics
         asympt_vars = load(env.asymptVars)
         χchAsympt = asympt_vars["chi_ch_asympt"]
@@ -138,17 +139,6 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
         usable_loc_sp = loc_range
     end
 
-    E_kin_ED, E_pot_ED = 0.0, 0.0
-    if sP.tc_type_b == :coeffs
-    if isfile(env.inputDir * "/gm_wim") && isfile(env.inputDir * "/hubb.andpar")
-        @info "Computing kinetic energie for improved bosonic sums."
-        iνₙ, GImp    = readGImp(env.inputDir * "/gm_wim", only_positive=true)
-        ϵₖ, Vₖ, μ    = read_anderson_parameters(env.inputDir * "/hubb.andpar");
-        E_kin_ED, E_pot_ED  = calc_E_ED(iνₙ[1:length(GImp)], ϵₖ, Vₖ, GImp, mP)
-    else
-        @warn "Could not find hubb.andpar and gm_wim for kinetic energy. proceding without improved bosonic sums!"
-    end
-    end
 
     sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
     sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
@@ -156,23 +146,23 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
 
-    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,E_kin_ED])
-    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch, [0,0,E_kin_ED])
+    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
+    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
     χupup_ω = 0.5 * (χLocsp_ω + χLocch_ω)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
-    χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], E_kin_ED, iωn)
+    χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], mP.Ekin_DMFT, iωn)
 
     sh_b = get_sum_helper(loc_range, sP, :b)
-    imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-E_kin_ED*mP.β^2/12))
-    imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], sh_b, mP.β, corr=-E_kin_ED*mP.β^2/12))
+    imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12))
+    imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], sh_b, mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12))
 
     @info """Inputs Read. Starting Computation.
       Local susceptibilities with ranges are:
       χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc)) 
       sum χupup check (fit, tail sub, tail sub + fit, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density_pure) ?=? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
       """
-    return νGrid, sh_f, impQ_sp, impQ_ch, gImp_fft, gLoc_fft, Σ_loc, FUpDo, gImp, gLoc
+    return νGrid, sh_f, impQ_sp, impQ_ch, gImp, gLoc, gLoc_fft, Σ_loc, FUpDo
 end
 
 
@@ -182,6 +172,12 @@ function flatten_2D(arr)
         res[i,:] = arr[i][:]
     end
     return res
+end
+
+@inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
+    ωn = ωi-sP.n_iω-1
+    νn = (νi-sP.n_iν-1) - trunc(Int,sP.shift*(ωn/2))
+    return ωn, νn
 end
 
 # ================== Noise Filter ==================
