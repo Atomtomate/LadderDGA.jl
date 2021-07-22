@@ -43,16 +43,16 @@ function calc_E(Σ, kGrid, mP::ModelParameters, sP::SimulationParameters)
 
     E_pot = [kintegrate(kGrid, 2 .* sum(E_pot[1:i,:], dims=[1])[1,:] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
     E_kin = [kintegrate(kGrid, 4 .* sum(E_kin[1:i,:], dims=[1])[1,:] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β
-    return E_kin[end], E_pot[end]
+    return E_kin, E_pot
 end
 
 """
 
 Specialized function for DGA potential energy. Better performance than calc_E.
 """
-function calc_E_pot(qG, G, Σ, tail, tail_inv)
+function calc_E_pot(qG::ReducedKGrid, G, Σ, tail, tail_inv, β::Float64)
     E_pot = real.(G .* Σ .- tail);
-    return kintegrate(qG, 2 .* sum(E_pot, dims=[1])[1,:] .+ tail_inv)[1]
+    return kintegrate(qG, 2 .* sum(E_pot[1:size(Σ,1),:], dims=[1])[1,:] .+ tail_inv)[1] ./ β
 end
 
 function calc_E_pot_νn(qG, G, Σ, tail, tail_inv)

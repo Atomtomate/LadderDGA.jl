@@ -155,7 +155,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
-    @warn "TODO: inefficient EoM calculation (throwing away 1/2 of array)"
+    @warn "TODO: inefficient EoM calculation"
     calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, 1, sP)
     res = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
     return  res

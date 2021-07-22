@@ -72,7 +72,8 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
         gImp = reshape(gImp_sym, (length(gImp_sym),1))
         gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
         gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc))
-        gLoc = flatten_2D(gLoc)
+        gLoc_out = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
+        gLoc = flatten_2D(gLoc_out)
     end
     FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
     gImp = OffsetArray(gImp, fft_range, :) 

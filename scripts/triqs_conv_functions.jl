@@ -80,6 +80,7 @@ function computeΓ(freqList::Array, χ::Array{T,3}, χ0::Dict{Tuple{Int,Int},Com
     return res
 end
 
+#TODO: update to latest version
 function gen_config(U::Float64, μ::Float64, β::Float64, nden::Float64, t::Float64)
 cfg="""[Model]
 U    = $U

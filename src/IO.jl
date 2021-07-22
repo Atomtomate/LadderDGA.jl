@@ -67,14 +67,14 @@ function readConfig(file)
                             )
 
 
-    mP = open(env.inputDir*"/"*env.inputVars) do f 
+    mP = jldopen(env.inputDir*"/"*env.inputVars) do f 
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
-        if haskey(f, "E_kin_ED")
-            EPot_DMFT = f["E_pot_ED"]
-            EKin_DMFT = f["E_kin_ED"]
+        if haskey(f, "E_kin_DMFT")
+            EPot_DMFT = f["E_pot_DMFT"]
+            EKin_DMFT = f["E_kin_DMFT"]
         else
-            @warn "Could not find hubb.andpar and gm_wim for kinetic energy. proceding without improved bosonic sums!"
+            @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
         end
         U, μ, β, nden = if haskey(f, "U")
             f["U"], f["μ"], f["β"], f["nden"]

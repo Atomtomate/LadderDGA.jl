@@ -84,10 +84,13 @@ end
 
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::GνqT, FUpDo::AbstractArray{Complex{Float64},3}, 
-        Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},kGrid::ReducedKGrid, tail_coeffs_upup, tail_coeffs_updo, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
+        Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},kGrid::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
     # --- prepare auxiliary vars ---
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
 
+    νmax = trunc(Int,size(bubble,3)/3)
+    νGrid = 0:(νmax-1)
+    iν_n = iν_array(mP.β, νGrid)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
     sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
@@ -96,19 +99,21 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), length(ωindices))
     χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
     χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
+    χ_ch_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
+    Σ_λ = Array{Complex{Float64},2}(undef, νmax, length(kG.kInd))
+    G_λ = Array{Complex{Float64},2}(undef, νmax, length(kG.kInd))
+
     nlQ_ch_int = deepcopy(nlQ_ch)
     nlQ_sp_int = deepcopy(nlQ_sp)
 
     # Prepare data
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
-    nh    = ceil(Int64, length(ωindices(bubble,1))/2)
-    χsp_min    = -minimum(1 ./ nlQ_sp.χ[nh,:]) .+ 0.01
-    χch_min    = -minimum(1 ./ nlQ_ch.χ[nh,:]) .+ 0.01
 
-    νmax = trunc(size(bubble,3)/3)
-    νGrid = 0:(νmax-1)
-    iν_n = iν_array(mP.β, νGrid)
+    nh    = ceil(Int64, length(ωindices/2))
+    χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ[nh,:])) .+ 0.01
+    χch_min    = -minimum(1 ./ real.(nlQ_ch.χ[nh,:])) .+ 0.01
+
     Σ_hartree = mP.n * mP.U/2
     E_kin_tail_c = [zeros(size(kGrid.ϵkGrid)), (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ)]
     E_pot_tail_c = [zeros(size(kGrid.ϵkGrid)),
@@ -122,28 +127,34 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     function cond_both!(F, λ)
         χ_λ!(nlQ_sp_int.χ, nlQ_sp.χ, λ[1], ωindices)
         χ_λ!(nlQ_ch_int.χ, nlQ_ch.χ, λ[2], ωindices)
-        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kGrid, sP.n_iν+1, sP)
-        Σ_new = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
-        Σ_λ = Σ_new[sP.n_iν+1] .- Σ_ladderLoc[1:size(Σ_new,1)] .+ Σ_loc_pos[1:size(Σ_new,1)] .+ Σ_hartree
+        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kGrid, 1, sP)
+        for i in axes(Σ_λ,1)
+            for qi in axes(Σ_λ,2)
+                Σ_λ[i,qi] = mP.U * sum_freq(Σ_ladder_ω[sP.n_iν+i,qi,:], [3], sh_b, mP.β)[1] - Σ_ladderLoc[i] .+ Σ_loc_pos[i] + Σ_hartree
+                #G_λ[i,qi] = 
+            end
+        end
+#G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range
         G_λ = flatten_2D(G_from_Σ(Σ_λ, kGrid.ϵkGrid, νGrid, mP));
-        E_pot = real.(G_λ .* Σ_λ .- E_pot_tail);
-        #E_kin = kGrid.ϵkGrid' .* real.(G_corr .- E_kin_tail);
-        E_pot = kintegrate(kGrid, 2 .* sum(E_pot[1:νmax,:], dims=[1])[1,:] .+ E_pot_tail_inv) / mP.β
+        E_pot = calc_E_pot(kGrid, G_λ, Σ_λ, E_pot_tail, E_pot_tail_inv, mP.β)
+#@inline G_from_Σ(Σ, ϵkGrid, 
+#                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+
 
         for (wi,w) in enumerate(ωindices)
-            χupup_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .+ χsp_λ[w,:])[1] ./ 2
-            χupdo_ω[wi] = kintegrate(kGrid, χch_λ[w,:] .- χsp_λ[w,:])[1] ./ 2
+            χupup_ω[wi] = kintegrate(kGrid, nlQ_ch_int.χ[w,:] .+ nlQ_sp_int.χ[w,:])[1] ./ 2
+            χupdo_ω[wi] = kintegrate(kGrid, nlQ_ch_int.χ[w,:] .- nlQ_sp_int.χ[w,:])[1] ./ 2
         end
 
-        χch_ω_sub = subtract_tail(χupup_ω, tail_coeffs_upup[3], iωn)
-        lhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β, corr=-tail_coeffs_upup[3]*mP.β^2/12)[1])
+        subtract_tail!(χupup_ω, χupup_ω, mP.Ekin_DMFT, iωn)
+        lhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12)[1])
         lhs_c2 = real(sum_freq(χupdo_ω, [1], sh_b, mP.β)[1])
 
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot_DGA/mP.U + (mP.n/2) * (mP.n/2)
+        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
-        println("-> $(F[1]), $(F[2])")
+        println("-> $(F[1]), $(F[2]), λ=$λ")
     end
     return nlsolve(cond_both!, [χsp_min; χch_min]).zero
 end

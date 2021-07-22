@@ -40,12 +40,6 @@ end
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
-@inline function G(ind::Int64, Σ::Array{Complex{Interval{Float64}},2}, 
-                   ϵkGrid, β::Float64, μ::Float64)
-    Σνk = get_symm_f(Σ,ind)
-    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
-end
-
 
 function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3) 
     @inbounds Σ::Array{Complex{Float64},1} =  1 ./ GBath .- 1 ./ GImp
@@ -58,8 +52,16 @@ end
 @inline G_from_Σ(Σ, ϵkGrid, 
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
-@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Interval{Float64}}) where T <: Real =   1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
 
+function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{Complex{Float64},1}) where T <: Number
+    for n in 1:length(inp)
+        if iω[n] != 0
+            outp[n] = inp[n] - (c/(iω[n]^2))
+        else
+            outp[n] = inp[n]
+        end
+    end
+end
 
 function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{Complex{Float64},1}) where T <: Number
     res = Array{eltype(inp),1}(undef, length(inp))
