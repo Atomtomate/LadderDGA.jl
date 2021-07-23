@@ -28,12 +28,14 @@ end
 Constructs GF from k-independent self energy, using the Dyson equation
 and the dispersion relation of the lattice.
 """
+#TODO: preallocate and compute
 @inline function G(ind::Int64, Σ::Array{Complex{Float64},1}, 
                    ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
     Σν = get_symm_f(Σ,ind)
     return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
 end
 
+#TODO: preallocate and compute
 @inline function G(ind::Int64, Σ::Array{Complex{Float64},2}, 
                    ϵkGrid, β::Float64, μ::Float64)
     Σνk = get_symm_f(Σ,ind)
@@ -48,8 +50,11 @@ end
 
 @inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Float64}) where T <: Real =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
+@inline @fastmath G_from_Σ(mf::Complex{Float64}, β::Float64, μ::Float64, ϵₖ::Float64, Σ::Complex{Float64}) =
+                    1/(mf + μ - ϵₖ - Σ)
 
-@inline G_from_Σ(Σ, ϵkGrid, 
+#TODO optimize these helpers
+G_from_Σ(Σ, ϵkGrid, 
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
 

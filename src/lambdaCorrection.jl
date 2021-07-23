@@ -1,7 +1,5 @@
-using IntervalArithmetic
-using IntervalRootFinding
-
-χ_λ(χ::AbstractArray, λ::Union{Float64,Interval{Float64}}) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
+χ_λ(χ::AbstractArray, λ::Float64) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
+dχ_λ(χ, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), χ)
 χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 
 function χ_λ!(χ_λ, χ, λ::Float64)
@@ -17,7 +15,6 @@ function χ_λ!(χ_λ::AbstractArray{Complex{Float64},2}, χ::AbstractArray{Comp
     end
 end
 
-dχ_λ(χ, λ::Union{Float64,Interval{Float64}}) = map(χi -> - ((1.0 / χi) + λ)^(-2), χ)
 
 dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχch_λ)*qNorm
 dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
@@ -82,9 +79,13 @@ function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω:
 end
 
 
+#TODO: this is manually unrolled...
+# after optimization, revert to:
+# calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::GνqT, FUpDo::AbstractArray{Complex{Float64},3}, 
-        Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},kGrid::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; λsp_guess=0.1)
+        Σ_loc_pos::AbstractArray{Complex{Float64},1}, Σ_ladderLoc::AbstractArray{Complex{Float64},1},
+        kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
 
@@ -96,12 +97,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
 
     tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), length(ωindices))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( sP.n_iν, size(bubble,2), length(ωindices))
     χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
     χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
-    χ_ch_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
-    Σ_λ = Array{Complex{Float64},2}(undef, νmax, length(kG.kInd))
-    G_λ = Array{Complex{Float64},2}(undef, νmax, length(kG.kInd))
 
     nlQ_ch_int = deepcopy(nlQ_ch)
     nlQ_sp_int = deepcopy(nlQ_sp)
@@ -110,42 +108,37 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
 
-    nh    = ceil(Int64, length(ωindices/2))
-    χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ[nh,:])) .+ 0.01
-    χch_min    = -minimum(1 ./ real.(nlQ_ch.χ[nh,:])) .+ 0.01
+    nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
+    χsp_min    = -1 / maximum(real.(nlQ_sp.χ[nh,:])) .+ 0.1
+    χch_min    = -1 / maximum(real.(nlQ_ch.χ[nh,:])) .+ 0.1
 
     Σ_hartree = mP.n * mP.U/2
-    E_kin_tail_c = [zeros(size(kGrid.ϵkGrid)), (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ)]
-    E_pot_tail_c = [zeros(size(kGrid.ϵkGrid)),
-                    (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kGrid.ϵkGrid .+ Σ_hartree .- mP.μ))]
+    E_kin_tail_c = [zeros(size(kG.ϵkGrid)), (kG.ϵkGrid .+ Σ_hartree .- mP.μ)]
+    E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
+                    (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
     E_pot_tail = sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail))
-    E_kin_tail = sum(E_kin_tail_c[i]' .* tail[i] for i in 1:length(tail))
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-    E_kin_tail_inv = sum(map(x->x .* (mP.β/2) .* kGrid.ϵkGrid , [1, -(mP.β) .* E_kin_tail_c[2]]))
+    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     function cond_both!(F, λ)
         χ_λ!(nlQ_sp_int.χ, nlQ_sp.χ, λ[1], ωindices)
         χ_λ!(nlQ_ch_int.χ, nlQ_ch.χ, λ[2], ωindices)
-        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kGrid, 1, sP)
-        for i in axes(Σ_λ,1)
-            for qi in axes(Σ_λ,2)
-                Σ_λ[i,qi] = mP.U * sum_freq(Σ_ladder_ω[sP.n_iν+i,qi,:], [3], sh_b, mP.β)[1] - Σ_ladderLoc[i] .+ Σ_loc_pos[i] + Σ_hartree
-                #G_λ[i,qi] = 
+        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kG, sP)
+        E_pot = 0.0
+        for qi in axes(bubble,2)
+            GΣ_λ = 0.0
+            for i in axes(νGrid,1)
+                Σ_λ = mP.U * sum(@view Σ_ladder_ω[i,qi,:])/mP.β - Σ_ladderLoc[i] + Σ_loc_pos[i] + Σ_hartree
+                GΣ_λ += 2 * real(Σ_λ * G_from_Σ(iν_n[i], mP.β, mP.μ, kG.ϵkGrid[qi], Σ_λ) - E_pot_tail[i,qi])
             end
+            GΣ_λ += E_pot_tail_inv[qi]   # ν summation
+            E_pot += kG.kMult[qi]*GΣ_λ # k intgration
         end
-#G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range
-        G_λ = flatten_2D(G_from_Σ(Σ_λ, kGrid.ϵkGrid, νGrid, mP));
-        E_pot = calc_E_pot(kGrid, G_λ, Σ_λ, E_pot_tail, E_pot_tail_inv, mP.β)
-#@inline G_from_Σ(Σ, ϵkGrid, 
-#                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
-
-
+        E_pot = E_pot / (kG.Nk * mP.β)
         for (wi,w) in enumerate(ωindices)
-            χupup_ω[wi] = kintegrate(kGrid, nlQ_ch_int.χ[w,:] .+ nlQ_sp_int.χ[w,:])[1] ./ 2
-            χupdo_ω[wi] = kintegrate(kGrid, nlQ_ch_int.χ[w,:] .- nlQ_sp_int.χ[w,:])[1] ./ 2
+            χupup_ω[wi] = kintegrate(kG, nlQ_ch_int.χ[w,:] .+ nlQ_sp_int.χ[w,:])[1] / 2
+            χupdo_ω[wi] = kintegrate(kG, nlQ_ch_int.χ[w,:] .- nlQ_sp_int.χ[w,:])[1] / 2
         end
-
         subtract_tail!(χupup_ω, χupup_ω, mP.Ekin_DMFT, iωn)
         lhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12)[1])
         lhs_c2 = real(sum_freq(χupdo_ω, [1], sh_b, mP.β)[1])
@@ -154,9 +147,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
-        println("-> $(F[1]), $(F[2]), λ=$λ")
     end
-    return nlsolve(cond_both!, [χsp_min; χch_min]).zero
+    @info "searching for λsp_ch, starting from $χsp_min $χch_min"
+    return nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
 end
 
 function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)

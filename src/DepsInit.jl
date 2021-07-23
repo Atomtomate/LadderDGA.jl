@@ -12,7 +12,7 @@ using TOML          # used for input
 using Printf
 using ForwardDiff
 using Query
-using IntervalArithmetic, IntervalRootFinding
+#using IntervalArithmetic, IntervalRootFinding
 using Roots
 using PaddedViews   # used to pad fft arrays
 using FFTW          # used for convolutions

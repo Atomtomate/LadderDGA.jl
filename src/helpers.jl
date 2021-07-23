@@ -1,7 +1,6 @@
 #TODO: this should be a macro
 @inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
 @inline get_symm_f(f::Array{Complex{Float64},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
-@inline get_symm_f(f::Array{Complex{Interval{Float64}},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
 store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 
@@ -33,7 +32,7 @@ printr_s(x::Float64) = round(x, digits=4)
 
 
 function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
-    fft_range = -(sP.n_iν+2*sP.n_iω):(sP.n_iν+2*sP.n_iω)
+    fft_range = -(2*sP.n_iν+2*sP.n_iω):(2*sP.n_iν+2*sP.n_iω)
     in_file = env.inputVars
     if(myid() == 1)
         if env.inputDataType == "text"
@@ -181,6 +180,8 @@ end
     return ωn, νn
 end
 
+@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
+
 # ================== Noise Filter ==================
 
 function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
@@ -209,15 +210,3 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     end
     return res
 end
-
-# ================== FFT + Intervals Workaround ==================
-lo(arr::Array{Interval{Float64}}) = map(x->x.lo,arr)
-hi(arr::Array{Interval{Float64}}) = map(x->x.hi,arr) 
-lo(arr::Array{Complex{Interval{Float64}}}) = map(x->x.lo,real.(arr)) .+ map(x->x.lo,imag.(arr)) .* im
-hi(arr::Array{Complex{Interval{Float64}}}) = map(x->x.hi,real.(arr)) .+ map(x->x.hi,imag.(arr)) .* im
-cmplx_interval(x::Tuple{Complex{Float64},Complex{Float64}}) = Complex(interval(minimum(real.(x)),maximum(real.(x))),
-                                                                      interval(minimum(imag.(x)),maximum(imag.(x))))
-AbstractFFTs.fft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(fft(lo(arr)), fft(lo(arr))))
-AbstractFFTs.fft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(fft(lo(arr)), fft(hi(arr))))
-AbstractFFTs.ifft(arr::Array{Interval{Float64}}) = map(x->interval(minimum(x),maximum(x)),zip(ifft(lo(arr)), ifft(lo(arr))))
-AbstractFFTs.ifft(arr::Array{Complex{Interval{Float64}}}) = map(x->cmplx_interval(x),zip(ifft(lo(arr)), ifft(hi(arr))))

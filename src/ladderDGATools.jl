@@ -108,20 +108,26 @@ TODO: docstring
 """
 function calc_Σ_ω!(Σ::SharedArray{Complex{Float64},3}, ωindices::AbstractArray{Int,1}, Q_sp::TQ, Q_ch::TQ,
                     Gνω::GνqT, tmp::SharedArray{Float64,3}, U::Float64, kGrid::ReducedKGrid, 
-                    νZero::Int,
-                    sP::SimulationParameters) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
+                    sP::SimulationParameters; onlyPositive::Bool=true, lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
+    (!onlyPositive) && @error "Full nu range not tested!!!"
+
     @sync @distributed for ωii in 1:length(ωindices)
-        Σ[:,:, ωii] .= 0
         ωi = ωindices[ωii]
+        ωn = (ωi - sP.n_iω) - 1
         fsp = 1.5 .* (1 .+ U*Q_sp.χ[ωi, :])
         fch = 0.5 .* (1 .- U*Q_ch.χ[ωi, :])
-        for (i,νi) in enumerate(νZero:size(Q_sp.γ,3))
-            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
-            is = i - sP.shift*(trunc(Int,ωn/2))
-            if is > 0 && is <= size(Σ,1)
-                Kνωq = Q_sp.γ[ωi, :, νi] .* fsp .- Q_ch.γ[ωi, :, νi] .* fch .- 1.5 .+ 0.5 .+ tmp[ωii,:,νi]
-                Σ[is,:, ωii] = conv_fft1(kGrid, Kνωq, view(Gνω, νn + ωn,:))
-            end
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = minimum([νZero + sP.n_iν-1, size(tmp,3)])
+        if lopWarn && (νZero + sP.n_iν-1 > size(tmp,3)) 
+            ωn1, νn1 = OneToIndex_to_Freq(ωi, size(tmp,3) + 1, sP)
+            ωn2, νn2 = OneToIndex_to_Freq(ωi, νZero + sP.n_iν - 1, sP)
+            @warn "running out of data for νn = $(νn1) to $(νn2) at ωn = $ωn1, $ωn"
+        end
+        for (νn,νi) in enumerate(νZero:maxn)
+            #ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
+            #@warn "$ωii -> $ωi -> $ωn : $((νn,νi))"
+            Kνωq = Q_sp.γ[ωi, :, νi] .* fsp .- Q_ch.γ[ωi, :, νi] .* fch .- 1.5 .+ 0.5 .+ tmp[ωii,:,νi]
+            Σ[νn,:, ωii] = conv_fft1(kGrid, Kνωq, view(Gνω, (νn-1) + ωn,:))
         end
     end
 end
@@ -133,12 +139,12 @@ function calc_Σ_dbg(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble:
     sh_b = Naive()#get_sum_helper(ωindices, sP, :b)
 
     tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), size(bubble,1))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( sP.n_iν, size(bubble,2), size(bubble,1))
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
 
-    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, 1, sP)
+    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, sP, lopWarn=true)
     res = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
     Σ_ladder_ω = permutedims(Σ_ladder_ω, [3,2,1])
     return  res, Σ_ladder_ω, tmp
@@ -151,12 +157,11 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     sh_b = Naive()#get_sum_helper(ωindices, sP, :b)
 
     tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}( size(bubble,3), size(bubble,2), length(ωindices))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}( sP.n_iν, size(bubble,2), length(ωindices))
 
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sumHelper_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
-    @warn "TODO: inefficient EoM calculation"
-    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, 1, sP)
+    calc_Σ_ω!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, tmp, mP.U, kGrid, sP)
     res = mP.U .* sum_freq(Σ_ladder_ω, [3], sh_b, mP.β)[:,:,1]
     return  res
 end
