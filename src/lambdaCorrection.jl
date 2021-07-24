@@ -96,13 +96,13 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
     sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
 
-    tmp = SharedArray{Float64,3}(length(ωindices), size(bubble,2), size(bubble,3))
-    Σ_ladder_ω = SharedArray{Complex{Float64},3}( sP.n_iν, size(bubble,2), length(ωindices))
-    χupdo_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
-    χupup_ω = SharedArray{eltype(nlQ_sp.χ),1}(length(ωindices))
+    tmp = Array{Float64,3}(undef, length(ωindices), size(bubble,2), size(bubble,3))
+    Σ_ladder_ω = SharedArray{Complex{Float64},3}(sP.n_iν, size(bubble,2), length(ωindices))
+    χupdo_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
+    χupup_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
+    χsp_int = Array{eltype(nlQ_sp.χ),2}(undef, size(nlQ_sp.χ)...)
+    χch_int = Array{eltype(nlQ_sp.χ),2}(undef, size(nlQ_sp.χ)...)
 
-    nlQ_ch_int = deepcopy(nlQ_ch)
-    nlQ_sp_int = deepcopy(nlQ_sp)
 
     # Prepare data
     Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
@@ -120,10 +120,24 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     E_pot_tail = sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
+    #TODO: also sum chi updo without arr
+
     function cond_both!(F, λ)
-        χ_λ!(nlQ_sp_int.χ, nlQ_sp.χ, λ[1], ωindices)
-        χ_λ!(nlQ_ch_int.χ, nlQ_ch.χ, λ[2], ωindices)
-        calc_Σ_ω!(Σ_ladder_ω, ωindices, nlQ_sp_int, nlQ_ch_int, Gνω, tmp, mP.U, kG, sP)
+        χ_λ!(χsp_int, nlQ_sp.χ, λ[1], ωindices)
+        χ_λ!(χch_int, nlQ_ch.χ, λ[2], ωindices)
+
+        @sync @distributed for ωii in 1:length(ωindices)
+            ωi = ωindices[ωii]
+            ωn = (ωi - sP.n_iω) - 1
+            fsp = 1.5 .* (1 .+ mP.U*χsp_int[ωi, :])
+            fch = 0.5 .* (1 .- mP.U*χch_int[ωi, :])
+            νZero = ν0Index_of_ωIndex(ωi, sP)
+            maxn = minimum([νZero + sP.n_iν-1, size(tmp,3)])
+            for (νn,νi) in enumerate(νZero:maxn)
+                Kνωq = nlQ_sp.γ[ωi, :, νi] .* fsp .- nlQ_ch.γ[ωi, :, νi] .* fch .- 1.5 .+ 0.5 .+ tmp[ωii,:,νi]
+                Σ_ladder_ω[νn,:, ωii] = conv_fft1(kG, Kνωq, view(Gνω, (νn-1) + ωn,:))
+            end
+        end
         E_pot = 0.0
         for qi in axes(bubble,2)
             GΣ_λ = 0.0
@@ -136,8 +150,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         end
         E_pot = E_pot / (kG.Nk * mP.β)
         for (wi,w) in enumerate(ωindices)
-            χupup_ω[wi] = kintegrate(kG, nlQ_ch_int.χ[w,:] .+ nlQ_sp_int.χ[w,:])[1] / 2
-            χupdo_ω[wi] = kintegrate(kG, nlQ_ch_int.χ[w,:] .- nlQ_sp_int.χ[w,:])[1] / 2
+            χupup_ω[wi] = kintegrate(kG, χch_int[w,:] .+ χsp_int[w,:])[1] / 2
+            χupdo_ω[wi] = kintegrate(kG, χch_int[w,:] .- χsp_int[w,:])[1] / 2
         end
         subtract_tail!(χupup_ω, χupup_ω, mP.Ekin_DMFT, iωn)
         lhs_c1 = real(sum_freq(χupup_ω, [1], sh_b, mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12)[1])
@@ -149,7 +163,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         F[2] = lhs_c2 - rhs_c2
     end
     @info "searching for λsp_ch, starting from $χsp_min $χch_min"
-    return nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
+    λ_new = nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
+    @info "found λsp = $(λ_new[1]), λch = $(λ_new[2])"
+    return λ_new
 end
 
 function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)
@@ -165,29 +181,24 @@ function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kGrid::Reduce
     return int
 end
 
-function λ_correction!(impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+function λ_correction!(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::GνqT, 
                       kGrid::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
-    @info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-    rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kGrid, mP, sP)
-    searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[usable_ω_λc,:]), kGrid, mP, init=init_sp)
-    searchInterval_spch = [-Inf, Inf]
-    λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kGrid, mP, sP)
-    #@info "Computing λsp corrected χsp, using " sP.χFillType " as fill value outside usable ω range."
-    λ_new = [0.0, 0.0]#extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, impQ_sp.tailCoeffs, [0.0,0.0,0.0,0.0,0.0], mP, sP; λsp_guess=λsp - 0.001)
-    #λ_new = [0.0, 0.0]
-    if sP.λc_type == :sp
+    if type == :sp
+        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kGrid, mP, sP)
+        searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[usable_ω_λc,:]), kGrid, mP, init=init_sp)
+        searchInterval_spch = [-Inf, Inf]
+        λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kGrid, mP, sP)
         nlQ_sp.χ = χsp_λ
         nlQ_sp.λ = λsp
-    elseif sP.λc_type == :sp_ch
+    elseif type == :sp_ch
+        λ_new = extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kGrid, mP, sP)
         nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ_new[1]))
         nlQ_sp.λ = λ_new[1]
         nlQ_ch.χ = SharedArray(χ_λ(nlQ_ch.χ, λ_new[2]))
         nlQ_ch.λ = λ_new[2]
     end
-    @info "new lambda correction: λsp=$(λ_new[1]) and λch=$(λ_new[2])"
-    return λsp, λ_new
 end
 
 function newton_right(χr::Array{Float64,2}, f::Function, df::Function,

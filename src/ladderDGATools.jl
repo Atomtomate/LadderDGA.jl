@@ -88,7 +88,7 @@ function calc_χ_trilex(Γr::SharedArray{Complex{Float64},3}, bubble::SharedArra
 end
 
 
-function Σ_internal!(tmp::SharedArray{Float64,3}, ωindices::AbstractArray{Int,1}, bubble::BubbleT, 
+function Σ_internal!(tmp::AbstractArray{Float64,3}, ωindices::AbstractArray{Int,1}, bubble::BubbleT, 
                      FUpDo, sumHelper::T) where T <: SumHelper
     @sync @distributed for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
