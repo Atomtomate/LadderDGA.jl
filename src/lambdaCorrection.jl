@@ -163,7 +163,13 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         F[2] = lhs_c2 - rhs_c2
     end
     @info "searching for λsp_ch, starting from $χsp_min $χch_min"
-    λ_new = nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
+    λ_new = try
+        res = nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
+        res
+    catch e
+        @warn "could not determine lambda sp/ch!"
+        [0.0 0.0]
+    end
     @info "found λsp = $(λ_new[1]), λch = $(λ_new[2])"
     return λ_new
 end

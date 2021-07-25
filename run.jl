@@ -72,11 +72,11 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         flush(io)
 
         if save_results
-        fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(kG.Ns)_sp_"*res_postfix*".jld2"
+        fname = res_prefix*"lDGA_k$(kG.Ns)_sp_"*res_postfix*".jld2"
         @info "Writing to $(fname)"
-        save(fname, "bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "Σ_ladderLoc", Σ_ladderLoc, "bubble", bubble, "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "Σ_ladder", Σ_ladder)
-        fname = res_prefix*"lDGA_b$(mP.β)_U$(mP.U)_k$(kG.Ns)_spch_"*res_postfix*".jld2"
-        save(fname, "Σ_ladder", Σ_ladder_2, "nlQ_ch", nlQ_ch_2, "nlQ_sp", nlQ_sp_2)
+        save(fname, "sP", sP, "mP", mP, "kG", kG ,"bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "Σ_ladderLoc", Σ_ladderLoc, "bubble", bubble, "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "Σ_ladder", Σ_ladder)
+        fname = res_prefix*"lDGA_k$(kG.Ns)_spch_"*res_postfix*".jld2"
+        save(fname, "sP", sP, "mP", mP, "kG", kG ,"bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "Σ_ladderLoc", Σ_ladderLoc, "bubble", bubble, "Σ_ladder", Σ_ladder_2, "nlQ_ch", nlQ_ch_2, "nlQ_sp", nlQ_sp_2)
         end
     end
 end
