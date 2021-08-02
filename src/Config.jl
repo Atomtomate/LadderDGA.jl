@@ -62,6 +62,8 @@ struct SimulationParameters <: ConfigStruct
     fermionic_tail_coeffs::Array{Int,1}
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
     ω_smoothing::Symbol                 # nothing, range, full
+    sh_f::SumHelper                     # SumHelper for fermionic sums (bosonic sums depend on runtime results)
+    fft_offset::Int
     dbg_full_eom_omega::Bool
 end
 

@@ -37,7 +37,7 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     χch_ω = kintegrate(kGrid, nlQ_ch.χ[usable_ω,:], dim=2)[:,1]
     @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
-    sh = Naive() #get_sum_helper(usable_ω, sP, :b)
+    sh = DirectSum() #get_sum_helper(usable_ω, sP, :b)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω_sub = subtract_tail(χch_ω, impQ_ch.tailCoeffs[3], iωn)
     χch_sum = real(sum_freq(χch_ω_sub, [1], sh, mP.β, corr=-impQ_ch.tailCoeffs[3]*mP.β^2/12)[1])
@@ -54,26 +54,28 @@ end
 
 function λsp(χr::Array{Float64,2}, iωn::Array{Complex{Float64},1}, EKin::Float64,
                             rhs::Float64, kGrid::T1, mP::ModelParameters) where T1 <: ReducedKGrid
-    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
-    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
+    sh = DirectSum()
+    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], sh, mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
+    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, mP.β)[1]
 
     nh    = ceil(Int64, size(χr,1)/2)
     χ_min    = -minimum(1 ./ χr[nh,:])
-    λsp_old = newton_right(χr, f, df, χ_min)
+    λsp_old = newton_right(f, df, χ_min)
     return λsp_old
 end
 
 function calc_λsp_correction(χ_in::SharedArray{Complex{Float64},2}, usable_ω::AbstractArray{Int64},
                             searchInterval::AbstractArray{Float64,1}, EKin::Float64,
                             rhs::Float64, kGrid::T1, mP::ModelParameters, sP::SimulationParameters) where T1 <: ReducedKGrid
+    sh = DirectSum()
     χr    = real.(χ_in[usable_ω,:])
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
-    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], Naive(), mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
-    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], Naive(), mP.β)[1]
+    f(λint) = sum_freq(subtract_tail(kintegrate(kGrid, χ_λ(χr, λint), dim=2)[:,1],EKin, iωn), [1], sh, mP.β, corr=-EKin*mP.β^2/12)[1] - rhs
+    df(λint) = sum_freq(kintegrate(kGrid, -χ_λ(χr, λint) .^ 2, dim=2)[:,1], [1], sh, mP.β)[1]
 
     nh    = ceil(Int64, size(χr,1)/2)
     χ_min    = -1 / maximum(χr[nh,:])
-    λsp = newton_right(χr, f, df, χ_min)
+    λsp = newton_right(f, df, χ_min)
     @info "Found λsp " λsp
     return λsp, new_χλ(χ_in, λsp, sP)
 end
@@ -94,7 +96,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     iν_n = iν_array(mP.β, νGrid)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
-    sh_b = Naive() #get_sum_helper(length(ωindices), sP, :b)
+    sh_b = DirectSum() #get_sum_helper(length(ωindices), sP, :b)
 
     tmp = Array{Float64,3}(undef, length(ωindices), size(bubble,2), size(bubble,3))
     Σ_ladder_ω = SharedArray{Complex{Float64},3}(sP.n_iν, size(bubble,2), length(ωindices))
@@ -105,7 +107,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
 
 
     # Prepare data
-    Σ_internal!(tmp, ωindices, bubble, FUpDo, sh_f)
+    Σ_internal!(tmp, ωindices, bubble, FUpDo, sP.sh_f)
     (sP.tc_type_f != :nothing) && extend_tmp!(tmp)
 
     nh    = ceil(Int64, size(nlQ_sp.χ,1)/2)
@@ -162,9 +164,17 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
     end
+    function cond_both(λ)
+        F = zeros(size(λ)...)
+        cond_both!(F,λ)
+        return F
+    end
     @info "searching for λsp_ch, starting from $χsp_min $χch_min"
+    x0 = [χsp_min; χch_min]
     λ_new = try
-        res = nlsolve(cond_both!, [χsp_min; χch_min], iterations=200, method = :newton, ftol=1e-6).zero
+        res = nlsolve(cond_both!, x0, iterations=200, method = :newton, ftol=1e-6).zero
+        res2 = newton_2d_right(cond_both, x0, nsteps=100, atol=1e-6)
+        println("$res vs $res2")
         res
     catch e
         @warn "could not determine lambda sp/ch!"
@@ -207,7 +217,7 @@ function λ_correction!(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_la
     end
 end
 
-function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
+function newton_right(f::Function, df::Function,
                             start::Float64; nsteps=5000, atol=1e-11)
     done = false
     δ = 0.1
@@ -216,10 +226,10 @@ function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
     i = 1
     while !done
         fi = f(xi)
-        dfi = df(xi)
+        dfii = 1 / df(xi)
         xlast = xi
-        xi = x0 - fi / dfi
-        (abs2(xi-x0) < atol) && break
+        xi = x0 - dfii * fi
+        (norm(xi-x0) < atol) && break
         if xi < x0               # only ever search to the right!
             δ  = δ/2.0
             x0  = start + δ      # reset with smaller delta
@@ -232,3 +242,32 @@ function newton_right(χr::Array{Float64,2}, f::Function, df::Function,
     end
     return xi
 end
+
+function newton_2d_right(f::Function, 
+                start::Vector{Float64}; nsteps=500, atol=1e-6)
+    done = false
+    δ = [0.1, 0.1]
+    x0 = start .+ δ
+    xi = x0
+    i = 1
+    cache = FiniteDiff.JacobianCache(xi)
+    J2 = Matrix{Float64}(undef, 2,2)
+    while !done
+        fi = f(xi)
+        dfii = inv(FiniteDiff.finite_difference_jacobian(f, xi, cache))
+        xlast = xi
+        xi = x0 - dfii * fi
+        (norm(xi-x0) < atol) && break
+        if xi[1] .< x0[1]               # only ever search to the right!
+            δ  = δ ./ 2.0
+            x0 = start .+ δ      # reset with smaller delta
+            xi = x0
+        else
+            x0 = xi
+        end
+        (i >= nsteps ) && (done = true)
+        i += 1
+    end
+    return xi
+end
+

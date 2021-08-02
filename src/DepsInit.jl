@@ -10,11 +10,9 @@ using LinearAlgebra, GenericLinearAlgebra
 using Combinatorics
 using TOML          # used for input
 using Printf
-using ForwardDiff
+using ForwardDiff, Zygote, FiniteDiff
 using Query
 #using IntervalArithmetic, IntervalRootFinding
-using Roots
-using PaddedViews   # used to pad fft arrays
 using FFTW          # used for convolutions
 using NLsolve
 

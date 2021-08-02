@@ -26,9 +26,9 @@ uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
 [[deps.ArrayInterface]]
 deps = ["IfElse", "LinearAlgebra", "Requires", "SparseArrays", "Static"]
-git-tree-sha1 = "a71d224f61475b93c9e196e83c17c6ac4dedacfa"
+git-tree-sha1 = "655d9e28a75f88eea3fb81a12f62da9bade89fb5"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "3.1.18"
+version = "3.1.19"
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -47,6 +47,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Lz4_jll", "Pkg", "Zlib_jll", "Zstd
 git-tree-sha1 = "e747dac84f39c62aff6956651ec359686490134e"
 uuid = "0b7ba130-8d10-5ba8-a3d6-c5182647fed9"
 version = "1.21.0+0"
+
+[[deps.ChainRules]]
+deps = ["ChainRulesCore", "Compat", "LinearAlgebra", "Random", "Statistics"]
+git-tree-sha1 = "0ff24ac6ea4f03d9ed5c90505c1e96273bf5f96d"
+uuid = "082447d4-558c-5d27-93f4-14fc19e9eca2"
+version = "0.8.23"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra", "SparseArrays"]
@@ -72,9 +78,9 @@ version = "0.3.0"
 
 [[deps.Compat]]
 deps = ["Base64", "Dates", "DelimitedFiles", "Distributed", "InteractiveUtils", "LibGit2", "Libdl", "LinearAlgebra", "Markdown", "Mmap", "Pkg", "Printf", "REPL", "Random", "SHA", "Serialization", "SharedArrays", "Sockets", "SparseArrays", "Statistics", "Test", "UUIDs", "Unicode"]
-git-tree-sha1 = "dc7dedc2c2aa9faf59a55c622760a25cbefbe941"
+git-tree-sha1 = "344f143fa0ec67e47917848795ab19c6a455f32c"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
-version = "3.31.0"
+version = "3.32.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -135,9 +141,9 @@ version = "1.0.2"
 
 [[deps.Dispersions]]
 deps = ["Combinatorics", "Coverage", "Documenter", "FFTW", "HDF5", "Pkg", "Test"]
-git-tree-sha1 = "f6065ad47fbe216c7e8e979401c317ae281d1ee3"
+git-tree-sha1 = "1b19995c1bd67010911978d6f0aa5cb5e2907181"
 repo-rev = "master"
-repo-url = "https://github.com/Atomtomate/Dispersions.jl/"
+repo-url = "/home/julian/JuliansBastelecke/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
 version = "0.1.8"
 
@@ -185,6 +191,12 @@ git-tree-sha1 = "256d8e6188f3f1ebfa1a5d17e072a0efafa8c5bf"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
 version = "1.10.1"
 
+[[deps.FillArrays]]
+deps = ["LinearAlgebra", "Random", "SparseArrays", "Statistics"]
+git-tree-sha1 = "8c8eac2af06ce35973c3eadb4ab3243076a408e7"
+uuid = "1a297f60-69ca-5386-bcde-b61e274b549b"
+version = "0.12.1"
+
 [[deps.FiniteDiff]]
 deps = ["ArrayInterface", "LinearAlgebra", "Requires", "SparseArrays", "StaticArrays"]
 git-tree-sha1 = "8b3c09b56acaf3c0e581c66638b85c8650ee9dca"
@@ -205,9 +217,9 @@ version = "0.2.5"
 
 [[deps.HDF5]]
 deps = ["Blosc", "Compat", "HDF5_jll", "Libdl", "Mmap", "Random", "Requires"]
-git-tree-sha1 = "1d18a48a037b14052ca462ea9d05dee3ac607d23"
+git-tree-sha1 = "83173193dc242ce4b037f0263a7cc45afb5a0b85"
 uuid = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-version = "0.15.5"
+version = "0.15.6"
 
 [[deps.HDF5_jll]]
 deps = ["Artifacts", "JLLWrappers", "LibCURL_jll", "Libdl", "OpenSSL_jll", "Pkg", "Zlib_jll"]
@@ -226,6 +238,12 @@ deps = ["Logging"]
 git-tree-sha1 = "377252859f740c217b936cebcd918a44f9b53b59"
 uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
 version = "0.1.1"
+
+[[deps.IRTools]]
+deps = ["InteractiveUtils", "MacroTools", "Test"]
+git-tree-sha1 = "95215cd0076a150ef46ff7928892bc341864c73c"
+uuid = "7869d1d1-7146-5819-86e3-90919afe41df"
+version = "0.4.3"
 
 [[deps.IfElse]]
 git-tree-sha1 = "28e837ff3e7a6c3cdb252ce49fb412c8eb3caeef"
@@ -261,9 +279,9 @@ version = "1.0.0"
 
 [[deps.JLD2]]
 deps = ["DataStructures", "FileIO", "MacroTools", "Mmap", "Pkg", "Printf", "Reexport", "TranscodingStreams", "UUIDs"]
-git-tree-sha1 = "4813826871754cf52607e76ad37acb36ccf52719"
+git-tree-sha1 = "d2d9e19c89b1df90f93ff55498762918984ad194"
 uuid = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
-version = "0.4.11"
+version = "0.4.12"
 
 [[deps.JLLWrappers]]
 deps = ["Preferences"]
@@ -487,7 +505,9 @@ uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
 
 [[deps.SeriesAcceleration]]
 deps = ["Documenter", "LinearAlgebra", "Logging", "Test"]
-git-tree-sha1 = "7005e2d17b4ec7f84e0f90a7af4b0813523065d0"
+git-tree-sha1 = "ce05444dc1746fb216fcf026815cdb4576bb326a"
+repo-rev = "master"
+repo-url = "https://github.com/Atomtomate/SeriesAcceleration.jl"
 uuid = "d262d690-7b73-43ed-8cf8-7b23904776e1"
 version = "0.3.1"
 
@@ -504,9 +524,9 @@ uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [[deps.SpecialFunctions]]
 deps = ["ChainRulesCore", "LogExpFunctions", "OpenSpecFun_jll"]
-git-tree-sha1 = "a50550fa3164a8c46747e62063b4d774ac1bcf49"
+git-tree-sha1 = "508822dca004bf62e210609148511ad03ce8f1d8"
 uuid = "276daf66-3868-5448-9aa4-cd146d93841b"
-version = "1.5.1"
+version = "1.6.0"
 
 [[deps.Static]]
 deps = ["IfElse"]
@@ -516,9 +536,9 @@ version = "0.3.0"
 
 [[deps.StaticArrays]]
 deps = ["LinearAlgebra", "Random", "Statistics"]
-git-tree-sha1 = "1b9a0f17ee0adde9e538227de093467348992397"
+git-tree-sha1 = "885838778bb6f0136f8317757d7803e0d81201e4"
 uuid = "90137ffa-7385-5640-81b9-e52037218182"
-version = "1.2.7"
+version = "1.2.9"
 
 [[deps.Statistics]]
 deps = ["LinearAlgebra", "SparseArrays"]
@@ -596,6 +616,18 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "cc4bf3fdde8b7e3e9fa0351bdeedba1cf3b7f6e6"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
 version = "1.5.0+0"
+
+[[deps.Zygote]]
+deps = ["AbstractFFTs", "ChainRules", "ChainRulesCore", "DiffRules", "Distributed", "FillArrays", "ForwardDiff", "IRTools", "InteractiveUtils", "LinearAlgebra", "MacroTools", "NaNMath", "Random", "Requires", "SpecialFunctions", "Statistics", "ZygoteRules"]
+git-tree-sha1 = "8b634fdb4c3c63f2ceaa2559a008da4f405af6b3"
+uuid = "e88e6eb3-aa80-5325-afca-941959d7151f"
+version = "0.6.17"
+
+[[deps.ZygoteRules]]
+deps = ["MacroTools"]
+git-tree-sha1 = "9e7a1e8ca60b742e508a315c17eef5211e7fbfd7"
+uuid = "700de1a5-db45-46bc-99cf-38207098b444"
+version = "0.2.1"
 
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]

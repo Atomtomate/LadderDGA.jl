@@ -1,8 +1,8 @@
-# ==================================================================================================== # 
+# ==================================================================================================== #
 #                                                                                                      #
 #                                          Helper Functions                                            #
 #                                                                                                      #
-# ==================================================================================================== # 
+# ==================================================================================================== #
 function readConfig(file)
     @info "Reading Inputs..."
 
@@ -60,14 +60,14 @@ function readConfig(file)
                              tml["Environment"]["inputVars"],
                              tml["Environment"]["asymptVars"],
                              tml["Environment"]["cast_to_real"],
-                             String([(i == 1) ? uppercase(c) : lowercase(c) 
+                             String([(i == 1) ? uppercase(c) : lowercase(c)
                                      for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
                              lowercase(tml["Environment"]["logfile"]),
                              tml["Environment"]["progressbar"]
                             )
 
 
-    mP = jldopen(env.inputDir*"/"*env.inputVars) do f 
+    mP = jldopen(env.inputDir*"/"*env.inputVars) do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -93,8 +93,11 @@ function readConfig(file)
     else
         freqFilePath = env.freqFile
     end
-    JLD2.@load freqFilePath freqRed_map freqList freqList_min parents ops nFermi nBose shift base offset
-
+    nFermi = load(freqFilePath, "nFermi")
+    nBose = load(freqFilePath, "nBose")
+    shift = load(freqFilePath, "shift")
+    sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tc_type_f)
+    fft_offset = -minimum(-(2*nFermi+2*nBose):(2*nFermi+2*nBose))+1
 
     sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type_f,
@@ -108,15 +111,16 @@ function readConfig(file)
                                tml["Simulation"]["fermionic_tail_coeffs"],
                                tml["Simulation"]["usable_prct_reduction"],
                                smoothing,
+                               sh_f,
+                               fft_offset,
                                dbg_full_eom_omega
     )
-    kGrids = []
-    for Nk in tml["Simulation"]["Nk"]
-        kGrid = gen_kGrid(tml["Model"]["kGrid"], Nk)
-        push!(kGrids, kGrid)
+    kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
+    for i in 1:length(tml["Simulation"]["Nk"])
+        Nk = tml["Simulation"]["Nk"][i]
+        kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
-    kGridLoc = gen_kGrid(tml["Model"]["kGrid"], 1)
-    return mP, sP, env, kGrids, kGridLoc, freqList
+    return mP, sP, env, kGrids
 end
 
 function convertGF!(GF, storedInverse, storeFull)
@@ -184,26 +188,25 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
     end
 end
 
-# ==================================================================================================== # 
+# ==================================================================================================== #
 #                                                                                                      #
 #                                             JLD2 Input                                               #
 #                                                                                                      #
-# ==================================================================================================== # 
+# ==================================================================================================== #
 function readEDAsymptotics_julia(env)
     @error("Asymptotics from jld2 not implemented yet")
 end
 
-# ==================================================================================================== # 
+# ==================================================================================================== #
 #                                                                                                      #
 #                                            Parquet Input                                             #
 #                                                                                                      #
-# ==================================================================================================== # 
+# ==================================================================================================== #
 function readFortranSymmGF_pq(nFreq, filename; storedInverse, storeFull=false)
     GF = redirect_stdout(open("/dev/null","w")) do
         load(filename) |> @orderby(_.__index_level_0__) |> @take(nFreq)|> @map((_.Re) + (_.Im)*1im) |> collect
     end
     convertGF!(GF, storedInverse, storeFull)
-    println(GF)
     return GF
 end
 
@@ -215,10 +218,10 @@ function readFortranΓ_pq(fileName::String)
     Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γcharge[1,:,:] = Γcharge0
-    Γspin[1,:,:]   = Γspin0 
+    Γspin[1,:,:]   = Γspin0
     ω_min = ωₙ
     ω_max = ωₙ
-    
+
     for (i,file) in enumerate(files[2:end])
         ωₙ, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=-1.0)
         ω_min = if ωₙ < ω_min ωₙ else ω_min end
@@ -247,7 +250,7 @@ function readFortranχDMFT_pq(filename::String)
     χdown   = permutedims(χdown, [3,1,2])
     χCharge = χup .+ χdown
     χSpin   = χup .- χdown
-    return χCharge, χSpin 
+    return χCharge, χSpin
 end
 
 function convert_from_fortran_pq(simParams, env)
@@ -267,11 +270,11 @@ function convert_from_fortran_pq(simParams, env)
 end
 
 
-# ==================================================================================================== # 
+# ==================================================================================================== #
 #                                                                                                      #
 #                                            Text Input                                                #
 #                                                                                                      #
-# ==================================================================================================== # 
+# ==================================================================================================== #
 function readFortranqωFile(filename, nDims; readq = false, data_cols = 2)
     InString = open(filename, "r") do f
         readlines(f)
@@ -295,10 +298,10 @@ function readFortranΓ(dirName::String)
     Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γcharge[1,:,:] = Γcharge0
-    Γspin[1,:,:]   = Γspin0 
+    Γspin[1,:,:]   = Γspin0
     ω_min = ωₙ
     ω_max = ωₙ
-    
+
     for (i,file) in enumerate(files[2:end])
         ωₙ, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=-1.0)
         ω_min = if ωₙ < ω_min ωₙ else ω_min end
@@ -328,7 +331,7 @@ function readFortranχDMFT(dirName::String)
     χupdo   = permutedims(χupdo, [3,2,1])
     χCharge = χupup .+ χupdo
     χSpin   = χupup .- χupdo
-    return χCharge, χSpin 
+    return χCharge, χSpin
 end
 
 function readFortranχlDGA(dirName::String, nDims)
@@ -377,7 +380,7 @@ function read_anderson_parameters(file)
     content = open(file) do f
         readlines(f)
     end
-    
+
     in_epsk = false
     in_tpar = false
     ϵₖ = []
@@ -392,7 +395,7 @@ function read_anderson_parameters(file)
             in_tpar = true
             continue
         end
-        
+
         if in_epsk
             push!(ϵₖ, parse(Float64, line))
         elseif in_tpar
@@ -438,13 +441,13 @@ end
 
 
 function readEDAsymptotics(env, mP)
-    χ_asympt = readdlm(env.inputDir * "/chi_asympt")   
+    χ_asympt = readdlm(env.inputDir * "/chi_asympt")
     χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*mP.β*mP.β);
     χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*mP.β*mP.β);
     #= _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false) =#
     #= χchED = χup .+ χdo =#
     #= χspED = χup .- χdo =#
-    save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt, 
+    save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt,
          compress=true, compatible=true)
 end
 
@@ -456,14 +459,14 @@ function readFortranSymmGF(nFreq, filename; storedInverse, storeFull=false)
     if size(GFString, 1)*(1 + 1*storeFull) < nFreq
         throw(BoundsError("nFermFreq in simulation parameters too large!"))
     end
-    
+
     tmp = parse.(Float64,hcat(split.(GFString)...)[2:end,:]) # Construct a 2xN array of floats (re,im as 1st index)
     tmp = tmp[1,:] .+ tmp[2,:].*1im
 
     if storedInverse
         tmp = 1 ./ tmp
     end
-    
+
     GF = Array{Complex{Float64}}(undef, nFreq)
     if storeFull
         NH = Int(nFreq/2)
@@ -521,11 +524,11 @@ end
 
 
 
-# ==================================================================================================== # 
+# ==================================================================================================== #
 #                                                                                                      #
 #                                            Text Output                                                #
 #                                                                                                      #
-# ==================================================================================================== # 
+# ==================================================================================================== #
 function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, inCol2)
     simParams.n_iν+simParams.n_iω
     if !isdir(dirName)
@@ -537,7 +540,7 @@ function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, in
             for (νi,νₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
                 for (ν2i,ν2ₙ) in enumerate(-simParams.n_iν:(simParams.n_iν-1))
                     @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n", ωₙ, νₙ, ν2ₙ,
-                            real(inCol1[ωi, νi, ν2i]), imag(inCol1[ωi, νi, ν2i]), 
+                            real(inCol1[ωi, νi, ν2i]), imag(inCol1[ωi, νi, ν2i]),
                             real(inCol2[ωi, νi, ν2i]), imag(inCol2[ωi, νi, ν2i]))
                 end
             end
@@ -550,7 +553,7 @@ function writeFortranΣ(dirName::String, Σ_ladder)
     if !isdir(dirName)
         mkdir(dirName)
     end
-    
+
     for ki in 1:size(Σ_ladder,2)
         fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
         open(fn, write=true) do f
@@ -567,7 +570,7 @@ function writeFortranχ(dirName::String, χ, χ_λ, qGrid, usable_ω)
     if !isdir(dirName)
         mkdir(dirName)
     end
-    for ωi in 1:size(χ, 1) 
+    for ωi in 1:size(χ, 1)
         fn = dirName * "/chi" * lpad(ωi-1,3,"0")
         open(fn, write=true) do f
             for qi in 1:size(χ, 2)

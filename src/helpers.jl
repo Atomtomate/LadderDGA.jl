@@ -31,9 +31,12 @@ printr_s(x::Complex{Float64}) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
-function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
+function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
     fft_range = -(2*sP.n_iν+2*sP.n_iω):(2*sP.n_iν+2*sP.n_iω)
     in_file = env.inputVars
+
+    kGridLoc = gen_kGrid(kGridStr[1], 1)
+    kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
     if(myid() == 1)
         if env.inputDataType == "text"
             convert_from_fortran(sP, env, false)
@@ -52,36 +55,51 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
             in_file = env.inputDir*"/"*env.inputVars
         end
         f = load(in_file)
-        Γch = f["Γch"]
-        Γsp = f["Γsp"]
-        χDMFTch = f["χDMFTch"]
-        χDMFTsp = f["χDMFTsp"]
-        gImp_in, Σ_loc = if haskey(f, "g0")
+        χDMFTsp_in = f["χDMFTsp"]
+        χDMFTch_in = f["χDMFTch"]
+        gImp_in, Σ_loc_in = if haskey(f, "g0")
             gImp_in = copy(f["gImp"])
             g0 = copy(f["g0"])
-            Σ_loc = Σ_Dyson(g0, gImp_in)
-            gImp_in, Σ_loc
+            Σ_loc_in = Σ_Dyson(g0, gImp_in)
+            gImp_in, Σ_loc_in
         else
             gImp_in = copy(f["gImp"])
-            Σ_loc = copy(f["SigmaLoc"])
-            gImp_in, Σ_loc
+            Σ_loc_in = copy(f["SigmaLoc"])
+            gImp_in, Σ_loc_in
         end
-        FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch - χDMFTsp), gImp_in, freqList, mP, sP)
+
+        FUpDo_in = FUpDo_from_χDMFT(0.5 .* (χDMFTch_in - χDMFTsp_in), gImp_in, env, mP, sP)
+
         gImp_sym = store_symm_f(gImp_in, fft_range)
-        gImp = reshape(gImp_sym, (length(gImp_sym),1))
-        gLoc = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
-        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc))
-        gLoc_out = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
-        gLoc = flatten_2D(gLoc_out)
+        gImp_in = reshape(gImp_sym, (length(gImp_sym),1))
+
+        gLoc_full = G_from_Σ(Σ_loc_in, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
+        gLoc_fft_in = flatten_2D(map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc_full))
+
+        gLoc_in = G_from_Σ(Σ_loc_in, kGrid.ϵkGrid, fft_range, mP);
+        gLoc_in = flatten_2D(gLoc_in)
     end
-    FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=procs());copy!(FUpDo, FUpDo_in)
-    gImp = OffsetArray(gImp, fft_range, :) 
-    gLoc = OffsetArray(gLoc, fft_range, :) 
-    gLoc_fft = OffsetArray(gLoc_fft_in, fft_range, :) 
-    χDMFTch_new = SharedArray{Complex{Float64},3}(size(χDMFTch),pids=procs());copy!(χDMFTch_new, χDMFTch)
-    χDMFTsp_new = SharedArray{Complex{Float64},3}(size(χDMFTsp),pids=procs());copy!(χDMFTsp_new, χDMFTsp)
-    Γch_new = SharedArray{Complex{Float64},3}(size(Γch),pids=procs());copy!(Γch_new, Γch)
-    Γsp_new = SharedArray{Complex{Float64},3}(size(Γsp),pids=procs());copy!(Γsp_new, Γsp)
+    FUpDo = SharedArray{Complex{Float64},3}(size(FUpDo_in),pids=workers());
+    Σ_loc = SharedArray{Complex{Float64},1}(size(Σ_loc_in),pids=workers());
+    gImp = SharedArray{Complex{Float64},2}(size(gImp_in),pids=workers());
+    gLoc = SharedArray{Complex{Float64},2}(size(gLoc_in),pids=workers());
+    gLoc_fft = SharedArray{Complex{Float64},2}(size(gLoc_fft_in),pids=workers());
+    χDMFTch = SharedArray{Complex{Float64},3}(size(χDMFTch_in),pids=workers());
+    χDMFTsp = SharedArray{Complex{Float64},3}(size(χDMFTsp_in),pids=workers());
+    Γch = SharedArray{Complex{Float64},3}(size(χDMFTch),pids=workers());
+    Γsp = SharedArray{Complex{Float64},3}(size(χDMFTsp),pids=workers());
+    if myid() == 1
+        copy!(Γch, f["Γch"])
+        copy!(Γsp, f["Γsp"])
+        copy!(χDMFTsp, χDMFTsp_in)
+        copy!(χDMFTch, χDMFTch_in)
+        copy!(FUpDo, FUpDo_in)
+        copy!(gImp, gImp_in)
+        copy!(gLoc, gLoc_in)
+        copy!(gLoc_fft, gLoc_fft_in)
+        copy!(Σ_loc, Σ_loc_in)
+    end
+
     if env.loadAsymptotics
         asympt_vars = load(env.asymptVars)
         χchAsympt = asympt_vars["chi_ch_asympt"]
@@ -93,14 +111,6 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
     ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
-
-    #TODO: this should no assume consecutive frequencies
-    #νGrid = [(i,j) for i in 1:(2*sP.n_iω+1) for j in (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-sP.n_iω-1)/2)]
-    νGrid = Array{AbstractArray}(undef, 2*sP.n_iω+1);
-    for i in 1:length(νGrid)
-        νGrid[i] = (1:2*sP.n_iν) .- trunc(Int64,sP.shift*(i-1-sP.n_iω)/2)
-    end
-    #TODO: fix this! do not assume anything about freqGrid without reading from file
 
     sh_f = get_sum_helper(2*sP.n_iν, sP, :f)
 
@@ -146,23 +156,24 @@ function setup_LDGA(kGrid::ReducedKGrid, freqList::AbstractArray, mP::ModelParam
     χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
     χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
 
-    impQ_sp = ImpurityQuantities(Γsp_new, χDMFTsp_new, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
-    impQ_ch = ImpurityQuantities(Γch_new, χDMFTch_new, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
+    impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
+    impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
     χupup_ω = 0.5 * (χLocsp_ω + χLocch_ω)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
     χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], mP.Ekin_DMFT, iωn)
 
     sh_b = get_sum_helper(loc_range, sP, :b)
-    imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], Naive(), mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12))
+    imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], DirectSum(), mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12))
     imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], sh_b, mP.β, corr=-mP.Ekin_DMFT*mP.β^2/12))
+
 
     @info """Inputs Read. Starting Computation.
       Local susceptibilities with ranges are:
-      χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc)) 
+      χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc))
       sum χupup check (fit, tail sub, tail sub + fit, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density_pure) ?=? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
       """
-    return νGrid, sh_f, impQ_sp, impQ_ch, gImp, gLoc, gLoc_fft, Σ_loc, FUpDo
+    return impQ_sp, impQ_ch, gImp, kGridLoc, kGrid, gLoc, gLoc_fft, Σ_loc, FUpDo
 end
 
 
@@ -185,7 +196,7 @@ end
 # ================== Noise Filter ==================
 
 function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
-    res = deepcopy(X) 
+    res = deepcopy(X)
     offset = trunc(Int,m/2)
     res[1+offset] = sum(@view X[1:m])/m
     for (ii,i) in enumerate((2+offset):(length(X)-offset))
@@ -194,7 +205,7 @@ function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
     return res
 end
 
-function filter_MA!(res::AbstractArray{T,1}, m::Int, X::AbstractArray{T,1}) where T <: Number 
+function filter_MA!(res::AbstractArray{T,1}, m::Int, X::AbstractArray{T,1}) where T <: Number
     offset = trunc(Int,m/2)
     res[1+offset] = sum(@view X[1:m])/m
     for (ii,i) in enumerate((2+offset):(length(X)-offset))

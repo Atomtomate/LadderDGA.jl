@@ -31,5 +31,5 @@ Base.copy(x::T) where T <: Union{NonLocalQuantities, ImpurityQuantities} = T([de
 
 const ΓT = SharedArray{Complex{Float64},3}
 const BubbleT = SharedArray{Complex{Float64},3}
-const GνqT = OffsetArray{Complex{Float64},2}
+const GνqT = SharedArray{Complex{Float64},2}
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}

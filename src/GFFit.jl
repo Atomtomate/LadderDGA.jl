@@ -71,18 +71,21 @@ Construct helper for (improved) sums from setting in
 function get_sum_helper(range, sP::SimulationParameters, type)
     tc = if type == :f sP.tc_type_f else sP.tc_type_b end
     fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(sP.bosonic_tail_coeffs)) 
+    return get_sum_helper(fitRange, tc)
+end
 
+function get_sum_helper(fitRange::AbstractArray, tc::Symbol)
     sumHelper = if tc == :nothing
-        Naive()
+        DirectSum()
     elseif tc == :richardson
         (type == :f) ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
     elseif tc == :coeffs
         #TODO: move coeffs to SeriesAccelleration
-        #Naive()
+        #DirectSum()
         (type == :f) ? Richardson(fitRange, sP.fermionic_tail_coeffs, method=:bender) : Richardson(fitRange, sP.bosonic_tail_coeffs, method=:bender)
     else
-        @error("Unrecognized tail correction, falling back to naive sums!")
-        Naive()
+        @error("Unrecognized sum helper type, falling back to direct sums!")
+        DirectSum()
     end
     return sumHelper
 end
@@ -113,7 +116,7 @@ Examples
 -------------
 ```
 julia> arr = ones(3,5,5)
-julia> sum_freq(arr, [2,3], Naive(), 1.0)
+julia> sum_freq(arr, [2,3], DirectSum(), 1.0)
 3×1×1 Array{Float64, 3}:
     [:, :, 1] =
      25.0

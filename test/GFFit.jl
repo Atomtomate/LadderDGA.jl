@@ -15,13 +15,13 @@ end
 
 @testset "get_sum_helper" begin
 #    LadderDGA.default_fit_range()
-    LadderDGA.get_sum_helper(1:4, sP_1, :f) === typeof(Naive())   
+    LadderDGA.get_sum_helper(1:4, sP_1, :f) === typeof(DirectSum())   
     LadderDGA.get_sum_helper(1:12, sP_2, :f) === typeof(Richardson(1:3,0:2))
 end
 
 @testset "sum_freq" begin
     test = [1/n^k for k in 2:2:8, n in 1:10]
-    @test all(LadderDGA.sum_freq(test, [2], Naive(), Float64(π)) .≈ sum(test,dims=[2]) ./ π)
+    @test all(LadderDGA.sum_freq(test, [2], DirectSum(), Float64(π)) .≈ sum(test,dims=[2]) ./ π)
 end
 
 @testset "extend_γ" begin

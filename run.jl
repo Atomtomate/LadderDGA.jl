@@ -50,8 +50,6 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         flush(io)
         nlQ_sp = calc_χ_trilex(impQ_sp.Γ, bubble, kG, νGrid, sumHelper_f, mP.U, mP, sP);
         nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, kG, νGrid, sumHelper_f, -mP.U, mP, sP);
-        nlQ_sp_2 = deepcopy(nlQ_sp)
-        nlQ_ch_2 = deepcopy(nlQ_ch);
 
         
         @info "Calculating λsp correction: "
@@ -62,21 +60,11 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         Σ_ladder_corrected = Σ_ladder .- Σ_ladderLoc .+ Σ_loc[1:size(Σ_ladder,1)];
         @info "Done."
         flush(io)
-        @info "Calculating λsp/ch correction: "
-        flush(io)
-        @time λ_correction!(:sp_ch, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp_2, nlQ_ch_2, bubble, GLoc_fft, kG, mP, sP)
-        @info "Calculating Σ ladder: "
-        Σ_ladder_2 = calc_Σ(nlQ_sp_2, nlQ_ch_2, bubble, GLoc_fft, FUpDo, kG, sumHelper_f, mP, sP)
-        Σ_ladder_corrected_2 = Σ_ladder_2 .- Σ_ladderLoc .+ Σ_loc[1:size(Σ_ladder_2,1)];
-        @info "Done."
-        flush(io)
 
         if save_results
         fname = res_prefix*"lDGA_k$(kG.Ns)_sp_"*res_postfix*".jld2"
         @info "Writing to $(fname)"
         save(fname, "sP", sP, "mP", mP, "kG", kG ,"bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "Σ_ladderLoc", Σ_ladderLoc, "bubble", bubble, "nlQ_ch", nlQ_ch, "nlQ_sp", nlQ_sp, "Σ_ladder", Σ_ladder)
-        fname = res_prefix*"lDGA_k$(kG.Ns)_spch_"*res_postfix*".jld2"
-        save(fname, "sP", sP, "mP", mP, "kG", kG ,"bubbleLoc", bubbleLoc, "locQ_sp", locQ_sp, "locQ_ch", locQ_ch, "Σ_ladderLoc", Σ_ladderLoc, "bubble", bubble, "Σ_ladder", Σ_ladder_2, "nlQ_ch", nlQ_ch_2, "nlQ_sp", nlQ_sp_2)
         end
     end
 end

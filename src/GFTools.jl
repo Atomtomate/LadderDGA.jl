@@ -8,15 +8,18 @@ iω_array(β::Real, grid::AbstractArray{Int64,1}) = [1.0im*((2.0 *el)* π/β) fo
 iω_array(β::Real, size::Integer)    = [1.0im*((2.0 *i)* π/β) for i in 0:size-1]
 
 
-function FUpDo_from_χDMFT(χupdo, GImp, freqList, mP, sP)
+function FUpDo_from_χDMFT(χupdo, GImp, env, mP, sP)
     FUpDo = Array{eltype(χupdo)}(undef, 2*sP.n_iω+1, 2*sP.n_iν, 2*sP.n_iν)
     #TODO: indices should not be computed by hand here, get them from input
-    for f in freqList
-        i = f[1] + sP.n_iω+1
-        j = f[2] + sP.n_iν+1 + trunc(Int64,sP.shift*f[1]/2)
-        k = f[3] + sP.n_iν+1 + trunc(Int64,sP.shift*f[1]/2)
-        FUpDo[i,j,k] = χupdo[i,j,k]/(mP.β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
-                           * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
+    jldopen(env.freqFile) do f
+        freqList = f["freqList"]
+        for f in freqList
+            i = f[1] + sP.n_iω+1
+            j = f[2] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
+            k = f[3] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
+            FUpDo[i,j,k] = χupdo[i,j,k]/(mP.β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
+                               * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
+        end
     end
     return FUpDo
 end
@@ -29,21 +32,21 @@ Constructs GF from k-independent self energy, using the Dyson equation
 and the dispersion relation of the lattice.
 """
 #TODO: preallocate and compute
-@inline function G(ind::Int64, Σ::Array{Complex{Float64},1}, 
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},1},
                    ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
     Σν = get_symm_f(Σ,ind)
     return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
 end
 
 #TODO: preallocate and compute
-@inline function G(ind::Int64, Σ::Array{Complex{Float64},2}, 
+@inline function G(ind::Int64, Σ::Array{Complex{Float64},2},
                    ϵkGrid, β::Float64, μ::Float64)
     Σνk = get_symm_f(Σ,ind)
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
 
-function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3) 
+function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64},1}, eps = 1e-3)
     @inbounds Σ::Array{Complex{Float64},1} =  1 ./ GBath .- 1 ./ GImp
     return Σ
 end
@@ -54,7 +57,7 @@ end
                     1/(mf + μ - ϵₖ - Σ)
 
 #TODO optimize these helpers
-G_from_Σ(Σ, ϵkGrid, 
+G_from_Σ(Σ, ϵkGrid,
                  range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
 
