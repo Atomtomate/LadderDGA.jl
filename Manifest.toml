@@ -141,9 +141,9 @@ version = "1.0.2"
 
 [[deps.Dispersions]]
 deps = ["Combinatorics", "Coverage", "Documenter", "FFTW", "HDF5", "Pkg", "Test"]
-git-tree-sha1 = "1b19995c1bd67010911978d6f0aa5cb5e2907181"
+git-tree-sha1 = "5d4febd0039381c606a127cf46855efb771f4ac2"
 repo-rev = "master"
-repo-url = "/home/julian/JuliansBastelecke/Dispersions.jl"
+repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
 version = "0.1.8"
 
@@ -229,9 +229,9 @@ version = "1.12.0+1"
 
 [[deps.HTTP]]
 deps = ["Base64", "Dates", "IniFile", "Logging", "MbedTLS", "NetworkOptions", "Sockets", "URIs"]
-git-tree-sha1 = "c6a1fff2fd4b1da29d3dccaffb1e1001244d844e"
+git-tree-sha1 = "44e3b40da000eab4ccb1aecdc4801c040026aeb5"
 uuid = "cd3eb016-35fb-5094-929b-558a96fad6f3"
-version = "0.9.12"
+version = "0.9.13"
 
 [[deps.IOCapture]]
 deps = ["Logging"]
