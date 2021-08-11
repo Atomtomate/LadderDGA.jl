@@ -2,12 +2,12 @@ using LadderDGA
 using SeriesAcceleration
 using Test
 
-mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4)
-sP_1 = SimulationParameters(1,2,false,:nothing,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
-sP_2 = SimulationParameters(1,2,false,:richardson,:coeffs,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1)
+mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 0.0, 0.0)
+sP_1 = SimulationParameters(1,2,false,:nothing,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1, :nothing, DirectSum(), 1, false, 1,1, Float64[], ComplexF64[])
+sP_2 = SimulationParameters(1,2,false,:richardson,:coeffs,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1, :nothing, DirectSum(), 1, false, 1,1, Float64[], ComplexF64[])
 
 @testset "Config" begin
-    include("Config.jl")
+#    include("Config.jl")
 end
 
 @testset "Helpers" begin
@@ -20,6 +20,10 @@ end
 
 @testset "ladderDGATools" begin
     include("ladderDGATools.jl")
+end
+
+@testset "LapackWrapper" begin
+    include("LapackWrapper.jl")
 end
 
 @testset "full run" begin

@@ -1,3 +1,4 @@
+#TODO: many function tests missing! This is an important sub-module
 @testset "build fν max" begin
     @test all(LadderDGA.build_fνmax_fast([4,3,2,1,2,3,4],2) .== [11, 19])
     @test all(LadderDGA.build_fνmax_fast([3,2,1,2,3],3) .== [1, 5, 11])

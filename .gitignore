@@ -11,6 +11,7 @@
 *.png
 *.out
 *.tex
+*.txt
 
 run_*
 config_*

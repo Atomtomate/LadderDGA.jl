@@ -66,8 +66,7 @@ function readConfig(file)
                              tml["Environment"]["progressbar"]
                             )
 
-
-    mP = jldopen(env.inputDir*"/"*env.inputVars) do f
+    mP = jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -79,6 +78,7 @@ function readConfig(file)
         U, μ, β, nden = if haskey(f, "U")
             f["U"], f["μ"], f["β"], f["nden"]
         else
+            @warn "reading Hubbard Parameters from config. These should be supplied through the input jld2!"
             tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"]
         end
         ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT)
@@ -96,8 +96,11 @@ function readConfig(file)
     nFermi = load(freqFilePath, "nFermi")
     nBose = load(freqFilePath, "nBose")
     shift = load(freqFilePath, "shift")
-    sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tc_type_f)
+    sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     fft_offset = -minimum(-(2*nFermi+2*nBose):(2*nFermi+2*nBose))+1
+
+    lo = npartial_sums(sh_f)
+    up = 2*nFermi - lo + 1 
 
     sP = SimulationParameters(nBose,nFermi,shift,
                                tc_type_f,
@@ -113,13 +116,24 @@ function readConfig(file)
                                smoothing,
                                sh_f,
                                fft_offset,
-                               dbg_full_eom_omega
+                               dbg_full_eom_omega,
+                               lo,
+                               up,
+                               Array{Float64, 1}(undef, lo),
+                               Array{ComplexF64, 1}(undef, lo)
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
     for i in 1:length(tml["Simulation"]["Nk"])
         Nk = tml["Simulation"]["Nk"][i]
         kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
+
+    jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
+        if !haskey(f, "FUpDo")
+            f["FUpDo"] = FUpDo_from_χDMFT(0.5 .* (f["χDMFTch"] - f["χDMFTsp"]), f["gImp"], env, mP, sP)
+        end
+    end
+
     return mP, sP, env, kGrids
 end
 

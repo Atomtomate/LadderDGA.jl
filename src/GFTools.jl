@@ -2,14 +2,14 @@
 Most functions in this files are not used in this project.
 """
 # TODO: test everything for single orbital case
-iν_array(β::Real, grid::AbstractArray{Int64,1}) = [1.0im*((2.0 *el + 1)* π/β) for el in grid]
-iν_array(β::Real, size::Integer)    = [1.0im*((2.0 *i + 1)* π/β) for i in 0:size-1]
-iω_array(β::Real, grid::AbstractArray{Int64,1}) = [1.0im*((2.0 *el)* π/β) for el in grid]
-iω_array(β::Real, size::Integer)    = [1.0im*((2.0 *i)* π/β) for i in 0:size-1]
+iν_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el + 1)* π/β) for el in grid]
+iν_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i + 1)* π/β) for i in 0:size-1]
+iω_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
+iω_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i)* π/β) for i in 0:size-1]
 
 
-function FUpDo_from_χDMFT(χupdo, GImp, env, mP, sP)
-    FUpDo = Array{eltype(χupdo)}(undef, 2*sP.n_iω+1, 2*sP.n_iν, 2*sP.n_iν)
+function FUpDo_from_χDMFT(χupdo::AbstractArray{T,3}, GImp, env, mP, sP) where T <: Number
+    FUpDo = similar(χupdo)
     #TODO: indices should not be computed by hand here, get them from input
     jldopen(env.freqFile) do f
         freqList = f["freqList"]
@@ -17,6 +17,7 @@ function FUpDo_from_χDMFT(χupdo, GImp, env, mP, sP)
             i = f[1] + sP.n_iω+1
             j = f[2] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
             k = f[3] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
+    #TODO: fix different permdims in file and julia code (inconsistency!, names axes?)
             FUpDo[i,j,k] = χupdo[i,j,k]/(mP.β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
                                * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
         end

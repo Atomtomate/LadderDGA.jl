@@ -315,7 +315,7 @@ install_mac() {
 }
 
 git_clone(){
-    for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl#dev" "SparseVertex" "LadderDGA.jl"
+    for p in "EquivalenceClassesConstructor.jl" "Dispersions.jl" "SparseVertex" "LadderDGA.jl"
     do
         if [ ! -d $p ]
         then

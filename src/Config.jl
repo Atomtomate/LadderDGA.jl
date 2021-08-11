@@ -7,6 +7,7 @@ BSum = Union{Symbol, Tuple{Int,Int}}
 
 @enum ChiFillType zero_χ_fill lambda_χ_fill χ_fill
 
+#TODO: build better constructor, IO, update docstring
 """
     ModelParameters <: ConfigStruct
 
@@ -65,7 +66,13 @@ struct SimulationParameters <: ConfigStruct
     sh_f::SumHelper                     # SumHelper for fermionic sums (bosonic sums depend on runtime results)
     fft_offset::Int
     dbg_full_eom_omega::Bool
+    fνmax_lo::Int
+    fνmax_up::Int
+    fνmax_cache_r::Array{Float64,1}
+    fνmax_cache_c::Array{ComplexF64,1}
 end
+
+#TODO: SimulationParameters is becomming too large. introduce additional helper?
 
 """
     EnvironmentVars <: ConfigStruct
@@ -109,7 +116,27 @@ function Base.show(io::IO, m::SimulationParameters)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::SimulationParameters)
- 
     println(io, "LadderDGA.jl SimulationParameters:")
+    show(io, m)
+end
+
+"""
+	Base.show(io::IO, m::ModelParameters)
+
+Custom output for ModelParameters
+"""
+function Base.show(io::IO, m::ModelParameters)
+    compact = get(io, :compact, false)
+
+    if !compact
+        println(io, "U=$(m.U), β=$(m.β), n=$(m.n), μ=$(m.μ)")
+        println(io, "DMFT Energies: T=$(m.Ekin_DMFT), V=$(m.Epot_DMFT)")
+    else
+        print(io, "SimulationParams[nB=$m.n_iω, nF=m.n_iν, shift=m.shift]")
+    end
+end
+
+function Base.show(io::IO, ::MIME"text/plain", m::ModelParameters)
+    println(io, "LadderDGA.jl ModelParameters:")
     show(io, m)
 end
