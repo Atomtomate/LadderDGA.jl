@@ -96,8 +96,8 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, ωindices::AbstractA
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
-        fsp = 1.5 .* (1 .+ U*Q_sp.χ[:,ωi])
-        fch = 0.5 .* (1 .- U*view(Q_ch.χ,:,ωi))
+        @inbounds fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
+        @inbounds fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν-1, size(corr,3)])
         if lopWarn && (νZero + sP.n_iν-1 > size(corr,3)) 
@@ -108,8 +108,8 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, ωindices::AbstractA
         for (νn,νi) in enumerate(νZero:maxn)
             #TODO: : : : not general enough for arbirtrary grids
             #TODO: preexpand!! 
-            expandKArr!(kG,view(Kνωq,:,:,:), view(Q_sp.γ,:,νi,ωi) .* fsp .- view(Q_ch.γ,:,νi,ωi) .* fch .- 1.5 .+ 0.5 .+ view(corr,:,νi,ωii))
-            conv_fft1!(kG, view(Σ,:,νn,ωii), Gνω[(νn-1) + ωn + sP.fft_offset], Kνωq)
+            @inbounds expandKArr!(kG,view(Kνωq,:,:,:), view(Q_sp.γ,:,νi,ωi) .* fsp .- view(Q_ch.γ,:,νi,ωi) .* fch .- 1.5 .+ 0.5 .+ view(corr,:,νi,ωii))
+            @inbounds conv_fft1!(kG, view(Σ,:,νn,ωii), Gνω[(νn-1) + ωn + sP.fft_offset], Kνωq)
         end
     end
 end
