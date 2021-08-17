@@ -51,6 +51,9 @@ function readConfig(file)
 
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
 
+    if haskey(tml["Environment"], "nthread")
+        tml["Environment"]["nthreads"] != "nlogical" && @warn "number of threads config not implemented yet!"
+    end
 
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
@@ -97,7 +100,9 @@ function readConfig(file)
     nBose = load(freqFilePath, "nBose")
     shift = load(freqFilePath, "shift")
     sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
-    fft_offset = -minimum(-(2*nFermi+2*nBose):(2*nFermi+2*nBose))+1
+    freq_r = 2*(nFermi+nBose)#+shift*ceil(Int, nBose)
+    fft_range = -freq_r:freq_r
+    fft_offset = -minimum(fft_range)+1
 
     lo = npartial_sums(sh_f)
     up = 2*nFermi - lo + 1 
@@ -115,6 +120,7 @@ function readConfig(file)
                                tml["Simulation"]["usable_prct_reduction"],
                                smoothing,
                                sh_f,
+                               fft_range,
                                fft_offset,
                                dbg_full_eom_omega,
                                lo,

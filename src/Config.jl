@@ -64,6 +64,7 @@ struct SimulationParameters <: ConfigStruct
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
     ω_smoothing::Symbol                 # nothing, range, full
     sh_f::SumHelper                     # SumHelper for fermionic sums (bosonic sums depend on runtime results)
+    fft_range::AbstractArray
     fft_offset::Int
     dbg_full_eom_omega::Bool
     fνmax_lo::Int

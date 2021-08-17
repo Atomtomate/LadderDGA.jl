@@ -147,7 +147,7 @@ version = "1.2.1"
 
 [[deps.Dispersions]]
 deps = ["AbstractFFTs", "Combinatorics", "Coverage", "Documenter", "FFTW", "HDF5", "LinearAlgebra", "Pkg", "Test"]
-git-tree-sha1 = "bfae6c87db37cf9565e0e2620c47e46b1e5492b8"
+git-tree-sha1 = "95019302db9c418bb99b1f46ff0b772a1d757cee"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
@@ -452,9 +452,9 @@ version = "1.4.1"
 
 [[deps.PaddedViews]]
 deps = ["OffsetArrays"]
-git-tree-sha1 = "59925f4ae6861cddc2313a47514b93b6740f9b6f"
+git-tree-sha1 = "646eed6f6a5d8df6708f15ea7e02a7a2c4fe4800"
 uuid = "5432bcbf-9aad-5242-b902-cca2824c8663"
-version = "0.5.9"
+version = "0.5.10"
 
 [[deps.Parameters]]
 deps = ["OrderedCollections", "UnPack"]

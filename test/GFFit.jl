@@ -12,6 +12,12 @@
     @test all(LadderDGA.build_fνmax_fast(a, 3) .== test)
     @test all(LadderDGA.build_fνmax_fast(a, 2) .== test[2:3])
     @test all(LadderDGA.build_fνmax_fast(a, 1) .== test[3])
+    cache = Array{Float64,1}(undef,5)
+    LadderDGA.build_fνmax_fast!(cache, ones(Float64,200), 5, 196)
+    cache_c = Array{ComplexF64,1}(undef,5)
+    LadderDGA.build_fνmax_fast!(cache, ones(ComplexF64,200), 5, 196)
+    @test all(cache .≈ [192.0, 194.0, 196.0, 198.0, 200.0])
+    @test all(cache_c .≈ [192.0, 194.0, 196.0, 198.0, 200.0])
 end
 
 @testset "get_sum_helper" begin

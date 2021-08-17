@@ -52,14 +52,13 @@ function Σ_Dyson(GBath::Array{Complex{Float64},1}, GImp::Array{Complex{Float64}
     return Σ
 end
 
-@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::T, Σ::Complex{Float64}) where T <: Real =
+@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
-@inline @fastmath G_from_Σ(mf::Complex{Float64}, β::Float64, μ::Float64, ϵₖ::Float64, Σ::Complex{Float64}) =
+@inline @fastmath G_from_Σ(mf::ComplexF64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/(mf + μ - ϵₖ - Σ)
 
 #TODO optimize these helpers
-G_from_Σ(Σ, ϵkGrid,
-                 range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+G_from_Σ(Σ, ϵkGrid, range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
 
 function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{Complex{Float64},1}) where T <: Number

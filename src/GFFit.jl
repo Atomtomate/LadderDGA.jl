@@ -35,7 +35,7 @@ function csum_helper!(arr1::AbstractArray{T,1}, arr2::AbstractArray{T,1}, i::Int
     @inbounds arr1[i] = arr1[i-1] + arr2[lo] + arr2[up]
 end
 
-function csum_helper!(arr1::AbstractArray{T,1}, arr2::AbstractArray{T,2}, i::Int, lo::Int, up::Int) where T <: Number
+function csum_helper!(arr1::AbstractArray{T,1}, arr2::AbstractArray{T,2}, i::Int, lo::Int, up::Int) where T <: Union{ComplexF64,Float64}
     @inbounds @views arr1[i] = arr1[i-1] + sum(arr2[lo, lo:up]) + sum(arr2[up, lo:up]) + 
                                     sum(arr2[(lo+1):(up-1),lo]) + sum(arr2[(lo+1):(up-1),up]) 
 end
@@ -208,8 +208,8 @@ function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, corr::Float
     @simd for i in 1:length(sP.fνmax_cache)
         @inbounds sP.fνmax_cache_c[i] = sP.fνmax_cache_c[i] + corr
     end
-    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),1:length(sP.fνmax_cache_c),2)
-    @inbounds (esum_c(view(v,:,1), sP.sh_f) + esum_c(view(v,:,2), sP.sh_f).*im)/(β^ndims(f))
+    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),2,1:length(sP.fνmax_cache_c))
+    @inbounds (esum_c(view(v,1,:), sP.sh_f) + esum_c(view(v,2,:), sP.sh_f).*im)/(β^ndims(f))
 end
 
 function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, sP::SimulationParameters)::Float64
@@ -219,8 +219,9 @@ end
 
 function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, sP::SimulationParameters)::ComplexF64
     build_fνmax_fast!(sP.fνmax_cache_c, f, sP.fνmax_lo, sP.fνmax_up)
-    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),1:length(sP.fνmax_cache_c),2)
-    @inbounds (esum_c(view(v,:,1), sP.sh_f) + esum_c(view(v,:,2), sP.sh_f).*im)/(β^ndims(f))
+    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),2,1:length(sP.fνmax_cache_c))
+    #TODO: do we really need to split real and imaginary part?
+    @inbounds (esum_c(view(v,1,:), sP.sh_f) + esum_c(view(v,2,:), sP.sh_f).*im)/(β^ndims(f))
 end
 
 function sum_freq_full!(f::AbstractArray{Float64}, type::SumHelper, β::Float64, fνmax_cache::Array{Float64,1}, lo::Int, up::Int, corr::Float64)
@@ -231,8 +232,8 @@ end
 function sum_freq_full!(f::AbstractArray{ComplexF64}, type::SumHelper, β::Float64, fνmax_cache::Array{ComplexF64,1}, lo::Int, up::Int, corr::Float64)
     build_fνmax_fast!(fνmax_cache, f, lo, up)
     fνmax_cache[:] = fνmax_cache[:] .+ corr
-    @inbounds v = reshape(reinterpret(Float64,fνmax_cache),1:length(fνmax_cache),2)
-    @inbounds (esum_c(view(v,:,1), type) + esum_c(view(v,:,2), type).*im)/(β^ndims(f))
+    @inbounds v = reshape(reinterpret(Float64,fνmax_cache),2,1:length(fνmax_cache))
+    @inbounds (esum_c(view(v,1,:), type) + esum_c(view(v,2,:), type).*im)/(β^ndims(f))
 end
 
 function sum_freq_full!(f::AbstractArray{Float64}, type::SumHelper, β::Float64, fνmax_cache::Array{Float64,1}, lo::Int, up::Int)
@@ -242,11 +243,9 @@ end
 
 function sum_freq_full!(f::AbstractArray{ComplexF64}, type::SumHelper, β::Float64, fνmax_cache::Array{ComplexF64,1}, lo::Int, up::Int)
     build_fνmax_fast!(fνmax_cache, f, lo, up)
-    @inbounds v = reshape(reinterpret(Float64,fνmax_cache),1:length(fνmax_cache),2)
-    @inbounds (esum_c(view(v,:,1), type) + esum_c(view(v,:,2), type).*im)/(β^ndims(f))
+    @inbounds v = reshape(reinterpret(Float64,fνmax_cache),2,1:length(fνmax_cache))
+    @inbounds (esum_c(view(v,1,:), type) + esum_c(view(v,2,:), type).*im)/(β^ndims(f))
 end
-
-
 
 
 function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
@@ -447,13 +446,13 @@ function extend_γ!(arr::AbstractArray{Complex{Float64},1}, ref::AbstractArray{C
 end
 
 """
-    extend_tmp!(arr::AbstractArray{Complex{Float64},3})
+    extend_corr!(arr::AbstractArray{Complex{Float64},3})
 
-Extends the `tmp(ω,ν) = Σ_νp Fupdo(ω,ν,νp) ⋅ G(νp) ⋅ G(νp+ω)` term outside it's
-stability range. This assumes, that `tmp(ω,ν) → tmp(ω)` for large ν and `tmp(ω,ν) < 0`.
+Extends the `corr(ω,ν) = Σ_νp Fupdo(ω,ν,νp) ⋅ G(νp) ⋅ G(νp+ω)` term outside it's
+stability range. This assumes, that `corr(ω,ν) → corr(ω)` for large ν and `corr(ω,ν) < 0`.
 TODO: Especially the second assumption may be violated outside half filling!!
 """
-function extend_tmp!(arr::AbstractArray{Float64,3})
+function extend_corr!(arr::AbstractArray{Float64,3})
     indh = trunc(Int, size(arr,3)/2) + 1
     for qi in axes(arr,2)
         override = false

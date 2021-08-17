@@ -36,7 +36,6 @@ printr_s(x::Float64) = round(x, digits=4)
 function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
-    fft_range = -2*(sP.n_iν+sP.n_iω):2*(sP.n_iν+sP.n_iω)
 
     @timeit to "gen kGrid loc" kGridLoc = gen_kGrid(kGridStr[1], 1)
     @timeit to "gen kGrid nl" kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
@@ -59,7 +58,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
     #f = load(in_file)
-    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp, Σ_loc = jldopen(in_file, "r") do f 
+    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
     #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         χDMFTsp = permutedims(f["χDMFTsp"], (2,3,1))
         χDMFTch = permutedims(f["χDMFTch"], (2,3,1))
@@ -81,10 +80,15 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     @timeit to "GF stuff" begin
-        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], fft_range, mP);
-        gImp = map(el -> Complex{Float64}[el], store_symm_f(gImp, fft_range))
-        gLoc_fft = map(x->fft(reshape(x, gridshape(kGrid)...)), gLoc_full)
-        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, fft_range, mP);
+        nd = length(gridshape(kGrid))
+        gImp = Array{ComplexF64, nd+1}(undef, ntuple(_->1,nd)..., length(sP.fft_range))
+        gLoc_fft = Array{ComplexF64, nd+1}(undef, gridshape(kGrid)..., length(sP.fft_range))
+        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
+        for (i,el) in enumerate(store_symm_f(gImp_in, sP.fft_range))
+            selectdim(gImp,nd+1,i) .= el
+            selectdim(gLoc_fft,nd+1,i) .= fft(reshape(gLoc_full[i], gridshape(kGrid)...))
+        end
+        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
     end
     @timeit to "2" begin
         if env.loadAsymptotics
@@ -196,6 +200,21 @@ function ωindex_range(sP::SimulationParameters)
         [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in r]
     end
     return ωindices
+end
+
+"""
+    flatten_gLoc(kG::ReducedKGrid, arr::AbstractArray{AbstractArray})
+
+transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
+depends on grid shape.
+"""
+function flatten_gLoc(arr::AbstractArray)
+    ndim = length(size(arr[1]))+1
+    arr_new = Array{eltype(arr[1]),ndim}(undef,size(arr[1])...,length(arr));
+    for (i,el) in enumerate(arr)
+        selectdim(arr_new, ndim, i) .= el
+    end
+    return arr_new
 end
 
 

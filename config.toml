@@ -23,6 +23,7 @@ omega_smoothing = "range"             # nothing, range, full. Smoothes data afte
 
 
 [Environment]
+nthreads = "nlogical"                   # nlogical (number of logical cores, default), nphysical, or fixed, e.g. "2". This will be used for BLAS and FFT
 inputDataType = "jld2"                  # test, jld2 (text will read fortran lDGA input dirs/files)
 writeFortran = false                    # write input data for fortran lDGA from new jld2 input files.
 inputDir = ""                           # absolute path to input dir
