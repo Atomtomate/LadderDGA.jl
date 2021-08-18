@@ -37,6 +37,7 @@ function calc_E(Σ, kGrid, mP::ModelParameters, sP::SimulationParameters)
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kGrid.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
     E_kin_tail_inv = sum(map(x->x .* (mP.β/2) .* kGrid.ϵkGrid , [1, -(mP.β) .* E_kin_tail_c[2]]))
 
+    @warn "possible bug in flatten_2D with new axis, use calc_E_pot, calc_E_kin instead"
     G_corr = flatten_2D(G_from_Σ(Σ_corr, kGrid.ϵkGrid, νGrid, mP));
     E_pot = real.(G_corr .* Σ_corr .- E_pot_tail);
     E_kin = kGrid.ϵkGrid' .* real.(G_corr .- E_kin_tail);
@@ -53,16 +54,18 @@ Specialized function for DGA potential energy. Better performance than calc_E.
 function calc_E_pot(kG::ReducedKGrid, G::Array{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
                     tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
     E_pot = real.(G .* Σ .- tail);
-    return kintegrate(kG, 2 .* sum(E_pot[:,1:size(Σ,1)], dims=[2])[:,1] .+ tail_inv) / β
+    return kintegrate(kG, 2 .* sum(E_pot[:,1:size(Σ,2)], dims=[2])[:,1] .+ tail_inv) / β
 end
 
 function calc_E_pot_νn(kG, G, Σ, tail, tail_inv)
     E_pot = real.(G .* Σ .- tail);
+    @warn "possibly / β missing in this version! Test this first against calc_E_pot"
     return [kintegrate(kG, 2 .* sum(E_pot[:,1:i], dims=[2])[:,1] .+ tail_inv) for i in 1:size(E_pot,1)]
 end
 
 
 function calc_E_kin(kG, G, ϵqGrid, tail, tail_inv)
     E_kin = ϵqGrid' .* real.(G .- tail)
+    @warn "possibly / β missing in this version! Test this first against calc_E_pot"
     return kintegrate(kG, 4 .* sum(E_kin, dims=[2])[:,1] .+ tail_inv)
 end
