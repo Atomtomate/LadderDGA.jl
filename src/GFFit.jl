@@ -364,7 +364,7 @@ Examples
 ```
 extend_γ!(view(γ,1,1,:), 0.5235987755982988)
  """
-function extend_γ!(arr::AbstractArray{Complex{Float64},1}, h::Float64; weight=0.01)
+function extend_γ!(arr::AbstractArray{_eltype,1}, h::Float64; weight=0.01)
     indh = ceil(Int, length(arr)/2)
     lo,up = find_usable_γ(arr)
     # left
@@ -423,7 +423,7 @@ Examples
 ```
 extend_γ!(view(γ,1,1,:), view(γ_ref,1,1,:))
  """
-function extend_γ!(arr::AbstractArray{Complex{Float64},1}, ref::AbstractArray{Complex{Float64},1})
+function extend_γ!(arr::AbstractArray{_eltype,1}, ref::Array{_eltype,1})
     indh = ceil(Int, length(arr)/2)
     i = floor(Int,indh/5)
     override= false

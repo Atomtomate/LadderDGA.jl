@@ -1,4 +1,5 @@
 using JLD2, FileIO
+using Logging
 using Pkg
 Pkg.activate(@__DIR__)
 using LadderDGA
@@ -6,6 +7,14 @@ using LadderDGA
 println("Modules loaded")
 flush(stdout)
 flush(stderr)
+
+    io = open("lDGA.log","w+")
+    #io = stdout
+    logger = ConsoleLogger(io, Logging.Info, 
+                      meta_formatter=Logging.default_metafmt,
+                      show_limited=true, right_justify=0)
+    #logger = SimpleLogger(io)
+    global_logger(logger)
 
 function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results=true)
     @warn "assuming linear, continuous nu grid for chi/trilex"
@@ -42,7 +51,7 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         λ_new = 0.0#λ_correction(:sp_ch, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
 
         @info "found $λ_new\nλch_curve"
-        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=2.0, n_λch=minimum([10,trunc(Int,kG.Ns*100000/kG.Nk)]))
+        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=1.0, n_λch=200)
 
         @timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
                         Σ_ladderLoc, Σ_loc, gLoc_fft, FUpDo, kG, mP, sP)

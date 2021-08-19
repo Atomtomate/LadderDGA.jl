@@ -70,7 +70,7 @@ function calc_λsp_correction(χ_in::AbstractArray{ComplexF64,2}, usable_ω::Abs
     χ_min    = -1 / maximum(χr[:,nh])
     λsp = newton_right(f, df, χ_min)
     @info "Found λsp " λsp
-    return λsp, new_χλ(χ_in, λsp, sP)
+    return λsp
 end
 
 
@@ -79,9 +79,11 @@ end
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
         Gνω::GνqT, FUpDo::AbstractArray{ComplexF64,3}, 
-        Σ_loc_pos::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,1},
+        Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---
+    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
+    Kνωq_pre = Array{ComplexF64, 1}(undef, size(bubble,q_axis))
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
 
     νmax = trunc(Int,size(bubble,ν_axis)/3)
@@ -90,7 +92,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     iωn2_sub = real.([i == 0 ? 0 : mP.Ekin_DMFT ./ (i).^2 for i in iωn])
 
-    corr = Σ_correction(ωindices, bubble, FUpDo, sP)
     Σ_ladder_i = Array{Complex{Float64},2}(undef, size(bubble,1), νmax)
     χupdo_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
     χupup_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
@@ -109,8 +110,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
                     (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
-    E_pot_tail = sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail))
+    E_pot_tail = permutedims(sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail)),(2,1))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+    Σ_corr =  Σ_loc[1:length(Σ_ladderLoc)] .- Σ_ladderLoc[:] .+ Σ_hartree
 
     #TODO: also sum chi updo without arr
     #TODO: this part of the code is horrible but fast....
@@ -210,8 +212,7 @@ function λ_correction(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_lad
         rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kG, mP, sP)
         searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[:,usable_ω_λc]), kG, mP, init=init_sp)
         searchInterval_spch = [-Inf, Inf]
-        λsp,χsp_λ = calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kG, mP, sP)
-        λsp
+        calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kG, mP, sP)
     elseif type == :sp_ch
         extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
     end
@@ -278,12 +279,13 @@ function newton_2d_right(f::Function,
         xi = x0 - dfii * fi
         (norm(xi-x0) < atol) && break
         if xi[1] .< x0[1]        # only ever search to the right!
-            println("reset")
+            println("$(xi[1]) .< $(x0[1]) reset to $δ to $(δ .+ 0.1 .* δ)")
             flush(stdout)
-            δ  = δ .+ 0.2 .* δ
+            δ  = δ .+ 0.1 .* δ
             x0 = start .+ δ      # reset with larger delta
             xi = x0
         elseif xi[2] > max_x2    # λch has some cutoff value, here just 0, later to be determined
+            println("$(xi[2]) > $(max_x2) reset to $δ to $(δ ./ 2)")
             δ  = δ ./ 2 
             x0 = start .+ δ      # reset with smaller delta
             xi = x0

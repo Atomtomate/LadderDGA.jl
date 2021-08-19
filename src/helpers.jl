@@ -59,12 +59,12 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
     #f = load(in_file)
     @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
-    #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
-        χDMFTsp = permutedims(f["χDMFTsp"], (2,3,1))
-        χDMFTch = permutedims(f["χDMFTch"], (2,3,1))
-        Γch = permutedims(f["Γch"], (2,3,1))
-        Γsp = permutedims(f["Γsp"], (2,3,1))
-        FUpDo = permutedims(f["FUpDo"], (2,3,1))
+        #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
+        χDMFTsp = permutedims(_eltype === Float64 ? real.(f["χDMFTsp"]) : f["χDMFTsp"], (2,3,1))
+        χDMFTch = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"] , (2,3,1))
+        Γch = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
+        Γsp = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
+        FUpDo = permutedims(_eltype === Float64 ? real.(f["FUpDo"]) : f["FUpDo"], (2,3,1))
 
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
@@ -147,8 +147,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
 
         @warn "TODO: update local omega sum with correction"
-        χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β)[1]
-        χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β)[1]
+        χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β, 0.0)[1]
+        χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β, 0.0)[1]
 
         impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
         impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])

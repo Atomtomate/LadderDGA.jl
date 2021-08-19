@@ -69,7 +69,7 @@ function readConfig(file)
                              tml["Environment"]["progressbar"]
                             )
 
-    mP = jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
+    mP = jldopen(env.inputDir*"/"*env.inputVars, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -134,7 +134,7 @@ function readConfig(file)
         kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
 
-    jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
+    jldopen(env.inputDir*"/"*env.inputVars, "r") do f
         if !haskey(f, "FUpDo")
             f["FUpDo"] = FUpDo_from_χDMFT(0.5 .* (f["χDMFTch"] - f["χDMFTsp"]), f["gImp"], env, mP, sP)
         end
@@ -315,8 +315,8 @@ end
 function readFortranΓ(dirName::String)
     files = readdir(dirName)
     ωₙ, freqBox, Γcharge0, Γspin0 = readFortran3FreqFile(dirName * "/" * files[1], sign=-1.0)
-    Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
-    Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
+    Γcharge = Array{_eltype}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
+    Γspin   = Array{_eltype}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
     Γcharge[1,:,:] = Γcharge0
     Γspin[1,:,:]   = Γspin0
     ω_min = ωₙ
@@ -326,8 +326,8 @@ function readFortranΓ(dirName::String)
         ωₙ, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=-1.0)
         ω_min = if ωₙ < ω_min ωₙ else ω_min end
         ω_max = if ωₙ > ω_max ωₙ else ω_max end
-        Γcharge[i+1,:,:] = Γcharge_new
-        Γspin[i+1,:,:] = Γspin_new
+        Γcharge[i+1,:,:] = _eltype == Float64 ? real.(Γcharge_new) : Γcharge_new
+        Γspin[i+1,:,:] = _eltype == Float64 ? real.(Γspin_new) : Γspin_new
     end
     freqBox = [ω_min ω_max; freqBox[1,1] freqBox[1,2]; freqBox[2,1] freqBox[2,2]]
     Γcharge = permutedims(Γcharge, [1,3,2])
