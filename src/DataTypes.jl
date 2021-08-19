@@ -4,7 +4,7 @@ const ω_axis = 3;
 const ν_axis = 2;
 const q_axis = 1;
 
-const _eltype = Float64
+const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
 const BubbleT = Array{_eltype,3}
 const FUpDoT = Array{_eltype,3}
