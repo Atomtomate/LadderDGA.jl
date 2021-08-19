@@ -7,15 +7,21 @@ function χ_λ(χ::AbstractArray{T}, λ::Float64) where T <: Union{ComplexF64, F
     return res
 end
 
-function χ_λ!(χ_λ::AbstractArray{T}, χ::AbstractArray{T}, λ::Float64) where T <: Union{ComplexF64, Float64}
-    for i in eachindex(χ_λ)
-        χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
+function χ_λ!(χ_λ::AbstractArray{ComplexF64}, χ::AbstractArray{ComplexF64}, λ::Float64)
+    @simd for i in eachindex(χ_λ)
+        @inbounds χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
+    end
+end
+
+function χ_λ!(χ_λ::AbstractArray{Float64}, χ::AbstractArray{Float64}, λ::Float64)
+    @simd for i in eachindex(χ_λ)
+        @inbounds χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
     end
 end
 
 function χ_λ!(χ_λ::AbstractArray{T,2}, χ::AbstractArray{T,2}, λ::Float64, ωindices::AbstractArray{Int,1}) where T <: Number
     for i in ωindices
-        χ_λ[:,i] = 1.0 ./ ((1.0 ./ χ[:,i]) .+ λ)
+        χ_λ!(view(χ_λ, :, i),view(χ,:,i), λ)
     end
 end
 
@@ -56,7 +62,7 @@ function λsp(χr::Array{Float64,2}, iωn::Array{ComplexF64,1}, EKin::Float64,
     return λsp
 end
 
-function calc_λsp_correction(χ_in::AbstractArray{ComplexF64,2}, usable_ω::AbstractArray{Int64},
+function calc_λsp_correction(χ_in::AbstractArray{_eltype,2}, usable_ω::AbstractArray{Int64},
                             searchInterval::AbstractArray{Float64,1}, EKin::Float64,
                             rhs::Float64, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     sh = DirectSum()
@@ -78,7 +84,7 @@ end
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-        Gνω::GνqT, FUpDo::AbstractArray{ComplexF64,3}, 
+        Gνω::GνqT, FUpDo::FUpDoT, 
         Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     # --- prepare auxiliary vars ---

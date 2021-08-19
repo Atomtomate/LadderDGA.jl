@@ -371,6 +371,9 @@ function extend_γ!(arr::AbstractArray{_eltype,1}, h::Float64; weight=0.01)
     i = lo
     df = -conj(arr[i] - arr[i+1])/h
     ddf = -conj(arr[i+2] - 2*arr[i+1] + arr[i])/(2*h^2)
+    df = df > 0.1*arr[i] ? 0.0 : df
+    ddf = ddf > 0.1*arr[i] ? 0.0 : ddf
+
     wi = weight
     while i > 1
         i -= 1
@@ -383,6 +386,8 @@ function extend_γ!(arr::AbstractArray{_eltype,1}, h::Float64; weight=0.01)
     i = up
     df = -conj(arr[i] - arr[i-1])/h
     ddf = -conj(arr[i-2] - 2*arr[i-1] + arr[i])/(2*h^2)
+    df = df > 0.1*arr[i] ? 0.0 : df
+    ddf = ddf > 0.1*arr[i] ? 0.0 : ddf
     wi = weight
     while i < length(arr)
         i += 1
