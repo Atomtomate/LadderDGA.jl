@@ -7,7 +7,7 @@ println("Modules loaded")
 flush(stdout)
 flush(stderr)
 
-function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results=true)
+function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results=true, log_io=devnull)
     @warn "assuming linear, continuous nu grid for chi/trilex"
 
     @timeit LadderDGA.to "read" mP, sP, env, kGridsStr = readConfig(cfg_file);
@@ -28,29 +28,31 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
         @timeit LadderDGA.to "loc Σ" Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, gImp, FUpDo, kGridLoc, mP, sP)
         Σ_ladderLoc = Σ_ladderLoc .+ mP.n * mP.U/2.0;
 
-        flush(io)
+        flush(log_io)
         # ladder quantities
         @info "non local bubble"
         @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, kG, mP, sP);
         @info "chi"
         @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χ_trilex(impQ_sp.Γ, bubble, kG, mP.U, mP, sP);
         @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χ_trilex(impQ_ch.Γ, bubble, kG, -mP.U, mP, sP);
+        flush(log_io)
 
         @info "λsp"
         λsp_old = λ_correction(:sp, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
         λ_new = 0.0#λ_correction(:sp_ch, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
-
         @info "found $λ_new\nλch_curve"
-        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=2.0, n_λch=minimum([10,trunc(Int,kG.Ns*100000/kG.Nk)]))
+        flush(log_io)
+
+        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=4.0, n_λch=120)
 
         @timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
                         Σ_ladderLoc, Σ_loc, gLoc_fft, FUpDo, kG, mP, sP)
     # Prepare data
 
-        flush(io)
-        flush(io)
-        fname = res_prefix*"lDGA_k$(kG.Ns)_ext_l"*res_postfix*".jld2"
+        flush(log_io)
+        flush(log_io)
+        fname = res_prefix*"lDGA_ntc_r_k$(kG.Ns)_ext_l"*res_postfix*".jld2"
         @info "Writing to $(fname)"
         @timeit LadderDGA.to "write" jldopen(fname, "a+") do f
             f["sP"] = sP
@@ -68,6 +70,8 @@ function run_sim(; cfg_file=nothing, res_prefix="", res_postfix="", save_results
             f["λch_range"] = λch_range
             f["spOfch"] = spOfch
             f["λsp_of_λch_res"] = λsp_of_λch_res
+            #TODO: save log string
+            #f["log"] = string()
         end
         @info "Runtime for iteration:"
         @info LadderDGA.to
