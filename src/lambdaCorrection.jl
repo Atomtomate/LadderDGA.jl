@@ -25,22 +25,31 @@ function χ_λ!(χ_λ::AbstractArray{T,2}, χ::AbstractArray{T,2}, λ::Float64, 
     end
 end
 
+function get_χ_min(χr::AbstractArray{Float64,2})
+    nh  = ceil(Int64, size(χr,2)/2)
+    -minimum(1 ./ view(χr,:,nh))
+end
 
-dΣch_λ_amp(G_plus_νq, γch, dχch_λ, qNorm) = -sum(G_plus_νq .* γch .* dχch_λ)*qNorm
-dΣsp_λ_amp(G_plus_νq, γsp, dχsp_λ, qNorm) = -1.5*sum(G_plus_νq .* γsp .* dχsp_λ)*qNorm
 
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    usable_ω_imp = intersect(impQ_sp.usable_ω, impQ_ch.usable_ω)
     χch_ω = kintegrate(kG, nlQ_ch.χ[:,usable_ω], 1)[1,:]
     @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω_sub = subtract_tail(χch_ω, impQ_ch.tailCoeffs[3], iωn)
-
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(χch_ω_sub))/mP.β - impQ_ch.tailCoeffs[3]*mP.β/12
 
-    rhs = ((sP.tc_type_b != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed) ? mP.n * (1 - mP.n/2) - χch_sum : real(impQ_ch.χ_loc + impQ_sp.χ_loc - χch_sum)
+    rhs = if ((sP.tc_type_b != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+        mP.n * (1 - mP.n/2) - χch_sum
+    else
+        χupup2_ω = (impQ_sp.χ_ω .+ impQ_ch.χ_ω)[usable_ω_imp]
+        iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω_imp] .* π ./ mP.β
+        imp_density = real(sum(χupup2_ω))/mP.β #-impQ_sp.tailCoeffs[3]*mP.β/12
+        imp_density - χch_sum
+    end
 
     @info """Found usable intervals for non-local susceptibility of length 
           sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
@@ -56,25 +65,20 @@ function λsp(χr::Array{Float64,2}, iωn::Array{ComplexF64,1}, EKin::Float64,
     f(λint) = real(sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin, iωn)))/mP.β  -EKin*mP.β/12 - rhs
     df(λint) = real(sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:]))/mP.β
 
-    nh  = ceil(Int64, size(χr,2)/2)
-    χ_min = -minimum(1 ./ χr[:,nh])
-    λsp = newton_right(f, df, χ_min)
+    λsp = newton_right(f, df, get_χ_min(χr))
     return λsp
 end
 
-function calc_λsp_correction(χ_in::AbstractArray{_eltype,2}, usable_ω::AbstractArray{Int64},
-                            searchInterval::AbstractArray{Float64,1}, EKin::Float64,
-                            rhs::Float64, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
-    sh = DirectSum()
-    χr    = real.(χ_in[:,usable_ω])
+function calc_λsp_correction(χ_in::AbstractArray{Float64,2}, usable_ω::AbstractArray{Int64},
+                            EKin::Float64, rhs::Float64, kG::ReducedKGrid, 
+                            mP::ModelParameters, sP::SimulationParameters)
+    χr    = χ_in[:,usable_ω]
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     #TODO: this should use sum_freq instead of naiive sum()
     f(λint) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin, iωn))/mP.β  -EKin*mP.β/12 - rhs
     df(λint) = sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:])/mP.β
 
-    nh    = ceil(Int64, size(χr,2)/2)
-    χ_min    = -1 / maximum(χr[:,nh])
-    λsp = newton_right(f, df, χ_min)
+    λsp = newton_right(f, df, get_χ_min(χr))
     @info "Found λsp " λsp
     return λsp
 end
@@ -197,28 +201,13 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     return λ_new
 end
 
-function λsp_correction_search_int(χr::AbstractArray{Float64,2}, kG::ReducedKGrid, mP::ModelParameters; init=nothing, init_prct::Float64 = 0.1)
-    nh    = ceil(Int64, size(χr,2)/2)
-    χ_min    = -minimum(1 ./ χr[:,nh])
-    int = if init === nothing
-        rval = χ_min > 0 ? χ_min + 10/kG.Ns + 20/mP.β : minimum([20*abs(χ_min), χ_min + 10/kG.Ns + 20/mP.β])
-        [χ_min, rval]
-    else
-        [init - init_prct*abs(init), init + init_prct*abs(init)]
-    end
-    @info "found " χ_min ". Looking for roots in intervall $(int)" 
-    return int
-end
-
 function λ_correction(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::GνqT, 
                       kG::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kG, mP, sP)
-        searchInterval_sp = λsp_correction_search_int(real.(nlQ_sp.χ[:,usable_ω_λc]), kG, mP, init=init_sp)
-        searchInterval_spch = [-Inf, Inf]
-        calc_λsp_correction(nlQ_sp.χ, usable_ω_λc, searchInterval_sp, impQ_sp.tailCoeffs[3] , rhs, kG, mP, sP)
+        calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, impQ_sp.tailCoeffs[3] , rhs, kG, mP, sP)
     elseif type == :sp_ch
         extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
     end

@@ -158,8 +158,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], mP.Ekin_DMFT, iωn)
 
         sh_b = get_sum_helper(loc_range, sP, :b)
-        imp_density_pure = real(sum_freq(χupup_DMFT_ω_sub, [1], DirectSum(), mP.β, -mP.Ekin_DMFT*mP.β^2/12))
-        imp_density = real(sum_freq(χupup_DMFT_ω_sub, [1], sh_b, mP.β, -mP.Ekin_DMFT*mP.β^2/12))
+        imp_density_pure = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
+        imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
 
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
@@ -167,7 +167,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (fit, tail sub, tail sub + fit, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density_pure) ?=? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return impQ_sp, impQ_ch, gImp, kGridLoc, kGrid, gLoc, gLoc_fft, Σ_loc, FUpDo
+    return impQ_sp, impQ_ch, gImp, kGridLoc, kGrid, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density
 end
 
 # ================== Index Functions ==================
