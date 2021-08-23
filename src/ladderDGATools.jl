@@ -179,6 +179,7 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
     (sP.tc_type_f != :nothing) && extend_corr!(corr)
     @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
+    #TODO: *U should be in calc+Sigma_w
     @timeit to "sum Σ_ω" res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1]
     return  res
 end
