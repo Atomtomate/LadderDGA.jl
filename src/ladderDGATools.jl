@@ -1,5 +1,6 @@
 #TODO: define GF type that knows about which dimension stores which variable
 using Base.Iterators
+using FFTW
 
 
 function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
@@ -8,6 +9,7 @@ function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::Si
     for ωi in axes(bubble,ω_axis), νi in axes(bubble,ν_axis)
         ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
         #TODO: implement complex to real fftw
+        #TODO: get rid of selectdim
         conv_fft!(kG, view(bubble,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
         bubble[:,νi,ωi] .*= -mP.β
     end
@@ -143,8 +145,7 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
                     @inbounds Kνωq[ki] *= v[ki]
                 end
                 Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
-                Dispersions.ifft_post!(typeof(kG), Kνωq)
-                reduceKArr!(kG,  view(Σ,:,νi,ωii), Kνωq) 
+                reduceKArr!(kG,  view(Σ,:,νi,ωii), Dispersions.ifft_post(kG, Kνωq)) 
                 @simd for i in 1:size(corr,q_axis)
                     @inbounds Σ[i,νi,ωii] /= (kG.Nk)
                 end
