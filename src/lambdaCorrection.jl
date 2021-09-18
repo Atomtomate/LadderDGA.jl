@@ -120,7 +120,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
                     (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
-    E_pot_tail = permutedims(sum(E_pot_tail_c[i]' .* tail[i] for i in 1:length(tail)),(2,1))
+    E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
     Σ_corr =  Σ_loc[1:length(Σ_ladderLoc)] .- Σ_ladderLoc[:] .+ Σ_hartree
 

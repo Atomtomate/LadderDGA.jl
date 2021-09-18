@@ -19,7 +19,7 @@ chi_unusable_fill_value = "chi_lambda"  # can be "0", "chi_lambda" or "chi". set
 fermionic_tail_coeffs = [0,1,2,3,4]     # internal parameter for richardson sum extrapolation
 bosonic_tail_coeffs = [0,1,2,3,4]       # internal parameter for richardson sum extrapolation
 usable_prct_reduction = 0.1             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
-omega_smoothing = "range"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
+omega_smoothing = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
 
 
 [Environment]

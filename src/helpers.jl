@@ -1,8 +1,9 @@
 #TODO: This file needs to be cleaned up. major blocks should be: BLAS helpers, GF helpers, general helpers
 #
 #TODO: this should be a macro
-@inline get_symm_f(f::Array{Complex{Float64},1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
-@inline get_symm_f(f::Array{Complex{Float64},2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
+@inline get_symm_f(f::Array{ComplexF64,1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
+@inline get_symm_f_1(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
+@inline get_symm_f_2(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[:,-i]) : f[:,i+1]
 store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
 
@@ -29,7 +30,7 @@ split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
 """
     print 4 digits of the real part of `x`
 """
-printr_s(x::Complex{Float64}) = round(real(x), digits=4)
+printr_s(x::ComplexF64) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
@@ -243,6 +244,14 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     res = filter_MA(m, X)
     for ki in 2:k
         res = filter_MA!(res, m, res)
+    end
+    return res
+end
+
+function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::AbstractArray{T2, 2}, Σ_loc::AbstractArray{T3, 1}) where {T1 <: Number, T2 <: Number, T3 <: Number}
+    res = similar(Σ_ladder)
+    for qi in axes(Σ_ladder,1)
+        @inbounds res[qi,:] = Σ_ladder[qi,:] .- Σ_ladderLoc[1,:] .+ Σ_loc[1:length(Σ_ladderLoc)]
     end
     return res
 end

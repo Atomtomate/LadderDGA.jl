@@ -134,8 +134,9 @@ function readConfig(file)
         kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
 
-    jldopen(env.inputDir*"/"*env.inputVars, "r") do f
+    jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
         if !haskey(f, "FUpDo")
+            @error "Outdated input file. Please rerun postprocessing to add FUpDo! FUpDo will now be added to the input file."
             f["FUpDo"] = FUpDo_from_χDMFT(0.5 .* (f["χDMFTch"] - f["χDMFTsp"]), f["gImp"], env, mP, sP)
         end
     end

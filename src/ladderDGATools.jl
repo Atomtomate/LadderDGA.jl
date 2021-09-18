@@ -97,30 +97,7 @@ end
 function calc_Σ_ω_old!(Σ::AbstractArray{Complex{Float64},3}, ωindices::AbstractArray{Int,1},
             Q_sp::TQ, Q_ch::TQ,Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
             sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
-    #Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     fill!(Σ, zero(ComplexF64))
-    nd = length(gridshape(kG))
-    for ωi in axes(Σ,ω_axis)
-        ωn = (ωi - sP.n_iω) - 1
-        fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
-        fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
-        νZero = 1#ν0Index_of_ωIndex(ωi, sP)
-        for νi in axes(Q_sp.γ, ν_axis)
-        ωni, νni = OneToIndex_to_Freq(ωi, νi, sP)
-        s =  -trunc(Int64,sP.shift*ωni/2) + trunc(Int64,sP.shift*sP.n_iω/2)
-        Kνωq = view(Q_sp.γ,:,νi,ωi) .* fsp .- view(Q_ch.γ,:,νi,ωi) .* fch .- 1.5 .+ 0.5 .+ view(corr,:,νi,ωi)
-        conv_fft1!(kG, view(Σ,:,νi+s,ωi), Kνωq, selectdim(Gνω,nd+1,ωni + νni + sP.fft_offset))
-        end
-    end
-end
-
-
-function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
-            ωindices::AbstractArray{Int,1},
-            Q_sp::TQ, Q_ch::TQ,Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
-            sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
-    fill!(Σ, zero(ComplexF64))
-
     nd = length(gridshape(kG))
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
@@ -134,20 +111,46 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
             if kG.Nk == 1
                 Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)[1]
             else
+                Kνωq = expandKArr(kG, Q_sp.γ[:,νn,ωi] .* fsp .- Q_ch.γ[:,νn,ωi] .* fch .- 1.5 .+ 0.5)# .+ corr[:,νn,ωii])
+                Σ[:,νi,ωii] = conv_fft(kG, selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset), Kνωq)
+            end
+        end
+    end
+end
 
-                @simd for qi in 1:size(corr,q_axis)
+
+function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
+            ωindices::AbstractArray{Int,1},
+            Q_sp::TQ, Q_ch::TQ,Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
+            sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
+    fill!(Σ, zero(ComplexF64))
+    nd = length(gridshape(kG))
+    for ωii in 1:length(ωindices)
+        ωi = ωindices[ωii]
+        ωn = (ωi - sP.n_iω) - 1
+        @inbounds fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
+        @inbounds fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
+        for (νi,νn) in enumerate(νZero:maxn)
+            #TODO: remove manual unroll of conv_fft1
+            v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
+            if kG.Nk == 1
+                @inbounds Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
+            else
+
+                @simd for qi in 1:size(Σ,q_axis)
                     @inbounds Kνωq_pre[qi] = Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
                 end
                 expandKArr!(kG,Kνωq,Kνωq_pre)
                 Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
-                v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
                 @simd for ki in 1:length(Kνωq)
                     @inbounds Kνωq[ki] *= v[ki]
                 end
                 Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
                 reduceKArr!(kG,  view(Σ,:,νi,ωii), Dispersions.ifft_post(kG, Kνωq)) 
-                @simd for i in 1:size(corr,q_axis)
-                    @inbounds Σ[i,νi,ωii] /= (kG.Nk)
+                @simd for qi in 1:size(Σ,q_axis)
+                    @inbounds Σ[qi,νi,ωii] /= (kG.Nk)
                 end
             end
             #TODO: end manual unroll of conv_fft1
@@ -161,7 +164,7 @@ function calc_Σ_dbg(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble:
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
 
-    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,1),size(bubble,2)+sP.n_iω,size(bubble,3))
+    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), sP.n_iν, size(bubble,ω_axis))
     @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
     (sP.tc_type_f != :nothing) && extend_corr!(corr)
     @timeit to "Σ_ω old" calc_Σ_ω_old!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
