@@ -34,22 +34,19 @@ end
 function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     usable_ω_imp = intersect(impQ_sp.usable_ω, impQ_ch.usable_ω)
-    χch_ω = kintegrate(kG, nlQ_ch.χ[:,usable_ω], 1)[1,:]
     @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
-    χch_ω_sub = subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)
+    χch_ω = kintegrate(kG, nlQ_ch.χ[:,usable_ω], 1)[1,:]
     #TODO: this should use sum_freq instead of naiive sum()
-    χch_sum = real(sum(χch_ω_sub))/mP.β - mP.Ekin_DMFT*mP.β/12
+    χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
-    rhs = if ((sP.tc_type_f == :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if ((sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         @info " using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
         @info " using χupup_DMFT - Σ χch as rhs"
-        χupup2_ω = (impQ_sp.χ_ω .+ impQ_ch.χ_ω)[usable_ω_imp]
-        iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω_imp] .* π ./ mP.β
-        imp_density = real(sum(χupup2_ω))/mP.β #-impQ_sp.tailCoeffs[3]*mP.β/12
+        imp_density = real(impQ_sp.χ_loc + impQ_ch.χ_loc)
         imp_density - χch_sum
     end
 

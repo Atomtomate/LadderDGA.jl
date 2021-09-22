@@ -146,26 +146,26 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
         sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
+        iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
 
-        @warn "TODO: update local omega sum with correction"
-        χLocsp = sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β, 0.0)[1]
-        χLocch = sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β, 0.0)[1]
+        @warn "TODO: update local omega sum with correction, update get_sum_helper to return tail sub"
+        χLocsp = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β, 0.0)[1]
+        χLocch = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β, 0.0)[1]
 
         impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
         impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
-        χupup_ω = 0.5 * (χLocsp_ω + χLocch_ω)
-        iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[loc_range] .* π ./ mP.β
-        χupup_DMFT_ω_sub = subtract_tail(χupup_ω[loc_range], mP.Ekin_DMFT, iωn)
+        χupup_DMFT_ω = 0.5 * (χLocsp_ω + χLocch_ω)[loc_range]
+        χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range])
 
         sh_b = get_sum_helper(loc_range, sP, :b)
-        imp_density_pure = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
+        imp_density_pure = real(sum(χupup_DMFT_ω))/mP.β
         imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
 
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
           χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc))
-          sum χupup check (fit, tail sub, tail sub + fit, expected): $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density_pure) ?=? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_pure) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
     return impQ_sp, impQ_ch, gImp, kGridLoc, kGrid, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density
