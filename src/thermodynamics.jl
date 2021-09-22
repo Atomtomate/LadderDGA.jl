@@ -43,7 +43,6 @@ function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters)
 	E_kin_full = kG.ϵkGrid .* real.(G_corr .- E_kin_tail);
 	#E_pot_tail_inv
 	#E_kin_tail_inv
-	t = 0.5*kintegrate(kG, Σ_hartree .* ones(length(kG.kMult)))
 	E_pot = [kintegrate(kG, 2 .* sum(E_pot_full[:,1:i], dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
 	E_kin = [kintegrate(kG, 4 .* sum(E_kin_full[:,1:i], dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β;
     return E_kin, E_pot

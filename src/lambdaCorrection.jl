@@ -42,7 +42,7 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(χch_ω_sub))/mP.β - impQ_ch.tailCoeffs[3]*mP.β/12
 
-    rhs = if ((sP.tc_type_b != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if ((sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         mP.n * (1 - mP.n/2) - χch_sum
     else
         χupup2_ω = (impQ_sp.χ_ω .+ impQ_ch.χ_ω)[usable_ω_imp]
@@ -122,6 +122,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
     E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+
     Σ_corr =  Σ_loc[1:length(Σ_ladderLoc)] .- Σ_ladderLoc[:] .+ Σ_hartree
 
     #TODO: also sum chi updo without arr
@@ -222,12 +223,12 @@ function λ_correction!(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_la
     λ = λ_correction(type, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
                   bubble, Gνω, kG, mP, sP; init_sp=init_sp, init_spch=init_spch)
     res = if type == :sp
-        nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ))
+        nlQ_sp.χ = χ_λ(nlQ_sp.χ, λ)
         nlQ_sp.λ = λ
     elseif type == :sp_ch
-        nlQ_sp.χ = SharedArray(χ_λ(nlQ_sp.χ, λ[1]))
+        nlQ_sp.χ = χ_λ(nlQ_sp.χ, λ[1])
         nlQ_sp.λ = λ[1]
-        nlQ_ch.χ = SharedArray(χ_λ(nlQ_ch.χ, λ[2]))
+        nlQ_ch.χ = χ_λ(nlQ_ch.χ, λ[2])
         nlQ_ch.λ = λ[2]
     end
 end
