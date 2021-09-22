@@ -11,7 +11,7 @@ using LinearAlgebra, GenericLinearAlgebra
 using Combinatorics
 using TOML          # used for input
 using Printf
-using ForwardDiff, Zygote, FiniteDiff
+#using ForwardDiff, Zygote, FiniteDiff
 using Query
 #using IntervalArithmetic, IntervalRootFinding
 using FFTW          # used for convolutions
