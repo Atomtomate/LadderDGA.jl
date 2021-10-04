@@ -73,6 +73,8 @@ function Σ_correction(ωindices::AbstractArray{Int,1}, bubble::BubbleT, FUpDo::
     Niν = size(bubble,ν_axis)
     tmp = Array{Float64, 1}(undef, Niν)
     corr = Array{Float64,3}(undef,size(bubble,q_axis),Niν,length(ωindices))
+    lo = npartial_sums(sP.sh_f)
+    up = Niν - lo + 1 
 
     #TODO: this is not well optimized, but also not often executed
     for (ωi,ωii) in enumerate(ωindices)
@@ -84,13 +86,14 @@ function Σ_correction(ωindices::AbstractArray{Int,1}, bubble::BubbleT, FUpDo::
                 @simd for νpi in 1:Niν 
                     @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
                 end
-                #@inbounds @views corr[qi,νi,ωii] = sum_freq_full!(tmp, sP.sh_f, 1.0, sP.fνmax_cache_r, sP.fνmax_lo, sP.fνmax_up)
-                @inbounds @views corr[qi,νi,ωi] = sum(tmp)
+                corr[qi,νi,ωi] = sum_freq_full!(tmp, sP.sh_f, 1.0, sP.fνmax_cache_r, lo, up)
+                #@inbounds @views corr[qi,νi,ωi] = sum(tmp)
                 #TODO: reactivate impr sum!!!!!
                 #sum_freq_full!(tmp, sP.sh_b, 1.0, sP.fνmax_cache_r, sP.fνmax_lo, sP.fνmax_up)
             end
         end
     end
+    (sP.tc_type_f != :nothing) && extend_corr!(corr)
     return corr
 end
 
@@ -138,7 +141,6 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
             if kG.Nk == 1
                 @inbounds Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
             else
-
                 @simd for qi in 1:size(Σ,q_axis)
                     @inbounds Kνωq_pre[qi] = Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
                 end
@@ -166,7 +168,6 @@ function calc_Σ_dbg(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble:
 
     Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), sP.n_iν, size(bubble,ω_axis))
     @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
-    (sP.tc_type_f != :nothing) && extend_corr!(corr)
     @timeit to "Σ_ω old" calc_Σ_ω_old!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
     res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1]
     return  Σ_ladder_ω,res,corr
@@ -175,6 +176,9 @@ end
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
+    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
+        @error ""
+    end
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))

@@ -3,10 +3,21 @@
 #                                          Helper Functions                                            #
 #                                                                                                      #
 # ==================================================================================================== #
-function readConfig(file)
+#TODO: document, file is missleading, can also be a string
+function readConfig(cfg_in)
     @info "Reading Inputs..."
 
-    tml = TOML.parsefile(file)
+    cfg_is_file = true
+    try 
+        cfg_is_file = isfile(cfg_in)
+    catch e
+        cfg_is_file = false
+    end
+    tml = if cfg_is_file
+        TOML.parsefile(cfg_in)
+    else
+        TOML.parse(cfg_in)
+    end
     sim = tml["Simulation"]
     χfill = nothing
     rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"

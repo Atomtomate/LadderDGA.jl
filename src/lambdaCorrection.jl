@@ -93,7 +93,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     # --- prepare auxiliary vars ---
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, size(bubble,q_axis))
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,1)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
 
     νmax = trunc(Int,size(bubble,ν_axis)/3)
     νGrid = 0:(νmax-1)
@@ -102,10 +102,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     iωn2_sub = real.([i == 0 ? 0 : mP.Ekin_DMFT ./ (i).^2 for i in iωn])
 
     Σ_ladder_i = Array{Complex{Float64},2}(undef, size(bubble,1), νmax)
-    χupdo_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
-    χupup_ω = Array{eltype(nlQ_sp.χ),1}(undef, length(ωindices))
-    χsp_int = Array{eltype(nlQ_sp.χ),2}(undef, size(nlQ_sp.χ)...)
-    χch_int = Array{eltype(nlQ_sp.χ),2}(undef, size(nlQ_sp.χ)...)
 
     # Prepare data
     corr = Σ_correction(ωindices, bubble, FUpDo, sP)
@@ -151,7 +147,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
                     @inbounds Kνωq[ki] *= v[ki]
                 end
                 Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
-                Dispersions.ifft_post!(typeof(kG), Kνωq)
+                Dispersions.ifft_post(kG, Kνωq)
                 reduceKArr!(kG, Kνωq_pre, Kνωq) 
                 @simd for i in 1:size(corr,q_axis)
                 @inbounds Σ_ladder_i[i,νi] += Kνωq_pre[i]/kG.Nk
