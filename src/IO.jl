@@ -4,6 +4,7 @@
 #                                                                                                      #
 # ==================================================================================================== #
 #TODO: document, file is missleading, can also be a string
+#TODO: many of the fortran functions have the old axis layout (omega axis first instead of last, update that
 function readConfig(cfg_in)
     @info "Reading Inputs..."
 
@@ -581,18 +582,18 @@ function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, in
 end
 
 function writeFortranΣ(dirName::String, Σ_ladder)
-    res = zeros(size(Σ_ladder,1), 3)
+    res = zeros(size(Σ_ladder,2), 3)
     if !isdir(dirName)
         mkdir(dirName)
     end
 
-    for ki in 1:size(Σ_ladder,2)
+    for ki in 1:size(Σ_ladder,q_axis)
         fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
         open(fn, write=true) do f
             write(f, "header...\n")
-            res[:,1] = (2 .*(0:size(Σ_ladder,1)-1) .+ 1) .* π ./ mP.β
-            res[:,2] = real.(Σ_ladder[:,ki])
-            res[:,3] = imag.(Σ_ladder[:,ki])
+            res[:,1] = (2 .*(0:size(Σ_ladder,ν_axis)-1) .+ 1) .* π ./ mP.β
+            res[:,2] = real.(Σ_ladder[ki,:])
+            res[:,3] = imag.(Σ_ladder[ki,:])
             writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")
         end
     end
@@ -624,18 +625,26 @@ function writeFortranχ(dirName::String, χ, χ_λ, qGrid, usable_ω)
 end
 
 function writeFortranEnergies(E_Kin, E_Pot, β, dirName::String)
+    res = zeros(size(Σ_ladder, 2), 3)
     if !isdir(dirName)
-        mkdir(dirName)
+       mkdir(dirName)
     end
-    @assert size(E_Kin) == size(E_Pot)
-    νGrid = 0:(length(E_Kin)-1)
-    iν_n = iν_array(β, νGrid)
-
-    fn_DGA = dirName * "/energiesDGA.dat"
-    open(fn_DGA, "w") do f
-        for i in 1:length(E_Kin)
-            @printf(f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
-                    imag(iν_n[i]), 0.0, 0.0, real(E_Kin[i]), 0.0, 0.0, 0.0, real(E_Pot[i]), 0.0)
+ 
+    fn = dirName * "/SELF_LOC_parallel.dat"
+    open(fn, write=true) do f
+        res[:,1] = (2 .*(0:length(Σ_ladder_loc)-1) .+ 1) .* π ./ mP.β
+        res[:,2] = real.(Σ_ladder_loc[:])
+        res[:,3] = imag.(Σ_ladder_loc[:])
+        writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")
+    end
+    for ki in 1:size(Σ_ladder,1)
+        fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
+        open(fn, write=true) do f
+            write(f, "header...\n")
+            res[:,1] = (2 .*(0:size(Σ_ladder,2)-1) .+ 1) .* π ./ mP.β
+            res[:,2] = real.(Σ_ladder[ki,:])
+            res[:,3] = imag.(Σ_ladder[ki,:])
+            writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")
         end
     end
 end

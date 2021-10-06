@@ -247,11 +247,3 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     end
     return res
 end
-
-function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::AbstractArray{T2, 2}, Σ_loc::AbstractArray{T3, 1}) where {T1 <: Number, T2 <: Number, T3 <: Number}
-    res = similar(Σ_ladder)
-    for qi in axes(Σ_ladder,1)
-        @inbounds res[qi,:] = Σ_ladder[qi,:] .- Σ_ladderLoc[1,:] .+ Σ_loc[1:length(Σ_ladderLoc)]
-    end
-    return res
-end

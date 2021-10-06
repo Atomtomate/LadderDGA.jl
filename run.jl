@@ -23,7 +23,6 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "xch done"
 
         @timeit LadderDGA.to "loc Σ" Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, gImp, FUpDo, kGridLoc, mP, sP)
-        Σ_ladderLoc = Σ_ladderLoc .+ mP.n * mP.U/2.0;
 
         flush(log_io)
         # ladder quantities

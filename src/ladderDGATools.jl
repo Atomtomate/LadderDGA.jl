@@ -97,26 +97,43 @@ function Σ_correction(ωindices::AbstractArray{Int,1}, bubble::BubbleT, FUpDo::
     return corr
 end
 
-function calc_Σ_ω_old!(Σ::AbstractArray{Complex{Float64},3}, ωindices::AbstractArray{Int,1},
-            Q_sp::TQ, Q_ch::TQ,Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
+function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
+            ωindices::AbstractArray{Int,1},
+            χsp::AbstractArray{ComplexF64,2}, γsp::AbstractArray{ComplexF64,3},
+            χch::AbstractArray{ComplexF64,2}, γch::AbstractArray{ComplexF64,3},
+            Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
             sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
     fill!(Σ, zero(ComplexF64))
     nd = length(gridshape(kG))
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
-        @inbounds fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
-        @inbounds fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
+        @inbounds fsp = 1.5 .* (1 .+ U .* view(χsp,:,ωi))
+        @inbounds fch = 0.5 .* (1 .- U .* view(χch,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
+        maxn = minimum([νZero + sP.n_iν - 1, size(γsp,ν_axis), νZero + size(Σ, ν_axis) - 1])
         for (νi,νn) in enumerate(νZero:maxn)
-            #TODO: manual unroll of conv_fft1
+            #TODO: remove manual unroll of conv_fft1
+            v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
             if kG.Nk == 1
-                Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)[1]
+                @inbounds Σ[1,νi,ωii] = (γsp[1,νn,ωi] * fsp[1] - γch[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
             else
-                Kνωq = expandKArr(kG, Q_sp.γ[:,νn,ωi] .* fsp .- Q_ch.γ[:,νn,ωi] .* fch .- 1.5 .+ 0.5)# .+ corr[:,νn,ωii])
-                Σ[:,νi,ωii] = conv_fft(kG, selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset), Kνωq)
+                @simd for qi in 1:size(Σ,q_axis)
+                    @inbounds Kνωq_pre[qi] = γsp[qi,νn,ωi] * fsp[qi] - γch[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
+                end
+                expandKArr!(kG,Kνωq,Kνωq_pre)
+                Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
+                @simd for ki in 1:length(Kνωq)
+                    @inbounds Kνωq[ki] *= v[ki]
+                end
+                Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
+                reduceKArr!(kG,  view(Σ,:,νi,ωii), Dispersions.ifft_post(kG, Kνωq)) 
+                @simd for qi in 1:size(Σ,q_axis)
+                    @inbounds Σ[qi,νi,ωii] /= (kG.Nk)
+                end
             end
+            #TODO: end manual unroll of conv_fft1
+            #@inbounds conv_fft!(kG, view(Σ,:,νn,ωii), Gνω[(νn-1) + ωn + sP.fft_offset], Kνωq)
         end
     end
 end
@@ -161,24 +178,14 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
     end
 end
 
-function calc_Σ_dbg(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
-                Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
-                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-
-    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), sP.n_iν, size(bubble,ω_axis))
-    @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
-    @timeit to "Σ_ω old" calc_Σ_ω_old!(Σ_ladder_ω, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
-    res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1]
-    return  Σ_ladder_ω,res,corr
-end
-
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
-        @error ""
+        @error "q Grids not matching"
     end
+    @warn "Selfenergie now contains Hartree term!"
+    Σ_hartree = mP.n * mP.U/2.0;
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
@@ -188,6 +195,16 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     (sP.tc_type_f != :nothing) && extend_corr!(corr)
     @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
     #TODO: *U should be in calc+Sigma_w
-    @timeit to "sum Σ_ω" res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1]
+    @timeit to "sum Σ_ω" res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1] .+ Σ_hartree
     return  res
+end
+
+function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::AbstractArray{T2, 2}, Σ_loc::AbstractArray{T3, 1}) where {T1 <: Number, T2 <: Number, T3 <: Number}
+    res = similar(Σ_ladder)
+    for qi in axes(Σ_ladder,1)
+        for νi in axes(Σ_ladder,2)
+            @inbounds res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[νi]
+        end
+    end
+    return res
 end

@@ -19,14 +19,11 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
 end
 
 function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters)
-    #println("TODO: E_pot function has to be tested")
-    #println("TODO: use GNew/GLoc/GImp instead of Sigma")
     #println("TODO: make frequency summation with sum_freq optional")
     νmax = size(Σ,2)
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
-    Σ_corr = Σ .+ Σ_hartree
 
 	E_kin_tail_c = [zeros(size(kG.ϵkGrid)), (kG.ϵkGrid .+ Σ_hartree .- mP.μ)]
 	E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
@@ -37,12 +34,9 @@ function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters)
 	E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 	E_kin_tail_inv = sum(map(x->x .* (mP.β/2) .* kG.ϵkGrid , [1, -(mP.β) .* E_kin_tail_c[2]]))
 
-	@warn "possible bug in flatten_2D with new axis, use calc_E_pot, calc_E_kin instead"
-	G_corr = transpose(flatten_2D(G_from_Σ(Σ_corr, kG.ϵkGrid, νGrid, mP)));
-	E_pot_full = real.(G_corr .* Σ_corr .- E_pot_tail);
+	G_corr = transpose(flatten_2D(G_from_Σ(Σ, kG.ϵkGrid, νGrid, mP)));
+	E_pot_full = real.(G_corr .* Σ.- E_pot_tail);
 	E_kin_full = kG.ϵkGrid .* real.(G_corr .- E_kin_tail);
-	#E_pot_tail_inv
-	#E_kin_tail_inv
 	E_pot = [kintegrate(kG, 2 .* sum(E_pot_full[:,1:i], dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
 	E_kin = [kintegrate(kG, 4 .* sum(E_kin_full[:,1:i], dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β;
     return E_kin, E_pot
