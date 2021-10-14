@@ -99,7 +99,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
-        (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @warn "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
+        (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
         sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 

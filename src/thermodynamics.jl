@@ -18,9 +18,9 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
     return E_kin, E_pot
 end
 
-function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters)
+function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters; trace=false)
     #println("TODO: make frequency summation with sum_freq optional")
-    νmax = size(Σ,2)
+    νmax = ndims(Σ) == 2 ? size(Σ,2) : length(Σ)
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
@@ -37,8 +37,13 @@ function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters)
 	G_corr = transpose(flatten_2D(G_from_Σ(Σ, kG.ϵkGrid, νGrid, mP)));
 	E_pot_full = real.(G_corr .* Σ.- E_pot_tail);
 	E_kin_full = kG.ϵkGrid .* real.(G_corr .- E_kin_tail);
-	E_pot = [kintegrate(kG, 2 .* sum(E_pot_full[:,1:i], dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
-	E_kin = [kintegrate(kG, 4 .* sum(E_kin_full[:,1:i], dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β;
+    E_kin, E_pot = if trace
+        [kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:i), dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β,
+        [kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:i), dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
+    else
+        kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:νmax), dims=[2])[:,1] .+ E_kin_tail_inv) ./ mP.β,
+        kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:νmax), dims=[2])[:,1] .+ E_pot_tail_inv) ./ mP.β
+    end
     return E_kin, E_pot
 end
 
@@ -49,7 +54,7 @@ Specialized function for DGA potential energy. Better performance than calc_E.
 function calc_E_pot(kG::ReducedKGrid, G::Array{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
                     tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
     E_pot = real.(G .* Σ .- tail);
-    return kintegrate(kG, 2 .* sum(E_pot[:,1:size(Σ,2)], dims=[2])[:,1] .+ tail_inv) / β
+    return kintegrate(kG, 2 .* sum(view(E_pot,:,1:size(Σ,2)), dims=[2])[:,1] .+ tail_inv) / β
 end
 
 function calc_E_pot_νn(kG, G, Σ, tail, tail_inv)

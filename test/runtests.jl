@@ -14,6 +14,10 @@ end
     include("helpers.jl")
 end
 
+@testset "GFTools" begin
+    include("GFTools.jl")
+end
+
 @testset "GFFit" begin
     include("GFFit.jl")
 end

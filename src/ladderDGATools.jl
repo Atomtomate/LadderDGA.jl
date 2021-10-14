@@ -178,7 +178,7 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
     end
 end
 
-function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
+function calc_Σνω(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
                 Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
@@ -189,8 +189,28 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::Bub
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
-    #TODO: implement real fft and make _pre real
     Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), sP.n_iν, size(bubble,ω_axis))
+    @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
+    (sP.tc_type_f != :nothing) && extend_corr!(corr)
+    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
+    return  Σ_ladder_ω
+end
+
+function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
+                Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
+                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
+    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
+        @error "q Grids not matching"
+    end
+    @warn "Selfenergie now contains Hartree term and is cut to νmax = length(usable_ω)/3!"
+    Σ_hartree = mP.n * mP.U/2.0;
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    νmax = floor(Int,length(ωindices)/3)
+
+    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
+    Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
+    #TODO: implement real fft and make _pre real
+    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), νmax, size(bubble,ω_axis))
     @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
     (sP.tc_type_f != :nothing) && extend_corr!(corr)
     @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
