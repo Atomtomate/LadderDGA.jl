@@ -158,7 +158,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     E_pot_tail = permutedims(sum((E_pot_tail_c[i])' .* tail[i] for i in 1:length(tail)),(2,1))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
-    Σ_corr = Σ_loc[1:length(Σ_ladderLoc)] .- Σ_ladderLoc[:] .+ Σ_hartree
+    Σ_corr = Σ_loc[1:νmax] .- Σ_ladderLoc[1:νmax] .+ Σ_hartree
     #TODO: this part of the code is horrible but fast....
     function cond_both!(F, λ)
         fill!(Σ_ladder_i, zero(eltype(Σ_ladder_i)))

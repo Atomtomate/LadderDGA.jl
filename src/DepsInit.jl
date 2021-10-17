@@ -1,6 +1,6 @@
 # ===================== Dependencies ======================
 using ArgParse
-using Logging
+using Logging, LoggingExtras
 using Distributed
 using SharedArrays
 using DistributedArrays
@@ -48,6 +48,8 @@ global_vars = String[]
 function __init__()
 
     global to = TimerOutput()
+    global LOG_BUFFER = IOBuffer()
+    global LOG = ""
     # ==================== Argument Parser ====================
     s = ArgParseSettings()
     @add_arg_table s begin
@@ -59,7 +61,9 @@ function __init__()
 
     args = parse_args([], s)
     io = stdout
+    io_file = 
     metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
     logger = ConsoleLogger(io, Logging.Info, meta_formatter=metafmt, show_limited=true, right_justify=0)
-    global_logger(logger)
+    logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
+    global_logger(TeeLogger(logger,logger_file))
 end

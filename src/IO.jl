@@ -667,3 +667,14 @@ function writeFortranEnergies(E_Kin, E_Pot, E_Kin_ED, E_Pot_ED, β, dirName::Str
         end
     end
 end
+
+function get_log()
+    global LOG
+    LOG *= String(take!(LOG_BUFFER))
+    return LOG
+end
+
+function reset_log()
+    global LOG
+    LOG = ""
+end
