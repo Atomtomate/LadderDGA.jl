@@ -100,6 +100,7 @@ function readConfig(cfg_in)
     end
     freqFilePath = ""
     if !isfile(env.freqFile)
+        @warn "Frequency file not found, reconstructing grid from config."
         m = match(r"b(?<bf>\d+)f(?<ff>\d+)",env.freqFile)
         nBose = parse(Int, m[:bf])
         nFermi = parse(Int, m[:ff])

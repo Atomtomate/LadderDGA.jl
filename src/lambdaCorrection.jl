@@ -226,9 +226,11 @@ function λ_correction(type::Symbol, impQ_sp::ImpurityQuantities, impQ_ch::Impur
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kG, mP, sP)
-        calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, impQ_sp.tailCoeffs[3] , rhs, kG, mP, sP)
+        calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
     elseif type == :sp_ch
         extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
+    else
+        error("unrecognized λ correction type: $type")
     end
     return res
 end
