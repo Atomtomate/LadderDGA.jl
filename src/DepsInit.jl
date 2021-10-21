@@ -44,6 +44,7 @@ global_vars = String[]
 
 # ==================== Precompilation ====================
 # TODO: precompile calc_... for CompleX{Float64}
+# TODO: use SnoopCompiler to find bottlenecks
 #
 function __init__()
 
@@ -60,8 +61,8 @@ function __init__()
     end
 
     args = parse_args([], s)
+    #TODO: this should be set from command line and only default back to stdout
     io = stdout
-    io_file = 
     metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
     logger = ConsoleLogger(io, Logging.Info, meta_formatter=metafmt, show_limited=true, right_justify=0)
     logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)

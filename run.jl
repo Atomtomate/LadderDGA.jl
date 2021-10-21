@@ -40,10 +40,10 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         flush(log_io)
         λsp_old = λ_correction(:sp, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λ_new_nls = LadderDGA.λ_correction(:sp_ch,impQ_sp,impQ_ch,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
+        λnew_nls = LadderDGA.λ_correction(:sp_ch,impQ_sp,impQ_ch,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
                                                                    bubble, gLoc_fft, kG, mP, sP)
-        @info "found $λ_new_nls\n"
-        λ_new = λ_new_nls.f_converged ? λ_new_nls.zero : [NaN, NaN]
+        @info "found $λnew_nls\n"
+        λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
         flush(log_io)
 
         @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
@@ -80,6 +80,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["Sigma_DMFT"] = Σ_loc 
             f["FUpDo"] = FUpDo
             f["λnew_nls"] = λnew_nls
+            f["λnew"] = λnew
             f["log"] = LadderDGA.get_log()
             #TODO: save log string
             #f["log"] = string()
