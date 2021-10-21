@@ -40,11 +40,13 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         flush(log_io)
         λsp_old = λ_correction(:sp, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λ_new = 0.0#λ_correction(:sp_ch, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
-        @info "found $λ_new\nλch_curve"
+        λ_new_nls = LadderDGA.λ_correction(:sp_ch,impQ_sp,impQ_ch,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
+                                                                   bubble, gLoc_fft, kG, mP, sP)
+        @info "found $λ_new_nls\n"
+        λ_new = λ_new_nls.f_converged ? λ_new_nls.zero : [NaN, NaN]
         flush(log_io)
 
-        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=10)
+        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
 
         @timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
                         Σ_ladderLoc, Σ_loc, gLoc_fft, FUpDo, kG, mP, sP)
@@ -58,13 +60,9 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["Description"] = descr
             f["config"] = read(cfg_file, String)
             f["kIt"] = kIteration  
-            f["Nk"] = kG.Nk
+            f["Nk"] = kG.Ns
             f["sP"] = sP
             f["mP"] = mP
-            f["kG_loc"] = kGridLoc
-            f["bubble_loc"] = bubbleLoc
-            f["locQ_sp"] = locQ_sp
-            f["locQ_ch"] = locQ_ch
             f["Sigma_loc"] = Σ_ladderLoc
             f["bubble"] = bubble
             f["nlQ_sp"] = nlQ_sp
@@ -73,6 +71,16 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["λch_range"] = λch_range
             f["spOfch"] = spOfch
             f["λsp_of_λch_res"] = λsp_of_λch_res
+            f["impQ_sp"] = impQ_sp 
+            f["impQ_ch"] = impQ_ch 
+            f["gImp"] = gImp
+            f["kG"] = kG
+            f["gLoc"] = gLoc
+            f["gLoc_fft"] = gLoc_fft
+            f["Sigma_DMFT"] = Σ_loc 
+            f["FUpDo"] = FUpDo
+            f["λnew_nls"] = λnew_nls
+            f["log"] = LadderDGA.get_log()
             #TODO: save log string
             #f["log"] = string()
         end
