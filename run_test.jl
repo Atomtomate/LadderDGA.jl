@@ -16,7 +16,7 @@ cfg_file =  "/home/julian/Hamburg/Julia_lDGA/lDGA_shift_tests/data/40_40_s0_b14_
 
 println(typeof(kGridsStr[1]))
 println("------------------------------------------- $(kGridsStr[1])")
-@timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo = setup_LDGA(kGridsStr[1], mP, sP, env);
+@timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density = setup_LDGA(kGridsStr[1], mP, sP, env);
 
 @info "local"
 @timeit LadderDGA.to "loc bbl" bubbleLoc = calc_bubble(gImp, kGridLoc, mP, sP);

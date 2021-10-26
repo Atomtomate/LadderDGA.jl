@@ -12,7 +12,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
     for kIteration in 1:length(kGridsStr)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
+        @timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
 
         @info "local"
         @timeit LadderDGA.to "loc bbl" bubbleLoc = calc_bubble(gImp, kGridLoc, mP, sP);
@@ -21,7 +21,6 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "xsp done"
         @timeit LadderDGA.to "loc xch"  locQ_ch = calc_χ_trilex(impQ_ch.Γ, bubbleLoc, kGridLoc, -mP.U, mP, sP);
         @info "xch done"
-
         @timeit LadderDGA.to "loc Σ" Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, gImp, FUpDo, kGridLoc, mP, sP)
 
         flush(log_io)
@@ -38,9 +37,9 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
+        λsp_old = λ_correction(:sp, imp_density, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λnew_nls = LadderDGA.λ_correction(:sp_ch,impQ_sp,impQ_ch,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
+        λnew_nls = LadderDGA.λ_correction(:sp_ch,imp_density,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
                                                                    bubble, gLoc_fft, kG, mP, sP)
         @info "found $λnew_nls\n"
         λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
@@ -63,6 +62,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["Nk"] = kG.Ns
             f["sP"] = sP
             f["mP"] = mP
+            f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
             f["bubble"] = bubble
             f["nlQ_sp"] = nlQ_sp
