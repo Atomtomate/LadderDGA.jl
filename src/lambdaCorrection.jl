@@ -37,9 +37,8 @@ function get_χ_min(χr::AbstractArray{Float64,2})
 end
 
 
-function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    usable_ω_imp = intersect(impQ_sp.usable_ω, impQ_ch.usable_ω)
     @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
@@ -52,7 +51,6 @@ function calc_λsp_rhs_usable(impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuan
         mP.n * (1 - mP.n/2) - χch_sum
     else
         @info " using χupup_DMFT - Σ χch as rhs"
-        imp_density = real(impQ_sp.χ_loc + impQ_ch.χ_loc)
         imp_density - χch_sum
     end
 
@@ -220,12 +218,12 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     return λnew
 end
 
-function λ_correction(type::Symbol, impQ_sp::ImpurityQuantities, impQ_ch::ImpurityQuantities,
+function λ_correction(type::Symbol, imp_density::Float64,
             FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             bubble::BubbleT, Gνω::GνqT, kG::ReducedKGrid,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
-        rhs,usable_ω_λc = calc_λsp_rhs_usable(impQ_sp, impQ_ch, nlQ_sp, nlQ_ch, kG, mP, sP)
+        rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
     elseif type == :sp_ch
         extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
@@ -235,12 +233,12 @@ function λ_correction(type::Symbol, impQ_sp::ImpurityQuantities, impQ_ch::Impur
     return res
 end
 
-function λ_correction!(type::Symbol, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+function λ_correction!(type::Symbol, imp_density, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                       bubble::BubbleT, Gνω::GνqT, 
                       kG::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
 
-    λ = λ_correction(type, impQ_sp, impQ_ch, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
+    λ = λ_correction(type, imp_density, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
                   bubble, Gνω, kG, mP, sP; init_sp=init_sp, init_spch=init_spch)
     res = if type == :sp
         nlQ_sp.χ = χ_λ(nlQ_sp.χ, λ)

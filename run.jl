@@ -38,7 +38,8 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
+        imp_density = real(impQ_sp.χ_loc + impQ_ch.χ_loc)
+        λsp_old = λ_correction(:sp, imp_density, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
         λ_new = 0.0#λ_correction(:sp_ch, impQ_sp, impQ_ch, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λ_new\nλch_curve"
