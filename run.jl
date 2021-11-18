@@ -21,7 +21,6 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "xsp done"
         @timeit LadderDGA.to "loc xch"  locQ_ch = calc_χ_trilex(impQ_ch.Γ, bubbleLoc, kGridLoc, -mP.U, mP, sP);
         @info "xch done"
-
         @timeit LadderDGA.to "loc Σ" Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, bubbleLoc, gImp, FUpDo, kGridLoc, mP, sP)
 
         flush(log_io)
@@ -41,7 +40,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         imp_density = real(impQ_sp.χ_loc + impQ_ch.χ_loc)
         λsp_old = λ_correction(:sp, imp_density, FUpDo, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch,bubble, gLoc_fft, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λnew_nls = LadderDGA.λ_correction(:sp_ch,impQ_sp,impQ_ch,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
+        λnew_nls = LadderDGA.λ_correction(:sp_ch,imp_density,FUpDo,Σ_loc,Σ_ladderLoc,nlQ_sp,nlQ_ch,     
                                                                    bubble, gLoc_fft, kG, mP, sP)
         @info "found $λnew_nls\n"
         λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
@@ -64,6 +63,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["Nk"] = kG.Ns
             f["sP"] = sP
             f["mP"] = mP
+            f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
             f["bubble"] = bubble
             f["nlQ_sp"] = nlQ_sp
