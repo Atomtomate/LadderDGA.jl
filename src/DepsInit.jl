@@ -1,10 +1,7 @@
 # ===================== Dependencies ======================
 using ArgParse
 using Logging, LoggingExtras
-using Distributed
-using SharedArrays
-using DistributedArrays
-using OffsetArrays
+using Distributed, SharedArrays, DistributedArrays
 using JLD2, FileIO
 using DelimitedFiles
 using LinearAlgebra, GenericLinearAlgebra
@@ -12,14 +9,17 @@ using Combinatorics
 using TOML          # used for input
 using Printf
 using FiniteDiff
+
 #using ForwardDiff, Zygote
 using Query
 #using IntervalArithmetic, IntervalRootFinding
 using FFTW          # used for convolutions
 using NLsolve
 
+# lDGA related
 using SeriesAcceleration
 using Dispersions
+using BSE_SC
 
 using TimerOutputs
 

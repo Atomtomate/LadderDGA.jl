@@ -3,13 +3,13 @@ using Base.Iterators
 using FFTW
 
 
+#TODO: implement complex to real fftw
+#TODO: get rid of selectdim
 function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     bubble = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
     nd = length(gridshape(kG))
     for ωi in axes(bubble,ω_axis), νi in axes(bubble,ν_axis)
         ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
-        #TODO: implement complex to real fftw
-        #TODO: get rid of selectdim
         conv_fft!(kG, view(bubble,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
         bubble[:,νi,ωi] .*= -mP.β
     end
@@ -17,13 +17,14 @@ function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::Si
     return _eltype === Float64 ? real.(bubble) : bubble
 end
 
-#function test_inv(init::Array{Complex{}})
-#end
 """
+    calc_χ_trilex(Γr::ΓT, bubble, kG::ReducedKGrid, U::Float64, mP, sP)
+
 Solve χ = χ₀ - 1/β² χ₀ Γ χ
-    ⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
-    ⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
-    with indices: χ[ω, q] = χ₀[]
+⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
+⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
+
+with indices: χ[ω, q] = χ₀[]
 """
 function calc_χ_trilex(Γr::ΓT, bubble::BubbleT, kG::ReducedKGrid, U::Float64,
         mP::ModelParameters, sP::SimulationParameters)
@@ -37,28 +38,27 @@ function calc_χ_trilex(Γr::ΓT, bubble::BubbleT, kG::ReducedKGrid, U::Float64,
     lo = npartial_sums(sP.sh_f)
     up = Niν - lo + 1 
     fνmax_cache  = Array{_eltype, 1}(undef, lo)
-    χ_full = Matrix{_eltype}(undef, Niν, Niν)
+    χννpω = Matrix{_eltype}(undef, Niν, Niν)
     _one = one(_eltype)
     ipiv = Vector{Int}(undef, Niν)
-    work = _gen_inv_work_arr(χ_full, ipiv)
+    work = _gen_inv_work_arr(χννpω, ipiv)
     fνmax_cache = _eltype === Float64 ? sP.fνmax_cache_r : sP.fνmax_cache_c
 
     for ωi in axes(bubble,ω_axis)
-        Γview = view(Γr,:,:,ωi)
+        χννpω[:,:] = deepcopy(Γr[:,:,ωi])
         for qi in axes(bubble,q_axis)
-            @inbounds χ_full[:,:] = view(Γr,:,:,ωi)
             for l in 1:Niν 
-                @inbounds @views χ_full[l,l] += _one/bubble[qi,l,ωi]
+                χννpω[l,l] += _one/bubble[qi,l,ωi]
             end
-            @timeit to "inv" inv!(χ_full, ipiv, work)
-            @inbounds χ[qi, ωi] = sum_freq_full!(χ_full, sP.sh_f, mP.β, fνmax_cache, lo, up)
+            @timeit to "inv" inv!(χννpω, ipiv, work)
+            χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
             #TODO: absor this loop into sum_freq, partial sum is carried out twice
             @timeit to "γ" for νk in axes(bubble,ν_axis)
-                @inbounds γ[qi, νk, ωi] = sum_freq_full!(view(χ_full,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, up) / (bubble[qi, νk, ωi] * (1.0 + U * χ[qi, ωi]))
+                γ[qi, νk, ωi] = sum_freq_full!(view(χννpω,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, up) / (bubble[qi, νk, ωi] * (1.0 + U * χ[qi, ωi]))
             end
             (sP.tc_type_f != :nothing) && extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
         end
-        #TODO: write macro/function for ths "reak view" beware of performance hits
+        #TODO: write macro/function for ths "real view" beware of performance hits
         v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
         χ_ω[ωi] = kintegrate(kG, v)
     end
@@ -108,15 +108,15 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
-        @inbounds fsp = 1.5 .* (1 .+ U .* view(χsp,:,ωi))
-        @inbounds fch = 0.5 .* (1 .- U .* view(χch,:,ωi))
+        fsp = 1.5 .* (1 .+ U .* view(χsp,:,ωi))
+        fch = 0.5 .* (1 .- U .* view(χch,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(γsp,ν_axis), νZero + size(Σ, ν_axis) - 1])
         for (νi,νn) in enumerate(νZero:maxn)
             #TODO: remove manual unroll of conv_fft1
             v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
             if kG.Nk == 1
-                @inbounds Σ[1,νi,ωii] = (γsp[1,νn,ωi] * fsp[1] - γch[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
+                Σ[1,νi,ωii] = (γsp[1,νn,ωi] * fsp[1] - γch[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
             else
                 @simd for qi in 1:size(Σ,q_axis)
                     @inbounds Kνωq_pre[qi] = γsp[qi,νn,ωi] * fsp[qi] - γch[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
@@ -148,15 +148,15 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
-        @inbounds fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
-        @inbounds fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
+        fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
+        fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
         for (νi,νn) in enumerate(νZero:maxn)
             #TODO: remove manual unroll of conv_fft1
             v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
             if kG.Nk == 1
-                @inbounds Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
+                Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
             else
                 @simd for qi in 1:size(Σ,q_axis)
                     @inbounds Kνωq_pre[qi] = Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
@@ -223,7 +223,7 @@ function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::Abstra
     res = similar(Σ_ladder)
     for qi in axes(Σ_ladder,1)
         for νi in axes(Σ_ladder,2)
-            @inbounds res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[νi]
+            res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[νi]
         end
     end
     return res

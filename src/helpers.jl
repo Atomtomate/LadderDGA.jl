@@ -93,9 +93,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
     @timeit to "2" begin
         if env.loadAsymptotics
+            #TODO use BSE_SC helper here!!
             asympt_vars = load(env.asymptVars)
             χchAsympt = asympt_vars["chi_ch_asympt"]
             χspAsympt = asympt_vars["chi_sp_asympt"]
+            χppAsympt = asympt_vars["chi_pp_asympt"]
         end
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
@@ -107,8 +109,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
         for wi in axes(χDMFTsp,ω_axis)
-            @inbounds χLocsp_ω[wi] = sum_freq_full_f!(view(χDMFTsp,:,:,wi), mP.β, sP)
-            @inbounds χLocch_ω[wi] = sum_freq_full_f!(view(χDMFTch,:,:,wi), mP.β, sP)
+            χLocsp_ω[wi] = sum_freq_full_f!(view(χDMFTsp,:,:,wi), mP.β, sP)
+            χLocch_ω[wi] = sum_freq_full_f!(view(χDMFTch,:,:,wi), mP.β, sP)
         end
 
         if sP.ω_smoothing == :full

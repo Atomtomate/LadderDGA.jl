@@ -16,7 +16,7 @@ cfg_file =  "/home/julian/Hamburg/Julia_lDGA/lDGA_shift_tests/data/40_40_s0_b14_
 
 println(typeof(kGridsStr[1]))
 println("------------------------------------------- $(kGridsStr[1])")
-@timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo = setup_LDGA(kGridsStr[1], mP, sP, env);
+@timeit LadderDGA.to "setup" impQ_sp, impQ_ch, gImp, kGridLoc, kG, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density = setup_LDGA(kGridsStr[1], mP, sP, env);
 
 @info "local"
 @timeit LadderDGA.to "loc bbl" bubbleLoc = calc_bubble(gImp, kGridLoc, mP, sP);
@@ -41,5 +41,6 @@ imp_density = real(impQ_sp.χ_loc + impQ_ch.χ_loc)
 @info "Σ"
 @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, gLoc_fft, FUpDo, kG, mP, sP)
 Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
+G_λ = G_from_Σ(Σ_ladder)
 @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, fft(G_λ), FUpDo, kG, mP, sP)
 Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);

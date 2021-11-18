@@ -98,20 +98,14 @@ function readConfig(cfg_in)
         end
         ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT)
     end
-    freqFilePath = ""
-    if !isfile(env.freqFile)
+    nBose, nFermi, shift = if !isfile(env.freqFile)
         @warn "Frequency file not found, reconstructing grid from config."
-        m = match(r"b(?<bf>\d+)f(?<ff>\d+)",env.freqFile)
-        nBose = parse(Int, m[:bf])
-        nFermi = parse(Int, m[:ff])
-        freqFilePath = "$(@__DIR__)/../scripts/freqList.jld2"
-        gen_mesh(nBose, nFermi, 0, freqFilePath)
+        m = match(r"b(?<bf>\d+)f(?<ff>\d+)s(?<s>\d)",env.freqFile)
+        parse(Int, m[:bf]), parse(Int, m[:ff]), parse(Int, m[:s])
     else
         freqFilePath = env.freqFile
+        load(freqFilePath, "nBose"), load(freqFilePath, "nFermi"), load(freqFilePath, "shift")
     end
-    nFermi = load(freqFilePath, "nFermi")
-    nBose = load(freqFilePath, "nBose")
-    shift = load(freqFilePath, "shift")
     sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     freq_r = 2*(nFermi+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r

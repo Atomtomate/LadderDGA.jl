@@ -47,10 +47,8 @@ end
 end
 
 
-function Σ_Dyson(GBath::Array{ComplexF64,1}, GImp::Array{ComplexF64,1}, eps = 1e-3)
-    @inbounds Σ::Array{ComplexF64,1} =  1 ./ GBath .- 1 ./ GImp
-    return Σ
-end
+Σ_Dyson(GBath::Array{ComplexF64,1}, GImp::Array{ComplexF64,1}, eps = 1e-3) =
+    Σ::Array{ComplexF64,1} =  1 ./ GBath .- 1 ./ GImp
 
 @inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
@@ -75,9 +73,9 @@ function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF6
     res = Array{eltype(inp),1}(undef, length(inp))
     for n in 1:length(inp)
         if iω[n] != 0
-            @inbounds res[n] = inp[n] - (c/(iω[n]^2))
+            res[n] = inp[n] - (c/(iω[n]^2))
         else
-            @inbounds res[n] = inp[n]
+            res[n] = inp[n]
         end
     end
     return res
