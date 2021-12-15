@@ -22,7 +22,6 @@ function readConfig(cfg_in)
     sim = tml["Simulation"]
     χfill = nothing
     rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"
-
     if tml["Simulation"]["chi_unusable_fill_value"] == "0"
         χfill = zero_χ_fill
     elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi_lambda"
@@ -57,10 +56,8 @@ function readConfig(cfg_in)
     if !(smoothing in [:nothing, :range, :full])
         error("Unrecognized smoothing type \"$(smoothing)\"")
     end
-
     λrhs_type = Symbol(lowercase(tml["Simulation"]["rhs"]))
     !(λrhs_type in [:native, :fixed, :error_comp]) && error("Could not parse rhs type for lambda correction. Options are native, fixed, error_comp.")
-
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
 
     if haskey(tml["Environment"], "nthread")
@@ -69,7 +66,6 @@ function readConfig(cfg_in)
 
     env = EnvironmentVars(   tml["Environment"]["inputDataType"],
                              tml["Environment"]["writeFortran"],
-                             tml["Environment"]["loadAsymptotics"],
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["freqFile"],
                              tml["Environment"]["inputVars"],
@@ -81,7 +77,7 @@ function readConfig(cfg_in)
                              tml["Environment"]["progressbar"]
                             )
 
-    mP = jldopen(env.inputDir*"/"*env.inputVars, "r") do f
+    mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputDir*"/"*env.inputVars, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -91,12 +87,14 @@ function readConfig(cfg_in)
             @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
         end
         U, μ, β, nden = if haskey(f, "U")
+            @warn "Found Hubbard Parameters in input .jld2, ignoring config.toml"
             f["U"], f["μ"], f["β"], f["nden"]
         else
             @warn "reading Hubbard Parameters from config. These should be supplied through the input jld2!"
             tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"]
         end
-        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT)
+        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT), 
+        f["χ_sp_asympt"] ./ f["β"]^2, f["χ_ch_asympt"] ./ f["β"]^2, f["χ_pp_asympt"] ./ f["β"]^2
     end
     nBose, nFermi, shift = if !isfile(env.freqFile)
         @warn "Frequency file not found, reconstructing grid from config."
@@ -106,17 +104,25 @@ function readConfig(cfg_in)
         freqFilePath = env.freqFile
         load(freqFilePath, "nBose"), load(freqFilePath, "nFermi"), load(freqFilePath, "shift")
     end
-    sh_f = get_sum_helper(default_fit_range(-nFermi:nFermi-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
-    freq_r = 2*(nFermi+nBose)#+shift*ceil(Int, nBose)
+    #TODO: BSE inconsistency between direct and SC
+    asympt_sc = lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt" ? 1 : 0
+    Nν_full = nFermi + asympt_sc*Nν_shell
+    sh_f = get_sum_helper(default_fit_range(-Nν_full:Nν_full-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
+    freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
     fft_offset = -minimum(fft_range)+1
-
     lo = npartial_sums(sh_f)
-    up = 2*nFermi - lo + 1 
+    up = 2*Nν_full - lo + 1 
 
-    sP = SimulationParameters(nBose,nFermi,shift,
+    # chi asymptotics
+    tryparse(Int,tml["Simulation"]["chi_asympt_shell"]) == nothing && @error("could not parse chi_asympt_shell")
+
+    χ_helper = asympt_sc == 1 ? BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift) : BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, β, nBose, n_iν, shift)
+
+    sP = SimulationParameters(nBose,Nν_full,shift,
                                tc_type_f,
                                tc_type_b,
+                               χ_helper,
                                λc_type,
                                ωsum_type,
                                λrhs_type,
@@ -140,14 +146,6 @@ function readConfig(cfg_in)
         Nk = tml["Simulation"]["Nk"][i]
         kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
-
-    jldopen(env.inputDir*"/"*env.inputVars, "a+") do f
-        if !haskey(f, "FUpDo")
-            @error "Outdated input file. Please rerun postprocessing to add FUpDo! FUpDo will now be added to the input file."
-            f["FUpDo"] = FUpDo_from_χDMFT(0.5 .* (f["χDMFTch"] - f["χDMFTsp"]), f["gImp"], env, mP, sP)
-        end
-    end
-
     return mP, sP, env, kGrids
 end
 

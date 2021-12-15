@@ -6,12 +6,16 @@ using FFTW
 #TODO: implement complex to real fftw
 #TODO: get rid of selectdim
 function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
-    bubble = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
+    #TODO: fix the size (BSE_SC inconsistency)
+    bubble = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.χ_helper.Nν_shell), 2*sP.n_iω+1)
     nd = length(gridshape(kG))
-    for ωi in axes(bubble,ω_axis), νi in axes(bubble,ν_axis)
-        ωn, νn = OneToIndex_to_Freq(ωi, νi, sP)
-        conv_fft!(kG, view(bubble,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
-        bubble[:,νi,ωi] .*= -mP.β
+    for ωi in axes(bubble,ω_axis)
+        #TODO: fix the offset (BSE_SC inconsistency)
+        for νi in axes(bubble,ν_axis)
+            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP, sP.χ_helper.Nν_shell)
+            conv_fft!(kG, view(bubble,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
+            bubble[:,νi,ωi] .*= -mP.β
+        end
     end
     #TODO: not necessary after real fft
     return _eltype === Float64 ? real.(bubble) : bubble
@@ -26,37 +30,55 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function calc_χ_trilex(Γr::ΓT, bubble::BubbleT, kG::ReducedKGrid, U::Float64,
+function calc_χ_γ(type::Symbol, Γr::ΓT, χ₀::BubbleT, kG::ReducedKGrid, 
         mP::ModelParameters, sP::SimulationParameters)
-    #TODO: find a way to reduce initialization clutter
-    Nk = size(bubble,q_axis)
-    Niν = size(bubble,ν_axis)
-    γ = γT(undef, Nk, 2*sP.n_iν, 2*sP.n_iω+1)
+    #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
+    Nk = size(χ₀,q_axis)
+    Niν = 2*sP.n_iν
+    γ = γT(undef, Nk, Niν, 2*sP.n_iω+1)
     χ = χT(undef, Nk, 2*sP.n_iω+1)
-    χ_ω = Array{Float64, 1}(undef, size(bubble,ω_axis))
+    χ_ω = Array{Float64, 1}(undef, size(χ₀, ω_axis))
     ωindices = ωindex_range(sP)
     lo = npartial_sums(sP.sh_f)
     up = Niν - lo + 1 
     fνmax_cache  = Array{_eltype, 1}(undef, lo)
     χννpω = Matrix{_eltype}(undef, Niν, Niν)
-    _one = one(_eltype)
     ipiv = Vector{Int}(undef, Niν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     fνmax_cache = _eltype === Float64 ? sP.fνmax_cache_r : sP.fνmax_cache_c
 
-    for ωi in axes(bubble,ω_axis)
-        χννpω[:,:] = deepcopy(Γr[:,:,ωi])
-        for qi in axes(bubble,q_axis)
+    U = type === :ch ? -mP.U : mP.U
+    c_μ_U = mP.μ - mP.U*mP.n/2
+    c_n   = mP.U^2 * mP.n/2 * (1 - mP.n/2)
+    for ωi in axes(χ₀,ω_axis)
+        ωn = (ωi - sP.n_iω) - 1
+        for qi in axes(χ₀,q_axis)
+            c2 = mP.μ - mP.U + c_μ_U + kG.ϵkGrid[qi]
+            c3 = c_μ_U^2 + c_n + kG.ϵkGrid[qi]^2 - 2*kG.ϵkGrid[qi]*c_μ_U
+            χννpω[:,:] = deepcopy(Γr[:,:,ωi])
             for l in 1:Niν 
-                χννpω[l,l] += _one/bubble[qi,l,ωi]
+                #TODO: fix the offset (BSE_SC inconsistency)
+                χννpω[l,l] = Γr[l,l,ωi] + 1.0/χ₀[qi,sP.χ_helper.Nν_shell+l,ωi]
             end
+            #TODO: only testing
             @timeit to "inv" inv!(χννpω, ipiv, work)
-            χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
-            #TODO: absor this loop into sum_freq, partial sum is carried out twice
-            @timeit to "γ" for νk in axes(bubble,ν_axis)
-                γ[qi, νk, ωi] = sum_freq_full!(view(χννpω,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, up) / (bubble[qi, νk, ωi] * (1.0 + U * χ[qi, ωi]))
+            @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_SC_Helper
+                #TODO: test SC version improve_χ!(type, ωi, χννpω, view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
+                bs = -sum(χ₀[qi,:,ωi])/mP.β^2
+                xsp_s,xch_s,lsp,lch = improve_χλ_direct(ωi, χννpω, χννpω, view(χ₀,qi,:,ωi), mP.U, mP.β, bs, sP.χ_helper)
+                γ[qi, :, ωi] = type == :sp ? lsp .-1 : lch .+ 1
+                χ[qi, ωi] = type == :sp ? xsp_s : xch_s
+            elseif typeof(sP.χ_helper) === BSE_Asym_Helper
+                χ[qi, ωi], γ[qi, :, ωi], calc_χλ(type, ωn, χννpω, view(χ₀,qi,:,ωi), 
+                                                 mP.U, mP.β, c2, c3, sP.χ_helper);
+            else
+                χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
+                for νk in axes(χ₀,ν_axis)
+                    γ[qi, νk, ωi] = sum_freq_full!(view(χννpω,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, 
+                                                   up) / (χ₀[qi, νk, ωi] * (1.0 + U * χ[qi, ωi]))
+                end
+                (sP.tc_type_f != :nothing) && extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
             end
-            (sP.tc_type_f != :nothing) && extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
         end
         #TODO: write macro/function for ths "real view" beware of performance hits
         v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
@@ -68,6 +90,7 @@ function calc_χ_trilex(Γr::ΓT, bubble::BubbleT, kG::ReducedKGrid, U::Float64,
 end
 
 
+#TODO: replace by F_m and calculate F_m in improved form
 function Σ_correction(ωindices::AbstractArray{Int,1}, bubble::BubbleT, FUpDo::FUpDoT, sP::SimulationParameters)
 
     Niν = size(bubble,ν_axis)
@@ -152,6 +175,7 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
         fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
+        #TODO: rewrite to plain sum using offset array
         for (νi,νn) in enumerate(νZero:maxn)
             #TODO: remove manual unroll of conv_fft1
             v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)

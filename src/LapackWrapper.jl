@@ -11,7 +11,7 @@ module LapackWrapper
     export getrf!, getri!
     export inv!, _gen_inv_work_arr
 
-    function _gen_inv_work_arr(A::Matrix{T}, ipiv::Vector{Int}) where T <: Union{Float64,ComplexF64}
+    function _gen_inv_work_arr(A::AbstractMatrix{T}, ipiv::Vector{Int}) where T <: Union{Float64,ComplexF64}
         n = size(A,1)
         lwork = Int(-1)
         work  = Vector{T}(undef, 1)

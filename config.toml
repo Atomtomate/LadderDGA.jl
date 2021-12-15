@@ -6,7 +6,9 @@ nden = 1.0
 kGrid = "3Dsc-0.2041241452319315"
 
 [Simulation]
-Nk        = [2]                           # number of k points in each dimension
+Nk        = [2]                         # number of k points in each dimension
+chi_asympt_method = "direct"            # direct/sc/nothong, see BSE_SC module for more
+chi_asympt_shell = 20                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
 fermionic_tail_correction = "nothing"   # improvement algorithm for sum extrapolations. possible values: Nothing, Richardson, Shanks
 bosonic_tail_correction = "coeffs"      # nothing (normal sum), Richardson, Shanks, coeffs (known tail coefficients, this should be the default)
 lambda_correction = "sp"                # nothing, sp, sp_ch
@@ -32,14 +34,9 @@ inputVars = "triqs_out.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-loadAsymptotics = false                 # LEGACY, do not change
-asymptVars = "vars_asympt_sums.jld"     # LEGACY, do not change
 cast_to_real = false                    # TODO: not implemented. cast all arrays with vanishing imaginary part to real
 loglevel = "debug"                      # error, warn, info, debug
 progressbar = false                     # LEGACY, do not change
-
-[legacy]
-lambda_correction = true                # Should a lambda-correction be performed only in the spin-channel?
 
 [Debug]
 read_bubble = false                     # LEGACY, do not change

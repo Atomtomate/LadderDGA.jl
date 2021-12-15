@@ -34,39 +34,31 @@ printr_s(x::ComplexF64) = round(real(x), digits=4)
 printr_s(x::Float64) = round(x, digits=4)
 
 
-function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
+function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true)
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
-
-    @timeit to "gen kGrid loc" kGridLoc = gen_kGrid(kGridStr[1], 1)
-    @timeit to "gen kGrid nl" kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
-    @timeit to "1" begin
-        if env.inputDataType == "text"
-            convert_from_fortran(sP, env, false)
-            if env.loadAsymptotics
-                readEDAsymptotics(env, mP)
-            end
-        elseif env.inputDataType == "parquet"
-            convert_from_fortran_pq(sP, env)
-            if env.loadAsymptotics
-                readEDAsymptotics_parquet(env)
-            end
-        elseif env.inputDataType == "jld2"
-            if env.loadAsymptotics
-                readEDAsymptotics_julia(env)
-            end
-            in_file = env.inputDir*"/"*env.inputVars
-        end
+    @timeit to "gen kGrid" kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
+    if env.inputDataType == "text"
+        convert_from_fortran(sP, env, false)
+    elseif env.inputDataType == "parquet"
+        convert_from_fortran_pq(sP, env)
+    elseif env.inputDataType == "jld2"
+        in_file = env.inputDir*"/"*env.inputVars
     end
-    #f = load(in_file)
     @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
-        χDMFTsp = permutedims(_eltype === Float64 ? real.(f["χDMFTsp"]) : f["χDMFTsp"], (2,3,1))
-        χDMFTch = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"] , (2,3,1))
-        Γch = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
-        Γsp = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
-        FUpDo = permutedims(_eltype === Float64 ? real.(f["FUpDo"]) : f["FUpDo"], (2,3,1))
-
+        Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
+        χDMFTsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        χDMFTsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTsp"]) : f["χDMFTsp"], (2,3,1))
+        χDMFTch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        χDMFTch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"], (2,3,1))
+        Γsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
+        Γch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
+        #TODO compute FUpDo inplace from χDMFT?
+        FUpDo = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        FUpDo[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["FUpDo"]) : f["FUpDo"], (2,3,1))
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
             g0 = f["g0"]
@@ -80,32 +72,43 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp, Σ_loc
     end
 
-    @timeit to "GF stuff" begin
-        nd = length(gridshape(kGrid))
-        gImp = Array{ComplexF64, nd+1}(undef, ntuple(_->1,nd)..., length(sP.fft_range))
-        gLoc_fft = Array{ComplexF64, nd+1}(undef, gridshape(kGrid)..., length(sP.fft_range))
-        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
-        for (i,el) in enumerate(store_symm_f(gImp_in, sP.fft_range))
-            selectdim(gImp,nd+1,i) .= el
-            selectdim(gLoc_fft,nd+1,i) .= fft(reshape(gLoc_full[i], gridshape(kGrid)...))
-        end
-        gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
+    nd = length(gridshape(kGrid))
+    gImp = Array{ComplexF64, nd+1}(undef, ntuple(_->1,nd)..., length(sP.fft_range))
+    gLoc_fft = Array{ComplexF64, nd+1}(undef, gridshape(kGrid)..., length(sP.fft_range))
+    gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
+    for (i,el) in enumerate(store_symm_f(gImp_in, sP.fft_range))
+        selectdim(gImp,nd+1,i) .= el
+        selectdim(gLoc_fft,nd+1,i) .= fft(reshape(gLoc_full[i], gridshape(kGrid)...))
     end
-    @timeit to "2" begin
-        if env.loadAsymptotics
-            #TODO use BSE_SC helper here!!
-            asympt_vars = load(env.asymptVars)
-            χchAsympt = asympt_vars["chi_ch_asympt"]
-            χspAsympt = asympt_vars["chi_sp_asympt"]
-            χppAsympt = asympt_vars["chi_pp_asympt"]
-        end
+    gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
+
+    @timeit to "local correction" begin
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
         (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
         sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
-        sh_f = get_sum_helper(-sP.n_iν:sP.n_iν-1, sP, :f)
+        kGridLoc = gen_kGrid(kGridStr[1], 1)
+        χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP);
+        locQ_sp = calc_χ_γ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
+        locQ_ch = calc_χ_γ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
+        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, χ₀Loc, gImp, FUpDo, kGridLoc, mP, sP)
+        any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
+
+        if sP.χ_helper.Nν_shell > 0
+            @info "Using asymptotics improvement for large ν, ν' of χ_DMFT with shell size of $(sP.χ_helper.Nν_shell)"
+            #TODO: this neds cleanuo
+            for ωi in 1:size(χDMFTsp,3) 
+                bs = -sum(χ₀Loc[qi,:,ωi])/mP.β^2
+                xsp_s,xch_s,lsp,lch = improve_χλ_direct(ωi, view(χDMFTsp,:,:,ωi), view(χDMFTch,:,:,ωi), view(χ₀Loc,qi,:,ωi), mP.U, mP.β, sP.χ_helper)
+                χDMFTsp[:,:,ωi] = xsp_s
+                χDMFTch[:,:,ωi] = xch_s
+                #improve_χ!(:sp, ωi, view(χDMFTsp,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+                #improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+            end
+        end
+
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
         for wi in axes(χDMFTsp,ω_axis)
@@ -117,7 +120,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             ωZero = sP.n_iω
             @warn "smoothing deactivated for now!"
             filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
-            filter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
+            filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
             filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
             filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
             χLocsp_ω_tmp[:] = collect(χLocsp_ω)
@@ -135,10 +138,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "random stuff" begin
         usable_loc_sp = find_usable_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
         usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
-        #if sP.tc_type_f != :nothing
-        #    usable_loc_sp = reduce_range(usable_loc_sp, 1.0)
-        #    usable_loc_ch = reduce_range(usable_loc_ch, 1.0)
-        #end
         loc_range = intersect(usable_loc_sp, usable_loc_ch)
         if sP.ωsum_type == :common
             @info "setting usable ranges of sp and ch channel from $usable_loc_sp and $usable_loc_ch to the same range of $loc_range"
@@ -153,24 +152,22 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         @warn "TODO: update local omega sum with correction, update get_sum_helper to return tail sub"
         χLocsp = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β, 0.0)[1]
         χLocch = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β, 0.0)[1]
-
-        impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
-        impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
+        #impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
+        #impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
         χupup_DMFT_ω = 0.5 * (χLocsp_ω + χLocch_ω)[loc_range]
         χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range])
 
-        sh_b = get_sum_helper(loc_range, sP, :b)
-        imp_density_pure = real(sum(χupup_DMFT_ω))/mP.β
+        imp_density_ntc = real(sum(χupup_DMFT_ω))/mP.β
         imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
 
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
-          χLoc_sp($(impQ_sp.usable_ω)) = $(printr_s(impQ_sp.χ_loc)), χLoc_ch($(impQ_ch.usable_ω)) = $(printr_s(impQ_ch.χ_loc))
-          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_pure) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+          χLoc_sp($(usable_loc_sp)) = $(printr_s(χLocsp)), χLoc_ch($(usable_loc_ch)) = $(printr_s(χLocch))
+          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return impQ_sp, impQ_ch, gImp, kGridLoc, kGrid, gLoc, gLoc_fft, Σ_loc, FUpDo, imp_density
+    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, Γsp, Γch, FUpDo
 end
 
 # ================== Index Functions ==================
@@ -181,6 +178,12 @@ function flatten_2D(arr)
         res[i,:] = arr[i][:]
     end
     return res
+end
+
+@inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters, Nν_shell)
+    ωn = ωi-sP.n_iω-1
+    νn = (νi-sP.n_iν-Nν_shell-1) - sP.shift*trunc(Int,ωn/2)
+    return ωn, νn
 end
 
 @inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)

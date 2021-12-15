@@ -54,6 +54,7 @@ struct SimulationParameters <: ConfigStruct
     shift::Bool            # shift of center for interval of bosonic frequencies
     tc_type_f::Symbol  # use correction for finite ν sums.
     tc_type_b::Symbol  # use correction for finite ω sums.
+    χ_helper::Union{BSE_SC_Helper,BSE_Asym_Helper,Nothing} # Helper for χ asymptotics improvement
     λc_type::Symbol  # which type of lambda correction to use (currecntly: nothing, sp, sp_ch, TOOD: sp_ch_q
     ωsum_type::BSum
     λ_rhs::Symbol
@@ -86,7 +87,6 @@ the [`readConfig`](@ref readConfig) function.
 struct EnvironmentVars <: ConfigStruct
     inputDataType::String
     writeFortran::Bool
-    loadAsymptotics::Bool
     inputDir::String
     freqFile::String
     inputVars::String
