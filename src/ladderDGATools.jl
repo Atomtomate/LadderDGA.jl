@@ -3,26 +3,65 @@ using Base.Iterators
 using FFTW
 
 
+function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
+    s = (type == :ch) ? -1 : 1
+    res = similar(γ)
+    for ωi in 1:size(γ,3)
+        for qi in 1:size(γ,1)
+            res[qi,:,ωi] = s .* view(γ,qi,:,ωi) .* (1 .+ s*U .* χ[qi, ωi]) .- 1
+        end
+    end
+    return res
+end
+
+function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, n_iω::Int, n_iν::Int, shift, β::Float64)
+    F = similar(χ)
+    for (i,ωn) in enumerate(-n_iω:n_iω)
+        s = -shift*trunc(Int, ωn/2)
+        for (j,νn) in enumerate((-n_iν:n_iν-1) .+ s)
+        for (k,νpn) in enumerate((-n_iν:n_iν-1) .+ s)
+            @inbounds F[j,k,i] = -(χ[j,k,i] + (νn == νpn) * β * get_symm_f(G,νn) * get_symm_f(G,ωn+νn))/(
+                         get_symm_f(G,νn) * get_symm_f(G,ωn+νn)
+                       * get_symm_f(G,νpn) * get_symm_f(G,ωn+νpn))
+        end
+        end
+    end
+    return F
+end
+
+
+
 #TODO: implement complex to real fftw
 #TODO: get rid of selectdim
-function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+#TODO: gImp should know about its tail instead of χ₀
+function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
-    bubble = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.χ_helper.Nν_shell), 2*sP.n_iω+1)
+    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
     nd = length(gridshape(kG))
-    for ωi in axes(bubble,ω_axis)
+    for ωi in axes(data,ω_axis)
         #TODO: fix the offset (BSE_SC inconsistency)
-        for νi in axes(bubble,ν_axis)
-            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP, sP.χ_helper.Nν_shell)
-            conv_fft!(kG, view(bubble,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
-            bubble[:,νi,ωi] .*= -mP.β
+        for νi in axes(data,ν_axis)
+            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
+            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
+            data[:,νi,ωi] .*= -mP.β
         end
     end
     #TODO: not necessary after real fft
-    return _eltype === Float64 ? real.(bubble) : bubble
+    data = _eltype === Float64 ? real.(data) : data
+
+    #TODO: move tail calculation to definition of GF (GF should know about its tail)
+    t1, t2 = if local_tail
+        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
+        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    else
+        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
+        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    end
+    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
 end
 
 """
-    calc_χ_trilex(Γr::ΓT, bubble, kG::ReducedKGrid, U::Float64, mP, sP)
+    calc_χ_trilex(Γr::ΓT, χ₀, kG::ReducedKGrid, U::Float64, mP, sP)
 
 Solve χ = χ₀ - 1/β² χ₀ Γ χ
 ⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
@@ -30,15 +69,17 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function calc_χ_γ(type::Symbol, Γr::ΓT, χ₀::BubbleT, kG::ReducedKGrid, 
-        mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
-    Nk = size(χ₀,q_axis)
+    #TODO: χ₀ should know about its tail c2, c3
+    s = type === :ch ? -1 : 1
     Niν = 2*sP.n_iν
-    γ = γT(undef, Nk, Niν, 2*sP.n_iω+1)
-    χ = χT(undef, Nk, 2*sP.n_iω+1)
-    χ_ω = Array{Float64, 1}(undef, size(χ₀, ω_axis))
-    ωindices = ωindex_range(sP)
+    γ = γT(undef, size(χ₀.data,q_axis), Niν, size(χ₀.data,ω_axis))
+    χ = χT(undef, size(χ₀.data,q_axis), size(χ₀.data,ω_axis))
+    ωi_range = axes(χ₀.data,ω_axis)
+    νi_range = 1:Niν
+    qi_range = axes(χ₀.data,q_axis)
+    χ_ω = Array{Float64, 1}(undef, size(χ₀.data,ω_axis))
     lo = npartial_sums(sP.sh_f)
     up = Niν - lo + 1 
     fνmax_cache  = Array{_eltype, 1}(undef, lo)
@@ -47,35 +88,28 @@ function calc_χ_γ(type::Symbol, Γr::ΓT, χ₀::BubbleT, kG::ReducedKGrid,
     work = _gen_inv_work_arr(χννpω, ipiv)
     fνmax_cache = _eltype === Float64 ? sP.fνmax_cache_r : sP.fνmax_cache_c
 
-    U = type === :ch ? -mP.U : mP.U
-    c_μ_U = mP.μ - mP.U*mP.n/2
-    c_n   = mP.U^2 * mP.n/2 * (1 - mP.n/2)
-    for ωi in axes(χ₀,ω_axis)
+    #TODO: clean up loop definition
+    for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
-        for qi in axes(χ₀,q_axis)
-            c2 = mP.μ - mP.U + c_μ_U + kG.ϵkGrid[qi]
-            c3 = c_μ_U^2 + c_n + kG.ϵkGrid[qi]^2 - 2*kG.ϵkGrid[qi]*c_μ_U
+        for qi in qi_range
             χννpω[:,:] = deepcopy(Γr[:,:,ωi])
-            for l in 1:Niν 
+            for l in νi_range
                 #TODO: fix the offset (BSE_SC inconsistency)
-                χννpω[l,l] = Γr[l,l,ωi] + 1.0/χ₀[qi,sP.χ_helper.Nν_shell+l,ωi]
+                χννpω[l,l] = Γr[l,l,ωi] + 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
             end
-            #TODO: only testing
             @timeit to "inv" inv!(χννpω, ipiv, work)
-            @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_SC_Helper
-                #TODO: test SC version improve_χ!(type, ωi, χννpω, view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
-                bs = -sum(χ₀[qi,:,ωi])/mP.β^2
-                xsp_s,xch_s,lsp,lch = improve_χλ_direct(ωi, χννpω, χννpω, view(χ₀,qi,:,ωi), mP.U, mP.β, bs, sP.χ_helper)
-                γ[qi, :, ωi] = type == :sp ? lsp .-1 : lch .+ 1
-                χ[qi, ωi] = type == :sp ? xsp_s : xch_s
-            elseif typeof(sP.χ_helper) === BSE_Asym_Helper
-                χ[qi, ωi], γ[qi, :, ωi], calc_χλ(type, ωn, χννpω, view(χ₀,qi,:,ωi), 
-                                                 mP.U, mP.β, c2, c3, sP.χ_helper);
+            @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_Asym_Helper
+                χ[qi, ωi], λ_out = calc_χλ_impr(type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
+                                           mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
+                γ[qi, :, ωi] = (1 .- s*λ_out) ./ (1 .+ s*mP.U .* χ[qi, ωi])
             else
+                if typeof(sP.χ_helper) === BSE_SC_Helper
+                    improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
+                end
                 χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
-                for νk in axes(χ₀,ν_axis)
+                for νk in axes(χ₀.data,ν_axis)
                     γ[qi, νk, ωi] = sum_freq_full!(view(χννpω,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, 
-                                                   up) / (χ₀[qi, νk, ωi] * (1.0 + U * χ[qi, ωi]))
+                                                   up) / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
                 end
                 (sP.tc_type_f != :nothing) && extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
             end
@@ -90,82 +124,44 @@ function calc_χ_γ(type::Symbol, Γr::ΓT, χ₀::BubbleT, kG::ReducedKGrid,
 end
 
 
-#TODO: replace by F_m and calculate F_m in improved form
-function Σ_correction(ωindices::AbstractArray{Int,1}, bubble::BubbleT, FUpDo::FUpDoT, sP::SimulationParameters)
+function calc_λ0(χ₀::χ₀T, F::FT, locQ::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
 
-    Niν = size(bubble,ν_axis)
-    tmp = Array{Float64, 1}(undef, Niν)
-    corr = Array{Float64,3}(undef,size(bubble,q_axis),Niν,length(ωindices))
-    lo = npartial_sums(sP.sh_f)
-    up = Niν - lo + 1 
+    #TODO: store nu grid in sP?
+    Niν = size(F,ν_axis)
+    ω_range = 1:size(χ₀.data,ω_axis)
+    λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
-    #TODO: this is not well optimized, but also not often executed
-    for (ωi,ωii) in enumerate(ωindices)
-        for νi in 1:Niν
-            #TODO: export realview functions?
-            v1 = _eltype === Float64 ? view(FUpDo,νi,:,ωii) : @view reinterpret(Float64,view(FUpDo,νi,:,ωii))[1:2:end]
-            for qi in axes(bubble,q_axis)
-                v2 = _eltype === Float64 ? view(bubble,qi,:,ωii) : @view reinterpret(Float64,view(bubble,qi,:,ωii))[1:2:end]
-                @simd for νpi in 1:Niν 
-                    @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
+    if typeof(sP.χ_helper) === BSE_Asym_Helper
+        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, F, χ₀.data, χ₀.asym, view(locQ.γ,1,:,:), view(locQ.χ,1,:),
+                             mP.U, mP.β, sP.χ_helper)
+    else
+        #TODO: this is not well optimized, but also not often executed
+        tmp = Array{ComplexF64, 1}(undef, Niν)
+        lo = npartial_sums(sP.sh_f)
+        up = Niν - lo + 1 
+        for ωi in ω_range
+            for νi in 1:Niν
+                #TODO: export realview functions?
+                v1 = view(F,νi,:,ωi)
+                for qi in axes(χ₀.data,q_axis)
+                    v2 = view(χ₀.data,qi,:,ωi) 
+                    @simd for νpi in 1:Niν 
+                        @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
+                    end
+                    λ0[qi,νi,ωi] = sum_freq_full!(tmp, sP.sh_f, 1.0, sP.fνmax_cache_c, lo, up)/(mP.β^2)
                 end
-                corr[qi,νi,ωi] = sum_freq_full!(tmp, sP.sh_f, 1.0, sP.fνmax_cache_r, lo, up)
-                #@inbounds @views corr[qi,νi,ωi] = sum(tmp)
-                #TODO: reactivate impr sum!!!!!
-                #sum_freq_full!(tmp, sP.sh_b, 1.0, sP.fνmax_cache_r, sP.fνmax_lo, sP.fνmax_up)
             end
         end
+        (sP.tc_type_f != :nothing) && extend_corr!(λ0)
     end
-    (sP.tc_type_f != :nothing) && extend_corr!(corr)
-    return corr
+    return λ0
 end
 
 function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
-            χsp::AbstractArray{ComplexF64,2}, γsp::AbstractArray{ComplexF64,3},
-            χch::AbstractArray{ComplexF64,2}, γch::AbstractArray{ComplexF64,3},
-            Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
-            sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
-    fill!(Σ, zero(ComplexF64))
-    nd = length(gridshape(kG))
-    for ωii in 1:length(ωindices)
-        ωi = ωindices[ωii]
-        ωn = (ωi - sP.n_iω) - 1
-        fsp = 1.5 .* (1 .+ U .* view(χsp,:,ωi))
-        fch = 0.5 .* (1 .- U .* view(χch,:,ωi))
-        νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([νZero + sP.n_iν - 1, size(γsp,ν_axis), νZero + size(Σ, ν_axis) - 1])
-        for (νi,νn) in enumerate(νZero:maxn)
-            #TODO: remove manual unroll of conv_fft1
-            v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
-            if kG.Nk == 1
-                Σ[1,νi,ωii] = (γsp[1,νn,ωi] * fsp[1] - γch[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
-            else
-                @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Kνωq_pre[qi] = γsp[qi,νn,ωi] * fsp[qi] - γch[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
-                end
-                expandKArr!(kG,Kνωq,Kνωq_pre)
-                Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
-                @simd for ki in 1:length(Kνωq)
-                    @inbounds Kνωq[ki] *= v[ki]
-                end
-                Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
-                reduceKArr!(kG,  view(Σ,:,νi,ωii), Dispersions.ifft_post(kG, Kνωq)) 
-                @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Σ[qi,νi,ωii] /= (kG.Nk)
-                end
-            end
-            #TODO: end manual unroll of conv_fft1
-            #@inbounds conv_fft!(kG, view(Σ,:,νn,ωii), Gνω[(νn-1) + ωn + sP.fft_offset], Kνωq)
-        end
-    end
-end
-
-
-function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
-            ωindices::AbstractArray{Int,1},
-            Q_sp::TQ, Q_ch::TQ,Gνω::GνqT, corr::AbstractArray{Float64,3}, U::Float64, kG::ReducedKGrid, 
-            sP::SimulationParameters; lopWarn=false) where TQ <: Union{NonLocalQuantities, ImpurityQuantities}
+            Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::ReducedKGrid, 
+            sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
     nd = length(gridshape(kG))
     for ωii in 1:length(ωindices)
@@ -176,70 +172,42 @@ function calc_Σ_ω!(Σ::AbstractArray{Complex{Float64},3}, Kνωq::Array{Comple
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
         #TODO: rewrite to plain sum using offset array
+        #TODO: manual unrolling is slightly faster. use snoopcompiler and cthulhu.jl to investigate
         for (νi,νn) in enumerate(νZero:maxn)
-            #TODO: remove manual unroll of conv_fft1
             v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
             if kG.Nk == 1
-                Σ[1,νi,ωii] = (Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + corr[1,νn,ωii]) * v[1]
+                Σ[1,νi,ωii] = U*(Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νn,ωi]) * v[1]
             else
-                @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Kνωq_pre[qi] = Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
-                end
-                expandKArr!(kG,Kνωq,Kνωq_pre)
-                Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
-                @simd for ki in 1:length(Kνωq)
-                    @inbounds Kνωq[ki] *= v[ki]
-                end
-                Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
-                reduceKArr!(kG,  view(Σ,:,νi,ωii), Dispersions.ifft_post(kG, Kνωq)) 
-                @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Σ[qi,νi,ωii] /= (kG.Nk)
-                end
+                Kνωq_pre[:] = U*(Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[1,νn,ωi])
+                conv_fft1!(kG, view(Σ,:,νi,ωii), Kνωq_pre, v)
             end
-            #TODO: end manual unroll of conv_fft1
-            #@inbounds conv_fft!(kG, view(Σ,:,νn,ωii), Gνω[(νn-1) + ωn + sP.fft_offset], Kνωq)
         end
     end
 end
 
-function calc_Σνω(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
-                Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
+function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, Fsp::FT, kG::ReducedKGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
-    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
-        @error "q Grids not matching"
-    end
-    @warn "Selfenergie now contains Hartree term!"
-    Σ_hartree = mP.n * mP.U/2.0;
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
-    Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
-    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), sP.n_iν, size(bubble,ω_axis))
-    @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
-    (sP.tc_type_f != :nothing) && extend_corr!(corr)
-    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
-    return  Σ_ladder_ω
-end
-
-function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, bubble::BubbleT,
-                Gνω::GνqT, FUpDo::FUpDoT, kG::ReducedKGrid,
-                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
-    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != size(bubble,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
+    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"
     end
     @warn "Selfenergie now contains Hartree term and is cut to νmax = length(usable_ω)/3!"
     Σ_hartree = mP.n * mP.U/2.0;
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    Nq = size(Q_sp.χ,1)
+    Nω = size(Q_sp.χ,2)
+    ωrange = -sP.n_iω:sP.n_iω
+    ωindices = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     νmax = floor(Int,length(ωindices)/3)
 
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
-    Σ_ladder_ω = Array{Complex{Float64},3}(undef,size(bubble,q_axis), νmax, size(bubble,ω_axis))
-    @timeit to "corr" corr = Σ_correction(ωindices, bubble, FUpDo, sP)
-    (sP.tc_type_f != :nothing) && extend_corr!(corr)
-    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, corr, mP.U, kG, sP)
-    #TODO: *U should be in calc+Sigma_w
-    @timeit to "sum Σ_ω" res = (mP.U/mP.β) .* sum(Σ_ladder_ω, dims=[3])[:,:,1] .+ Σ_hartree
+    Σ_ladder_ω = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange))#OffsetArray( 
+                             #Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
+                             #1:Nq, 0:n_iν, ωrange)
+    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    #TODO: *U should be in calc_Sigma_w
+    @timeit to "sum Σ_ω" res = sum(Σ_ladder_ω, dims=[3])[:,:,1] ./ mP.β .+ Σ_hartree
     return  res
 end
 

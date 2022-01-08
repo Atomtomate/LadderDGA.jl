@@ -86,14 +86,14 @@ function readConfig(cfg_in)
         else
             @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
         end
-        U, μ, β, nden = if haskey(f, "U")
+        U, μ, β, nden, Vk = if haskey(f, "U")
             @warn "Found Hubbard Parameters in input .jld2, ignoring config.toml"
-            f["U"], f["μ"], f["β"], f["nden"]
+            f["U"], f["μ"], f["β"], f["nden"], f["Vₖ"]
         else
             @warn "reading Hubbard Parameters from config. These should be supplied through the input jld2!"
-            tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"]
+            tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"], f["Vₖ"]
         end
-        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT), 
+        ModelParameters(U, μ, β, nden, sum(Vk.^2), EPot_DMFT, EKin_DMFT), 
         f["χ_sp_asympt"] ./ f["β"]^2, f["χ_ch_asympt"] ./ f["β"]^2, f["χ_pp_asympt"] ./ f["β"]^2
     end
     nBose, nFermi, shift = if !isfile(env.freqFile)
@@ -106,6 +106,7 @@ function readConfig(cfg_in)
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt" ? 1 : 0
+    Nν_shell  = tml["Simulation"]["chi_asympt_shell"]
     Nν_full = nFermi + asympt_sc*Nν_shell
     sh_f = get_sum_helper(default_fit_range(-Nν_full:Nν_full-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
@@ -115,11 +116,19 @@ function readConfig(cfg_in)
     up = 2*Nν_full - lo + 1 
 
     # chi asymptotics
-    tryparse(Int,tml["Simulation"]["chi_asympt_shell"]) == nothing && @error("could not parse chi_asympt_shell")
 
-    χ_helper = asympt_sc == 1 ? BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift) : BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, β, nBose, n_iν, shift)
+    χ_helper = if lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt"
+                    BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift)
+                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct"
+                    BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.β, nBose, nFermi, shift)
+                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "nothing"
+                    nothing
+                else
+                    @error "could not parse chi_asympt_method $(tml["Simulation"]["chi_asympt_method"]). Options are: asympt/direct/nothing"
+                    nothing
+                end
 
-    sP = SimulationParameters(nBose,Nν_full,shift,
+    sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
                                tc_type_f,
                                tc_type_b,
                                χ_helper,

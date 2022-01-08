@@ -46,7 +46,7 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
-    rhs = if ((sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if (( typeof(sP.χ_heler) != nothing && sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         @info " using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
@@ -86,12 +86,12 @@ function calc_λsp_correction(χ_in::AbstractArray{Float64,2}, usable_ω::Abstra
     return λsp
 end
 
-function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-        Gνω::GνqT, FUpDo::FUpDoT, 
+function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ₀::χ₀T, 
+        Gνω::GνqT, F::FT, 
         Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
 
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ₀.data,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     νmax = floor(Int,length(ωindices)/3)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     nlQ_sp_λ = deepcopy(nlQ_sp)
@@ -100,7 +100,7 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
     function cond_both!(F, λ)
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, bubble, Gνω, FUpDo, kG, mP, sP)[:,1:νmax]
+        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, χ₀, Gνω, F, kG, mP, sP)[:,1:νmax]
         Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
         
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
@@ -122,14 +122,14 @@ end
 #TODO: this is manually unrolled...
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
-function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bubble::BubbleT, 
-        Gνω::GνqT, FUpDo::FUpDoT, 
+function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ₀::χ₀T, 
+        Gνω::GνqT, F::FT, locQ::NonLocalQuantities,
         Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
         # --- prepare auxiliary vars ---
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
-    Kνωq_pre = Array{ComplexF64, 1}(undef, size(bubble,q_axis))
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(bubble,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    Kνωq_pre = Array{ComplexF64, 1}(undef, size(χ₀.data,q_axis))
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ₀.data,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     lur = length(ωindices)
     νmax = floor(Int,lur/3)
     νGrid = 0:(νmax-1)
@@ -138,13 +138,14 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
     iωn2_sub = real.([i == 0 ? 0 : mP.Ekin_DMFT / (i)^2 for i in iωn])
     nd = length(gridshape(kG))
     
-    Σ_ladder_i = Array{Complex{Float64},2}(undef, size(bubble,1), νmax)
+    Σ_ladder_i = Array{Complex{Float64},2}(undef, size(χ₀.data,1), νmax)
     χsp_λ = similar(nlQ_sp.χ[:,ωindices])
     χch_λ = similar(nlQ_ch.χ[:,ωindices])
     
     # Prepare data
     x0 = [0.1,  0.1]
-    corr = Σ_correction(ωindices, bubble, FUpDo, sP)
+    @error "calc lambda 0 not updated"
+    λ₀ = calc_λ0(χ₀.data, Fsp, locQ_sp, mP, sP)
     nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
     χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
     χch_min    = -1 / maximum(real.(nlQ_ch.χ[:,nh]))
@@ -173,7 +174,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
             for (νi,νn) in enumerate(νZero:maxn)
                 v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
                 @simd for qi in 1:length(Kνωq_pre)
-                    @inbounds Kνωq_pre[qi] = nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + corr[qi,νn,ωii]
+                    @inbounds Kνωq_pre[qi] = nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωii]
                 end
                 expandKArr!(kG,Kνωq,Kνωq_pre)
                 Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
@@ -219,27 +220,30 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, bub
 end
 
 function λ_correction(type::Symbol, imp_density::Float64,
-            FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
-            bubble::BubbleT, Gνω::GνqT, kG::ReducedKGrid,
+            F, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+            locQ::NonLocalQuantities,
+            χ₀::χ₀T, Gνω::GνqT, kG::ReducedKGrid,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
     elseif type == :sp_ch
-        extended_λ(nlQ_sp, nlQ_ch, bubble, Gνω, FUpDo, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
+        extended_λ(nlQ_sp, nlQ_ch, χ₀, Gνω, F, locQ, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
     else
         error("unrecognized λ correction type: $type")
     end
     return res
 end
 
-function λ_correction!(type::Symbol, imp_density, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
-                      bubble::BubbleT, Gνω::GνqT, 
+function λ_correction!(type::Symbol, imp_density, F, Σ_loc_pos, Σ_ladderLoc,
+                       nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+                       locQ::NonLocalQuantities,
+                      χ₀::χ₀T, Gνω::GνqT, 
                       kG::ReducedKGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
 
-    λ = λ_correction(type, imp_density, FUpDo, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
-                  bubble, Gνω, kG, mP, sP; init_sp=init_sp, init_spch=init_spch)
+    λ = λ_correction(type, imp_density, F, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, locQ,
+                  χ₀, Gνω, kG, mP, sP; init_sp=init_sp, init_spch=init_spch)
     res = if type == :sp
         nlQ_sp.χ = χ_λ(nlQ_sp.χ, λ)
         nlQ_sp.λ = λ

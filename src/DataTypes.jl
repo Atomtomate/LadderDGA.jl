@@ -1,18 +1,41 @@
 import Base.copy
+#TODO: all data types with tails should have their own data structure and know about their summation type
+#TODO: overload data types to behave like AbstractArrays for math and I/O
 
+#TODO: each struct should know about its axis labels
 const ω_axis = 3;
 const ν_axis = 2;
 const q_axis = 1;
 
 const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
-const BubbleT = Array{_eltype,3}
-const FUpDoT = Array{_eltype,3}
+const FT = Array{_eltype,3}
 const γT = Array{_eltype,3}
 const χT = Array{_eltype,2}
-#TODO: overload for 2D and 3D grids
 const GνqT = Array
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}
+
+struct χ₀T
+    data::Array{_eltype,3}
+    asym::Array{_eltype,2}
+    axes::Vector{Symbol}
+    #TODO: grid::FreqGridType
+    #TODO: calculate t1,t2 of bubble from GFtails (first: define GF struct)
+    function χ₀T(data::Array{_eltype,3}, kG::ReducedKGrid, t1::Vector{ComplexF64}, t2::Float64,
+                 β::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int)
+        χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
+        c1 = real.(kintegrate(kG, t1))
+        c2 = real.(conv(kG, t1, t1))
+        c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+        asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
+        for (ωi,ωn) in enumerate(ω_grid)
+            for (qi,c2i) in enumerate(c2)
+                asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2[qi], c3)
+            end
+        end
+        new(data,asym,[:q,:ν,:ω])
+    end
+end
 
 
 # TODO: define getproperty to mask internals Base.propertynames(F::TYPE, private::Bool=false) =

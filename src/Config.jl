@@ -20,6 +20,7 @@ struct ModelParameters <: ConfigStruct
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
     n::Float64              # number density
+    sVk::Float64            # ∑_k Vₖ^2
     Epot_DMFT::Float64
     Ekin_DMFT::Float64
 end
@@ -51,6 +52,8 @@ Fields
 struct SimulationParameters <: ConfigStruct
     n_iω::Int64             # number of bosonic frequencies
     n_iν::Int64             # number of fermionic frequencies
+    n_iν_shell::Int64
+    #νAsymptGrid::AbstractVector{Int}
     shift::Bool            # shift of center for interval of bosonic frequencies
     tc_type_f::Symbol  # use correction for finite ν sums.
     tc_type_b::Symbol  # use correction for finite ω sums.
@@ -60,6 +63,7 @@ struct SimulationParameters <: ConfigStruct
     λ_rhs::Symbol
     fullChi::Bool
     χFillType::ChiFillType # values to be set outside the usable interval
+    #TODO: move sum related stuff tu nu/omega_sum_helper
     bosonic_tail_coeffs::Array{Int,1}   # tail
     fermionic_tail_coeffs::Array{Int,1}
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
@@ -108,6 +112,7 @@ function Base.show(io::IO, m::SimulationParameters)
     if !compact
         println(io, "B/F range    : $(m.n_iω)/$(m.n_iν) $(m.shift ? "with" : "without") shifted fermionic frequencies")
         println(io, "   ωsum type = $(m.ωsum_type) $(m.fullChi ? "with" : "without") full χ(ω) range computation (filled as $(m.χFillType), $(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM.")
+        println(io, "Asymptotic correction : $(typeof(m.χ_helper))")
         println(io, "B/F sum type : $(m.tc_type_b)/$(m.tc_type_f)")
         println(io, "   $(100*m.usable_prct_reduction) % reduction of usable range and ω smoothing $(m.usable_prct_reduction)")
         println(io, "λ-Correction : $(m.λc_type) with rhs $(m.λ_rhs)")

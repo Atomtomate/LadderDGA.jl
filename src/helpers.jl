@@ -45,7 +45,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     elseif env.inputDataType == "jld2"
         in_file = env.inputDir*"/"*env.inputVars
     end
-    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
+    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, Fsp, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
         χDMFTsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
@@ -56,9 +56,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
         Γch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
         Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
-        #TODO compute FUpDo inplace from χDMFT?
-        FUpDo = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        FUpDo[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["FUpDo"]) : f["FUpDo"], (2,3,1))
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
             g0 = f["g0"]
@@ -69,7 +66,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             Σ_loc = f["SigmaLoc"]
             gImp, Σ_loc
         end
-        χDMFTsp, χDMFTch, Γsp, Γch, FUpDo, gImp, Σ_loc
+        Fsp  = F_from_χ(χDMFTsp, gImp, sP.n_iω, sP.n_iν, Int(sP.shift), mP.β)
+        χDMFTsp, χDMFTch, Γsp, Γch, Fsp, gImp, Σ_loc
     end
 
     nd = length(gridshape(kGrid))
@@ -81,39 +79,47 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         selectdim(gLoc_fft,nd+1,i) .= fft(reshape(gLoc_full[i], gridshape(kGrid)...))
     end
     gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
+    tmp = convert.(ComplexF64, kGrid.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
 
     @timeit to "local correction" begin
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
         (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
-        sP.ωsum_type == :individual && println(stderr, "Individual ranges not tested yet")
+        sP.ωsum_type == :individual && @error "Individual ranges not tested yet"
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
         kGridLoc = gen_kGrid(kGridStr[1], 1)
-        χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP);
-        locQ_sp = calc_χ_γ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
-        locQ_ch = calc_χ_γ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
-        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, χ₀Loc, gImp, FUpDo, kGridLoc, mP, sP)
+        Fsp   = F_from_χ(χDMFTsp, gImp[1,1,1,1-minimum(sP.fft_range):end], sP.n_iω, sP.n_iν, sP.shift, mP.β);
+        χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP, local_tail=true);
+        locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
+        locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
+        λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
+        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, Fsp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
-        if sP.χ_helper.Nν_shell > 0
-            @info "Using asymptotics improvement for large ν, ν' of χ_DMFT with shell size of $(sP.χ_helper.Nν_shell)"
-            #TODO: this neds cleanuo
-            for ωi in 1:size(χDMFTsp,3) 
-                bs = -sum(χ₀Loc[qi,:,ωi])/mP.β^2
-                xsp_s,xch_s,lsp,lch = improve_χλ_direct(ωi, view(χDMFTsp,:,:,ωi), view(χDMFTch,:,:,ωi), view(χ₀Loc,qi,:,ωi), mP.U, mP.β, sP.χ_helper)
-                χDMFTsp[:,:,ωi] = xsp_s
-                χDMFTch[:,:,ωi] = xch_s
-                #improve_χ!(:sp, ωi, view(χDMFTsp,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
-                #improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
-            end
-        end
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
-        for wi in axes(χDMFTsp,ω_axis)
-            χLocsp_ω[wi] = sum_freq_full_f!(view(χDMFTsp,:,:,wi), mP.β, sP)
-            χLocch_ω[wi] = sum_freq_full_f!(view(χDMFTch,:,:,wi), mP.β, sP)
+        λLocsp = similar(χDMFTsp, size(χDMFTch,2), size(χDMFTsp,3))
+        λLocch = similar(χDMFTch, size(χDMFTch,2), size(χDMFTch,3))
+        for ωi in axes(χDMFTsp,ω_axis)
+            if typeof(sP.χ_helper) === BSE_SC_Helper
+                @error "SC not fully implemented yet"
+                @info "Using asymptotics improvement for large ν, ν' of χ_DMFT with shell size of $(sP.n_iν_shell)"
+                improve_χ!(:sp, ωi, view(χDMFTsp,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+                improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+            end
+            if typeof(sP.χ_helper) === BSE_Asym_Helper
+                c2 = mP.μ-mP.U*(mP.n/2)
+                c3 = (mP.μ-mP.U*(mP.n/2))^2 + mP.sVk + mP.U^2 * (mP.n/2) * (1 - mP.n/2);
+                χLocsp_ω[ωi] = locQ_sp.χ[ωi]
+                χLocch_ω[ωi] = locQ_ch.χ[ωi]
+                λLocsp[:,ωi] = locQ_sp.γ[1,:,ωi] .* (1 .+ mP.U .* χLocsp_ω[ωi]) .- 1
+                λLocch[:,ωi] = locQ_ch.γ[1,:,ωi] .* (1 .- mP.U .* χLocch_ω[ωi]) .- 1
+            else
+                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP)
+                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP)
+            end
         end
 
         if sP.ω_smoothing == :full
@@ -167,8 +173,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, Γsp, Γch, FUpDo
+    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 end
+#TODO: cleanup clutter in return
 
 # ================== Index Functions ==================
 
@@ -180,6 +187,13 @@ function flatten_2D(arr)
     return res
 end
 
+"""
+    OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters [, Nν_shell])
+
+Converts `(1:N,1:N)` index tuple for bosonic (`ωi`) and fermionic (`νi`) frequency to
+Matsubara frequency number. If the array has a `ν` shell (for example for tail
+improvements) this will also be taken into account by providing `Nν_shell`.
+"""
 @inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters, Nν_shell)
     ωn = ωi-sP.n_iω-1
     νn = (νi-sP.n_iν-Nν_shell-1) - sP.shift*trunc(Int,ωn/2)
@@ -193,6 +207,46 @@ end
 end
 
 @inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
+
+"""
+    to_m_index(arr::AbstractArray{T,2/3}, sP::SimulationParameters)
+
+Converts array with simpel `1:N` index to larger array, where the index matches the Matsubara
+Frequency number. This function is not optimized!
+"""
+function to_m_index(arr::AbstractArray{T,3}, sP::SimulationParameters) where T
+    ωrange = -sP.n_iω:sP.n_iω
+    νrange = -2*sP.n_iν:2*sP.n_iν
+    length(ωrange) != size(arr,3) && @error "Assumption -n_iω:n_iω for ω grid not fulfilled."
+    ωl = length(ωrange)
+    νl = length(νrange)
+    res = OffsetArray(zeros(ComplexF64, size(arr,1), νl, ωl), 1:size(arr,1) ,νrange, ωrange)
+    for qi in 1:size(arr,1)
+        to_m_index!(view(res,qi,:,:),view(arr,qi,:,:), sP)
+    end
+    return res
+end
+
+function to_m_index(arr::AbstractArray{T,2}, sP::SimulationParameters) where T
+    ωrange = -sP.n_iω:sP.n_iω
+    νrange = -2*sP.n_iν:2*sP.n_iν
+    length(ωrange) != size(arr,2) && @error "Assumption -n_iω:n_iω for ω grid not fulfilled."
+    ωl = length(ωrange)
+    νl = length(νrange)
+    res = OffsetArray(zeros(ComplexF64, νl,ωl), νrange, ωrange)
+    to_m_index!(res, arr, sP)
+    return res
+end
+
+function to_m_index!(res::AbstractArray{T,2}, arr::AbstractArray{T,2}, sP::SimulationParameters) where T
+    for ωi in 1:size(arr,2)
+        for νi in 1:size(arr,1)
+            ωn,νn = OneToIndex_to_Freq(ωi, νi, sP)
+            @inbounds res[νn, ωn] = arr[νi,ωi]
+        end
+    end
+    return res
+end
 
 function ωindex_range(sP::SimulationParameters)
     r = 1:(2*sP.n_iω+1)

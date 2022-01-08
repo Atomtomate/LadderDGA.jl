@@ -6,26 +6,6 @@ iν_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el +
 iν_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i + 1)* π/β) for i in 0:size-1]
 iω_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
 iω_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i)* π/β) for i in 0:size-1]
-
-#TODO: this function has been moved to SparseVertex (i.e. FUpDo is written to input file). Can be removed in future. Remember to modify triqs conversion script!
-function FUpDo_from_χDMFT(χupdo::AbstractArray{T,3}, GImp, env, mP, sP) where T <: Number
-    FUpDo = similar(χupdo)
-    #TODO: indices should not be computed by hand here, get them from input
-    jldopen(env.freqFile) do f
-        freqList = f["freqList"]
-        for f in freqList
-            i = f[1] + sP.n_iω+1
-            j = f[2] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
-            k = f[3] + sP.n_iν+1 + trunc(Int,sP.shift*f[1]/2)
-    #TODO: fix different permdims in file and julia code (inconsistency!, names axes?)
-            FUpDo[i,j,k] = χupdo[i,j,k]/(mP.β^2 * get_symm_f(GImp,f[2]) * get_symm_f(GImp,f[1]+f[2])
-                               * get_symm_f(GImp,f[3]) * get_symm_f(GImp,f[1]+f[3]))
-        end
-    end
-    return FUpDo
-end
-
-
 """
     G(ind::Int64, Σ::Array{ComplexF64,1}, ϵkGrid, β::Float64, μ)
 
