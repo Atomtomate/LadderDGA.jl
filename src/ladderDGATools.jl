@@ -124,15 +124,15 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
 end
 
 
-function calc_λ0(χ₀::χ₀T, F::FT, locQ::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
+function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
 
     #TODO: store nu grid in sP?
-    Niν = size(F,ν_axis)
+    Niν = size(Fr,ν_axis)
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
     if typeof(sP.χ_helper) === BSE_Asym_Helper
-        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, F, χ₀.data, χ₀.asym, view(locQ.γ,1,:,:), view(locQ.χ,1,:),
+        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(Qr.γ,1,:,:), view(Qr.χ,1,:),
                              mP.U, mP.β, sP.χ_helper)
     else
         #TODO: this is not well optimized, but also not often executed
@@ -142,7 +142,7 @@ function calc_λ0(χ₀::χ₀T, F::FT, locQ::NonLocalQuantities, mP::ModelParam
         for ωi in ω_range
             for νi in 1:Niν
                 #TODO: export realview functions?
-                v1 = view(F,νi,:,ωi)
+                v1 = view(Fr,νi,:,ωi)
                 for qi in axes(χ₀.data,q_axis)
                     v2 = view(χ₀.data,qi,:,ωi) 
                     @simd for νpi in 1:Niν 
@@ -178,7 +178,9 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
             if kG.Nk == 1
                 Σ[1,νi,ωii] = U*(Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νn,ωi]) * v[1]
             else
-                Kνωq_pre[:] = U*(Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[1,νn,ωi])
+                @simd for qi in 1:size(Σ,q_axis)
+                    @inbounds Kνωq_pre[qi] = U*(Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωi])
+                end
                 conv_fft1!(kG, view(Σ,:,νi,ωii), Kνωq_pre, v)
             end
         end

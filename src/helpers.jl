@@ -100,8 +100,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
-        λLocsp = similar(χDMFTsp, size(χDMFTch,2), size(χDMFTsp,3))
-        λLocch = similar(χDMFTch, size(χDMFTch,2), size(χDMFTch,3))
         for ωi in axes(χDMFTsp,ω_axis)
             if typeof(sP.χ_helper) === BSE_SC_Helper
                 @error "SC not fully implemented yet"
@@ -114,8 +112,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 c3 = (mP.μ-mP.U*(mP.n/2))^2 + mP.sVk + mP.U^2 * (mP.n/2) * (1 - mP.n/2);
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
-                λLocsp[:,ωi] = locQ_sp.γ[1,:,ωi] .* (1 .+ mP.U .* χLocsp_ω[ωi]) .- 1
-                λLocch[:,ωi] = locQ_ch.γ[1,:,ωi] .* (1 .- mP.U .* χLocch_ω[ωi]) .- 1
             else
                 χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP)
                 χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP)

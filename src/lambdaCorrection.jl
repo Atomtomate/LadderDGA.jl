@@ -46,7 +46,7 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
-    rhs = if (( typeof(sP.χ_heler) != nothing && sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if (( typeof(sP.χ_helper) != nothing && sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         @info " using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
@@ -123,15 +123,13 @@ end
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ₀::χ₀T, 
-        Gνω::GνqT, F::FT, locQ::NonLocalQuantities,
+        Gνω::GνqT, Fsp::FT, locQ_sp::NonLocalQuantities,
         Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
         # --- prepare auxiliary vars ---
-    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, size(χ₀.data,q_axis))
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ₀.data,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    lur = length(ωindices)
-    νmax = floor(Int,lur/3)
+    νmax = floor(Int,length(ωindices)/3)
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
@@ -145,7 +143,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
     # Prepare data
     x0 = [0.1,  0.1]
     @error "calc lambda 0 not updated"
-    λ₀ = calc_λ0(χ₀.data, Fsp, locQ_sp, mP, sP)
+    λ₀ = calc_λ0(χ₀, Fsp, locQ_sp, mP, sP)
     nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
     χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
     χch_min    = -1 / maximum(real.(nlQ_ch.χ[:,nh]))
@@ -173,19 +171,10 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
             maxn = minimum([νZero + νmax - 1, size(nlQ_ch.γ,ν_axis)])
             for (νi,νn) in enumerate(νZero:maxn)
                 v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
-                @simd for qi in 1:length(Kνωq_pre)
-                    @inbounds Kνωq_pre[qi] = nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωii]
+                @simd for qi in 1:size(Σ_ladder_i,1)
+                    @inbounds Kνωq_pre[qi] = (mP.U/mP.β)*(nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωi])
                 end
-                expandKArr!(kG,Kνωq,Kνωq_pre)
-                Dispersions.mul!(Kνωq, kG.fftw_plan, Kνωq)
-                @simd for ki in 1:length(Kνωq)
-                    @inbounds Kνωq[ki] *= v[ki]
-                end
-                Dispersions.ldiv!(Kνωq, kG.fftw_plan, Kνωq)
-                reduceKArr!(kG, Kνωq_pre, Dispersions.ifft_post(kG, Kνωq)) 
-                @simd for i in 1:length(Kνωq_pre)
-                    @inbounds Σ_ladder_i[i,νi] += mP.U * Kνωq_pre[i]/ (kG.Nk*mP.β)
-                end
+                conv_fft1!(kG, view(Σ_ladder_i,:,νi), Kνωq_pre, v)
             end
             tsp, tch = 0.0, 0.0
             for qi in 1:length(kG.kMult)
@@ -220,7 +209,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
 end
 
 function λ_correction(type::Symbol, imp_density::Float64,
-            F, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+            F::FT, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             locQ::NonLocalQuantities,
             χ₀::χ₀T, Gνω::GνqT, kG::ReducedKGrid,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
