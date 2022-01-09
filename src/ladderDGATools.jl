@@ -188,7 +188,7 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
-                Gνω::GνqT, Fsp::FT, kG::ReducedKGrid,
+                Gνω::GνqT, kG::ReducedKGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"

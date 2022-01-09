@@ -142,7 +142,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
     
     # Prepare data
     x0 = [0.1,  0.1]
-    @error "calc lambda 0 not updated"
     λ₀ = calc_λ0(χ₀, Fsp, locQ_sp, mP, sP)
     nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
     χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
