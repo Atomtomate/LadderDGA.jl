@@ -94,7 +94,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
         locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
         λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
-        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, Fsp, kGridLoc, mP, sP)
+        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
 
