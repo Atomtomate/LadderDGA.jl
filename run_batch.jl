@@ -15,6 +15,7 @@ BLAS.set_num_threads(NProcs)
 #TODO: also use this name for output file in run.jl
 mP, sP, env, kGridsStr = readConfig(cfg_file);
 tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
+(typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper) ? tc_s = tc_s * "_dasym" : tc_s = tc_s * "_nasym"
 logfile_path = out_path*"/lDGA_"*tc_s*"_$(kGridsStr[1][2])to$(kGridsStr[end][2]).log"
 i = 1
 while isfile(logfile_path)
@@ -29,7 +30,7 @@ println("config path: $cfg_file\noutput path: $out_path\nlogging to $(logfile_pa
 flush(stdout)
 flush(stderr)
 include("./run.jl")
-include("/scratch/projects/hhp00048/codes/LadderDGA_utils/new_lambda_analysis.jl")
+include("/scratch/projects/hhp00048/codes/scripts/LadderDGA_utils/new_lambda_analysis.jl")
 description = "exploration of PT region"
 
 open(logfile_path,"w") do io
