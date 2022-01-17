@@ -12,7 +12,7 @@ const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const γT = Array{_eltype,3}
 const χT = Array{_eltype,2}
-const GνqT = Array
+const GνqT = OffsetMatrix
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}
 
 struct χ₀T

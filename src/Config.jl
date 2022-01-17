@@ -40,7 +40,6 @@ Fields
 - **`shift`**   : Flag specifying if `-n_iν:n_iν-1` is shifted by `-ωₙ/2` at each `ωₙ` slice (centering the main features)
 - **`tc_type_f`** : Symbol specifying the type of sum extrapolation for fermionic sums. Implemented for `:nothing` (naive sum) and `:richardson`. See `SeriesAcceleration` package for more details.
 - **`tc_type_b`** : Symbol specifying the type of sum extrapolation for bosonic sums. Implemented for `:nothing` (naive sum), `:coeffs` (subtracted known tail coefficients) and `:richardson`. See `SeriesAcceleration` package for more details.
-- **`λc_type`** : Symbol specifying the type of λ-correction. `:nothing` for no correction, `:sp` for correction in spin channel, using the filling of the model as reference for the fit, `:sp_ch` for λ-corrections in spin an charge channel, `:sp_ch_q` for k-vector dependent λ correction in both channels.
 - **`ωsum_type`**  :
 - **`λ_rhs`**   :
 - **`fullChi`** :
@@ -58,7 +57,6 @@ struct SimulationParameters <: ConfigStruct
     tc_type_f::Symbol  # use correction for finite ν sums.
     tc_type_b::Symbol  # use correction for finite ω sums.
     χ_helper::Union{BSE_SC_Helper,BSE_Asym_Helper,Nothing} # Helper for χ asymptotics improvement
-    λc_type::Symbol  # which type of lambda correction to use (currecntly: nothing, sp, sp_ch, TOOD: sp_ch_q
     ωsum_type::BSum
     λ_rhs::Symbol
     fullChi::Bool
@@ -94,7 +92,6 @@ struct EnvironmentVars <: ConfigStruct
     inputDir::String
     freqFile::String
     inputVars::String
-    asymptVars::String
     cast_to_real::Bool
     loglevel::String      # disabled, error, warn, info, debug
     logfile::String       # STDOUT, STDERR, filename

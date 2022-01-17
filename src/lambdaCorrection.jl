@@ -169,7 +169,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
             νZero = ν0Index_of_ωIndex(ωi, sP)
             maxn = minimum([νZero + νmax - 1, size(nlQ_ch.γ,ν_axis)])
             for (νi,νn) in enumerate(νZero:maxn)
-                v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
+                ωni, νni = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
+                v = reshape(view(Gνω,:,νni + ωni),gridshape(kG))
                 @simd for qi in 1:size(Σ_ladder_i,1)
                     @inbounds Kνωq_pre[qi] = (mP.U/mP.β)*(nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωi])
                 end

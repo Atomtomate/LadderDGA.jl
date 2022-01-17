@@ -39,10 +39,6 @@ function readConfig(cfg_in)
     if !(tc_type_b in [:nothing, :richardson, :shanks, :coeffs])
         error("Unrecognized tail correction type \"$(tc_type_b)\"")
     end
-    λc_type = Symbol(lowercase(tml["Simulation"]["lambda_correction"]))
-    if !(λc_type in [:nothing, :sp, :sp_ch])
-        error("Unrecognized tail correction type \"$(λc_type)\"")
-    end
     ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum_range"])
     m = match(rr, ωsum_inp)
     ωsum_type = if m !== nothing
@@ -69,7 +65,6 @@ function readConfig(cfg_in)
                              tml["Environment"]["inputDir"],
                              tml["Environment"]["freqFile"],
                              tml["Environment"]["inputVars"],
-                             tml["Environment"]["asymptVars"],
                              tml["Environment"]["cast_to_real"],
                              String([(i == 1) ? uppercase(c) : lowercase(c)
                                      for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
@@ -132,7 +127,6 @@ function readConfig(cfg_in)
                                tc_type_f,
                                tc_type_b,
                                χ_helper,
-                               λc_type,
                                ωsum_type,
                                λrhs_type,
                                tml["Simulation"]["force_full_bosonic_chi"],
@@ -222,88 +216,6 @@ function convert_from_fortran(simParams, env, loadFromBak=false)
         JLD2.@save env.inputVars Γch Γsp χDMFTch χDMFTsp gImp g0
     end
 end
-
-# ==================================================================================================== #
-#                                                                                                      #
-#                                             JLD2 Input                                               #
-#                                                                                                      #
-# ==================================================================================================== #
-function readEDAsymptotics_julia(env)
-    @error("Asymptotics from jld2 not implemented yet")
-end
-
-# ==================================================================================================== #
-#                                                                                                      #
-#                                            Parquet Input                                             #
-#                                                                                                      #
-# ==================================================================================================== #
-function readFortranSymmGF_pq(nFreq, filename; storedInverse, storeFull=false)
-    GF = redirect_stdout(open("/dev/null","w")) do
-        load(filename) |> @orderby(_.__index_level_0__) |> @take(nFreq)|> @map((_.Re) + (_.Im)*1im) |> collect
-    end
-    convertGF!(GF, storedInverse, storeFull)
-    return GF
-end
-
-function readFortranΓ_pq(fileName::String)
-    #in = redirect_stdout(open("/dev/null","w")) do
-        #load(filename) |> @orderby(_.__index_level_0__, _.__index_level_1__)
-    #end
-    #ωₙ, freqBox, Γcharge0, Γspin0
-    Γcharge = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
-    Γspin   = Array{Complex{Float64}}(undef, length(files), size(Γspin0,1), size(Γspin0,2))
-    Γcharge[1,:,:] = Γcharge0
-    Γspin[1,:,:]   = Γspin0
-    ω_min = ωₙ
-    ω_max = ωₙ
-
-    for (i,file) in enumerate(files[2:end])
-        ωₙ, _, Γcharge_new, Γspin_new = readFortran3FreqFile(dirName * "/" * file, sign=-1.0)
-        ω_min = if ωₙ < ω_min ωₙ else ω_min end
-        ω_max = if ωₙ > ω_max ωₙ else ω_max end
-        Γcharge[i,:,:] = Γcharge_new
-        Γspin[i,:,:] = Γspin_new
-    end
-    freqBox = [ω_min ω_max; freqBox[1,1] freqBox[1,2]; freqBox[2,1] freqBox[2,2]]
-    #Γcharge = permutedims(Γcharge, [3,1,2])
-    #Γspin   = permutedims(Γspin, [3,1,2])
-    return freqBox, Γcharge, Γspin
-end
-
-function readFortranχDMFT_pq(filename::String)
-    in = redirect_stdout(open("/dev/null","w")) do
-        load(filename) |> collect
-    end
-    #_, _, χup, χdown = readFortran3FreqFile(dirName * "/" * files[1], sign=1.0, freqInteger=false)
-
-    for file in files[2:end]
-        _, _, χup_new, χdown_new = readFortran3FreqFile(dirName * "/" * file, sign=1.0, freqInteger=false)
-        χup = cat(χup, χup_new, dims=3)
-        χdown = cat(χdown, χdown_new, dims=3)
-    end
-    χup = permutedims(χup, [3,1,2])
-    χdown   = permutedims(χdown, [3,1,2])
-    χCharge = χup .+ χdown
-    χSpin   = χup .- χdown
-    return χCharge, χSpin
-end
-
-function convert_from_fortran_pq(simParams, env)
-    println("Reading Fortran Parquet-File Input, this can take several minutes.")
-    g0 = readFortranSymmGF_pq(simParams.n_iν+simParams.n_iω, env.inputDir*"/g0mand.parquet", storedInverse=true)
-    gImp = readFortranSymmGF_pq(simParams.n_iν+simParams.n_iω, env.inputDir*"/gm_wim.parquet", storedInverse=false)
-    χDMFTCharge, χDMFTSpin = readFortranχDMFT_pq(env.inputDir*"/vert_chi.parquet")
-    freqBox, Γcharge, Γspin = readFortranΓ_pq(env.inputDir*"/GAMMA_DM_FULLRANGE.parquet")
-    Γcharge = -1.0 .* reduce_3Freq(Γcharge, freqBox, simParams)
-    Γspin = -1.0 .* reduce_3Freq(Γspin, freqBox, simParams)
-    χDMFTCharge = reduce_3Freq(χDMFTCharge, freqBox, simParams)
-    χDMFTSpin = reduce_3Freq(χDMFTSpin, freqBox, simParams)
-    println("Writing HDF5 (vars.jdl) and Fortran (fortran_out/) output.")
-    writeFortranΓ("fortran_out", "gamma", simParams, Γcharge, Γspin)
-    writeFortranΓ("fortran_out", "chi", simParams, 0.5 .* (χDMFTCharge .+ χDMFTSpin), 0.5 .* (χDMFTCharge .- χDMFTSpin))
-    JLD2.@save env.inputVars Γch Γsp χDMFTch χDMFTsp gImp g0
-end
-
 
 # ==================================================================================================== #
 #                                                                                                      #
@@ -474,17 +386,6 @@ function readGImp(filename; only_positive=false)
     return iνₙ, GImp
 end
 
-
-function readEDAsymptotics(env, mP)
-    χ_asympt = readdlm(env.inputDir * "/chi_asympt")
-    χchAsympt = (χ_asympt[:,2] + χ_asympt[:,4]) / (2*mP.β*mP.β);
-    χspAsympt = (χ_asympt[:,2] - χ_asympt[:,4]) / (2*mP.β*mP.β);
-    #= _, χup, χdo = readFortranEDχ(env.inputDir * "/chi_dir", freqInteger = false) =#
-    #= χchED = χup .+ χdo =#
-    #= χspED = χup .- χdo =#
-    save(env.asymptVars, "chi_ch_asympt", χchAsympt, "chi_sp_asympt", χspAsympt,
-         compress=true, compatible=true)
-end
 
 function readFortranSymmGF(nFreq, filename; storedInverse, storeFull=false)
     GFString = open(filename, "r") do f

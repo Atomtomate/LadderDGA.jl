@@ -45,7 +45,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     elseif env.inputDataType == "jld2"
         in_file = env.inputDir*"/"*env.inputVars
     end
-    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, Fsp, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
+    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
         χDMFTsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
@@ -66,20 +66,17 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             Σ_loc = f["SigmaLoc"]
             gImp, Σ_loc
         end
-        Fsp  = F_from_χ(χDMFTsp, gImp, sP.n_iω, sP.n_iν, Int(sP.shift), mP.β)
-        χDMFTsp, χDMFTch, Γsp, Γch, Fsp, gImp, Σ_loc
+        χDMFTsp, χDMFTch, Γsp, Γch, gImp, Σ_loc
     end
-
-    nd = length(gridshape(kGrid))
-    gImp = Array{ComplexF64, nd+1}(undef, ntuple(_->1,nd)..., length(sP.fft_range))
-    gLoc_fft = Array{ComplexF64, nd+1}(undef, gridshape(kGrid)..., length(sP.fft_range))
+    rm = maximum(abs.(sP.fft_range))
+    t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
+    gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
+    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
     gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
-    for (i,el) in enumerate(store_symm_f(gImp_in, sP.fft_range))
-        selectdim(gImp,nd+1,i) .= el
-        selectdim(gLoc_fft,nd+1,i) .= fft(reshape(gLoc_full[i], gridshape(kGrid)...))
+    for (i,el) in enumerate(gLoc_full)
+        gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
     end
     gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
-    tmp = convert.(ComplexF64, kGrid.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
 
     @timeit to "local correction" begin
         #TODO: unify checks
@@ -89,7 +86,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
         kGridLoc = gen_kGrid(kGridStr[1], 1)
-        Fsp   = F_from_χ(χDMFTsp, gImp[1,1,1,1-minimum(sP.fft_range):end], sP.n_iω, sP.n_iν, sP.shift, mP.β);
+        Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
         χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP, local_tail=true);
         locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
         locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
@@ -169,7 +166,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_full, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 end
 #TODO: cleanup clutter in return
 

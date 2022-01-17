@@ -14,35 +14,30 @@ function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractA
     return res
 end
 
-function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, n_iω::Int, n_iν::Int, shift, β::Float64)
+function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64)
     F = similar(χ)
-    for (i,ωn) in enumerate(-n_iω:n_iω)
-        s = -shift*trunc(Int, ωn/2)
-        for (j,νn) in enumerate((-n_iν:n_iν-1) .+ s)
-        for (k,νpn) in enumerate((-n_iν:n_iν-1) .+ s)
-            @inbounds F[j,k,i] = -(χ[j,k,i] + (νn == νpn) * β * get_symm_f(G,νn) * get_symm_f(G,ωn+νn))/(
-                         get_symm_f(G,νn) * get_symm_f(G,ωn+νn)
-                       * get_symm_f(G,νpn) * get_symm_f(G,ωn+νpn))
+    for ωi in 1:size(F,3)
+    for νpi in 1:size(F,2)
+        ωn, νpn = OneToIndex_to_Freq(ωi, νpi, sP) #, sP.n_iν_shell)
+        for νi in 1:size(F,1)
+        _, νn = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
+        @inbounds F[νi,νpi,ωi] = -(χ[νi,νpi,ωi] + (νn == νpn) * β * G[νn] * G[ωn+νn])/(
+                                                  G[νn] * G[ωn+νn] * G[νpn] * G[ωn+νpn])
         end
         end
     end
     return F
 end
 
-
-
 #TODO: implement complex to real fftw
-#TODO: get rid of selectdim
 #TODO: gImp should know about its tail instead of χ₀
 function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
-    nd = length(gridshape(kG))
-    for ωi in axes(data,ω_axis)
+    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         #TODO: fix the offset (BSE_SC inconsistency)
-        for νi in axes(data,ν_axis)
-            ωn, νn = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
-            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,nd+1,νn+sP.fft_offset), selectdim(Gνω,nd+1,νn+ωn+sP.fft_offset))
+        for (νi,νn) in enumerate((-sP.n_iν:sP.n_iν-1) .- trunc(Int,sP.shift*ωn/2))
+            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω[:,νn+ωn].parent,gridshape(kG)))
             data[:,νi,ωi] .*= -mP.β
         end
     end
@@ -73,18 +68,20 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
     s = type === :ch ? -1 : 1
-    Niν = 2*sP.n_iν
-    γ = γT(undef, size(χ₀.data,q_axis), Niν, size(χ₀.data,ω_axis))
-    χ = χT(undef, size(χ₀.data,q_axis), size(χ₀.data,ω_axis))
-    ωi_range = axes(χ₀.data,ω_axis)
-    νi_range = 1:Niν
-    qi_range = axes(χ₀.data,q_axis)
-    χ_ω = Array{Float64, 1}(undef, size(χ₀.data,ω_axis))
+    Nν = 2*sP.n_iν
+    Nq  = length(kG.kMult)
+    Nω  = size(χ₀.data,ω_axis)
+    γ = γT(undef, Nq, Nν, Nω)
+    χ = χT(undef, Nq, Nω)
+    ωi_range = 1:Nω
+    νi_range = 1:Nν
+    qi_range = 1:Nq
+    χ_ω = Array{Float64, 1}(undef, Nω)
     lo = npartial_sums(sP.sh_f)
-    up = Niν - lo + 1 
+    up = Nν - lo + 1 
     fνmax_cache  = Array{_eltype, 1}(undef, lo)
-    χννpω = Matrix{_eltype}(undef, Niν, Niν)
-    ipiv = Vector{Int}(undef, Niν)
+    χννpω = Matrix{_eltype}(undef, Nν, Nν)
+    ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     fνmax_cache = _eltype === Float64 ? sP.fνmax_cache_r : sP.fνmax_cache_c
 
@@ -106,12 +103,19 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
                 end
-                χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
-                for νk in axes(χ₀.data,ν_axis)
-                    γ[qi, νk, ωi] = sum_freq_full!(view(χννpω,:,νk), sP.sh_f, 1.0, fνmax_cache, lo, 
-                                                   up) / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
+                #TODO: this is not necessary, sum_freq defaults to sum!
+                if sP.tc_type_f == :nothing
+                    χ[qi,ωi] = sum(χννpω)/mP.β^2
+                    for νk in νi_range
+                        γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
+                    end
+                else
+                    χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
+                    for νk in νi_range
+                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sP.sh_f,1.0,fνmax_cache,lo,up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
+                    end
+                    extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
                 end
-                (sP.tc_type_f != :nothing) && extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
             end
         end
         #TODO: write macro/function for ths "real view" beware of performance hits
@@ -163,7 +167,6 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::ReducedKGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
-    nd = length(gridshape(kG))
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
@@ -174,7 +177,9 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
         #TODO: rewrite to plain sum using offset array
         #TODO: manual unrolling is slightly faster. use snoopcompiler and cthulhu.jl to investigate
         for (νi,νn) in enumerate(νZero:maxn)
-            v = selectdim(Gνω,nd+1,(νi-1) + ωn + sP.fft_offset)
+            #TODO: remove νni after testing
+            ωni, νni = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
+            v = reshape(view(Gνω,:,νni + ωni),gridshape(kG))
             if kG.Nk == 1
                 Σ[1,νi,ωii] = U*(Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νn,ωi]) * v[1]
             else
