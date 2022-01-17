@@ -38,10 +38,10 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
         flush(log_io)
 
-        @timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
+        #@timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
 
-        @timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
-                        Σ_ladderLoc, Σ_loc, gLoc_fft, Fsp, locQ_sp, kG, mP, sP)
+        #@timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
+        #               Σ_ladderLoc, Σ_loc, gLoc_fft, Fsp, locQ_sp, kG, mP, sP)
     # Prepare data
 
         flush(log_io)
@@ -61,14 +61,13 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
             f["λsp_old"] = λsp_old
-            f["λch_range"] = λch_range
-            f["spOfch"] = spOfch
-            f["λsp_of_λch_res"] = λsp_of_λch_res
+            #f["λch_range"] = λch_range
+            #f["spOfch"] = spOfch
+            #f["λsp_of_λch_res"] = λsp_of_λch_res
             f["Γsp"] = Γsp 
             f["Γch"] = Γch 
             f["gImp"] = gImp
             f["kG"] = kG
-            f["gLoc"] = gLoc
             f["gLoc_fft"] = gLoc_fft
             f["Sigma_DMFT"] = Σ_loc 
             f["Fsp"] = Fsp
