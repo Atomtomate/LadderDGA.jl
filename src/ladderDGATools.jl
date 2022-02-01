@@ -35,8 +35,9 @@ function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::Si
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
+        νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
         #TODO: fix the offset (BSE_SC inconsistency)
-        for (νi,νn) in enumerate((-sP.n_iν:sP.n_iν-1) .- trunc(Int,sP.shift*ωn/2))
+        for (νi,νn) in enumerate(νrange)
             conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω[:,νn+ωn].parent,gridshape(kG)))
             data[:,νi,ωi] .*= -mP.β
         end
@@ -89,10 +90,10 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
         for qi in qi_range
-            χννpω[:,:] = deepcopy(Γr[:,:,ωi])
+            χννpω[:,:] = -deepcopy(Γr[:,:,ωi])
             for l in νi_range
                 #TODO: fix the offset (BSE_SC inconsistency)
-                χννpω[l,l] = Γr[l,l,ωi] + 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
+                χννpω[l,l] += 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
             end
             @timeit to "inv" inv!(χννpω, ipiv, work)
             @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_Asym_Helper

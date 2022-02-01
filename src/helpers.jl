@@ -94,7 +94,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
-
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
         for ωi in axes(χDMFTsp,ω_axis)
@@ -105,8 +104,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
             if typeof(sP.χ_helper) === BSE_Asym_Helper
-                c2 = mP.μ-mP.U*(mP.n/2)
-                c3 = (mP.μ-mP.U*(mP.n/2))^2 + mP.sVk + mP.U^2 * (mP.n/2) * (1 - mP.n/2);
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
             else
