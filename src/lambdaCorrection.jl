@@ -46,12 +46,12 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
-    rhs = if (( typeof(sP.χ_helper) != nothing && sP.tc_type_f != :nothing && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         @info " using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
         @info " using χupup_DMFT - Σ χch as rhs"
-        imp_density - χch_sum
+        2*imp_density - χch_sum
     end
 
     @info """Found usable intervals for non-local susceptibility of length 

@@ -90,6 +90,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
         for qi in qi_range
+            #START
             χννpω[:,:] = -deepcopy(Γr[:,:,ωi])
             for l in νi_range
                 #TODO: fix the offset (BSE_SC inconsistency)
@@ -100,6 +101,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
                 χ[qi, ωi], λ_out = calc_χλ_impr(type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_out) ./ (1 .+ s*mP.U .* χ[qi, ωi])
+            #END
             else
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
