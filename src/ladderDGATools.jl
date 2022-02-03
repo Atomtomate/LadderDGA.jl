@@ -132,7 +132,6 @@ end
 
 
 function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
-
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
     ω_range = 1:size(χ₀.data,ω_axis)
@@ -177,19 +176,17 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
         fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
-        #TODO: rewrite to plain sum using offset array
         #TODO: manual unrolling is slightly faster. use snoopcompiler and cthulhu.jl to investigate
-        for (νi,νn) in enumerate(νZero:maxn)
-            #TODO: remove νni after testing
-            ωni, νni = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
-            v = reshape(view(Gνω,:,νni + ωni),gridshape(kG))
+        for (νii,νi) in enumerate(νZero:maxn)
+            #ωni, νni = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
+            v = view(Gνω,:,(νii-1) + ωn)
             if kG.Nk == 1
-                Σ[1,νi,ωii] = U*(Q_sp.γ[1,νn,ωi] * fsp[1] - Q_ch.γ[1,νn,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νn,ωi]) * v[1]
+                Σ[1,νii-1,ωn] = U*(Q_sp.γ[1,νi,ωi] * fsp[1] - Q_ch.γ[1,νi,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νi,ωi]) * v[1]
             else
                 @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Kνωq_pre[qi] = U*(Q_sp.γ[qi,νn,ωi] * fsp[qi] - Q_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωi])
+                    @inbounds Kνωq_pre[qi] = U*(Q_sp.γ[qi,νi,ωi] * fsp[qi] - Q_ch.γ[qi,νi,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νi,ωi])
                 end
-                conv_fft1!(kG, view(Σ,:,νi,ωii), Kνωq_pre, v)
+                conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
             end
         end
     end
@@ -201,7 +198,6 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::Abst
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"
     end
-    @warn "Selfenergie now contains Hartree term and is cut to νmax = length(usable_ω)/3!"
     Σ_hartree = mP.n * mP.U/2.0;
     Nq = size(Q_sp.χ,1)
     Nω = size(Q_sp.χ,2)
@@ -212,12 +208,10 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::Abst
     Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
-    Σ_ladder_ω = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange))#OffsetArray( 
-                             #Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
-                             #1:Nq, 0:n_iν, ωrange)
+    Σ_ladder_ω = OffsetArray( Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
+                              1:Nq, 0:sP.n_iν-1, ωrange)
     @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    #TODO: *U should be in calc_Sigma_w
-    @timeit to "sum Σ_ω" res = sum(Σ_ladder_ω, dims=[3])[:,:,1] ./ mP.β .+ Σ_hartree
+    @timeit to "sum Σ_ω" res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end
 

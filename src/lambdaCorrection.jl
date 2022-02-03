@@ -86,26 +86,27 @@ function calc_λsp_correction(χ_in::AbstractArray{Float64,2}, usable_ω::Abstra
     return λsp
 end
 
-function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ₀::χ₀T, 
-        Gνω::GνqT, F::FT, 
-        Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
-        kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+        Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
+        kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; 
+        νmax = -1 )
 
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ₀.data,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    νmax = floor(Int,length(ωindices)/3)
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     nlQ_sp_λ = deepcopy(nlQ_sp)
     nlQ_ch_λ = deepcopy(nlQ_ch)
 
+
     function cond_both!(F, λ)
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, χ₀, Gνω, F, kG, mP, sP)[:,1:νmax]
-        Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
+        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, λ₀, Gνω, kG, mP, sP)[:,0:νmax]
+        #Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
         
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
         χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
-        E_kin, E_pot = calc_E(Σ_ladder, kG, mP, sP)
+        E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, sP)
         lhs_c1 = real(sum(χupup_ω))/mP.β - E_kin*mP.β/12
         lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
@@ -114,38 +115,41 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
         F[2] = lhs_c2 - rhs_c2
         return lhs_c1, rhs_c1, lhs_c2, rhs_c2
     end
+    Fint = [0.1, 0.1]
 
-    res_nls = nlsolve(cond_both!, [0.1, 0.1])
+    res_nls = nlsolve(cond_both!, Fint)
 end
 
 
 #TODO: this is manually unrolled...
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
-function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ₀::χ₀T, 
-        Gνω::GνqT, Fsp::FT, locQ_sp::NonLocalQuantities,
-        Σ_loc::AbstractArray{ComplexF64,1}, Σ_ladderLoc::AbstractArray{ComplexF64,2},
-        kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
+            kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters;
+            νmax = -1 )
         # --- prepare auxiliary vars ---
-    Kνωq_pre = Array{ComplexF64, 1}(undef, size(χ₀.data,q_axis))
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ₀.data,ω_axis)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    νmax = floor(Int,length(ωindices)/3)
+    Nq = size(nlQ_ch.χ,1)
+    Nω = size(nlQ_ch.χ,2)
+    Kνωq_pre = Array{ComplexF64, 1}(undef, Nq)
+    ωindices = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     iωn2_sub = real.([i == 0 ? 0 : mP.Ekin_DMFT / (i)^2 for i in iωn])
     nd = length(gridshape(kG))
     
-    Σ_ladder_i = Array{Complex{Float64},2}(undef, size(χ₀.data,1), νmax)
+    Σ_ladder_i = OffsetArray(Array{Complex{Float64},2}(undef,Nq, νmax), 1:Nq, 0:νmax-1)
     χsp_λ = similar(nlQ_sp.χ[:,ωindices])
     χch_λ = similar(nlQ_ch.χ[:,ωindices])
     
     # Prepare data
     x0 = [0.1,  0.1]
-    λ₀ = calc_λ0(χ₀, Fsp, locQ_sp, mP, sP)
-    nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
-    χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
-    χch_min    = -1 / maximum(real.(nlQ_ch.χ[:,nh]))
+    #TODO: use this as initial value x0
+    #nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
+    #χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
+    #χch_min    = -1 / maximum(real.(nlQ_ch.χ[:,nh]))
 
     Σ_hartree = mP.n * mP.U/2
     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
@@ -153,8 +157,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
     E_pot_tail = permutedims(sum((E_pot_tail_c[i])' .* tail[i] for i in 1:length(tail)),(2,1))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+    Σ_corr = Σ_hartree
 
-    Σ_corr = Σ_loc[1:νmax] .- Σ_ladderLoc[1:νmax] .+ Σ_hartree
     #TODO: this part of the code is horrible but fast....
     function cond_both!(F, λ)
         fill!(Σ_ladder_i, zero(eltype(Σ_ladder_i)))
@@ -168,13 +172,12 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
             fch = 0.5 .* (1 .- mP.U .* view(χch_λ,:,ωii))
             νZero = ν0Index_of_ωIndex(ωi, sP)
             maxn = minimum([νZero + νmax - 1, size(nlQ_ch.γ,ν_axis)])
-            for (νi,νn) in enumerate(νZero:maxn)
-                ωni, νni = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
-                v = reshape(view(Gνω,:,νni + ωni),gridshape(kG))
+            for (νii,νi) in enumerate(νZero:maxn)
+                v = view(Gνω,:,(νii-1) + ωn)
                 @simd for qi in 1:size(Σ_ladder_i,1)
-                    @inbounds Kνωq_pre[qi] = (mP.U/mP.β)*(nlQ_sp.γ[qi,νn,ωi] * fsp[qi] - nlQ_ch.γ[qi,νn,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νn,ωi])
+                    @inbounds Kνωq_pre[qi] = (mP.U/mP.β)*(nlQ_sp.γ[qi,νi,ωi] * fsp[qi] - nlQ_ch.γ[qi,νi,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νi,ωi])
                 end
-                conv_fft1!(kG, view(Σ_ladder_i,:,νi), Kνωq_pre, v)
+                conv_fft1!(kG, view(Σ_ladder_i,:,νii-1), Kνωq_pre, v)
             end
             tsp, tch = 0.0, 0.0
             for qi in 1:length(kG.kMult)
@@ -188,8 +191,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
         for qi in 1:length(kG.kMult)
             GΣ_λ = 0.0
             for i in 1:νmax
-                Σ_ladder_i[qi,i] += Σ_corr[i]
-                GΣ_λ += 2 * real(Σ_ladder_i[qi,i] * G_from_Σ(iν_n[i], mP.β, mP.μ, kG.ϵkGrid[qi], Σ_ladder_i[qi,i]) - E_pot_tail[qi,i])
+                Σ_ladder_i[qi,i-1] += Σ_corr
+                GΣ_λ += 2 * real(Σ_ladder_i[qi,i-1] * G_from_Σ(iν_n[i], mP.β, mP.μ, kG.ϵkGrid[qi], Σ_ladder_i[qi,i-1]) - E_pot_tail[qi,i])
 
             end
             GΣ_λ += E_pot_tail_inv[qi]   # ν summation
@@ -209,15 +212,15 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χ�
 end
 
 function λ_correction(type::Symbol, imp_density::Float64,
-            F::FT, Σ_loc_pos, Σ_ladderLoc, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
-            locQ::NonLocalQuantities,
-            χ₀::χ₀T, Gνω::GνqT, kG::ReducedKGrid,
+            nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, kG::ReducedKGrid,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
     elseif type == :sp_ch
-        extended_λ(nlQ_sp, nlQ_ch, χ₀, Gνω, F, locQ, Σ_loc_pos, Σ_ladderLoc, kG, mP, sP)
+        @warn "using unoptimized λ correction algorithm"
+        extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
     else
         error("unrecognized λ correction type: $type")
     end
