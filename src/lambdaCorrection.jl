@@ -89,7 +89,7 @@ end
 function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; 
-        νmax = -1 )
+        νmax = -1, iterations=1000, ftol=1e-8)
 
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
@@ -97,17 +97,30 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
     nlQ_sp_λ = deepcopy(nlQ_sp)
     nlQ_ch_λ = deepcopy(nlQ_ch)
 
+    Σ_hartree = mP.n * mP.U/2.0;
+    νGrid = 0:(νmax-1) 
+    iν_n = iν_array(mP.β, νGrid)
+     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
+            (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
+
+    tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
+    E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
+    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+
+
 
     function cond_both!(F, λ)
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, λ₀, Gνω, kG, mP, sP)[:,0:νmax]
-        #Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
+        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, λ₀, Gνω, kG, mP, sP).parent[:,1:νmax]
         
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
         χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
-        E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, sP)
-        lhs_c1 = real(sum(χupup_ω))/mP.β - E_kin*mP.β/12
+        E_kin, E_pot = calc_E(Σ_ladder, kG, mP, sP)
+        G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
+        E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
+
+        lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
         lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
@@ -117,7 +130,7 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
     end
     Fint = [0.1, 0.1]
 
-    res_nls = nlsolve(cond_both!, Fint)
+    res_nls = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
 end
 
 
@@ -127,87 +140,57 @@ end
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
             kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax = -1 )
+            νmax = -1, iterations=1000, ftol=1e-8)
         # --- prepare auxiliary vars ---
-    Nq = size(nlQ_ch.χ,1)
-    Nω = size(nlQ_ch.χ,2)
-    Kνωq_pre = Array{ComplexF64, 1}(undef, Nq)
-    ωindices = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    Nq = size(nlQ_sp.χ,1)
+    Nω = size(nlQ_sp.χ,2)
+    
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωrange = (-sP.n_iω:sP.n_iω)[ωindices]
+    
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
-    νGrid = 0:(νmax-1)
+    νGrid = 0:(νmax-1) 
     iν_n = iν_array(mP.β, νGrid)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    iωn2_sub = real.([i == 0 ? 0 : mP.Ekin_DMFT / (i)^2 for i in iωn])
-    nd = length(gridshape(kG))
-    
-    Σ_ladder_i = OffsetArray(Array{Complex{Float64},2}(undef,Nq, νmax), 1:Nq, 0:νmax-1)
-    χsp_λ = similar(nlQ_sp.χ[:,ωindices])
-    χch_λ = similar(nlQ_ch.χ[:,ωindices])
-    
-    # Prepare data
-    x0 = [0.1,  0.1]
-    #TODO: use this as initial value x0
-    #nh    = ceil(Int64, size(nlQ_sp.χ,2)/2)
-    #χsp_min    = -1 / maximum(real.(nlQ_sp.χ[:,nh]))
-    #χch_min    = -1 / maximum(real.(nlQ_ch.χ[:,nh]))
+    nlQ_sp_λ = deepcopy(nlQ_sp)
+    nlQ_ch_λ = deepcopy(nlQ_ch)
 
-    Σ_hartree = mP.n * mP.U/2
+    Σ_hartree = mP.n * mP.U/2.0;
+    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
+    Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
+    Σ_ladder_ω = OffsetArray( Array{ComplexF64,3}(undef,Nq, νmax, length(ωrange)),
+                              1:Nq, 0:νmax-1, ωrange)
+    Σ_ladder = OffsetArray( Array{ComplexF64,2}(undef,Nq, νmax),
+                              1:Nq, 0:νmax-1)
     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
-                    (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
+            (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
-    E_pot_tail = permutedims(sum((E_pot_tail_c[i])' .* tail[i] for i in 1:length(tail)),(2,1))
+    E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-    Σ_corr = Σ_hartree
-
-    #TODO: this part of the code is horrible but fast....
+    
     function cond_both!(F, λ)
-        fill!(Σ_ladder_i, zero(eltype(Σ_ladder_i)))
-        χ_λ!(χsp_λ, view(nlQ_sp.χ,:,ωindices), λ[1])
-        χ_λ!(χch_λ, view(nlQ_ch.χ,:,ωindices), λ[2])
-        lhs_c1, lhs_c2 = 0.0, 0.0
-        for ωii in 1:length(ωindices)
-            ωi = ωindices[ωii]
-            ωn = (ωi - sP.n_iω) - 1
-            fsp = 1.5 .* (1 .+ mP.U .* view(χsp_λ,:,ωii))
-            fch = 0.5 .* (1 .- mP.U .* view(χch_λ,:,ωii))
-            νZero = ν0Index_of_ωIndex(ωi, sP)
-            maxn = minimum([νZero + νmax - 1, size(nlQ_ch.γ,ν_axis)])
-            for (νii,νi) in enumerate(νZero:maxn)
-                v = view(Gνω,:,(νii-1) + ωn)
-                @simd for qi in 1:size(Σ_ladder_i,1)
-                    @inbounds Kνωq_pre[qi] = (mP.U/mP.β)*(nlQ_sp.γ[qi,νi,ωi] * fsp[qi] - nlQ_ch.γ[qi,νi,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νi,ωi])
-                end
-                conv_fft1!(kG, view(Σ_ladder_i,:,νii-1), Kνωq_pre, v)
-            end
-            tsp, tch = 0.0, 0.0
-            for qi in 1:length(kG.kMult)
-                tsp += kG.kMult[qi]*real(χsp_λ[qi,ωii])
-                tch += kG.kMult[qi]*real(χch_λ[qi,ωii])
-            end
-            lhs_c1 += (tch + tsp) / (2*kG.Nk) - iωn2_sub[ωii]
-            lhs_c2 += (tch - tsp) / (2*kG.Nk)
-        end
-        E_pot = 0.0
-        for qi in 1:length(kG.kMult)
-            GΣ_λ = 0.0
-            for i in 1:νmax
-                Σ_ladder_i[qi,i-1] += Σ_corr
-                GΣ_λ += 2 * real(Σ_ladder_i[qi,i-1] * G_from_Σ(iν_n[i], mP.β, mP.μ, kG.ϵkGrid[qi], Σ_ladder_i[qi,i-1]) - E_pot_tail[qi,i])
+        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
+        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
+        calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
+        Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
-            end
-            GΣ_λ += E_pot_tail_inv[qi]   # ν summation
-            E_pot += kG.kMult[qi]*GΣ_λ   # k intgration
-        end
-        E_pot = E_pot / (kG.Nk * mP.β)
-        lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
-        lhs_c2 = lhs_c2/mP.β
+    
+        χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
+        χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
+        #TODO: the next line is expensive: Optimize G_from_Σ
+        G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+        E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+        lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
+        lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
-        return lhs_c1, rhs_c1, lhs_c2, rhs_c2 # F
+        return lhs_c1, rhs_c1, lhs_c2, rhs_c2
     end
-    @timeit to "λnew" λnew = nlsolve(cond_both!, x0)
+    Fint = [0.1, 0.1]
+
+    λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
     return λnew
 end
 

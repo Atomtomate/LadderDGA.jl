@@ -125,6 +125,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
         v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
         χ_ω[ωi] = kintegrate(kG, v)
     end
+    @warn "TODO: print |sum(χ(q=0,ω≠0) - 0| as grid error)"
 
     usable = find_usable_interval(collect(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
     return NonLocalQuantities(χ, γ, usable, 0.0)
@@ -163,6 +164,8 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
     return λ0
 end
 
+@fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64) = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+
 function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
             Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
@@ -172,19 +175,17 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
-        fsp = 1.5 .* (1 .+ U .* view(Q_sp.χ,:,ωi))
-        fch = 0.5 .* (1 .- U .* view(Q_ch.χ,:,ωi))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
-        #TODO: manual unrolling is slightly faster. use snoopcompiler and cthulhu.jl to investigate
         for (νii,νi) in enumerate(νZero:maxn)
-            #ωni, νni = OneToIndex_to_Freq(ωi, νi, sP, sP.n_iν_shell)
             v = view(Gνω,:,(νii-1) + ωn)
             if kG.Nk == 1
-                Σ[1,νii-1,ωn] = U*(Q_sp.γ[1,νi,ωi] * fsp[1] - Q_ch.γ[1,νi,ωi] * fch[1] - 1.5 + 0.5 + λ₀[1,νi,ωi]) * v[1]
+                Σ[1,νii-1,ωn] = eom(U, Q_sp.γ[1,νi,ωi], Q_ch.γ[1,νi,ωi], Q_sp.χ[1,ωi], 
+                                    Q_ch.χ[1,ωi], λ₀[1,νi,ωi]) * v[1]
             else
                 @simd for qi in 1:size(Σ,q_axis)
-                    @inbounds Kνωq_pre[qi] = U*(Q_sp.γ[qi,νi,ωi] * fsp[qi] - Q_ch.γ[qi,νi,ωi] * fch[qi] - 1.5 + 0.5 + λ₀[qi,νi,ωi])
+                @inbounds Kνωq_pre[qi] = eom(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi], Q_sp.χ[qi,ωi], 
+                                    Q_ch.χ[qi,ωi], λ₀[qi,νi,ωi])
                 end
                 conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
             end

@@ -51,7 +51,7 @@ end
 
 Specialized function for DGA potential energy. Better performance than calc_E.
 """
-function calc_E_pot(kG::ReducedKGrid, G::Array{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
+function calc_E_pot(kG::ReducedKGrid, G::AbstractArray{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
                     tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
     E_pot = real.(G .* Σ .- tail);
     return kintegrate(kG, 2 .* sum(view(E_pot,:,1:size(Σ,2)), dims=[2])[:,1] .+ tail_inv) / β

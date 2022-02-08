@@ -36,7 +36,7 @@ end
                     1/(mf + μ - ϵₖ - Σ)
 
 #TODO optimize these helpers
-G_from_Σ(Σ, ϵkGrid, range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
 
 
 function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number

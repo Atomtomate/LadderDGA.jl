@@ -60,8 +60,8 @@ end
 Contains all non local quantities computed by the lDGA code
 """
 mutable struct NonLocalQuantities
-    χ::Array{_eltype,2}
-    γ::Array{_eltype,3}
+    χ::Array{ComplexF64,2}
+    γ::Array{ComplexF64,3}
     usable_ω::AbstractArray
     λ::Float64
 end
