@@ -63,7 +63,7 @@ jobs:
       - name: Install dependencies
         run: julia --project=docs/ -e '
             using Pkg;
-            Pkg.activate("..");
+            Pkg.activate(".");
             Pkg.instantiate()'
       - name: Build and deploy
         env:
