@@ -62,15 +62,19 @@ jobs:
       - name: Install dependencies
         run: julia --project=docs/ -e '
             using Pkg;
+            Pkg.Registry.update(); 
             Pkg.add(url="https://github.com/Atomtomate/SeriesAcceleration.jl");
             Pkg.develop(PackageSpec(path=pwd()));
             Pkg.instantiate();
+            Pkg.Registry.update(); 
             Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
             Pkg.develop(PackageSpec(path=pwd()));
             Pkg.instantiate();
+            Pkg.Registry.update(); 
             Pkg.add(url="https://github.com/Atomtomate/BSE_SC.jl");
             Pkg.develop(PackageSpec(path=pwd()));
             Pkg.instantiate();
+            Pkg.Registry.update(); 
             '
       - name: Build and deploy
         env:
