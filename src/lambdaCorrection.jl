@@ -89,7 +89,7 @@ end
 function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
         kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; 
-        νmax = -1, iterations=1000, ftol=1e-8)
+        νmax::Int = -1, iterations=1000, ftol=1e-8)
 
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
