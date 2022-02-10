@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.6'
+          - '1.7'
           - 'nightly'
         os:
           - ubuntu-latest
@@ -67,7 +67,11 @@ jobs:
             Pkg.instantiate();
             Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
             Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate();'
+            Pkg.instantiate();
+            Pkg.add(url="https://github.com/Atomtomate/BSE_SC.jl");
+            Pkg.develop(PackageSpec(path=pwd()));
+            Pkg.instantiate();
+            '
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
