@@ -64,6 +64,7 @@ jobs:
         run: julia --project=docs/ -e '
             using Pkg;
             Pkg.activate(".");
+            Pkg.add("Documenter");
             Pkg.instantiate()'
       - name: Build and deploy
         env:
