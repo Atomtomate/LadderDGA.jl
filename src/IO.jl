@@ -106,7 +106,6 @@ function readConfig(cfg_in)
     sh_f = get_sum_helper(default_fit_range(-Nν_full:Nν_full-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
-    fft_offset = -minimum(fft_range)+1
     lo = npartial_sums(sh_f)
     up = 2*Nν_full - lo + 1 
 
@@ -123,6 +122,21 @@ function readConfig(cfg_in)
                     nothing
                 end
 
+    sEH = if ((tc_type_f == :richardson) || (tc_type_b == :richardson)) 
+        SumExtrapolationHelper(
+                           tml["Simulation"]["bosonic_tail_coeffs"],
+                           tml["Simulation"]["fermionic_tail_coeffs"],
+                           smoothing,
+                           sh_f,
+                           dbg_full_eom_omega,
+                           lo,
+                           up,
+                           Array{Float64, 1}(undef, lo),
+                           Array{ComplexF64, 1}(undef, lo))
+    else
+        nothing
+    end
+
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
                                tc_type_f,
                                tc_type_b,
@@ -130,19 +144,9 @@ function readConfig(cfg_in)
                                ωsum_type,
                                λrhs_type,
                                tml["Simulation"]["force_full_bosonic_chi"],
-                               χfill,
-                               tml["Simulation"]["bosonic_tail_coeffs"],
-                               tml["Simulation"]["fermionic_tail_coeffs"],
-                               tml["Simulation"]["usable_prct_reduction"],
-                               smoothing,
-                               sh_f,
                                fft_range,
-                               fft_offset,
-                               dbg_full_eom_omega,
-                               lo,
-                               up,
-                               Array{Float64, 1}(undef, lo),
-                               Array{ComplexF64, 1}(undef, lo)
+                               tml["Simulation"]["usable_prct_reduction"],
+                               sEH
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
     for i in 1:length(tml["Simulation"]["Nk"])

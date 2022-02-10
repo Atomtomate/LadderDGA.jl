@@ -78,13 +78,10 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     νi_range = 1:Nν
     qi_range = 1:Nq
     χ_ω = Array{Float64, 1}(undef, Nω)
-    lo = npartial_sums(sP.sh_f)
-    up = Nν - lo + 1 
-    fνmax_cache  = Array{_eltype, 1}(undef, lo)
+
     χννpω = Matrix{_eltype}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
-    fνmax_cache = _eltype === Float64 ? sP.fνmax_cache_r : sP.fνmax_cache_c
 
     #TODO: clean up loop definition
     for ωi in ωi_range
@@ -113,9 +110,10 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
                         γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
                     end
                 else
-                    χ[qi, ωi] = sum_freq_full!(χννpω, sP.sh_f, mP.β, fνmax_cache, lo, up)
+                    χ[qi, ωi] = sum_freq_full!(χννpω, sP.sEH.sh_f, mP.β, sP.sEH.fνmax_cache_c, sP.sEH.lo, sP.sEH.up)
                     for νk in νi_range
-                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sP.sh_f,1.0,fνmax_cache,lo,up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
+                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sP.sEH.sh_f,1.0,
+                                                     sP.sEH.fνmax_cache_c,sP.sEH.lo,sP.sEH.up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
                     end
                     extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
                 end
@@ -144,8 +142,6 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
     else
         #TODO: this is not well optimized, but also not often executed
         tmp = Array{ComplexF64, 1}(undef, Niν)
-        lo = npartial_sums(sP.sh_f)
-        up = Niν - lo + 1 
         for ωi in ω_range
             for νi in 1:Niν
                 #TODO: export realview functions?
@@ -155,7 +151,12 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
                     @simd for νpi in 1:Niν 
                         @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
                     end
-                    λ0[qi,νi,ωi] = sum_freq_full!(tmp, sP.sh_f, 1.0, sP.fνmax_cache_c, lo, up)/(mP.β^2)
+                    #TODO: update sum_freq_full to accept sP und figure out sum type by itself
+                    λ0[qi,νi,ωi] = if sP.sEH !== nothing
+                        sum_freq_full!(tmp, sP.sh_f, 1.0, sP.sEH.fνmax_cache_c, sP.sEH.lo, sP.sEH.up)/(mP.β^2)
+                    else
+                        sum(tmp)/mP.β^2
+                    end
                 end
             end
         end

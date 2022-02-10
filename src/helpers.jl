@@ -112,22 +112,24 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             end
         end
 
-        if sP.ω_smoothing == :full
-            ωZero = sP.n_iω
-            @warn "smoothing deactivated for now!"
-            filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
-            filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
-            filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
-            filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
-            χLocsp_ω_tmp[:] = collect(χLocsp_ω)
-            χLocch_ω_tmp[:] = collect(χLocch_ω)
-        elseif sP.ω_smoothing == :range
-            ωZero = sP.n_iω
-            @warn "smoothing deactivated for now!"
-            χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
-            χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
-            χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
-            χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
+        if sP.sEH !== nothing
+            if sP.sEH.ω_smoothing == :full
+                ωZero = sP.n_iω
+                @warn "smoothing deactivated for now!"
+                filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
+                filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
+                filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
+                filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
+                χLocsp_ω_tmp[:] = collect(χLocsp_ω)
+                χLocch_ω_tmp[:] = collect(χLocch_ω)
+            elseif sP.sEH.ω_smoothing == :range
+                ωZero = sP.n_iω
+                @warn "smoothing deactivated for now!"
+                χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
+                χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
+                χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
+                χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
+            end
         end
     end
 
