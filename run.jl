@@ -12,8 +12,8 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
     for kIteration in 1:length(kGridsStr)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
-        Fsp = F_from_χ(χDMFTsp, gImp[1,1,1,1-minimum(sP.fft_range):end], sP.n_iω, sP.n_iν, sP.shift, mP.β);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
+        Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 
         flush(log_io)
         # ladder quantities
@@ -26,14 +26,14 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "chi ch"
         flush(log_io)
         @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+        
+        λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, imp_density, Fsp, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
-                               locQ_sp, bubble, gLoc_fft, kG, mP, sP)
+        λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λnew_nls = LadderDGA.λ_correction(:sp_ch, imp_density, Fsp, Σ_loc, Σ_ladderLoc, 
-                                          nlQ_sp,nlQ_ch,locQ_sp, bubble, gLoc_fft, kG, mP, sP)
+        λnew_nls = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
         @info "found $λnew_nls\n"
         λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
         flush(log_io)
@@ -58,6 +58,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
             f["bubble"] = bubble
+            f["λ₀_sp"] = λ₀
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
             f["λsp_old"] = λsp_old
@@ -70,7 +71,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["kG"] = kG
             f["gLoc_fft"] = gLoc_fft
             f["Sigma_DMFT"] = Σ_loc 
-            f["Fsp"] = Fsp
+            f["χ₀Loc"] = χ₀Loc
             f["λnew_nls"] = λnew_nls
             f["λnew"] = λnew
             f["log"] = LadderDGA.get_log()

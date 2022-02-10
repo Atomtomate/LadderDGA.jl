@@ -5,7 +5,6 @@ using Pkg
 Pkg.activate(@__DIR__)
 using LadderDGA
 
-
 cfg_file = ARGS[1]
 out_path = ARGS[2]
 NProcs = parse(Int,ARGS[3])
