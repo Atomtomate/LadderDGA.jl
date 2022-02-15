@@ -140,13 +140,15 @@ end
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
             kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax = -1, iterations=1000, ftol=1e-8)
+            νmax = -1, iterations=400, ftol=1e-8)
         # --- prepare auxiliary vars ---
     Nq = size(nlQ_sp.χ,1)
     Nω = size(nlQ_sp.χ,2)
     
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     ωrange = (-sP.n_iω:sP.n_iω)[ωindices]
+    ωrange = first(ωrange):last(ωrange)
+
     
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid = 0:(νmax-1) 
@@ -167,10 +169,17 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
     E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+    nh  = ceil(Int64, size(nlQ_sp.χ,2)/2)
+    χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ[:,nh]))
+    χch_min    = -minimum(1 ./ real.(nlQ_ch.χ[:,nh]))
+    a_sp = (1000.0 - χsp_min)/2
+    a_ch = (1000.0 - χch_min)/2
     
     function cond_both!(F, λ)
-        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
-        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
+        xsp = λ[1]#a_sp*tanh(λ[1]) + a_sp + χsp_min
+        xch = λ[2] #a_ch*tanh(λ[2]) + a_ch + χch_min
+        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, xsp)
+        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, xch)
         calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
         Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
@@ -191,6 +200,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     Fint = [0.1, 0.1]
 
     λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
+    #λnew.zero[:] = [tanh(λnew.zero[1]+a_sp+χsp_min)*a_sp, tanh(λnew.zero[2]+a_ch+χch_min)*a_ch]
     return λnew
 end
 
