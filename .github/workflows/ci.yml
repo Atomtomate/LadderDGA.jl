@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1.6'
+          - '1.7'
           - 'nightly'
         os:
           - ubuntu-latest
@@ -58,18 +58,22 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: '1.6'
-      - name: Install dependencies
-        run: julia --project=docs/ -e '
-            using Pkg;
-            Pkg.add(url="https://github.com/Atomtomate/SeriesAcceleration.jl");
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate();
-            Pkg.add(url="https://github.com/Atomtomate/Dispersions.jl");
-            Pkg.develop(PackageSpec(path=pwd()));
-            Pkg.instantiate();'
-      - name: Build and deploy
+          version: '1.7'
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
+      - uses: julia-actions/julia-buildpkg@master
+      - run: julia -e 'using Pkg; Pkg.activate(); push!(LOAD_PATH, pwd());'
+      - run: julia --project=docs/ -e 'using Pkg; Pkg.activate();  push!(LOAD_PATH,pwd());'
+      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - run: julia --project=docs/ docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run: julia --project=docs/ docs/make.jl

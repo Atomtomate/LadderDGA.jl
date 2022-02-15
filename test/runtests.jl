@@ -2,9 +2,8 @@ using LadderDGA
 using SeriesAcceleration
 using Test
 
-mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 0.0, 0.0)
-sP_1 = SimulationParameters(1,2,false,:nothing,:nothing,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1, :nothing, DirectSum(), 1, false, 1,1, Float64[], ComplexF64[])
-sP_2 = SimulationParameters(1,2,false,:richardson,:coeffs,:nothing,:common,:native,false,LadderDGA.zero_χ_fill,[0,1,2,3],[0,1,2,3], 0.1, :nothing, DirectSum(), 1, false, 1,1, Float64[], ComplexF64[])
+mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
+sP_1 = SimulationParameters(1,2,3,false,:nothing,:nothing,nothing,:common,:native,false,1:3,0.1,nothing)
 
 @testset "Config" begin
 #    include("Config.jl")
@@ -19,7 +18,8 @@ end
 end
 
 @testset "GFFit" begin
-    include("GFFit.jl")
+    #TODO: not used right now, reactivate at some point
+   # include("GFFit.jl")
 end
 
 @testset "ladderDGATools" begin

@@ -18,7 +18,7 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
     return E_kin, E_pot
 end
 
-function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters; trace=false)
+function calc_E(Σ, kG, mP::ModelParameters; trace=false)
     #println("TODO: make frequency summation with sum_freq optional")
     νmax = ndims(Σ) == 2 ? size(Σ,2) : length(Σ)
     νGrid = 0:(νmax-1)

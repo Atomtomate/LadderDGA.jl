@@ -82,8 +82,14 @@ Construct helper for (improved) sums from setting in
 """
 function get_sum_helper(range::AbstractArray{Int,1}, sP::SimulationParameters, type::Symbol)
     tc = if type == :f sP.tc_type_f else sP.tc_type_b end
-    fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(sP.bosonic_tail_coeffs)) 
-    return get_sum_helper(fitRange, (type == :f) ? sP.fermionic_tail_coeffs : sP.bosonic_tail_coeffs, tc) 
+    res = if eh !== nothing
+        eh = sP.sumExtrapHelper
+        fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(eh.bosonic_tail_coeffs)) 
+        get_sum_helper(fitRange, (type == :f) ? eh.fermionic_tail_coeffs : eh.bosonic_tail_coeffs, tc) 
+    else
+        DirectSum()
+    end
+    return res
 end
 
 function get_sum_helper(range::AbstractArray{Int,1}, coeffs::AbstractArray{Int,1}, tc::Symbol)
@@ -198,30 +204,30 @@ Inplace version of [`sum_freq_full`](@ref sum_freq_full). A cache for the intern
 for summation of `f`, `lo/up` for the minimum/maximum number of summands in the array of partial sums.
 """
 #TODO: cleaner interface, but about 10% slower! fix this!
-function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, corr::Float64, sP::SimulationParameters)::Float64
-    build_fνmax_fast!(sP.fνmax_cache_r, f, sP.fνmax_lo, sP.fνmax_up)
-    @inbounds esum_c(sP.fνmax_cache_r .+ corr, sP.sh_f)/(β^ndims(f))
+function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, corr::Float64, sEH::SumExtrapolationHelper)::Float64
+    build_fνmax_fast!(sEH.fνmax_cache_r, f, sEH.fνmax_lo, sEH.fνmax_up)
+    @inbounds esum_c(sEH.fνmax_cache_r .+ corr, sEH.sh_f)/(β^ndims(f))
 end
 
-function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, corr::Float64, sP::SimulationParameters)::ComplexF64
-    build_fνmax_fast!(sP.fνmax_cache_c, f, sP.fνmax_lo, sP.fνmax_up)
-    @simd for i in 1:length(sP.fνmax_cache)
-        @inbounds sP.fνmax_cache_c[i] = sP.fνmax_cache_c[i] + corr
+function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, corr::Float64, sEH::SumExtrapolationHelper)::ComplexF64
+    build_fνmax_fast!(sEH.fνmax_cache_c, f, sEH.fνmax_lo, sEH.fνmax_up)
+    @simd for i in 1:length(sEH.fνmax_cache)
+        @inbounds sEH.fνmax_cache_c[i] = sEH.fνmax_cache_c[i] + corr
     end
-    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),2,1:length(sP.fνmax_cache_c))
-    @inbounds (esum_c(view(v,1,:), sP.sh_f) + esum_c(view(v,2,:), sP.sh_f).*im)/(β^ndims(f))
+    @inbounds v = reshape(reinterpret(Float64,sEH.fνmax_cache_c),2,1:length(sEH.fνmax_cache_c))
+    @inbounds (esum_c(view(v,1,:), sEH.sh_f) + esum_c(view(v,2,:), sEH.sh_f).*im)/(β^ndims(f))
 end
 
-function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, sP::SimulationParameters)::Float64
-    build_fνmax_fast!(sP.fνmax_cache_r, f, sP.fνmax_lo, sP.fνmax_up)
-    @inbounds esum_c(sP.fνmax_cache_r, sP.sh_f)/(β^ndims(f))
+function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, sEH::SumExtrapolationHelper)::Float64
+    build_fνmax_fast!(sEH.fνmax_cache_r, f, sEH.fνmax_lo, sEH.fνmax_up)
+    @inbounds esum_c(sEH.fνmax_cache_r, sEH.sh_f)/(β^ndims(f))
 end
 
-function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, sP::SimulationParameters)::ComplexF64
-    build_fνmax_fast!(sP.fνmax_cache_c, f, sP.fνmax_lo, sP.fνmax_up)
-    @inbounds v = reshape(reinterpret(Float64,sP.fνmax_cache_c),2,1:length(sP.fνmax_cache_c))
+function sum_freq_full_f!(f::AbstractArray{ComplexF64}, β::Float64, sEH::SumExtrapolationHelper)::ComplexF64
+    build_fνmax_fast!(sEH.fνmax_cache_c, f, sEH.fνmax_lo, sEH.fνmax_up)
+    @inbounds v = reshape(reinterpret(Float64,sEH.fνmax_cache_c),2,1:length(sEH.fνmax_cache_c))
     #TODO: do we really need to split real and imaginary part?
-    @inbounds (esum_c(view(v,1,:), sP.sh_f) + esum_c(view(v,2,:), sP.sh_f).*im)/(β^ndims(f))
+    @inbounds (esum_c(view(v,1,:), sEH.sh_f) + esum_c(view(v,2,:), sEH.sh_f).*im)/(β^ndims(f))
 end
 
 function sum_freq_full!(f::AbstractArray{Float64}, type::SumHelper, β::Float64, fνmax_cache::Array{Float64,1}, lo::Int, up::Int, corr::Float64)
