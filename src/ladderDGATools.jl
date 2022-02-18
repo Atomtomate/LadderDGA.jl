@@ -125,9 +125,12 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
         v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
         χ_ω[ωi] = kintegrate(kG, v)
     end
-    @warn "TODO: print |sum(χ(q=0,ω≠0) - 0| as grid error)"
-
     usable = find_usable_interval(collect(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
+
+    @warn "DBG: currently forcing omega FULL range!!"
+    usable = 1:length(χ_ω)
+
+    @warn "TODO: print |sum(χ(q=0,ω≠0) - 0| as grid error). Ussable range (sum type = $(sP.ωsum_type)): $usable"
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 

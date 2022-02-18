@@ -38,8 +38,10 @@ end
 
 
 function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
-    usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    @warn "currently using min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
+    usable_ω = 1:size(nlQ_sp.χ,2) 
+    #intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    @warn "DBG: currently using omega FULL range for lambda correction!!" 
+    # min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω = kintegrate(kG, nlQ_ch.χ[:,usable_ω], 1)[1,:]
@@ -152,56 +154,60 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid = 0:(νmax-1) 
-    iν_n = iν_array(mP.β, νGrid)
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    nlQ_sp_λ = deepcopy(nlQ_sp)
-    nlQ_ch_λ = deepcopy(nlQ_ch)
+    if length(ωrange) > 1 && νmax > 3
+        iν_n = iν_array(mP.β, νGrid)
+        iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
+        nlQ_sp_λ = deepcopy(nlQ_sp)
+        nlQ_ch_λ = deepcopy(nlQ_ch)
 
-    Σ_hartree = mP.n * mP.U/2.0;
-    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
-    Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
-    Σ_ladder_ω = OffsetArray( Array{ComplexF64,3}(undef,Nq, νmax, length(ωrange)),
-                              1:Nq, 0:νmax-1, ωrange)
-    Σ_ladder = OffsetArray( Array{ComplexF64,2}(undef,Nq, νmax),
-                              1:Nq, 0:νmax-1)
-    E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
-            (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
-    tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
-    E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-    nh  = ceil(Int64, size(nlQ_sp.χ,2)/2)
-    χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ[:,nh]))
-    χch_min    = -minimum(1 ./ real.(nlQ_ch.χ[:,nh]))
-    a_sp = (1000.0 - χsp_min)/2
-    a_ch = (1000.0 - χch_min)/2
-    
-    function cond_both!(F, λ)
-        xsp = λ[1]#a_sp*tanh(λ[1]) + a_sp + χsp_min
-        xch = λ[2] #a_ch*tanh(λ[2]) + a_ch + χch_min
-        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, xsp)
-        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, xch)
-        calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
-        Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+        Σ_hartree = mP.n * mP.U/2.0;
+        Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
+        Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
+        Σ_ladder_ω = OffsetArray( Array{ComplexF64,3}(undef,Nq, νmax, length(ωrange)),
+                                  1:Nq, 0:νmax-1, ωrange)
+        Σ_ladder = OffsetArray( Array{ComplexF64,2}(undef,Nq, νmax),
+                                  1:Nq, 0:νmax-1)
+        E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
+                (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
+        tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
+        E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
+        E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
+        nh  = ceil(Int64, size(nlQ_sp.χ,2)/2)
+        χsp_min    = -minimum(1 ./ real.(nlQ_sp.χ[:,nh]))
+        χch_min    = -minimum(1 ./ real.(nlQ_ch.χ[:,nh]))
+        a_sp = (1000.0 - χsp_min)/2
+        a_ch = (1000.0 - χch_min)/2
+        
+        function cond_both!(F, λ)
+            xsp = λ[1]#a_sp*tanh(λ[1]) + a_sp + χsp_min
+            xch = λ[2] #a_ch*tanh(λ[2]) + a_ch + χch_min
+            χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, xsp)
+            χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, xch)
+            calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
+            Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
-    
-        χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
-        χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
-        #TODO: the next line is expensive: Optimize G_from_Σ
-        G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
-        E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
-        lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
-        lhs_c2 = real(sum(χupdo_ω))/mP.β
-        rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-        F[1] = lhs_c1 - rhs_c1
-        F[2] = lhs_c2 - rhs_c2
-        return lhs_c1, rhs_c1, lhs_c2, rhs_c2
+        
+            χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
+            χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
+            #TODO: the next line is expensive: Optimize G_from_Σ
+            G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+            E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+            lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
+            lhs_c2 = real(sum(χupdo_ω))/mP.β
+            rhs_c1 = mP.n/2 * (1 - mP.n/2)
+            rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+            F[1] = lhs_c1 - rhs_c1
+            F[2] = lhs_c2 - rhs_c2
+            return lhs_c1, rhs_c1, lhs_c2, rhs_c2
+        end
+        Fint = [0.1, 0.1]
+
+        λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
+        #λnew.zero[:] = [tanh(λnew.zero[1]+a_sp+χsp_min)*a_sp, tanh(λnew.zero[2]+a_ch+χch_min)*a_ch]
+        return λnew
+    else
+        return [NaN, NaN]
     end
-    Fint = [0.1, 0.1]
-
-    λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
-    #λnew.zero[:] = [tanh(λnew.zero[1]+a_sp+χsp_min)*a_sp, tanh(λnew.zero[2]+a_ch+χch_min)*a_ch]
-    return λnew
 end
 
 function λ_correction(type::Symbol, imp_density::Float64,
