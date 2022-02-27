@@ -115,13 +115,11 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
         Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, λ₀, Gνω, kG, mP, sP).parent[:,1:νmax]
-        
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
         χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
         E_kin, E_pot = calc_E(Σ_ladder, kG, mP, sP)
         G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
         E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
-
         lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
         lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
@@ -142,7 +140,7 @@ end
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
             kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax = -1, iterations=400, ftol=1e-8)
+            νmax = -1, iterations=400, ftol=1e-8, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     Nq = size(nlQ_sp.χ,1)
     Nω = size(nlQ_sp.χ,2)
@@ -200,7 +198,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             F[2] = lhs_c2 - rhs_c2
             return lhs_c1, rhs_c1, lhs_c2, rhs_c2
         end
-        Fint = [0.1, 0.1]
+        Fint = x₀
 
         λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
         #λnew.zero[:] = [tanh(λnew.zero[1]+a_sp+χsp_min)*a_sp, tanh(λnew.zero[2]+a_ch+χch_min)*a_ch]
