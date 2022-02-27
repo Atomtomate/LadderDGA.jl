@@ -65,7 +65,7 @@ function __init__()
     #TODO: this should be set from command line and only default back to stdout
     io = stdout
     metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
-    logger = ConsoleLogger(io, Logging.Info, meta_formatter=metafmt, show_limited=true, right_justify=0)
+    logger = ConsoleLogger(io, Logging.Info, meta_formatter=Logging.default_metafmt, show_limited=true, right_justify=0)
     logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
     global_logger(TeeLogger(logger,logger_file))
 end

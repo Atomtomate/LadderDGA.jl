@@ -20,8 +20,8 @@ i = 1
 while isfile(logfile_path)
     global i
     global logfile_path
-    postf = "_$i"
-    logfile_path = i > 1 ? logfile_path[1:end-(length("_$(i-1)"))]*postf : logfile_path*postf
+    postf = "_$i.log"
+    logfile_path = i > 1 ? logfile_path[1:end-4-(length("_$(i-1)"))]*postf : logfile_path*postf
     i += 1
 end
 
