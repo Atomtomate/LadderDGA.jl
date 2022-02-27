@@ -33,9 +33,9 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         flush(log_io)
         λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λnew_nls = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
-        @info "found $λnew_nls\n"
-        λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
+        λnew_nls = nothing#λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
+        #@info "found $λnew_nls\n"
+        λnew = [NaN, NaN] #λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
         flush(log_io)
 
         #@timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)

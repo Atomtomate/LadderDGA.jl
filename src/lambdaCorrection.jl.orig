@@ -175,10 +175,22 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     a_sp = (1000.0 - χsp_min)/2
     a_ch = (1000.0 - χch_min)/2
     
+<<<<<<< HEAD
     function cond_both!(F::Vector{Float64}, λ::Vector{Float64})
         #TODO: captured variables that are no reassigned, should be assigned in a let block
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
+||||||| 02f20bd
+    function cond_both!(F, λ)
+        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
+        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
+=======
+    function cond_both!(F, λ)
+        xsp = λ[1]#a_sp*tanh(λ[1]) + a_sp + χsp_min
+        xch = λ[2] #a_ch*tanh(λ[2]) + a_ch + χch_min
+        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, xsp)
+        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, xch)
+>>>>>>> refs/remotes/origin/dev
         calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
         Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
