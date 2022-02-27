@@ -18,9 +18,9 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
     return E_kin, E_pot
 end
 
-function calc_E(Σ, kG, mP::ModelParameters; trace=false)
+function calc_E(Σ::AbstractArray{ComplexF64,2}, kG::ReducedKGrid, mP::ModelParameters; trace=false)
     #println("TODO: make frequency summation with sum_freq optional")
-    νmax = ndims(Σ) == 2 ? size(Σ,2) : length(Σ)
+    νmax = size(Σ,2)
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2

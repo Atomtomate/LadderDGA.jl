@@ -81,7 +81,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "local correction" begin
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
-        (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
+        (sP.tc_type_b == :nothing) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
         sP.ωsum_type == :individual && @error "Individual ranges not tested yet"
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
@@ -112,8 +112,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             end
         end
 
-        if sP.sEH !== nothing
-            if sP.sEH.ω_smoothing == :full
+        if sP.sumExtrapolationHelper !== nothing
+            if sP.sumExtrapolationHelper.ω_smoothing == :full
                 ωZero = sP.n_iω
                 @warn "smoothing deactivated for now!"
                 filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
@@ -122,7 +122,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
                 χLocsp_ω_tmp[:] = collect(χLocsp_ω)
                 χLocch_ω_tmp[:] = collect(χLocch_ω)
-            elseif sP.sEH.ω_smoothing == :range
+            elseif sP.sumExtrapolationHelper.ω_smoothing == :range
                 ωZero = sP.n_iω
                 @warn "smoothing deactivated for now!"
                 χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
@@ -162,7 +162,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
           χLoc_sp($(usable_loc_sp)) = $(printr_s(χLocsp)), χLoc_ch($(usable_loc_ch)) = $(printr_s(χLocch))
-          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
     return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_full, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
@@ -298,3 +298,16 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     end
     return res
 end
+
+q0_index(kG::ReducedKGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
+#TODO: most quantities should know their indices! Implement this in DataTypes
+ω0_index(sP::SimulationParameters) = sP.n_iω+1
+
+function log_q0_χ_check(kG::ReducedKGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+    q0_ind = q0_index(kG)
+    if q0_ind != nothing
+        ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)#TODO: adapt for arbitrary ω indices
+        @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+    end
+end
+

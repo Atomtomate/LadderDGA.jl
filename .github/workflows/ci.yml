@@ -72,7 +72,11 @@ jobs:
       - uses: julia-actions/julia-buildpkg@master
       - run: julia -e 'using Pkg; Pkg.activate(); push!(LOAD_PATH, pwd());'
       - run: julia --project=docs/ -e 'using Pkg; Pkg.activate();  push!(LOAD_PATH,pwd());'
-      - run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+      - run: julia --project=docs/ -e 'using Pkg; 
+                                       Pkg.Registry.add(""); 
+                                       Pkg.Registry.add("");
+                                       Pkg.develop(PackageSpec(path=pwd())); 
+                                       Pkg.instantiate()'
       - run: julia --project=docs/ docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -100,7 +100,7 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
     Σ_hartree = mP.n * mP.U/2.0;
     νGrid = 0:(νmax-1) 
     iν_n = iν_array(mP.β, νGrid)
-     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
+    E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
             (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
 
     tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
@@ -116,7 +116,7 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
         
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
         χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
-        E_kin, E_pot = calc_E(Σ_ladder, kG, mP, sP)
+        E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
         G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
         E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
 
@@ -168,7 +168,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
     
-    function cond_both!(F, λ)
+    function cond_both!(F::Vector{Float64}, λ::Vector{Float64})
+        #TODO: captured variables that are no reassigned, should be assigned in a let block
         χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
         χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
         calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)

@@ -77,20 +77,17 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     ωi_range = 1:Nω
     νi_range = 1:Nν
     qi_range = 1:Nq
-    χ_ω = Array{Float64, 1}(undef, Nω)
 
+    χ_ω = Array{_eltype, 1}(undef, Nω)
     χννpω = Matrix{_eltype}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
 
-    #TODO: clean up loop definition
     for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
         for qi in qi_range
-            #START
             χννpω[:,:] = -deepcopy(Γr[:,:,ωi])
             for l in νi_range
-                #TODO: fix the offset (BSE_SC inconsistency)
                 χννpω[l,l] += 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
             end
             @timeit to "inv" inv!(χννpω, ipiv, work)
@@ -98,7 +95,6 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
                 χ[qi, ωi], λ_out = calc_χλ_impr(type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_out) ./ (1 .+ s*mP.U .* χ[qi, ωi])
-            #END
             else
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
@@ -110,10 +106,11 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
                         γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
                     end
                 else
-                    χ[qi, ωi] = sum_freq_full!(χννpω, sP.sEH.sh_f, mP.β, sP.sEH.fνmax_cache_c, sP.sEH.lo, sP.sEH.up)
+                    sEH = sP.sumExtrapolationHelper
+                    χ[qi, ωi] = sum_freq_full!(χννpω, sEH.sh_f, mP.β, sEH.fνmax_cache_c, sEH.lo, sEH.up)
                     for νk in νi_range
-                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sP.sEH.sh_f,1.0,
-                                                     sP.sEH.fνmax_cache_c,sP.sEH.lo,sP.sEH.up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
+                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sEH.sh_f,1.0,
+                                                     sEH.fνmax_cache_c,sEH.lo,sEH.up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
                     end
                     extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
                 end
@@ -123,9 +120,8 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
         v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
         χ_ω[ωi] = kintegrate(kG, v)
     end
-    @warn "TODO: print |sum(χ(q=0,ω≠0) - 0| as grid error)"
-
-    usable = find_usable_interval(collect(χ_ω), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
+    log_q0_χ_check(kG, sP, χ, type)
+    usable = find_usable_interval(real.(collect(χ_ω)), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
@@ -152,8 +148,9 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
                         @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
                     end
                     #TODO: update sum_freq_full to accept sP und figure out sum type by itself
-                    λ0[qi,νi,ωi] = if sP.sEH !== nothing
-                        sum_freq_full!(tmp, sP.sh_f, 1.0, sP.sEH.fνmax_cache_c, sP.sEH.lo, sP.sEH.up)/(mP.β^2)
+                    sEH = sP.sumExtrapolationHelper
+                    λ0[qi,νi,ωi] = if sEH !== nothing
+                        sum_freq_full!(tmp, sP.sh_f, 1.0, sEH.fνmax_cache_c, sEH.lo, sEH.up)/(mP.β^2)
                     else
                         sum(tmp)/mP.β^2
                     end

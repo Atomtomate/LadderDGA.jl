@@ -82,10 +82,10 @@ Construct helper for (improved) sums from setting in
 """
 function get_sum_helper(range::AbstractArray{Int,1}, sP::SimulationParameters, type::Symbol)
     tc = if type == :f sP.tc_type_f else sP.tc_type_b end
-    res = if eh !== nothing
-        eh = sP.sumExtrapHelper
-        fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(eh.bosonic_tail_coeffs)) 
-        get_sum_helper(fitRange, (type == :f) ? eh.fermionic_tail_coeffs : eh.bosonic_tail_coeffs, tc) 
+    sEH = sP.sumExtrapolationHelper
+    res = if sEH !== nothing
+        fitRange = (type == :f) ? (default_fit_range(range)) : (1:length(sEH.bosonic_tail_coeffs)) 
+        get_sum_helper(fitRange, (type == :f) ? sEH.fermionic_tail_coeffs : sEH.bosonic_tail_coeffs, tc) 
     else
         DirectSum()
     end

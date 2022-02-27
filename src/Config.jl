@@ -48,7 +48,6 @@ struct SumExtrapolationHelper <: ConfigStruct
     fermionic_tail_coeffs::Array{Int,1}
     ω_smoothing::Symbol                 # nothing, range, full
     sh_f::SumHelper                     # SumHelper for fermionic sums (bosonic sums depend on runtime results)
-    dbg_full_eom_omega::Bool
     fνmax_lo::Int
     fνmax_up::Int
     fνmax_cache_r::Array{Float64,1}
@@ -91,7 +90,8 @@ struct SimulationParameters <: ConfigStruct
     fullChi::Bool
     fft_range::AbstractArray
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
-    sumExtrapHelper::Union{SumExtrapolationHelper,Nothing}
+    dbg_full_eom_omega::Bool
+    sumExtrapolationHelper::Union{SumExtrapolationHelper,Nothing}
 end
 
 """
