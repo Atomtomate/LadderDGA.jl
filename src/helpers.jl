@@ -107,8 +107,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
             else
-                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP)
-                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP)
+                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
+                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
             end
         end
 

@@ -203,6 +203,8 @@ Description
 Inplace version of [`sum_freq_full`](@ref sum_freq_full). A cache for the internal partial sums `fνmax_cache` and the boundaries
 for summation of `f`, `lo/up` for the minimum/maximum number of summands in the array of partial sums.
 """
+sum_freq_full_f!(f::AbstractArray, β::Float64, sEH::Nothing) = (sum(f))/(β^ndims(f))
+
 #TODO: cleaner interface, but about 10% slower! fix this!
 function sum_freq_full_f!(f::AbstractArray{Float64}, β::Float64, corr::Float64, sEH::SumExtrapolationHelper)::Float64
     build_fνmax_fast!(sEH.fνmax_cache_r, f, sEH.fνmax_lo, sEH.fνmax_up)
