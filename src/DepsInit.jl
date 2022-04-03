@@ -2,7 +2,7 @@
 using ArgParse
 using Logging, LoggingExtras
 using OffsetArrays
-using Distributed, SharedArrays, DistributedArrays
+using Distributed
 using JLD2, FileIO
 using DelimitedFiles
 using LinearAlgebra, GenericLinearAlgebra
@@ -52,6 +52,8 @@ function __init__()
     global to = TimerOutput()
     global LOG_BUFFER = IOBuffer()
     global LOG = ""
+    global workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    #TODO: initialize workers here instead of relying on julia -p
     # ==================== Argument Parser ====================
     s = ArgParseSettings()
     @add_arg_table s begin

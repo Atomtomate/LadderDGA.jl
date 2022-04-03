@@ -18,7 +18,7 @@ const qGridT = Array{Tuple{Int64,Int64,Int64},1}
 struct χ₀T
     data::Array{_eltype,3}
     asym::Array{_eltype,2}
-    axes::Vector{Symbol}
+    axes::Dict{Symbol, Int}
     #TODO: grid::FreqGridType
     #TODO: calculate t1,t2 of bubble from GFtails (first: define GF struct)
     function χ₀T(data::Array{_eltype,3}, kG::ReducedKGrid, t1::Vector{ComplexF64}, t2::Float64,
@@ -33,7 +33,7 @@ struct χ₀T
                 asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2[qi], c3)
             end
         end
-        new(data,asym,[:q,:ν,:ω])
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3))
     end
 end
 

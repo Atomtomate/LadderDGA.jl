@@ -53,9 +53,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χDMFTch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
         χDMFTch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"], (2,3,1))
         Γsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
+        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γsp"]) : -f["Γsp"], (2,3,1))
         Γch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
+        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γch"]) : -f["Γch"], (2,3,1))
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
             g0 = f["g0"]
@@ -93,6 +93,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
         Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
+        println("DBG :   ",sum(Γsp))
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
@@ -159,6 +160,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         imp_density_ntc = real(sum(χupup_DMFT_ω))/mP.β
         imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
 
+        #TODO: update output
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
           χLoc_sp($(usable_loc_sp)) = $(printr_s(χLocsp)), χLoc_ch($(usable_loc_ch)) = $(printr_s(χLocch))
