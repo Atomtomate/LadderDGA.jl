@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.0-rc1"
+julia_version = "1.7.2"
 manifest_format = "2.0"
 
 [[deps.AbstractFFTs]]
@@ -42,7 +42,7 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
 git-tree-sha1 = "a06ecc1cec654d9c6966732a09066bdabc58791c"
 repo-rev = "master"
-repo-url = "/home/julian/Hamburg/BSE_SC.jl"
+repo-url = "https://github.com/Atomtomate/BSE_SC.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
 version = "2.2.3"
 
@@ -160,7 +160,7 @@ version = "1.10.0"
 
 [[deps.Dispersions]]
 deps = ["AbstractFFTs", "Combinatorics", "Coverage", "Documenter", "EquivalenceClassesConstructor", "FFTW", "FastGaussQuadrature", "LinearAlgebra", "Pkg", "Random", "ShiftedArrays", "Test"]
-git-tree-sha1 = "0ca82f3f5f243613c3c2d457664e6c9cbeb9027e"
+git-tree-sha1 = "d16c5e280fb7878c05880e41a1f9d4f158d357c5"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
@@ -546,7 +546,7 @@ deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.Random]]
-deps = ["Serialization"]
+deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.RealDot]]
