@@ -105,7 +105,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:sp, ωi, view(χDMFTsp,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
-            if typeof(sP.χ_helper) === BSE_Asym_Helper
+            if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
             else

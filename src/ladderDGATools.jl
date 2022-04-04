@@ -96,7 +96,7 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 with indices: χ[ω, q] = χ₀[]
 """
 function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    (typeof(sP.χ_helper) !== BSE_Asym_Helper) && throw("Current version ONLY supports BSE_Asym_Helper!")
+    !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
     Nν = 2*sP.n_iν
     Nq  = size(χ₀.data,χ₀.axes[:q])
@@ -158,7 +158,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
                 χννpω[l,l] += 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
             end
             @timeit to "inv" inv!(χννpω, ipiv, work)
-            @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_Asym_Helper
+            @timeit to "χ Impr." if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])
@@ -201,7 +201,7 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
-    if typeof(sP.χ_helper) === BSE_Asym_Helper
+    if typeof(sP.χ_helper) <: BSE_Asym_Helpers
         λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(Qr.γ,1,:,:), view(Qr.χ,1,:),
                              mP.U, mP.β, sP.χ_helper)
     else
