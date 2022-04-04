@@ -72,11 +72,12 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
     gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
     gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
     gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
     for (i,el) in enumerate(gLoc_full)
         gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
+        gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
     end
-    gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
 
     @timeit to "local correction" begin
         #TODO: unify checks
@@ -87,7 +88,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-        χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP, local_tail=true);
+        χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
         locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
         locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
         λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
@@ -167,7 +168,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_full, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 end
 #TODO: cleanup clutter in return
 
@@ -257,7 +258,7 @@ function ωindex_range(sP::SimulationParameters)
 end
 
 """
-    flatten_gLoc(kG::ReducedKGrid, arr::AbstractArray{AbstractArray})
+    flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})
 
 transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
 depends on grid shape.
@@ -301,11 +302,11 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     return res
 end
 
-q0_index(kG::ReducedKGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
+q0_index(kG::KGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
 #TODO: most quantities should know their indices! Implement this in DataTypes
 ω0_index(sP::SimulationParameters) = sP.n_iω+1
 
-function log_q0_χ_check(kG::ReducedKGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
     q0_ind = q0_index(kG)
     if q0_ind != nothing
         ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)#TODO: adapt for arbitrary ω indices

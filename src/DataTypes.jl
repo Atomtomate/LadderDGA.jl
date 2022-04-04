@@ -21,7 +21,7 @@ struct χ₀T
     axes::Dict{Symbol, Int}
     #TODO: grid::FreqGridType
     #TODO: calculate t1,t2 of bubble from GFtails (first: define GF struct)
-    function χ₀T(data::Array{_eltype,3}, kG::ReducedKGrid, t1::Vector{ComplexF64}, t2::Float64,
+    function χ₀T(data::Array{_eltype,3}, kG::KGrid, t1::Vector{ComplexF64}, t2::Float64,
                  β::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int)
         χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
         c1 = real.(kintegrate(kG, t1))

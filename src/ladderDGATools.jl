@@ -31,14 +31,14 @@ end
 
 #TODO: implement complex to real fftw
 #TODO: gImp should know about its tail instead of χ₀
-function calc_bubble(Gνω::GνqT, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
         #TODO: fix the offset (BSE_SC inconsistency)
         for (νi,νn) in enumerate(νrange)
-            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω[:,νn+ωn].parent,gridshape(kG)))
+            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
             data[:,νi,ωi] .*= -mP.β
         end
     end
@@ -68,6 +68,8 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::In
     χννpω = Matrix{eltype(χ)}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
+    λ_cache = Array{eltype(χννpω),1}(undef, Nν)
+
     for i in 1:length(qωi_range)
         qi,ωi = qωi_range[i]
         ωn = ωi + ω_offset
@@ -76,16 +78,16 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::In
             χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωi]
         end
         inv!(χννpω, ipiv, work)
-        χ[i], λ_out = calc_χλ_impr(type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
+        χ[i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
                                    U, β, χ₀Asym[qi,ωi], χ_helper);
-        γ[:, i] = (1 .- s*λ_out) ./ (1 .+ s* U .* χ[i])
+        γ[:, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* χ[i])
         (qi == 1 && ωi == 1) && println("dbg...: ", χ[i])
     end
     return χ, γ
 end
 
 """
-    calc_χ_trilex(Γr::ΓT, χ₀, kG::ReducedKGrid, U::Float64, mP, sP)
+    calc_χ_trilex(Γr::ΓT, χ₀, kG::KGrid, U::Float64, mP, sP)
 
 Solve χ = χ₀ - 1/β² χ₀ Γ χ
 ⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
@@ -93,7 +95,7 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     (typeof(sP.χ_helper) !== BSE_Asym_Helper) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
     Nν = 2*sP.n_iν
@@ -129,7 +131,7 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, 
     return qωi_part, qωi_range, remote_results, NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
     s = type === :ch ? -1 : 1
@@ -146,6 +148,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
     χννpω = Matrix{_eltype}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
+    λ_cache = Array{eltype(χννpω),1}(undef, Nν)
 
     for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
@@ -156,9 +159,9 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::ReducedKGrid, mP::
             end
             @timeit to "inv" inv!(χννpω, ipiv, work)
             @timeit to "χ Impr." if typeof(sP.χ_helper) === BSE_Asym_Helper
-                χ[qi, ωi], λ_out = calc_χλ_impr(type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
+                χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
-                γ[qi, :, ωi] = (1 .- s*λ_out) ./ (1 .+ s*mP.U .* χ[qi, ωi])
+                γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])
             else
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
@@ -233,7 +236,7 @@ end
 function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
             Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
-            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::ReducedKGrid, 
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
     for ωii in 1:length(ωindices)
@@ -258,7 +261,7 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
 end
 
 function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
-                Gνω::GνqT, kG::ReducedKGrid,
+                Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"

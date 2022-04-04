@@ -12,14 +12,14 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
     for kIteration in 1:length(kGridsStr)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
         Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 
         flush(log_io)
         # ladder quantities
         @info "non local bubble"
         flush(log_io)
-        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, kG, mP, sP);
+        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_rfft, gLoc_rfft, kG, mP, sP);
         @info "chi sp"
         flush(log_io)
         @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
@@ -31,7 +31,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
+        λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
         λnew_nls = nothing#λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
         #@info "found $λnew_nls\n"
@@ -41,7 +41,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         #@timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
 
         #@timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
-        #               Σ_ladderLoc, Σ_loc, gLoc_fft, Fsp, locQ_sp, kG, mP, sP)
+        #               Σ_ladderLoc, Σ_loc, gLoc_rfft, Fsp, locQ_sp, kG, mP, sP)
     # Prepare data
 
         flush(log_io)

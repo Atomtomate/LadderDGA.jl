@@ -37,7 +37,7 @@ function get_χ_min(χr::AbstractArray{Float64,2})
 end
 
 
-function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     # min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
@@ -63,7 +63,7 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
 end
 
 function λsp(χr::Array{Float64,2}, iωn::Array{ComplexF64,1}, EKin::Float64,
-                            rhs::Float64, kG::ReducedKGrid, mP::ModelParameters)
+                            rhs::Float64, kG::KGrid, mP::ModelParameters)
     #TODO: this should use sum_freq instead of naiive sum()
     f(λint) = real(sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin, iωn)))/mP.β  -EKin*mP.β/12 - rhs
     df(λint) = real(sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:]))/mP.β
@@ -73,7 +73,7 @@ function λsp(χr::Array{Float64,2}, iωn::Array{ComplexF64,1}, EKin::Float64,
 end
 
 function calc_λsp_correction(χ_in::AbstractArray{Float64,2}, usable_ω::AbstractArray{Int64},
-                            EKin::Float64, rhs::Float64, kG::ReducedKGrid, 
+                            EKin::Float64, rhs::Float64, kG::KGrid, 
                             mP::ModelParameters, sP::SimulationParameters)
     χr    = χ_in[:,usable_ω]
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
@@ -88,7 +88,7 @@ end
 
 function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
-        kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters; 
+        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
         νmax::Int = -1, iterations=1000, ftol=1e-8)
 
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -135,7 +135,7 @@ end
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
-            kG::ReducedKGrid, mP::ModelParameters, sP::SimulationParameters;
+            kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
             νmax = -1, iterations=400, ftol=1e-8, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     Nq = size(nlQ_sp.χ,1)
@@ -193,7 +193,7 @@ end
 
 function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
-            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, kG::ReducedKGrid,
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, kG::KGrid,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
@@ -211,7 +211,7 @@ function λ_correction!(type::Symbol, imp_density, F, Σ_loc_pos, Σ_ladderLoc,
                        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                        locQ::NonLocalQuantities,
                       χ₀::χ₀T, Gνω::GνqT, 
-                      kG::ReducedKGrid,
+                      kG::KGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
 
     λ = λ_correction(type, imp_density, F, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, locQ,
