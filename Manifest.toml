@@ -40,7 +40,7 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.BSE_SC]]
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
-git-tree-sha1 = "1ac11b3a5458ce861fb35c579212caaf10289213"
+git-tree-sha1 = "a06ecc1cec654d9c6966732a09066bdabc58791c"
 repo-rev = "master"
 repo-url = "/home/julian/Hamburg/BSE_SC.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
