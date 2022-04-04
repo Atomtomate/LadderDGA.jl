@@ -53,9 +53,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χDMFTch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
         χDMFTch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"], (2,3,1))
         Γsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γsp"]) : f["Γsp"], (2,3,1))
+        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γsp"]) : -f["Γsp"], (2,3,1))
         Γch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["Γch"]) : f["Γch"], (2,3,1))
+        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γch"]) : -f["Γch"], (2,3,1))
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
             g0 = f["g0"]
@@ -72,27 +72,29 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
     gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
     gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
     gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
     for (i,el) in enumerate(gLoc_full)
         gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
+        gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
     end
-    gLoc = G_from_Σ(Σ_loc, kGrid.ϵkGrid, sP.fft_range, mP);
 
     @timeit to "local correction" begin
         #TODO: unify checks
         (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
-        (!sP.dbg_full_eom_omega && (sP.tc_type_b == :nothing)) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
+        (sP.tc_type_b == :nothing) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
         sP.ωsum_type == :individual && @error "Individual ranges not tested yet"
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-        χ₀Loc = calc_bubble(gImp, kGridLoc, mP, sP, local_tail=true);
+        χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
         locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
         locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
         λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
         Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
+        println("DBG :   ",sum(Γsp))
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
@@ -107,27 +109,29 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
             else
-                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP)
-                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP)
+                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
+                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
             end
         end
 
-        if sP.ω_smoothing == :full
-            ωZero = sP.n_iω
-            @warn "smoothing deactivated for now!"
-            filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
-            filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
-            filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
-            filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
-            χLocsp_ω_tmp[:] = collect(χLocsp_ω)
-            χLocch_ω_tmp[:] = collect(χLocch_ω)
-        elseif sP.ω_smoothing == :range
-            ωZero = sP.n_iω
-            @warn "smoothing deactivated for now!"
-            χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
-            χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
-            χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
-            χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
+        if sP.sumExtrapolationHelper !== nothing
+            if sP.sumExtrapolationHelper.ω_smoothing == :full
+                ωZero = sP.n_iω
+                @warn "smoothing deactivated for now!"
+                filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
+                filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
+                filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
+                filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
+                χLocsp_ω_tmp[:] = collect(χLocsp_ω)
+                χLocch_ω_tmp[:] = collect(χLocch_ω)
+            elseif sP.sumExtrapolationHelper.ω_smoothing == :range
+                ωZero = sP.n_iω
+                @warn "smoothing deactivated for now!"
+                χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
+                χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
+                χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
+                χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
+            end
         end
     end
 
@@ -157,13 +161,14 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         imp_density_ntc = real(sum(χupup_DMFT_ω))/mP.β
         imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12
 
+        #TODO: update output
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
           χLoc_sp($(usable_loc_sp)) = $(printr_s(χLocsp)), χLoc_ch($(usable_loc_ch)) = $(printr_s(χLocch))
-          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ?≈? $(mP.n/2 * ( 1 - mP.n/2))"
+          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_full, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 end
 #TODO: cleanup clutter in return
 
@@ -253,7 +258,7 @@ function ωindex_range(sP::SimulationParameters)
 end
 
 """
-    flatten_gLoc(kG::ReducedKGrid, arr::AbstractArray{AbstractArray})
+    flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})
 
 transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
 depends on grid shape.
@@ -296,3 +301,16 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     end
     return res
 end
+
+q0_index(kG::KGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
+#TODO: most quantities should know their indices! Implement this in DataTypes
+ω0_index(sP::SimulationParameters) = sP.n_iω+1
+
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+    q0_ind = q0_index(kG)
+    if q0_ind != nothing
+        ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)#TODO: adapt for arbitrary ω indices
+        @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+    end
+end
+

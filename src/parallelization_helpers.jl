@@ -33,3 +33,9 @@ end
 
 
 @inline _parallel_decision(Niω::Int, Nk::Int)::Bool = false# (Niω < 10 || Nk < 100) ? false : true
+
+function par_partition(set, N)
+    N = N <= 0 ? 1 : N
+    s,r = divrem(length(set),N)
+    [(i*s+1+(i<r)*(i)+(i>=r)*r):(i+1)*s+(i<r)*(i+1)+(i>=r)*r for i in 0:(N-1)]
+end

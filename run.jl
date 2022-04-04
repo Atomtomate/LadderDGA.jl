@@ -12,36 +12,36 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
     for kIteration in 1:length(kGridsStr)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
-        Fsp = F_from_χ(χDMFTsp, gImp[1,1,1,1-minimum(sP.fft_range):end], sP.n_iω, sP.n_iν, sP.shift, mP.β);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
+        Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 
         flush(log_io)
         # ladder quantities
         @info "non local bubble"
         flush(log_io)
-        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, kG, mP, sP);
+        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
         @info "chi sp"
         flush(log_io)
         @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
         @info "chi ch"
         flush(log_io)
         @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+        
+        λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, imp_density, Fsp, Σ_loc, Σ_ladderLoc, nlQ_sp, nlQ_ch, 
-                               locQ_sp, bubble, gLoc_fft, kG, mP, sP)
+        λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         @info "found $λsp_old\nextended λ"
-        λnew_nls = LadderDGA.λ_correction(:sp_ch, imp_density, Fsp, Σ_loc, Σ_ladderLoc, 
-                                          nlQ_sp,nlQ_ch,locQ_sp, bubble, gLoc_fft, kG, mP, sP)
-        @info "found $λnew_nls\n"
-        λnew = λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
+        λnew_nls = nothing#λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
+        #@info "found $λnew_nls\n"
+        λnew = [NaN, NaN] #λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
         flush(log_io)
 
         #@timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
 
         #@timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
-        #               Σ_ladderLoc, Σ_loc, gLoc_fft, Fsp, locQ_sp, kG, mP, sP)
+        #               Σ_ladderLoc, Σ_loc, gLoc_rfft, Fsp, locQ_sp, kG, mP, sP)
     # Prepare data
 
         flush(log_io)
@@ -58,6 +58,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
             f["bubble"] = bubble
+            f["λ₀_sp"] = λ₀
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
             f["λsp_old"] = λsp_old
@@ -70,7 +71,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["kG"] = kG
             f["gLoc_fft"] = gLoc_fft
             f["Sigma_DMFT"] = Σ_loc 
-            f["Fsp"] = Fsp
+            f["χ₀Loc"] = χ₀Loc
             f["λnew_nls"] = λnew_nls
             f["λnew"] = λnew
             f["log"] = LadderDGA.get_log()

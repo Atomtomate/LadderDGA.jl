@@ -18,9 +18,9 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false)
     return E_kin, E_pot
 end
 
-function calc_E(Σ, kG, mP::ModelParameters, sP::SimulationParameters; trace=false)
+function calc_E(Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; trace=false)
     #println("TODO: make frequency summation with sum_freq optional")
-    νmax = ndims(Σ) == 2 ? size(Σ,2) : length(Σ)
+    νmax = size(Σ,2)
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
@@ -51,7 +51,7 @@ end
 
 Specialized function for DGA potential energy. Better performance than calc_E.
 """
-function calc_E_pot(kG::ReducedKGrid, G::Array{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
+function calc_E_pot(kG::KGrid, G::AbstractArray{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
                     tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
     E_pot = real.(G .* Σ .- tail);
     return kintegrate(kG, 2 .* sum(view(E_pot,:,1:size(Σ,2)), dims=[2])[:,1] .+ tail_inv) / β
@@ -64,12 +64,12 @@ function calc_E_pot_νn(kG, G, Σ, tail, tail_inv)
 end
 
 
-function calc_E_kin(kG::ReducedKGrid, G::Array{ComplexF64, 1}, ϵqGrid, tail::Array{ComplexF64, 1}, tail_inv::Vector{Float64}, β::Float64)
+function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 1}, ϵqGrid, tail::Array{ComplexF64, 1}, tail_inv::Vector{Float64}, β::Float64)
     E_kin = ϵqGrid' .* real.(G .- tail)
     return kintegrate(kG, 4 .* E_kin .+ tail_inv) / β
 end
 
-function calc_E_kin(kG::ReducedKGrid, G::Array{ComplexF64, 2}, ϵqGrid, tail::Array{ComplexF64, 2}, tail_inv::Vector{Float64}, β::Float64)
+function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 2}, ϵqGrid, tail::Array{ComplexF64, 2}, tail_inv::Vector{Float64}, β::Float64)
     E_kin = ϵqGrid' .* real.(G .- tail)
     return kintegrate(kG, 4 .* sum(E_kin, dims=[2])[:,1] .+ tail_inv) / β
 end

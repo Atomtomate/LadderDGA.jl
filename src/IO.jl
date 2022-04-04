@@ -22,15 +22,6 @@ function readConfig(cfg_in)
     sim = tml["Simulation"]
     χfill = nothing
     rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"
-    if tml["Simulation"]["chi_unusable_fill_value"] == "0"
-        χfill = zero_χ_fill
-    elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi_lambda"
-        χfill = lambda_χ_fill
-    elseif tml["Simulation"]["chi_unusable_fill_value"] == "chi"
-        χfill = χ_fill
-    else
-        error("could not parse chi fill value")
-    end
     tc_type_f = Symbol(lowercase(tml["Simulation"]["fermionic_tail_correction"]))
     if !(tc_type_f in [:nothing, :richardson, :shanks])
         error("Unrecognized tail correction type \"$(tc_type_f)\"")
@@ -106,7 +97,6 @@ function readConfig(cfg_in)
     sh_f = get_sum_helper(default_fit_range(-Nν_full:Nν_full-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
-    fft_offset = -minimum(fft_range)+1
     lo = npartial_sums(sh_f)
     up = 2*Nν_full - lo + 1 
 
@@ -115,13 +105,27 @@ function readConfig(cfg_in)
     χ_helper = if lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt"
                     BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift)
                 elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct"
-                    BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.β, nBose, nFermi, shift)
+                    BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
                 elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "nothing"
                     nothing
                 else
                     @error "could not parse chi_asympt_method $(tml["Simulation"]["chi_asympt_method"]). Options are: asympt/direct/nothing"
                     nothing
                 end
+
+    sEH = if ((tc_type_f == :richardson) || (tc_type_b == :richardson)) 
+        SumExtrapolationHelper(
+                           tml["Simulation"]["bosonic_tail_coeffs"],
+                           tml["Simulation"]["fermionic_tail_coeffs"],
+                           smoothing,
+                           sh_f,
+                           lo,
+                           up,
+                           Array{Float64, 1}(undef, lo),
+                           Array{ComplexF64, 1}(undef, lo))
+    else
+        nothing
+    end
 
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
                                tc_type_f,
@@ -130,19 +134,10 @@ function readConfig(cfg_in)
                                ωsum_type,
                                λrhs_type,
                                tml["Simulation"]["force_full_bosonic_chi"],
-                               χfill,
-                               tml["Simulation"]["bosonic_tail_coeffs"],
-                               tml["Simulation"]["fermionic_tail_coeffs"],
-                               tml["Simulation"]["usable_prct_reduction"],
-                               smoothing,
-                               sh_f,
                                fft_range,
-                               fft_offset,
+                               tml["Simulation"]["usable_prct_reduction"],
                                dbg_full_eom_omega,
-                               lo,
-                               up,
-                               Array{Float64, 1}(undef, lo),
-                               Array{ComplexF64, 1}(undef, lo)
+                               sEH
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
     for i in 1:length(tml["Simulation"]["Nk"])
@@ -484,17 +479,17 @@ function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, in
     end
 end
 
-function writeFortranΣ(dirName::String, Σ_ladder)
+function writeFortranΣ(dirName::String, Σ_ladder, β)
     res = zeros(size(Σ_ladder,2), 3)
     if !isdir(dirName)
         mkdir(dirName)
     end
 
-    for ki in 1:size(Σ_ladder,q_axis)
+    for ki in 1:size(Σ_ladder,1)
         fn = dirName * "/SELF_Q_" * lpad(ki,6,"0") * ".dat"
         open(fn, write=true) do f
             write(f, "header...\n")
-            res[:,1] = (2 .*(0:size(Σ_ladder,ν_axis)-1) .+ 1) .* π ./ mP.β
+            res[:,1] = (2 .*(0:size(Σ_ladder,2)-1) .+ 1) .* π ./ β
             res[:,2] = real.(Σ_ladder[ki,:])
             res[:,3] = imag.(Σ_ladder[ki,:])
             writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")

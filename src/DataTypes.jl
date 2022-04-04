@@ -18,10 +18,10 @@ const qGridT = Array{Tuple{Int64,Int64,Int64},1}
 struct χ₀T
     data::Array{_eltype,3}
     asym::Array{_eltype,2}
-    axes::Vector{Symbol}
+    axes::Dict{Symbol, Int}
     #TODO: grid::FreqGridType
     #TODO: calculate t1,t2 of bubble from GFtails (first: define GF struct)
-    function χ₀T(data::Array{_eltype,3}, kG::ReducedKGrid, t1::Vector{ComplexF64}, t2::Float64,
+    function χ₀T(data::Array{_eltype,3}, kG::KGrid, t1::Vector{ComplexF64}, t2::Float64,
                  β::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int)
         χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
         c1 = real.(kintegrate(kG, t1))
@@ -33,7 +33,7 @@ struct χ₀T
                 asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2[qi], c3)
             end
         end
-        new(data,asym,[:q,:ν,:ω])
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3))
     end
 end
 
@@ -60,8 +60,8 @@ end
 Contains all non local quantities computed by the lDGA code
 """
 mutable struct NonLocalQuantities
-    χ::Array{_eltype,2}
-    γ::Array{_eltype,3}
+    χ::Array{ComplexF64,2}
+    γ::Array{ComplexF64,3}
     usable_ω::AbstractArray
     λ::Float64
 end
