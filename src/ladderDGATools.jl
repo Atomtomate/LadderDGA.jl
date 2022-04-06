@@ -31,6 +31,11 @@ end
 
 #TODO: implement complex to real fftw
 #TODO: gImp should know about its tail instead of χ₀
+"""
+    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+
+Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
+"""
 function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
