@@ -128,7 +128,7 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     @warn "DBG: currently forcing omega FULL range!!"
     usable = 1:Nω
 
-    return qωi_part, qωi_range, remote_results, NonLocalQuantities(χ, γ, usable, 0.0)
+    return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
