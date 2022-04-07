@@ -20,9 +20,9 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
     for νpi in 1:size(F,2)
         ωn, νpn = OneToIndex_to_Freq(ωi, νpi, sP) #, sP.n_iν_shell)
         for νi in 1:size(F,1)
-        _, νn = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
-        @inbounds F[νi,νpi,ωi] = -(χ[νi,νpi,ωi] + (νn == νpn) * β * G[νn] * G[ωn+νn])/(
-                                                  G[νn] * G[ωn+νn] * G[νpn] * G[ωn+νpn])
+            _, νn = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
+            F[νi,νpi,ωi] = -(χ[νi,νpi,ωi] + (νn == νpn) * β * G[νn] * G[ωn+νn])/(
+                                          G[νn] * G[ωn+νn] * G[νpn] * G[ωn+νpn])
         end
         end
     end
@@ -30,7 +30,6 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
 end
 
 #TODO: implement complex to real fftw
-#TODO: gImp should know about its tail instead of χ₀
 """
     calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
 
@@ -62,7 +61,6 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
 end
 
 
-#imports: BSE_SC, LapackWrapper, LinearAlgebra, bse_inv on all workers
 function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::Int, Γr::Array{ComplexF64,3},
         χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, n_iν_shell::Int, χ_helper, U, β)
     s = type === :ch ? -1 : 1
@@ -86,7 +84,6 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::In
         χ[i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
                                    U, β, χ₀Asym[qi,ωi], χ_helper);
         γ[:, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* χ[i])
-        (qi == 1 && ωi == 1) && println("dbg...: ", χ[i])
     end
     return χ, γ
 end
@@ -112,13 +109,9 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     qωi_part = par_partition(qωi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(qωi_part))
 
-    v1, v2 = 0,0;
     for (i,ind) in enumerate(qωi_part)
-        #println("part: ", qωi_range[ind])
         remote_results[i] = remotecall(bse_inv, workerpool, type, qωi_range[ind], -sP.n_iω-1, Γr, 
                                        χ₀.data, χ₀.asym, sP.n_iν_shell, sP.χ_helper, mP.U, mP.β)
-        #v1, v2 = bse_inv(type, qωi_range[ind], -sP.n_iω-1, Γr, 
-        #                               χ₀.data, χ₀.asym, sP.n_iν_shell, sP.χ_helper, mP.U, mP.β)
     end
     for (i,ind) in enumerate(qωi_part)
         χv, γv = fetch(remote_results[i])
@@ -135,70 +128,6 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
 
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
-
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
-    #TODO: χ₀ should know about its tail c2, c3
-    s = type === :ch ? -1 : 1
-    Nν = 2*sP.n_iν
-    Nq  = length(kG.kMult)
-    Nω  = size(χ₀.data,ω_axis)
-    γ = γT(undef, Nq, Nν, Nω)
-    χ = χT(undef, Nq, Nω)
-    ωi_range = 1:Nω
-    νi_range = 1:Nν
-    qi_range = 1:Nq
-
-    χ_ω = Array{_eltype, 1}(undef, Nω)
-    χννpω = Matrix{_eltype}(undef, Nν, Nν)
-    ipiv = Vector{Int}(undef, Nν)
-    work = _gen_inv_work_arr(χννpω, ipiv)
-    λ_cache = Array{eltype(χννpω),1}(undef, Nν)
-
-    for ωi in ωi_range
-        ωn = (ωi - sP.n_iω) - 1
-        for qi in qi_range
-            χννpω[:,:] = deepcopy(Γr[:,:,ωi])
-            for l in νi_range
-                χννpω[l,l] += 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
-            end
-            @timeit to "inv" inv!(χννpω, ipiv, work)
-            @timeit to "χ Impr." if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
-                                           mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
-                γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])
-            else
-                if typeof(sP.χ_helper) === BSE_SC_Helper
-                    improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
-                end
-                #TODO: this is not necessary, sum_freq defaults to sum!
-                if sP.tc_type_f == :nothing
-                    χ[qi,ωi] = sum(χννpω)/mP.β^2
-                    for νk in νi_range
-                        γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
-                    end
-                else
-                    sEH = sP.sumExtrapolationHelper
-                    χ[qi, ωi] = sum_freq_full!(χννpω, sEH.sh_f, mP.β, sEH.fνmax_cache_c, sEH.lo, sEH.up)
-                    for νk in νi_range
-                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sEH.sh_f,1.0,
-                                                     sEH.fνmax_cache_c,sEH.lo,sEH.up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
-                    end
-                    extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
-                end
-            end
-        end
-        #TODO: write macro/function for ths "real view" beware of performance hits
-        v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
-        χ_ω[ωi] = kintegrate(kG, v)
-    end
-    log_q0_χ_check(kG, sP, χ, type)
-    usable = find_usable_interval(real.(collect(χ_ω)), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
-    sP.χ_helper != nothing && @warn "DBG: currently forcing omega FULL range!!"
-    sP.χ_helper != nothing && (usable = 1:length(χ_ω))
-    return NonLocalQuantities(χ, γ, usable, 0.0)
-end
-
 
 function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?

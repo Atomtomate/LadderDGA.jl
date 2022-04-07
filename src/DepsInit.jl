@@ -34,6 +34,7 @@ include("$(@__DIR__)/IO.jl")
 include("$(@__DIR__)/GFTools.jl")
 include("$(@__DIR__)/GFFit.jl")
 include("$(@__DIR__)/ladderDGATools.jl")
+include("$(@__DIR__)/ladderDGATools_singleCore.jl")
 include("$(@__DIR__)/lambdaCorrection.jl")
 include("$(@__DIR__)/thermodynamics.jl")
 
