@@ -29,46 +29,22 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
     return F
 end
 
-#TODO: implement complex to real fftw
 """
-    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+    calc_χ_trilex(Γr::ΓT, χ₀, kG::KGrid, U::Float64, mP, sP)
 
-Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
+Solve χ = χ₀ - 1/β² χ₀ Γ χ
+⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
+⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
+
+with indices: χ[ω, q] = χ₀[]
 """
-function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
-    #TODO: fix the size (BSE_SC inconsistency)
-    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
-    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
-        νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
-        #TODO: fix the offset (BSE_SC inconsistency)
-        for (νi,νn) in enumerate(νrange)
-            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
-            data[:,νi,ωi] .*= -mP.β
-        end
-    end
-    #TODO: not necessary after real fft
-    data = _eltype === Float64 ? real.(data) : data
-
-    #TODO: move tail calculation to definition of GF (GF should know about its tail)
-    t1, t2 = if local_tail
-        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
-        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-    else
-        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
-        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-    end
-    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
-end
-
-
 function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::Int, Γr::Array{ComplexF64,3},
-        χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, n_iν_shell::Int, χ_helper, U, β)
+        χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, n_iν_shell::Int, χ_helper, U::Float64, β::Float64)
     s = type === :ch ? -1 : 1
     Nν = size(Γr,1)
-    χ = Array{eltype(Γr),1}(undef, length(qωi_range))
-    γ = Array{eltype(Γr),2}(undef, Nν, length(qωi_range))
+    data = Array{eltype(Γr),2}(undef, Nν+1, length(qωi_range))
 
-    χννpω = Matrix{eltype(χ)}(undef, Nν, Nν)
+    χννpω = Matrix{eltype(Γr)}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     λ_cache = Array{eltype(χννpω),1}(undef, Nν)
@@ -81,22 +57,58 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::In
             χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωi]
         end
         inv!(χννpω, ipiv, work)
-        χ[i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
+        data[1,i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
                                    U, β, χ₀Asym[qi,ωi], χ_helper);
-        γ[:, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* χ[i])
+        data[2:end, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* data[1,i])
     end
-    return χ, γ
+    return data
+end
+
+
+function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, ωνi_range::Vector{NTuple{4,Int}})
+    data = Array{ComplexF64,2}(undef, length(kG.kMult), length(ωνi_range))
+    for (i,ωνn) in enumerate(ωνi_range)
+        ωn,νn,_,_ = ωνn
+        conv_fft!(kG, view(data,:,i), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
+    end
+    return data
 end
 
 """
-    calc_χ_trilex(Γr::ΓT, χ₀, kG::KGrid, U::Float64, mP, sP)
+    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
 
-Solve χ = χ₀ - 1/β² χ₀ Γ χ
-⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
-⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
-
-with indices: χ[ω, q] = χ₀[]
+Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
+function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+
+    ωνi_range = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
+                 for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
+    ωνi_part = par_partition(ωνi_range, length(workerpool))
+    remote_results = Vector{Future}(undef, length(ωνi_part))
+    
+    for (i,ind) in enumerate(ωνi_part)
+        remote_results[i] = remotecall(χ₀_conv, workerpool, kG, Gνω, Gνω_r, ωνi_range[ind])
+    end
+    for (i,ind) in enumerate(ωνi_part)
+        data_i = fetch(remote_results[i])
+        for (j,ωνind) in enumerate(ωνi_range[ind])
+            _,_,ωi,νi = ωνind
+            data[:,νi,ωi] = data_i[:,j] .* -mP.β
+        end
+    end
+
+    #TODO: move tail calculation to definition of GF (GF should know about its tail)
+    t1, t2 = if local_tail
+        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
+        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    else
+        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
+        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    end
+    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
+end
+
 function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
@@ -106,6 +118,7 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     γ = γT(undef, Nq, Nν, Nω)
     χ = χT(undef, Nq, Nω)
     qωi_range = collect(Base.product(1:Nq, 1:Nω))[:]
+    #TODO: only distribute necessary parts of Γr and χ₀_data, let partition output index sets
     qωi_part = par_partition(qωi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(qωi_part))
 
@@ -114,13 +127,12 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
                                        χ₀.data, χ₀.asym, sP.n_iν_shell, sP.χ_helper, mP.U, mP.β)
     end
     for (i,ind) in enumerate(qωi_part)
-        χv, γv = fetch(remote_results[i])
+        data_i = fetch(remote_results[i])
         for (j,qωind) in enumerate(qωi_range[ind])
-            χ[qωind...] = χv[j]
-            γ[qωind[1],:,qωind[2]] .= γv[j]
+            χ[qωind...] = data_i[1,j]
+            γ[qωind[1],:,qωind[2]] .= data_i[2:end,j]
         end
     end
-
 
     log_q0_χ_check(kG, sP, χ, type)
     @warn "DBG: currently forcing omega FULL range!!"

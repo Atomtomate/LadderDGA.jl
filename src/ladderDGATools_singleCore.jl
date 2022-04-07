@@ -1,3 +1,29 @@
+#TODO: implement complex to real fftw
+function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+    #TODO: fix the size (BSE_SC inconsistency)
+    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
+        νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
+        #TODO: fix the offset (BSE_SC inconsistency)
+        for (νi,νn) in enumerate(νrange)
+            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
+            data[:,νi,ωi] .*= -mP.β
+        end
+    end
+    #TODO: not necessary after real fft
+    data = _eltype === Float64 ? real.(data) : data
+
+    #TODO: move tail calculation to definition of GF (GF should know about its tail)
+    t1, t2 = if local_tail
+        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
+        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    else
+        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
+        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    end
+    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
+end
+
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3

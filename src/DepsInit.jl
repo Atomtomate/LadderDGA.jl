@@ -53,8 +53,7 @@ function __init__()
     global to = TimerOutput()
     global LOG_BUFFER = IOBuffer()
     global LOG = ""
-    global workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
-    #TODO: initialize workers here instead of relying on julia -p
+#addprocs(2; topology=:master_worker)
     # ==================== Argument Parser ====================
     s = ArgParseSettings()
     @add_arg_table s begin
@@ -65,6 +64,9 @@ function __init__()
     end
 
     args = parse_args([], s)
+    global workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    #TODO: initialize workers here instead of relying on julia -p
+    #TODO: set lazy=  false and initialize master to worker topology! Memory leak bug in julia!!!
     #TODO: this should be set from command line and only default back to stdout
     io = stdout
     metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)

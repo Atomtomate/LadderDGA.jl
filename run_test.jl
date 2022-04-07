@@ -1,12 +1,7 @@
 using Base.GC
 using TimerOutputs
 
-using Pkg
-Pkg.activate(@__DIR__)
-using LadderDGA
-
 using Distributed
-#addprocs(2; topology=:master_worker)
 @everywhere using Pkg
 @everywhere println(@__DIR__)
 @everywhere Pkg.activate(@__DIR__)
@@ -18,9 +13,10 @@ cfg_file = "/home/julian/Hamburg/ED_data/asympt_tests/config_14_small.toml"
 
 # ladder quantities
 @info "bubble"
+@timeit LadderDGA.to "nl bblt par" bubble_par = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP);
 @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
 @info "chi"
-#@timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+@timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
 @timeit LadderDGA.to "nl xsp par" nlQ_sp_par = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP);
 #@timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
 
