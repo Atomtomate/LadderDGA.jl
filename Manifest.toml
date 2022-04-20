@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.0-rc1"
+julia_version = "1.7.2"
 manifest_format = "2.0"
 
 [[deps.AbstractFFTs]]
@@ -160,11 +160,11 @@ version = "1.10.0"
 
 [[deps.Dispersions]]
 deps = ["AbstractFFTs", "Combinatorics", "Coverage", "Documenter", "EquivalenceClassesConstructor", "FFTW", "FastGaussQuadrature", "LinearAlgebra", "Pkg", "Random", "ShiftedArrays", "Test"]
-git-tree-sha1 = "60d0b3b5a9cfece4b0532c21e3b9ecf726390b37"
+git-tree-sha1 = "5b23aeb7d7bb8282c0281714780d336c8c087bb5"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
-version = "0.6.3"
+version = "0.7.0"
 
 [[deps.Distances]]
 deps = ["LinearAlgebra", "SparseArrays", "Statistics", "StatsAPI"]
@@ -517,9 +517,9 @@ uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 
 [[deps.Preferences]]
 deps = ["TOML"]
-git-tree-sha1 = "d3538e7f8a790dc8903519090857ef8e1283eecd"
+git-tree-sha1 = "47e5f437cc0e7ef2ce8406ce1e7e24d44915f88d"
 uuid = "21216c6a-2e73-6563-6e65-726566657250"
-version = "1.2.5"
+version = "1.3.0"
 
 [[deps.Printf]]
 deps = ["Unicode"]
@@ -546,7 +546,7 @@ deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[deps.Random]]
-deps = ["Serialization"]
+deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[deps.RealDot]]

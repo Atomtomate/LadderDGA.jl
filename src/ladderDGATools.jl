@@ -204,8 +204,8 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF
                 Σ[1,νii-1,ωn] = eom(U, Q_sp.γ[1,νi,ωi], Q_ch.γ[1,νi,ωi], Q_sp.χ[1,ωi], 
                                     Q_ch.χ[1,ωi], λ₀[1,νi,ωi]) * v[1]
             else
-                @simd for qi in 1:size(Σ,q_axis)
-                @inbounds Kνωq_pre[qi] = eom(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi], Q_sp.χ[qi,ωi], 
+                for qi in 1:size(Σ,q_axis)
+                Kνωq_pre[qi] = eom(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi], Q_sp.χ[qi,ωi], 
                                     Q_ch.χ[qi,ωi], λ₀[qi,νi,ωi])
                 end
                 conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)

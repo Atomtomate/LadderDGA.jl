@@ -10,6 +10,7 @@ using Combinatorics
 using TOML          # used for input
 using Printf
 using FiniteDiff
+using ShiftedArrays
 
 #using ForwardDiff, Zygote
 using Query

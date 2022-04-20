@@ -126,43 +126,17 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         @timeit to "λc" χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
 
         #TODO: unroll 
-        @timeit to "Σw" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
+        calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
+        Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
-#        @timeit to "Σw inl" begin
-#        fill!(Σ_ladder_ω, zero(ComplexF64))
-#        for ωi in ωindices
-#            νZero = ν0Index_of_ωIndex(ωi, sP)
-#            maxn = minimum([νZero + sP.n_iν - 1, size(nlQ_ch.γ,ν_axis), νZero + size(Σ_ladder_ω, ν_axis) - 1])
-#            ωn = (ωi - sP.n_iω) - 1
-#            for (νii,νi) in enumerate(νZero:maxn)
-#                v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
-#                for qi in 1:Nq
-#                    χsp_i_λ = χ_λ(χ_sp_λ[qi,ωi],λ[1])
-#                    χch_i_λ = χ_λ(χ_ch_λ[qi,ωi],λ[2])
-#                    Kνωq_pre[qi] = eom(mP.U, nlQ_sp.γ[qi,νi,ωi], nlQ_ch.γ[qi,νi,ωi], χsp_i_λ, χch_i_λ, λ₀[qi,νi,ωi])
-#                end
-#                expandKArr!(kG, kG.cache1, Kνωq_pre)
-#                kG.fftw_plan * kG.cache1
-#                for i in eachindex(kG.cache1)
-#                    @inbounds kG.cache1[i] = kG.cache1[i] * v[i]
-#                end
-#                kG.fftw_plan \ kG.cache1
-#                Dispersions.conv_post!(kG, view(Σ_ladder_ω,:,νii-1,ωn), kG.cache1)
-#                #conv_fft1!(kG, view(Σ_ladder_ω,:,νii-1,ωn), Kνωq_pre, v)
-#            end
-#            #TODO: move computation of E_pot here
-#        end
-#    end
-
-    
         lhs_c1 = 0.0
         lhs_c2 = 0.0
         for (ωi,t) in enumerate(χ_tail)
             tmp1 = 0.0
             tmp2 = 0.0
             for (qi,km) in enumerate(kG.kMult)
-                χsp_i_λ = χ_λ(χ_sp_λ[qi,ωi],λ[1])
-                χch_i_λ = χ_λ(χ_ch_λ[qi,ωi],λ[2])
+                χsp_i_λ = real(nlQ_sp.χ[qi,ωi])
+                χch_i_λ = real(nlQ_ch.χ[qi,ωi])
                 tmp1 += 0.5 * (χch_i_λ + χsp_i_λ) * km
                 tmp2 += 0.5 * (χch_i_λ - χsp_i_λ) * km
             end
@@ -170,7 +144,6 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             lhs_c2 += tmp2/k_norm
         end
 
-        @timeit to "ΣL" Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
         lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
         lhs_c2 = lhs_c2/mP.β
 
