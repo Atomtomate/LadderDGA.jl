@@ -20,6 +20,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "non local bubble"
         flush(log_io)
         @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl bblt par" bubble_par = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP);
         @info "chi sp"
         flush(log_io)
         @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP);

@@ -1,41 +1,5 @@
-dχ_λ(χ, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), χ)
-χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
-
-function χ_λ(nlQ::NonLocalQuantities, λ::Float64) where T <: Union{ComplexF64, Float64}
-    nlQ_new = deepcopy(nlQ)
-    χ_λ!(nlQ_new.χ, nlQ.χ, λ)
-    return nlQ_new
-end
-
-function χ_λ(χ::AbstractArray{T}, λ::Float64) where T <: Union{ComplexF64, Float64}
-    res = similar(χ)
-    χ_λ!(res, χ, λ)
-    return res
-end
-
-function χ_λ!(χ_λ::AbstractArray{ComplexF64}, χ::AbstractArray{ComplexF64}, λ::Float64)
-    @simd for i in eachindex(χ_λ)
-        @inbounds χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
-    end
-end
-
-function χ_λ!(χ_λ::AbstractArray{Float64}, χ::AbstractArray{Float64}, λ::Float64)
-    @simd for i in eachindex(χ_λ)
-        @inbounds χ_λ[i] = 1.0 / ((1.0 / χ[i]) + λ)
-    end
-end
-
-function χ_λ!(χ_λ::AbstractArray{T,2}, χ::AbstractArray{T,2}, λ::Float64, ωindices::AbstractArray{Int,1}) where T <: Number
-    for i in ωindices
-        χ_λ!(view(χ_λ, :, i),view(χ,:,i), λ)
-    end
-end
-
-function get_χ_min(χr::AbstractArray{Float64,2})
-    nh  = ceil(Int64, size(χr,2)/2)
-    -minimum(1 ./ view(χr,:,nh))
-end
-
+include("lambdaCorrection_aux.jl")
+include("lambdaCorrection_clean.jl")
 
 function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -46,89 +10,69 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     #TODO: this should use sum_freq instead of naiive sum()
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
+    @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
-        @info " using n/2 * (1 - n/2) - Σ χch as rhs"
+        @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
-        @info " using χupup_DMFT - Σ χch as rhs"
+        @info "  ↳ using χupup_DMFT - Σ χch as rhs"
         2*imp_density - χch_sum
     end
 
-    @info """Found usable intervals for non-local susceptibility of length 
-          sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
-          ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
-          usable: $(usable_ω), length: $(length(usable_ω))
-          χch sum = $(χch_sum), rhs = $(rhs)"""
+    @info """  ↳ Found usable intervals for non-local susceptibility of length 
+                 ↳ sp: $(nlQ_sp.usable_ω), length: $(length(nlQ_sp.usable_ω))
+                 ↳ ch: $(nlQ_ch.usable_ω), length: $(length(nlQ_ch.usable_ω))
+                 ↳ total: $(usable_ω), length: $(length(usable_ω))
+               ↳ χch sum = $(χch_sum), rhs = $(rhs)"""
     return rhs, usable_ω
 end
 
-function λsp(χr::Array{Float64,2}, iωn::Array{ComplexF64,1}, EKin::Float64,
-                            rhs::Float64, kG::KGrid, mP::ModelParameters)
-    #TODO: this should use sum_freq instead of naiive sum()
-    f(λint) = real(sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin, iωn)))/mP.β  -EKin*mP.β/12 - rhs
-    df(λint) = real(sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:]))/mP.β
-
-    λsp = newton_right(f, df, get_χ_min(χr))
-    return λsp
+#TODO: refactor code repetition
+function f_c1(λ::Float64, kMult::Vector{Float64}, χ::Matrix{Float64}, 
+        tail::Vector{ComplexF64})::Float64
+    res = 0.0
+    resi = 0.0
+    norm = sum(kMult)
+    for (i,ωi) in enumerate(tail)
+        resi = 0.0
+        for (ki,km) in enumerate(kMult)
+            resi += χ_λ(χ[ki,i],λ) * km
+        end
+        res += resi/norm - ωi
+    end
+    return real(res)
 end
 
-function calc_λsp_correction(χ_in::AbstractArray{Float64,2}, usable_ω::AbstractArray{Int64},
+function df_c1(λ::Float64, kMult::Vector{Float64}, χ::Matrix{Float64}, 
+        tail::Vector{ComplexF64})::Float64
+    res = 0.0
+    resi = 0.0
+    norm = sum(kMult)
+    for (i,ωi) in enumerate(tail)
+        resi = 0.0
+        for (ki,km) in enumerate(kMult)
+            resi += dχ_λ(χ[ki,i],λ) * km
+        end
+        res += resi/norm - ωi
+    end
+    return real(res)
+end
+
+function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int64},
                             EKin::Float64, rhs::Float64, kG::KGrid, 
                             mP::ModelParameters, sP::SimulationParameters)
-    χr    = χ_in[:,usable_ω]
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
-    #TODO: this should use sum_freq instead of naiive sum()
-    f(λint) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin, iωn))/mP.β  -EKin*mP.β/12 - rhs
-    df(λint) = sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:])/mP.β
+    @warn "calc λsp assumes real χ_sp/ch"
+    χr    = real.(χ_in[:,usable_ω])
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail = EKin ./ (iωn.^2)
 
-    λsp = newton_right(f, df, get_χ_min(χr))
-    @info "Found λsp " λsp
+    f_c1_int(λint::Float64)::Float64 = f_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
+    df_c1_int(λint::Float64)::Float64 = df_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
+
+    λsp = newton_right(f_c1_int, df_c1_int, get_χ_min(χr))
     return λsp
 end
-
-function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
-        Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3},
-        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-        νmax::Int = -1, iterations=1000, ftol=1e-8)
-
-    ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    nlQ_sp_λ = deepcopy(nlQ_sp)
-    nlQ_ch_λ = deepcopy(nlQ_ch)
-
-    Σ_hartree = mP.n * mP.U/2.0;
-    νGrid = 0:(νmax-1) 
-    iν_n = iν_array(mP.β, νGrid)
-    E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
-            (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
-
-    tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
-    E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
-    E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-
-    function cond_both!(F, λ)
-        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
-        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
-        Σ_ladder = calc_Σ(nlQ_sp_λ, nlQ_ch_λ, λ₀, Gνω, kG, mP, sP).parent[:,1:νmax]
-        χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
-        χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
-        E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
-        G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
-        E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
-        lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
-        lhs_c2 = real(sum(χupdo_ω))/mP.β
-        rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-        F[1] = lhs_c1 - rhs_c1
-        F[2] = lhs_c2 - rhs_c2
-        return lhs_c1, rhs_c1, lhs_c2, rhs_c2
-    end
-    Fint = [0.1, 0.1]
-
-    res_nls = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
-end
-
 
 #TODO: this is manually unrolled...
 # after optimization, revert to:
@@ -138,46 +82,101 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
             νmax = -1, iterations=400, ftol=1e-8, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
-    Nq = size(nlQ_sp.χ,1)
-    Nω = size(nlQ_sp.χ,2)
+    @info "Using DMFT GF for second condition in new lambda correction"
     
+    # general definitions
+    Nq = size(nlQ_sp.γ,1)
+    Nν = size(nlQ_sp.γ,2)
+    Nω = size(nlQ_sp.γ,3)
+    EKin = mP.Ekin_DMFT
     ωindices = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     ωrange = (-sP.n_iω:sP.n_iω)[ωindices]
     ωrange = first(ωrange):last(ωrange)
     νmax = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
-    νGrid = 0:(νmax-1) 
-    iν_n = iν_array(mP.β, νGrid)
+    νGrid = 0:(νmax-1)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    nlQ_sp_λ = deepcopy(nlQ_sp)
-    nlQ_ch_λ = deepcopy(nlQ_ch)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail = EKin ./ (iωn.^2)
+    k_norm = Nk(kG)
 
-    Σ_hartree = mP.n * mP.U/2.0;
-    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
+    # EoM optimization related definitions
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
     Σ_ladder_ω = OffsetArray( Array{ComplexF64,3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
     Σ_ladder = OffsetArray( Array{ComplexF64,2}(undef,Nq, νmax),
                               1:Nq, 0:νmax-1)
+
+    # preallications
+    nlQ_sp_λ = deepcopy(nlQ_sp)
+    nlQ_ch_λ = deepcopy(nlQ_ch)
+    χ_sp_λ = real.(nlQ_sp.χ[:,ωindices])
+    χ_ch_λ = real.(nlQ_ch.χ[:,ωindices])
+
+    # Therodynamics preallocations
+    Σ_hartree = mP.n * mP.U/2.0;
     E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
             (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
-    tail = [1 ./ (iν_n .^ n) for n in 1:length(E_pot_tail_c)]
+    tail = [1 ./ (iν_array(mP.β, νGrid) .^ n) for n in 1:length(E_pot_tail_c)]
     E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
         
     function cond_both!(F::Vector{Float64}, λ::Vector{Float64})
         #TODO: captured variables that are no reassigned, should be assigned in a let block
-        χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
-        χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
-        calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
-        Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+        @timeit to "λc" χ_λ!(nlQ_sp_λ.χ, nlQ_sp.χ, λ[1])
+        @timeit to "λc" χ_λ!(nlQ_ch_λ.χ, nlQ_ch.χ, λ[2])
+
+        #TODO: unroll 
+        @timeit to "Σw" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp_λ, nlQ_ch_λ, Gνω, λ₀, mP.U, kG, sP)
+
+#        @timeit to "Σw inl" begin
+#        fill!(Σ_ladder_ω, zero(ComplexF64))
+#        for ωi in ωindices
+#            νZero = ν0Index_of_ωIndex(ωi, sP)
+#            maxn = minimum([νZero + sP.n_iν - 1, size(nlQ_ch.γ,ν_axis), νZero + size(Σ_ladder_ω, ν_axis) - 1])
+#            ωn = (ωi - sP.n_iω) - 1
+#            for (νii,νi) in enumerate(νZero:maxn)
+#                v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
+#                for qi in 1:Nq
+#                    χsp_i_λ = χ_λ(χ_sp_λ[qi,ωi],λ[1])
+#                    χch_i_λ = χ_λ(χ_ch_λ[qi,ωi],λ[2])
+#                    Kνωq_pre[qi] = eom(mP.U, nlQ_sp.γ[qi,νi,ωi], nlQ_ch.γ[qi,νi,ωi], χsp_i_λ, χch_i_λ, λ₀[qi,νi,ωi])
+#                end
+#                expandKArr!(kG, kG.cache1, Kνωq_pre)
+#                kG.fftw_plan * kG.cache1
+#                for i in eachindex(kG.cache1)
+#                    @inbounds kG.cache1[i] = kG.cache1[i] * v[i]
+#                end
+#                kG.fftw_plan \ kG.cache1
+#                Dispersions.conv_post!(kG, view(Σ_ladder_ω,:,νii-1,ωn), kG.cache1)
+#                #conv_fft1!(kG, view(Σ_ladder_ω,:,νii-1,ωn), Kνωq_pre, v)
+#            end
+#            #TODO: move computation of E_pot here
+#        end
+#    end
+
     
-        χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch_λ.χ .+ nlQ_sp_λ.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
-        χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch_λ.χ .- nlQ_sp_λ.χ,1)[1,ωindices]
+        lhs_c1 = 0.0
+        lhs_c2 = 0.0
+        for (ωi,t) in enumerate(χ_tail)
+            tmp1 = 0.0
+            tmp2 = 0.0
+            for (qi,km) in enumerate(kG.kMult)
+                χsp_i_λ = χ_λ(χ_sp_λ[qi,ωi],λ[1])
+                χch_i_λ = χ_λ(χ_ch_λ[qi,ωi],λ[2])
+                tmp1 += 0.5 * (χch_i_λ + χsp_i_λ) * km
+                tmp2 += 0.5 * (χch_i_λ - χsp_i_λ) * km
+            end
+            lhs_c1 += tmp1/k_norm - t
+            lhs_c2 += tmp2/k_norm
+        end
+
+        @timeit to "ΣL" Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+        lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
+        lhs_c2 = lhs_c2/mP.β
+
         #TODO: the next line is expensive: Optimize G_from_Σ
-        G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
-        E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
-        lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
-        lhs_c2 = real(sum(χupdo_ω))/mP.β
+        @timeit to "GCorr" G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+        @timeit to "Ep" E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
@@ -197,10 +196,16 @@ function λ_correction(type::Symbol, imp_density::Float64,
             mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
-        calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
+        @timeit to "λsp opt" λsp = calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
+        @timeit to "λsp clean" λsp_clean = calc_λsp_correction_clean(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
+        @info "old: " λsp_clean " vs. " λsp
+        λsp
     elseif type == :sp_ch
         @warn "using unoptimized λ correction algorithm"
-        extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @timeit to "λspch clean" λ_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @timeit to "λspch opt" λ_opt = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @info "new: " λ_clean " vs. " λ_opt
+        λ_clean
     else
         error("unrecognized λ correction type: $type")
     end
@@ -210,8 +215,7 @@ end
 function λ_correction!(type::Symbol, imp_density, F, Σ_loc_pos, Σ_ladderLoc,
                        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
                        locQ::NonLocalQuantities,
-                      χ₀::χ₀T, Gνω::GνqT, 
-                      kG::KGrid,
+                      χ₀::χ₀T, Gνω::GνqT, kG::KGrid,
                       mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
 
     λ = λ_correction(type, imp_density, F, Σ_loc_pos, Σ_ladderLoc, nlQ_sp, nlQ_ch, locQ,

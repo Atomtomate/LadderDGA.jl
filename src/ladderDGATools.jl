@@ -38,8 +38,9 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::Int, Γr::Array{ComplexF64,3},
-        χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, n_iν_shell::Int, χ_helper, U::Float64, β::Float64)
+function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Dict{Int,Int}, ω_offset::Int,
+        Γr::Array{ComplexF64,3}, χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, 
+        n_iν_shell::Int, χ_helper, U::Float64, β::Float64)
     s = type === :ch ? -1 : 1
     Nν = size(Γr,1)
     data = Array{eltype(Γr),2}(undef, Nν+1, length(qωi_range))
@@ -52,13 +53,14 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ω_offset::In
     for i in 1:length(qωi_range)
         qi,ωi = qωi_range[i]
         ωn = ωi + ω_offset
-        copy!(χννpω, view(Γr,:,:,ωi))
+        ωii = ωind_map[ωi]
+        copy!(χννpω, view(Γr,:,:,ωii))
         for l in 1:size(χννpω,1)
-            χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωi]
+            χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωii]
         end
         inv!(χννpω, ipiv, work)
-        data[1,i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωi), 
-                                   U, β, χ₀Asym[qi,ωi], χ_helper);
+        data[1,i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωii), 
+                                   U, β, χ₀Asym[qi,ωii], χ_helper);
         data[2:end, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* data[1,i])
     end
     return data
@@ -118,17 +120,22 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     γ = γT(undef, Nq, Nν, Nω)
     χ = χT(undef, Nq, Nω)
     qωi_range = collect(Base.product(1:Nq, 1:Nω))[:]
-    #TODO: only distribute necessary parts of Γr and χ₀_data, let partition output index sets
     qωi_part = par_partition(qωi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(qωi_part))
 
     for (i,ind) in enumerate(qωi_part)
-        remote_results[i] = remotecall(bse_inv, workerpool, type, qωi_range[ind], -sP.n_iω-1, Γr, 
-                                       χ₀.data, χ₀.asym, sP.n_iν_shell, sP.χ_helper, mP.U, mP.β)
+        ωi = sort(unique(map(x->x[2],qωi_range[ind])))
+        ωind_map = Dict(zip(ωi, 1:length(ωi)))
+        remote_results[i] = remotecall(bse_inv, workerpool, type, qωi_range[ind], ωind_map, -sP.n_iω-1,
+                                       Γr[:,:,ωi], χ₀.data[:,:,ωi], χ₀.asym[:,ωi], sP.n_iν_shell, 
+                                       sP.χ_helper, mP.U, mP.β)
     end
     for (i,ind) in enumerate(qωi_part)
         data_i = fetch(remote_results[i])
         for (j,qωind) in enumerate(qωi_range[ind])
+            if typeof(data_i) <: RemoteException
+                println(data_i)
+            end
             χ[qωind...] = data_i[1,j]
             γ[qωind[1],:,qωind[2]] .= data_i[2:end,j]
         end
@@ -177,9 +184,10 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
     return λ0
 end
 
-@fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64) = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+@fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+@fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
-function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64}, Kνωq_pre::Array{ComplexF64, 1},
+function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
             Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
@@ -191,7 +199,7 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq::Array{ComplexF64},
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
         for (νii,νi) in enumerate(νZero:maxn)
-            v = view(Gνω,:,(νii-1) + ωn)
+            v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             if kG.Nk == 1
                 Σ[1,νii-1,ωn] = eom(U, Q_sp.γ[1,νi,ωi], Q_ch.γ[1,νi,ωi], Q_sp.χ[1,ωi], 
                                     Q_ch.χ[1,ωi], λ₀[1,νi,ωi]) * v[1]
@@ -219,12 +227,11 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::Abst
     ωindices = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     νmax = floor(Int,length(ωindices)/3)
 
-    Kνωq = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
     Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
     Σ_ladder_ω = OffsetArray( Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
-    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
     @timeit to "sum Σ_ω" res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end

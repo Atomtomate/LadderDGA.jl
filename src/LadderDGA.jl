@@ -11,6 +11,6 @@ export calc_bubble_par, calc_χγ_par
 export λsp, λ_correction, λ_correction!, calc_λsp_rhs_usable, calc_λsp_correction!
 export λ_from_γ, F_from_χ, G_from_Σ
 export calc_E, flatten_2D, to_m_index
-export χ_λ, χ_λ!, subtract_tail
+export χ_λ, χ_λ!, subtract_tail, subtract_tail!
 
 end
