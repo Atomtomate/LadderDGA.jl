@@ -20,12 +20,13 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         @info "non local bubble"
         flush(log_io)
         @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl bblt par" bubble_par = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP);
         @info "chi sp"
         flush(log_io)
-        @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+        @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP);
         @info "chi ch"
         flush(log_io)
-        @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+        @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ_par(:ch, Γch, bubble, kG, mP, sP);
         
         λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
 
@@ -43,6 +44,10 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         #@timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
         #               Σ_ladderLoc, Σ_loc, gLoc_rfft, Fsp, locQ_sp, kG, mP, sP)
     # Prepare data
+        if kG.Nk > 125000
+            @warn "Large number of k-points (Nk = $(kG.Nk)). γ will not be saved!"
+            @warn "TODO: implement"
+        end
 
         flush(log_io)
         tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"

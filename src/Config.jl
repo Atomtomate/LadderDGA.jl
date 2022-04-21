@@ -84,7 +84,7 @@ struct SimulationParameters <: ConfigStruct
     shift::Bool             # shift of center for interval of bosonic frequencies
     tc_type_f::Symbol       # use correction for finite ν sums.
     tc_type_b::Symbol       # use correction for finite ω sums.
-    χ_helper::Union{BSE_SC_Helper,BSE_Asym_Helper,Nothing} # Helper for χ asymptotics improvement
+    χ_helper # Helper for χ asymptotics improvement
     ωsum_type::BSum
     λ_rhs::Symbol
     fullChi::Bool

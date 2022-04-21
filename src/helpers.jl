@@ -68,15 +68,17 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
         χDMFTsp, χDMFTch, Γsp, Γch, gImp, Σ_loc
     end
-    rm = maximum(abs.(sP.fft_range))
-    t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
-    gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
-    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-    gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
-    for (i,el) in enumerate(gLoc_full)
-        gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
-        gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
+    @timeit to "Compute GLoc" begin
+        rm = maximum(abs.(sP.fft_range))
+        t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
+        gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
+        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
+        for (i,el) in enumerate(gLoc_full)
+            gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
+            gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
+        end
     end
 
     @timeit to "local correction" begin
@@ -94,7 +96,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
         Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
-        println("DBG :   ",sum(Γsp))
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
         χLocch_ω = similar(χDMFTch, size(χDMFTch,3))
@@ -105,7 +106,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:sp, ωi, view(χDMFTsp,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
-            if typeof(sP.χ_helper) === BSE_Asym_Helper
+            if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χLocsp_ω[ωi] = locQ_sp.χ[ωi]
                 χLocch_ω[ωi] = locQ_ch.χ[ωi]
             else
@@ -135,7 +136,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
 
-    @timeit to "random stuff" begin
+    @timeit to "ranges/imp. dens." begin
         usable_loc_sp = find_usable_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
         usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_sp, usable_loc_ch)

@@ -51,12 +51,6 @@ end
 
 function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
     res = Array{eltype(inp),1}(undef, length(inp))
-    for n in 1:length(inp)
-        if iω[n] != 0
-            res[n] = inp[n] - (c/(iω[n]^2))
-        else
-            res[n] = inp[n]
-        end
-    end
+    subtract_tail!(res, inp, c, iω)
     return res
 end

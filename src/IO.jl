@@ -106,6 +106,8 @@ function readConfig(cfg_in)
                     BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift)
                 elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct"
                     BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
+                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct_approx2"
+                    BSE_Asym_Helper_Approx2(Nν_shell)
                 elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "nothing"
                     nothing
                 else
