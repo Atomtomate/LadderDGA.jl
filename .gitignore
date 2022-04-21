@@ -1,6 +1,7 @@
 *.lock
 *.log
 
+*.so
 *.jld
 *.jld2
 *.h5

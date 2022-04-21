@@ -68,15 +68,17 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
         χDMFTsp, χDMFTch, Γsp, Γch, gImp, Σ_loc
     end
-    rm = maximum(abs.(sP.fft_range))
-    t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
-    gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
-    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-    gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
-    for (i,el) in enumerate(gLoc_full)
-        gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
-        gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
+    @timeit to "Compute GLoc" begin
+        rm = maximum(abs.(sP.fft_range))
+        t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
+        gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
+        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
+        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
+        for (i,el) in enumerate(gLoc_full)
+            gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
+            gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
+        end
     end
 
     @timeit to "local correction" begin
@@ -134,7 +136,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
 
-    @timeit to "random stuff" begin
+    @timeit to "ranges/imp. dens." begin
         usable_loc_sp = find_usable_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
         usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_sp, usable_loc_ch)

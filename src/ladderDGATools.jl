@@ -82,9 +82,9 @@ end
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
 function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
-    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+    data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
-    ωνi_range = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
+    ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
                  for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
     ωνi_part = par_partition(ωνi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(ωνi_part))
@@ -114,18 +114,18 @@ end
 function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
-    Nν = 2*sP.n_iν
-    Nq  = size(χ₀.data,χ₀.axes[:q])
-    Nω  = size(χ₀.data,χ₀.axes[:ω])
-    γ = γT(undef, Nq, Nν, Nω)
-    χ = χT(undef, Nq, Nω)
+    Nν::Int = 2*sP.n_iν
+    Nq::Int = size(χ₀.data,χ₀.axes[:q])
+    Nω::Int = size(χ₀.data,χ₀.axes[:ω])
+    γ::γT = γT(undef, Nq, Nν, Nω)
+    χ::χT = χT(undef, Nq, Nω)
     qωi_range = collect(Base.product(1:Nq, 1:Nω))[:]
     qωi_part = par_partition(qωi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(qωi_part))
 
     for (i,ind) in enumerate(qωi_part)
         ωi = sort(unique(map(x->x[2],qωi_range[ind])))
-        ωind_map = Dict(zip(ωi, 1:length(ωi)))
+        ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
         remote_results[i] = remotecall(bse_inv, workerpool, type, qωi_range[ind], ωind_map, -sP.n_iω-1,
                                        Γr[:,:,ωi], χ₀.data[:,:,ωi], χ₀.asym[:,ωi], sP.n_iν_shell, 
                                        sP.χ_helper, mP.U, mP.β)
@@ -221,18 +221,18 @@ function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::Abst
         @error "q Grids not matching"
     end
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq = size(Q_sp.χ,1)
-    Nω = size(Q_sp.χ,2)
-    ωrange = -sP.n_iω:sP.n_iω
-    ωindices = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    νmax = floor(Int,length(ωindices)/3)
+    Nq::Int = size(Q_sp.χ,1)
+    Nω::Int = size(Q_sp.χ,2)
+    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    νmax::Int = floor(Int,length(ωindices)/3)
 
-    Kνωq_pre = Array{ComplexF64, 1}(undef, length(kG.kMult))
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
-    Σ_ladder_ω = OffsetArray( Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
+    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
     @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    @timeit to "sum Σ_ω" res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end
 

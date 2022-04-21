@@ -50,8 +50,8 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             for l in νi_range
                 χννpω[l,l] += 1.0/χ₀.data[qi,sP.n_iν_shell+l,ωi]
             end
-            @timeit to "inv" inv!(χννpω, ipiv, work)
-            @timeit to "χ Impr." if typeof(sP.χ_helper) <: BSE_Asym_Helpers
+            inv!(χννpω, ipiv, work)
+            if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])

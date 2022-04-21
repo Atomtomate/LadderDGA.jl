@@ -12,7 +12,7 @@ const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const γT = Array{_eltype,3}
 const χT = Array{_eltype,2}
-const GνqT = OffsetMatrix
+const GνqT = OffsetMatrix{ComplexF64, Matrix{_eltype}}
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}
 
 struct χ₀T
@@ -62,7 +62,7 @@ Contains all non local quantities computed by the lDGA code
 mutable struct NonLocalQuantities
     χ::Array{ComplexF64,2}
     γ::Array{ComplexF64,3}
-    usable_ω::AbstractArray
+    usable_ω::UnitRange{Int}
     λ::Float64
 end
 

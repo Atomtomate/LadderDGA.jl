@@ -12,6 +12,7 @@ using LadderDGA
 
 cfg_file = "/home/julian/Hamburg/ED_data/asympt_tests/config_14_small.toml"
 @timeit LadderDGA.to "input" mP, sP, env, kGridsStr = readConfig(cfg_file);
+#TODO: loop over kGrids
 @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
 # ladder quantities
@@ -34,8 +35,6 @@ end
 λsp_new = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
 @info "Σ"
-#@timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, gLoc_rfft, FUpDo, kG, mP, sP)
+@timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
 #Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
-#G_λ = G_from_Σ(Σ_ladder)
-#@timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, bubble, fft(G_λ), FUpDo, kG, mP, sP)
-#Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);
+true
