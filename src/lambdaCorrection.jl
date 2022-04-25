@@ -127,8 +127,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-8, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
-    
-    # general definitions
+
+        # general definitions
     Nq::Int = size(nlQ_sp.γ,1)
     Nν::Int = size(nlQ_sp.γ,2)
     Nω::Int = size(nlQ_sp.γ,3)
@@ -163,17 +163,54 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     E_pot_tail::Matrix{ComplexF64} = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
-
-    Fint = x₀
-    cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = cond_both_int!(F, λ, 
+    
+    cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
+        cond_both_int!(F, λ, 
         nlQ_sp, nlQ_ch, χsp_bak, χch_bak,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP)
+    
+    # TODO: test this for a lot of data before refactor of code
+    
+    δ   = 0.0 # safety from first pole. decrese this if no roots are found
+    λl = [get_χ_min(real.(χsp_bak)), get_χ_min(real.(χch_bak))] .+ δ
+    λr = [0.0, 0.0]
+    Fr = [0.0, 0.0]
+    Fm = [0.0, 0.0]
+    Fl = [0.0, 0.0]
+    
+    dbg_log = IOBuffer()
+    cond_both!(Fr, λr)
+    #find λr
+    println(dbg_log, "correct_margins: λl=$(round.(λl,digits=3)), λr=$(round.(λr,digits=3)) F=$(round.(Fr,digits=3))")
+    while any(Fr .> 0)
+        λl, λr  = correct_margins(λl, λr, Fl, Fr)
+        println(dbg_log, λl, " ...... ", λr)
+        cond_both!(Fr, λr)
+        println(dbg_log, "correct_margins: λl=$(round.(λl,digits=3)), λr=$(round.(λr,digits=3))Fr=$(round.(Fr,digits=3))")
+    end
+    
+    #bisect
+    for i in 1:5
+        Δh = (λr .- λl)./2
+        λm = λl .+ Δh
+        cond_both!(Fm, λm)
+        cond_both!(Fl, λl)
+        i > 1 && cond_both!(Fr, λr)
+        println(dbg_log, "$i: λl=$(round.(λl,digits=4)), λm=$(round.(λm,digits=4)), λr=$(round.(λr,digits=4))")
+        println(dbg_log, "    Fl=$(round.(Fl,digits=4)), Fm=$(round.(Fm,digits=4)), Fr=$(round.(Fr,digits=4))")
+        println(dbg_log, "<- λl=$(round.(λl,digits=4)),                     λr=$(round.(λr,digits=4))")
+        λl, λr = correct_margins(λl, λr, Fl, Fr)
+        println(dbg_log, "-> λl=$(round.(λl,digits=4)),                     λr=$(round.(λr,digits=4))")
+        λl, λr = bisect(λl, λm, λr, Fm)
         
-    λnew = nlsolve(cond_both!, Fint, iterations=iterations, ftol=ftol)
+    end
+    
+    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-8)
+    println(λnew)
     nlQ_sp.χ = χsp_bak
     nlQ_ch.χ = χch_bak
-    #λnew.zero[:] = [tanh(λnew.zero[1]+a_sp+χsp_min)*a_sp, tanh(λnew.zero[2]+a_ch+χch_min)*a_ch]
-    return λnew
+    
+    return λnew, String(take!(dbg_log))
 end
 
 function λ_correction(type::Symbol, imp_density::Float64,
@@ -190,7 +227,8 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@warn "using unoptimized λ correction algorithm"
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
-        @timeit to "λspch 2" λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @timeit to "λspch 2" λ_spch, dbg_string = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @warn "extended λ correction dbg string: " dbg_string
         #@timeit to "λspch clean 2" λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@info "new: " λ_spch_clean " vs. " λ_spch
         λ_spch
