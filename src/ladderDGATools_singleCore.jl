@@ -87,4 +87,46 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     return NonLocalQuantities(χ, γ, usable, 0.0)
 end
 
+function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
+            ωindices::AbstractArray{Int,1},
+            Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
+            sP::SimulationParameters)
+    fill!(Σ, zero(ComplexF64))
+    for ωii in 1:length(ωindices)
+        ωi = ωindices[ωii]
+        ωn = (ωi - sP.n_iω) - 1
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
+        for (νii,νi) in enumerate(νZero:maxn)
+            v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
+            for qi in 1:size(Σ,q_axis)
+                Kνωq_pre[qi] = eom(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi],
+                                   Q_sp.χ[qi,ωi], Q_ch.χ[qi,ωi], λ₀[qi,νi,ωi])
+            end
+            conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+        end
+    end
+end
 
+function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, kG::KGrid,
+                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
+    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
+        @error "q Grids not matching"
+    end
+    Σ_hartree = mP.n * mP.U/2.0;
+    Nq::Int = size(Q_sp.χ,1)
+    Nω::Int = size(Q_sp.χ,2)
+    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    νmax::Int = floor(Int,length(ωindices)/3)
+
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
+    #TODO: implement real fft and make _pre real
+    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
+                              1:Nq, 0:sP.n_iν-1, ωrange)
+    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    return  res
+end

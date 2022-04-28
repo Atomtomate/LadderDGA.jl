@@ -1,5 +1,6 @@
 include("lambdaCorrection_aux.jl")
 include("lambdaCorrection_clean.jl")
+include("lambdaCorrection_singleCore.jl")
 
 function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -75,20 +76,19 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
 end
 
 function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
-        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χsp_bak::χT, χch_bak::χT,
-        ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 
-        Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
+        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+        χsp_bak::χT, χch_bak::χT,
+        ωindices::UnitRange{Int},
+        Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
         λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)::Nothing
-    #TODO: captured variables that are no reassigned, should be assigned in a let block
     χ_λ!(nlQ_sp.χ, χsp_bak, λ[1])
     χ_λ!(nlQ_ch.χ, χch_bak, λ[2])
     k_norm::Int = Nk(kG)
 
     #TODO: unroll 
-    calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP)[:,νGrid]
 
     lhs_c1 = 0.0
     lhs_c2 = 0.0
@@ -109,8 +109,8 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     lhs_c2 = lhs_c2/mP.β
 
     #TODO: the next line is expensive: Optimize G_from_Σ
-    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
-    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
+    E_pot = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     F[1] = lhs_c1 - rhs_c1
@@ -121,7 +121,7 @@ end
 #TODO: this is manually unrolled...
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
-function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
             νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-8, x₀ = [0.1, 0.1])
@@ -144,11 +144,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     k_norm::Int = Nk(kG)
 
     # EoM optimization related definitions
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}} = OffsetArray(Array{ComplexF64,3}(undef,Nq,νmax,length(ωrange)),
-                              1:Nq, 0:νmax-1, ωrange)
-    Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}} = OffsetArray(Array{ComplexF64,2}(undef,Nq, νmax),
-                              1:Nq, 0:νmax-1)
+    Σ_ladder::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, Nq, νmax)
+    ###
 
     # preallications
     χsp_bak::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
@@ -165,8 +162,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
 
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        cond_both_int!(F, λ, 
-        nlQ_sp, nlQ_ch, χsp_bak, χch_bak,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
+        #cond_both_int!(F, λ, nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ,
+        cond_both_int!(F, λ, nlQ_sp, nlQ_ch, 
+        χsp_bak, χch_bak,ωindices, Σ_ladder,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP)
     
     # TODO: test this for a lot of data before refactor of code
@@ -216,7 +214,7 @@ end
 function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             Gνω::GνqT, λ₀::Array{ComplexF64,3}, kG::KGrid,
-            mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing)
+            mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing, parallel=true)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         @timeit to "λsp" λsp = calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
@@ -227,7 +225,11 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@warn "using unoptimized λ correction algorithm"
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
-        @timeit to "λspch 2" λ_spch, dbg_string = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        @timeit to "λspch 2" λ_spch, dbg_string = if parallel
+                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+            else
+                extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+        end
         @warn "extended λ correction dbg string: " dbg_string
         #@timeit to "λspch clean 2" λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@info "new: " λ_spch_clean " vs. " λ_spch

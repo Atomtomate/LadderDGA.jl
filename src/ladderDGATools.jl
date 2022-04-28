@@ -67,11 +67,11 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Di
 end
 
 
-function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, ωνi_range::Vector{NTuple{4,Int}})
-    data = Array{ComplexF64,2}(undef, length(kG.kMult), length(ωνi_range))
+function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, ωνi_range::Vector{NTuple{4,Int}})::Array{ComplexF64,2}
+    data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(ωνi_range))
     for (i,ωνn) in enumerate(ωνi_range)
         ωn,νn,_,_ = ωνn
-        conv_fft!(kG, view(data,:,i), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
+        conv_fft_noPlan!(kG, view(data,:,i), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
     end
     return data
 end
@@ -133,9 +133,6 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     for (i,ind) in enumerate(qωi_part)
         data_i = fetch(remote_results[i])
         for (j,qωind) in enumerate(qωi_range[ind])
-            if typeof(data_i) <: RemoteException
-                println(data_i)
-            end
             χ[qωind...] = data_i[1,j]
             γ[qωind[1],:,qωind[2]] .= data_i[2:end,j]
         end
@@ -187,53 +184,69 @@ end
 @fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 @fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
-function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
-            ωindices::AbstractArray{Int,1},
-            Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
-            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
-            sP::SimulationParameters)
-    fill!(Σ, zero(ComplexF64))
-    for ωii in 1:length(ωindices)
-        ωi = ωindices[ωii]
-        ωn = (ωi - sP.n_iω) - 1
-        νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
-        for (νii,νi) in enumerate(νZero:maxn)
-            v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
-            if kG.Nk == 1
-                Σ[1,νii-1,ωn] = eom(U, Q_sp.γ[1,νi,ωi], Q_ch.γ[1,νi,ωi], Q_sp.χ[1,ωi], 
-                                    Q_ch.χ[1,ωi], λ₀[1,νi,ωi]) * v[1]
-            else
-                for qi in 1:size(Σ,q_axis)
-                Kνωq_pre[qi] = eom(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi], Q_sp.χ[qi,ωi], 
-                                    Q_ch.χ[qi,ωi], λ₀[qi,νi,ωi])
-                end
-                conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
-            end
+#@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
+#  2*sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2))
+function calc_Σ_eom(νωindices::Vector{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, νmax::Int, χsp::χT, χch::χT,
+                    γsp::γT, γch::γT, Gνω::GνqT, λ₀::Array{ComplexF64,3}, U::Float64, kG::KGrid) 
+            
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, size(χsp,1))
+    Σ_tmp::Vector{ComplexF64} = Vector{ComplexF64}(undef, size(χsp,1))
+    Σ_res::Array{ComplexF64,2} = zeros(ComplexF64, size(γsp,1), νmax)
+    for (ωi, ωn, νi, νii) in νωindices
+        ωii = ωind_map[ωi]
+        v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
+        for qi in 1:size(χsp,1)
+            Kνωq_pre[qi] = eom(U, γsp[qi,νi,ωii], γch[qi,νi,ωii], χsp[qi,ωii], 
+                            χch[qi,ωii], λ₀[qi,νi,ωii])
         end
+        conv_fft1_noPlan!(kG, Σ_tmp, Kνωq_pre, v)
+        Σ_res[:,νii] += Σ_tmp
     end
+    return Σ_res
 end
 
-function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"
     end
+    # initialize
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq::Int = size(Q_sp.χ,1)
+    Nk::Int = size(Q_sp.χ,1)
     Nω::Int = size(Q_sp.χ,2)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    νmax::Int = floor(Int,length(ωindices)/3)
+    νrange = 0:sP.n_iν-1
+    Σ_ladder::Matrix{ComplexF64} = zeros(ComplexF64, Nk, length(νrange))
+    νω_range::Array{NTuple{4,Int}} = Array{NTuple{4,Int}}[]
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    #TODO: implement real fft and make _pre real
-    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
-                              1:Nq, 0:sP.n_iν-1, ωrange)
-    @timeit to "Σ_ω" calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
-    return  res
+    # generate distribution
+    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = 2*sP.n_iν + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
+        for (νii,νi) in enumerate(νZero:maxn)
+            push!(νω_range, (ωi, ωn, νi, νii))
+        end
+    end
+    νωi_part = par_partition(νω_range, length(workerpool))
+    remote_results = Vector{Future}(undef, length(νωi_part))
+
+    # distribute
+    for (i,ind) in enumerate(νωi_part)
+        ωi = sort(unique(map(x->x[1],νω_range[ind])))
+        ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
+        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, sP.n_iν, Q_sp.χ[:,ωi],
+                                       Q_ch.χ[:,ωi], Q_sp.γ[:,:,ωi], Q_ch.γ[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
+    end
+
+    # collect results
+    for (i,ind) in enumerate(νωi_part)
+        data_i = fetch(remote_results[i])
+        Σ_ladder[:,:] += data_i
+    end
+    Σ_ladder = Σ_ladder ./ mP.β .+ Σ_hartree
+    return  OffsetArray(Σ_ladder, 1:Nk, νrange)
 end
 
 function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::AbstractArray{T2, 2}, Σ_loc::AbstractArray{T3, 1}) where {T1 <: Number, T2 <: Number, T3 <: Number}
