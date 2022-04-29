@@ -146,7 +146,9 @@ function readConfig(cfg_in)
         Nk = tml["Simulation"]["Nk"][i]
         kGrids[i] = (tml["Model"]["kGrid"], Nk)
     end
-    return mP, sP, env, kGrids
+
+    workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    return workerpool, mP, sP, env, kGrids
 end
 
 function convertGF!(GF, storedInverse, storeFull)

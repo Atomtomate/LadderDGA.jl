@@ -81,7 +81,7 @@ end
 
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
-function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false, workerpool::AbstractWorkerPool=default_worker_pool())
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
     ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
@@ -111,7 +111,7 @@ function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParam
     return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
 end
 
-function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; workerpool::AbstractWorkerPool=default_worker_pool())
     !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
     Nν::Int = 2*sP.n_iν
@@ -207,7 +207,7 @@ end
 
 function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
-                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
+                mP::ModelParameters, sP::SimulationParameters; pre_expand=true, workerpool::AbstractWorkerPool=default_worker_pool())
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"
     end

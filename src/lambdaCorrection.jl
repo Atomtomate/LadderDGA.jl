@@ -82,13 +82,13 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
-        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)::Nothing
+        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, wp)::Nothing
     χ_λ!(nlQ_sp.χ, χsp_bak, λ[1])
     χ_λ!(nlQ_ch.χ, χch_bak, λ[2])
     k_norm::Int = Nk(kG)
 
     #TODO: unroll 
-    Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP)[:,νGrid]
+    Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP, workerpool=wp)[:,νGrid]
 
     lhs_c1 = 0.0
     lhs_c2 = 0.0
@@ -123,7 +123,7 @@ end
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
-            kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+            kG::KGrid, mP::ModelParameters, sP::SimulationParameters, workerpool::AbstractWorkerPool;
             νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-8, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
@@ -165,7 +165,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         #cond_both_int!(F, λ, nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ,
         cond_both_int!(F, λ, nlQ_sp, nlQ_ch, 
         χsp_bak, χch_bak,ωindices, Σ_ladder,
-        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP)
+        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP, workerpool)
     
     # TODO: test this for a lot of data before refactor of code
     
@@ -214,7 +214,8 @@ end
 function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             Gνω::GνqT, λ₀::Array{ComplexF64,3}, kG::KGrid,
-            mP::ModelParameters, sP::SimulationParameters; init_sp=nothing, init_spch=nothing, parallel=true)
+            mP::ModelParameters, sP::SimulationParameters;
+            workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=true)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         @timeit to "λsp" λsp = calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
@@ -226,7 +227,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         @timeit to "λspch 2" λ_spch, dbg_string = if parallel
-                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool)
             else
                 extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         end

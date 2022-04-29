@@ -65,7 +65,6 @@ function __init__()
     end
 
     args = parse_args([], s)
-    global workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
     #TODO: initialize workers here instead of relying on julia -p
     #TODO: set lazy=  false and initialize master to worker topology! Memory leak bug in julia!!!
     #TODO: this should be set from command line and only default back to stdout
