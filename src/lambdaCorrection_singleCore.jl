@@ -4,15 +4,14 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
-        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)::Nothing
-    #TODO: captured variables that are no reassigned, should be assigned in a let block
+        λ₀::Array{ComplexF64,3}, νmax::Int, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)::Nothing
     χ_λ!(nlQ_sp.χ, χsp_bak, λ[1])
     χ_λ!(nlQ_ch.χ, χch_bak, λ[2])
     k_norm::Int = Nk(kG)
 
     #TODO: unroll 
     calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder[:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    Σ_ladder[:,:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3)[:,0:νmax-1] ./ mP.β .+ Σ_hartree
 
     lhs_c1 = 0.0
     lhs_c2 = 0.0
@@ -57,6 +56,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     ωrange_list = (-sP.n_iω:sP.n_iω)[ωindices]
     ωrange::UnitRange{Int} = first(ωrange_list):last(ωrange_list)
+    νmax = sP.n_iν#-1
     νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid::UnitRange{Int} = 0:(νmax-1)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
@@ -88,7 +88,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, 
         nlQ_sp, nlQ_ch, χsp_bak, χch_bak,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
-        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP)
+        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, νmax, kG, mP, sP)
     
     # TODO: test this for a lot of data before refactor of code
     

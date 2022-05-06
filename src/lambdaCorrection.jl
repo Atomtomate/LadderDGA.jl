@@ -76,19 +76,37 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
 end
 
 function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
-        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
+        χsp::χT, χch::χT, γsp::γT, γch::γT,
         χsp_bak::χT, χch_bak::χT,
-        ωindices::UnitRange{Int},
+        νω_range::Array{NTuple{4,Int}}, νωi_part::Vector{UnitRange{Int64}}, remote_results::Vector{Future},
         Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
-        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, wp)::Nothing
-    χ_λ!(nlQ_sp.χ, χsp_bak, λ[1])
-    χ_λ!(nlQ_ch.χ, χch_bak, λ[2])
+        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, workerpool::AbstractWorkerPool)::Nothing
+    χ_λ!(χsp, χsp_bak, λ[1])
+    χ_λ!(χch, χch_bak, λ[2])
     k_norm::Int = Nk(kG)
 
-    #TODO: unroll 
-    Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP, workerpool=wp)[:,νGrid]
+    #Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP, workerpool=wp)[:,νGrid]
+    ### Untroll start
+    
+    n_iν = size(Σ_ladder, 2)
+    # distribute
+    for (i,ind) in enumerate(νωi_part)
+        ωi = sort(unique(map(x->x[1],νω_range[ind])))
+        ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
+        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, n_iν, χsp[:,ωi],
+                                       χch[:,ωi], γsp[:,:,ωi], γch[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
+    end
+
+    # collect results
+    fill!(Σ_ladder, Σ_hartree .* mP.β)
+    for (i,ind) in enumerate(νωi_part)
+        data_i = fetch(remote_results[i])
+        Σ_ladder[:,:] += data_i
+    end
+    Σ_ladder = Σ_ladder ./ mP.β
+    ### Untroll end
 
     lhs_c1 = 0.0
     lhs_c2 = 0.0
@@ -96,8 +114,8 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         tmp1 = 0.0
         tmp2 = 0.0
         for (qi,km) in enumerate(kG.kMult)
-            χsp_i_λ = real(nlQ_sp.χ[qi,ωi])
-            χch_i_λ = real(nlQ_ch.χ[qi,ωi])
+            χsp_i_λ = real(χsp[qi,ωi])
+            χch_i_λ = real(χch[qi,ωi])
             tmp1 += 0.5 * (χch_i_λ + χsp_i_λ) * km
             tmp2 += 0.5 * (χch_i_λ - χsp_i_λ) * km
         end
@@ -108,9 +126,10 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
     lhs_c2 = lhs_c2/mP.β
 
-    #TODO: the next line is expensive: Optimize G_from_Σ
+    #TODO: the next two lines are expensive
     G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
+
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     F[1] = lhs_c1 - rhs_c1
@@ -134,9 +153,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     Nω::Int = size(nlQ_sp.γ,3)
     EKin::Float64 = mP.Ekin_DMFT
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-    ωrange_list = (-sP.n_iω:sP.n_iω)[ωindices]
-    ωrange::UnitRange{Int} = first(ωrange_list):last(ωrange_list)
-    νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
+    νmax::Int = νmax < 0 ? min(sP.n_iν,floor(Int,3*length(ωindices)/8)) : νmax
     νGrid::UnitRange{Int} = 0:(νmax-1)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
@@ -145,6 +162,16 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
 
     # EoM optimization related definitions
     Σ_ladder::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, Nq, νmax)
+    νω_range::Array{NTuple{4,Int}} = Array{NTuple{4,Int}}[]
+    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = min(size(nlQ_ch.γ,ν_axis), νZero + νmax - 1)
+        for (νii,νi) in enumerate(νZero:maxn)
+            push!(νω_range, (ωi, ωn, νi, νii))
+        end
+    end
+    νωi_part = par_partition(νω_range, length(workerpool))
+    remote_results = Vector{Future}(undef, length(νωi_part))
     ###
 
     # preallications
@@ -162,10 +189,9 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
 
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        #cond_both_int!(F, λ, nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ,
-        cond_both_int!(F, λ, nlQ_sp, nlQ_ch, 
-        χsp_bak, χch_bak,ωindices, Σ_ladder,
-        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP, workerpool)
+        cond_both_int!(F, λ, nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ, 
+        χsp_bak, χch_bak,  νω_range, νωi_part, remote_results,Σ_ladder,
+        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool)
     
     # TODO: test this for a lot of data before refactor of code
     
@@ -202,11 +228,10 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         λl, λr = bisect(λl, λm, λr, Fm)
         
     end
+    @info "start: " λl .+ (λr .- λl)./2
     
     λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-8)
     println(λnew)
-    nlQ_sp.χ = χsp_bak
-    nlQ_ch.χ = χch_bak
     
     return λnew, String(take!(dbg_log))
 end
@@ -227,7 +252,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         @timeit to "λspch 2" λ_spch, dbg_string = if parallel
-                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool)
+                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool, νmax=sP.n_iν)
             else
                 extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         end

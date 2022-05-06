@@ -93,11 +93,14 @@ function calc_Σ_ω!(Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
+    νmax = size(Σ, 2)
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([νZero + sP.n_iν - 1, size(Q_ch.γ,ν_axis), νZero + size(Σ, ν_axis) - 1])
+        maxn = minimum([size(Q_ch.γ,ν_axis), νZero + size(Σ, 2) - 1])
+        # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
+        # println("tt: $ωn: $maxn vs $maxn2")
         for (νii,νi) in enumerate(νZero:maxn)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ,q_axis)

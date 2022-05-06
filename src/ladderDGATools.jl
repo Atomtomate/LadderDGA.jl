@@ -207,7 +207,8 @@ end
 
 function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
-                mP::ModelParameters, sP::SimulationParameters; pre_expand=true, workerpool::AbstractWorkerPool=default_worker_pool())
+                mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν, pre_expand=true, 
+                workerpool::AbstractWorkerPool=default_worker_pool())
     if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
         @error "q Grids not matching"
     end
@@ -215,16 +216,16 @@ function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::
     Σ_hartree = mP.n * mP.U/2.0;
     Nk::Int = size(Q_sp.χ,1)
     Nω::Int = size(Q_sp.χ,2)
-    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
-    νrange = 0:sP.n_iν-1
+    νrange = 0:(νmax-1)# 0:sP.n_iν-1
     Σ_ladder::Matrix{ComplexF64} = zeros(ComplexF64, Nk, length(νrange))
     νω_range::Array{NTuple{4,Int}} = Array{NTuple{4,Int}}[]
 
     # generate distribution
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = 2*sP.n_iν + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
+        maxn = min(size(Q_ch.γ,ν_axis), νZero + νmax - 1)
+        #println("tt: $ωn: $maxn vs $maxn2 /// $(size(Q_ch.γ,ν_axis)) : $(νZero + νmax) :: $(νZero) + $(νmax)")
         for (νii,νi) in enumerate(νZero:maxn)
             push!(νω_range, (ωi, ωn, νi, νii))
         end
@@ -236,7 +237,7 @@ function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::
     for (i,ind) in enumerate(νωi_part)
         ωi = sort(unique(map(x->x[1],νω_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, sP.n_iν, Q_sp.χ[:,ωi],
+        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, νmax, Q_sp.χ[:,ωi],
                                        Q_ch.χ[:,ωi], Q_sp.γ[:,:,ωi], Q_ch.γ[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
     end
 
