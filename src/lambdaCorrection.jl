@@ -240,7 +240,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             Gνω::GνqT, λ₀::Array{ComplexF64,3}, kG::KGrid,
             mP::ModelParameters, sP::SimulationParameters;
-            workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=true)
+            workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false)
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         @timeit to "λsp" λsp = calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
