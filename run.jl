@@ -7,46 +7,54 @@ flush(stderr)
 function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", save_results=true, log_io=devnull)
     @warn "assuming linear, continuous nu grid for chi/trilex"
 
-    @timeit LadderDGA.to "read" mP, sP, env, kGridsStr = readConfig(cfg_file);
+    @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
 
     for kIteration in 1:length(kGridsStr)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
-        Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
-        flush(log_io)
-        # ladder quantities
         @info "non local bubble"
         flush(log_io)
-        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
-        @timeit LadderDGA.to "nl bblt par" bubble_par = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl bblt par" bubble = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
         @info "chi sp"
         flush(log_io)
-        @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP);
+        @timeit LadderDGA.to "nl xsp par" nlQ_sp = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
         @info "chi ch"
         flush(log_io)
-        @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ_par(:ch, Γch, bubble, kG, mP, sP);
-        
-        λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
+        @timeit LadderDGA.to "nl xch par" nlQ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
+
+        @timeit LadderDGA.to "λ₀" begin
+            Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
+            λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
+        end
 
         @info "λsp"
         flush(log_io)
-        λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-        @info "found $λsp_old\nextended λ"
-        λnew_nls = nothing#λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_fft, λ₀, kG, mP, sP)
-        #@info "found $λnew_nls\n"
-        λnew = [NaN, NaN] #λnew_nls.f_converged ? λnew_nls.zero : [NaN, NaN]
-        flush(log_io)
+        λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        #@timeit LadderDGA.to "lsp(lch)" λch_range, spOfch = λsp_of_λch(nlQ_sp, nlQ_ch, kG, mP, sP; λch_max=20.0, n_λch=100)
+        #@timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
+        @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        #@timeit LadderDGA.to "c2" λsp_of_λch_res = c2_along_λsp_of_λch(λch_range, spOfch, nlQ_sp, nlQ_ch, bubble,
-        #               Σ_ladderLoc, Σ_loc, gLoc_rfft, Fsp, locQ_sp, kG, mP, sP)
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_DMFT = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λsp = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch.zero[1]); 
+        χ_λ!(nlQ_sp.χ, nlQ_ch.χ, λspch.zero[2]); 
+        nlQ_sp.λ = λspch.zero[1];
+        nlQ_ch.λ = λspch.zero[2];
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λspch = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch.zero[1]); 
+        χ_λ!(nlQ_sp.χ, nlQ_ch.χ, -λspch.zero[2]); 
+        nlQ_sp.λ = 0.0;
+        nlQ_ch.λ = 0.0;
+
     # Prepare data
         if kG.Nk > 125000
-            @warn "Large number of k-points (Nk = $(kG.Nk)). γ will not be saved!"
-            @warn "TODO: implement"
+            @warn "Large number of k-points (Nk = $(kG.Nk)). χ₀, γ will not be saved!"
+            nlQ_sp.γ = similar(nlQ_sp.γ, 0,0,0)
+            nlQ_ch.γ = similar(nlQ_ch.γ, 0,0,0)
         end
 
         flush(log_io)
@@ -62,14 +70,15 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["mP"] = mP
             f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
-            f["bubble"] = bubble
+            (kG.Nk <= 125000) && (f["bubble"] = bubble)
             f["λ₀_sp"] = λ₀
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
-            f["λsp_old"] = λsp_old
-            #f["λch_range"] = λch_range
-            #f["spOfch"] = spOfch
-            #f["λsp_of_λch_res"] = λsp_of_λch_res
+            f["Σ_ladder_DMFT"] = Σ_ladder_DMFT
+            f["Σ_ladder_λsp"] = Σ_ladder_λsp
+            f["Σ_ladder_λspch"] = Σ_ladder_λspch
+            f["λsp"] = λsp
+            f["λspch"] = λspch
             f["Γsp"] = Γsp 
             f["Γch"] = Γch 
             f["gImp"] = gImp
@@ -77,8 +86,6 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["gLoc_fft"] = gLoc_fft
             f["Sigma_DMFT"] = Σ_loc 
             f["χ₀Loc"] = χ₀Loc
-            f["λnew_nls"] = λnew_nls
-            f["λnew"] = λnew
             f["log"] = LadderDGA.get_log()
             #TODO: save log string
             #f["log"] = string()

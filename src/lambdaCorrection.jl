@@ -230,7 +230,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     end
     @info "start: " λl .+ (λr .- λl)./2
     
-    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-8)
+    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-6, iterations=300)
     println(λnew)
     
     return λnew, String(take!(dbg_log))

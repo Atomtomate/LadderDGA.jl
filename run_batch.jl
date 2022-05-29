@@ -1,18 +1,22 @@
-using LinearAlgebra
 using TimerOutputs
 using Logging
 using Pkg
 Pkg.activate(@__DIR__)
 using LadderDGA
 
+using Distributed
+addprocs(parse(Int,ARGS[3]))
+@everywhere using Pkg
+@everywhere Pkg.activate(@__DIR__)
+using LadderDGA
+@everywhere using LadderDGA
+
 cfg_file = ARGS[1]
 out_path = ARGS[2]
-NProcs = parse(Int,ARGS[3])
-BLAS.set_num_threads(NProcs)
 
 #TODO: read the log file name from config
 #TODO: also use this name for output file in run.jl
-mP, sP, env, kGridsStr = readConfig(cfg_file);
+@timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
 (typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper) ? tc_s = tc_s * "_dasym" : tc_s = tc_s * "_nasym"
 logfile_path = out_path*"/lDGA_"*tc_s*"_$(kGridsStr[1][2])to$(kGridsStr[end][2]).log"
