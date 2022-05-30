@@ -10,7 +10,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     k_norm::Int = Nk(kG)
 
     #TODO: unroll 
-    calc_Σ_ω!(Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3)[:,0:νmax-1] ./ mP.β .+ Σ_hartree
 
     lhs_c1 = 0.0
