@@ -184,8 +184,10 @@ end
 @fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 @fastmath @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
-#@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
-#  2*sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2))
+@fastmath @inline eom_sp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - 1.5)
+@fastmath @inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) + 0.5)
+@fastmath @inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
+
 function calc_Σ_eom(νωindices::Vector{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, νmax::Int, χsp::χT, χch::χT,
                     γsp::γT, γch::γT, Gνω::GνqT, λ₀::Array{ComplexF64,3}, U::Float64, kG::KGrid) 
             
@@ -218,35 +220,8 @@ function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::
     Nω::Int = size(Q_sp.χ,2)
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     νrange = 0:(νmax-1)# 0:sP.n_iν-1
-    Σ_ladder::Matrix{ComplexF64} = zeros(ComplexF64, Nk, length(νrange))
-    νω_range::Array{NTuple{4,Int}} = Array{NTuple{4,Int}}[]
+    Σ_ladder::Matrix{ComplexF64} = zeros(ComplexF64, Nk, length(νrange), 3)
 
-    # generate distribution
-    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
-        νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = min(size(Q_ch.γ,ν_axis), νZero + νmax - 1)
-        #println("tt: $ωn: $maxn vs $maxn2 /// $(size(Q_ch.γ,ν_axis)) : $(νZero + νmax) :: $(νZero) + $(νmax)")
-        for (νii,νi) in enumerate(νZero:maxn)
-            push!(νω_range, (ωi, ωn, νi, νii))
-        end
-    end
-    νωi_part = par_partition(νω_range, length(workerpool))
-    remote_results = Vector{Future}(undef, length(νωi_part))
-
-    # distribute
-    for (i,ind) in enumerate(νωi_part)
-        ωi = sort(unique(map(x->x[1],νω_range[ind])))
-        ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, νmax, Q_sp.χ[:,ωi],
-                                       Q_ch.χ[:,ωi], Q_sp.γ[:,:,ωi], Q_ch.γ[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
-    end
-
-    # collect results
-    for (i,ind) in enumerate(νωi_part)
-        data_i = fetch(remote_results[i])
-        Σ_ladder[:,:] += data_i
-    end
-    Σ_ladder = Σ_ladder ./ mP.β .+ Σ_hartree
     return  OffsetArray(Σ_ladder, 1:Nk, νrange)
 end
 

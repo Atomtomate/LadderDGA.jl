@@ -33,20 +33,28 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         flush(log_io)
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        #@timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
-        @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+        λspch = try
+            @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
+            @info λspch
+            λspch.zero
+        catch e
+            @warn e
+            @warn "new lambda correction did non converge, resetting lambda to zero"
+            [0.0,0.0]
+        end
+        #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         @timeit LadderDGA.to "nl Σ par" Σ_ladder_DMFT = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
         @timeit LadderDGA.to "nl Σ par" Σ_ladder_λsp = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch.zero[1]); 
-        χ_λ!(nlQ_sp.χ, nlQ_ch.χ, λspch.zero[2]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch.zero[2]); 
         nlQ_sp.λ = λspch.zero[1];
         nlQ_ch.λ = λspch.zero[2];
         @timeit LadderDGA.to "nl Σ par" Σ_ladder_λspch = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch.zero[1]); 
-        χ_λ!(nlQ_sp.χ, nlQ_ch.χ, -λspch.zero[2]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch.zero[2]); 
         nlQ_sp.λ = 0.0;
         nlQ_ch.λ = 0.0;
 
@@ -70,7 +78,6 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["mP"] = mP
             f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
-            (kG.Nk <= 125000) && (f["bubble"] = bubble)
             f["λ₀_sp"] = λ₀
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
@@ -84,6 +91,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
             f["gImp"] = gImp
             f["kG"] = kG
             f["gLoc_fft"] = gLoc_fft
+            f["gLoc_rfft"] = gLoc_rfft
             f["Sigma_DMFT"] = Σ_loc 
             f["χ₀Loc"] = χ₀Loc
             f["log"] = LadderDGA.get_log()

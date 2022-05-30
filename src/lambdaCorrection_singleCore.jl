@@ -126,7 +126,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         
     end
     
-    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-6, iterations=300)
+    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-6, iterations=100)
     println(λnew)
     nlQ_sp.χ = χsp_bak
     nlQ_ch.χ = χch_bak
