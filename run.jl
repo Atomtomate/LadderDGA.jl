@@ -4,7 +4,7 @@ println("Modules loaded")
 flush(stdout)
 flush(stderr)
 
-function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", save_results=true, log_io=devnull)
+function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_postfix="", save_results=true, log_io=devnull)
     @warn "assuming linear, continuous nu grid for chi/trilex"
 
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
@@ -44,22 +44,22 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
         end
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        @timeit LadderDGA.to "nl Σ par" Σ_ladder_DMFT = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_DMFT = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λsp = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λsp = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch.zero[1]); 
-        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch.zero[2]); 
-        nlQ_sp.λ = λspch.zero[1];
-        nlQ_ch.λ = λspch.zero[2];
-        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λspch = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch.zero[1]); 
-        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch.zero[2]); 
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch[1]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch[2]); 
+        nlQ_sp.λ = λspch[1];
+        nlQ_ch.λ = λspch[2];
+        @timeit LadderDGA.to "nl Σ par" Σ_ladder_λspch = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch[1]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch[2]); 
         nlQ_sp.λ = 0.0;
         nlQ_ch.λ = 0.0;
 
     # Prepare data
-        if kG.Nk > 125000
+        if kG.Nk >= 27000
             @warn "Large number of k-points (Nk = $(kG.Nk)). χ₀, γ will not be saved!"
             nlQ_sp.γ = similar(nlQ_sp.γ, 0,0,0)
             nlQ_ch.γ = similar(nlQ_ch.γ, 0,0,0)
@@ -67,7 +67,7 @@ function run_sim(; descr="", cfg_file=nothing, res_prefix="", res_postfix="", sa
 
         flush(log_io)
         tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
-        fname = res_prefix*"lDGA_"*tc_s*"_k$(kG.Ns)_ext_l"*res_postfix*".jld2"
+        fname = fname == "" ? res_prefix*"lDGA_"*tc_s*"_k$(kG.Ns)_ext_l"*res_postfix*".jld2" : fname * ".jld2"
         @info "Writing to $(fname)"
         @timeit LadderDGA.to "write" jldopen(fname, "w") do f
             f["Description"] = descr

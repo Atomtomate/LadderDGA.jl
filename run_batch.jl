@@ -17,9 +17,23 @@ out_path = ARGS[2]
 #TODO: read the log file name from config
 #TODO: also use this name for output file in run.jl
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
+println("using workerpool: ", wp)
 tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
-(typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper) ? tc_s = tc_s * "_dasym" : tc_s = tc_s * "_nasym"
-logfile_path = out_path*"/lDGA_"*tc_s*"_$(kGridsStr[1][2])to$(kGridsStr[end][2]).log"
+#BSE_Asym_Helper_Approx1
+asym_str = if typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper
+    "direct_asym"
+elseif typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper_Approx1
+    "direct_asym_approx1"
+elseif typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper_Approx2
+    "direct_asym_approx2"
+elseif typeof(sP.χ_helper) === LadderDGA.BSE_Asym_Helper
+    "sc_asym"
+else
+    "no_asym"
+end
+
+name = "lDGA_" * tc_s * "_" * asym_str * "_$(kGridsStr[1][2])to$(kGridsStr[end][2])"
+logfile_path = out_path*"/"*name*".log"
 i = 1
 while isfile(logfile_path)
     global i
@@ -34,10 +48,10 @@ flush(stdout)
 flush(stderr)
 include("./run.jl")
 include("/scratch/projects/hhp00048/codes/scripts/LadderDGA_utils/new_lambda_analysis.jl")
-description = "exploration of PT region"
+description = "lDGA at U=$(mP.U), β=$(mP.β) with direct asymptotic improvement."
 
 open(logfile_path,"w") do io
     redirect_stdout(io) do
-        run_sim(descr=description, cfg_file=cfg_file, res_postfix="", res_prefix=out_path*"/", save_results=true, log_io=io)
+        run_sim(fname = out_path *"/"*name,descr=description, cfg_file=cfg_file, res_postfix="", res_prefix=out_path*"/", save_results=true, log_io=io)
     end
 end
