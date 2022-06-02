@@ -87,7 +87,6 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     χ_λ!(χch, χch_bak, λ[2])
     k_norm::Int = Nk(kG)
 
-    #Σ_ladder[:,:] = calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP, workerpool=wp)[:,νGrid]
     ### Untroll start
     
     n_iν = size(Σ_ladder, 2)
@@ -114,10 +113,8 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         tmp1 = 0.0
         tmp2 = 0.0
         for (qi,km) in enumerate(kG.kMult)
-            χsp_i_λ = real(χsp[qi,ωi])
-            χch_i_λ = real(χch[qi,ωi])
-            tmp1 += 0.5 * (χch_i_λ + χsp_i_λ) * km
-            tmp2 += 0.5 * (χch_i_λ - χsp_i_λ) * km
+            tmp1 += 0.5 * real(χch[qi,ωi] .+ χsp[qi,ωi]) * km
+            tmp2 += 0.5 * real(χch[qi,ωi] .- χsp[qi,ωi]) * km
         end
         lhs_c1 += tmp1/k_norm - t
         lhs_c2 += tmp2/k_norm
@@ -167,7 +164,9 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = min(size(nlQ_ch.γ,ν_axis), νZero + νmax - 1)
         for (νii,νi) in enumerate(νZero:maxn)
-            push!(νω_range, (ωi, ωn, νi, νii))
+            if νi <= νmax
+                push!(νω_range, (ωi, ωn, νi, νii))
+            end
         end
     end
     νωi_part = par_partition(νω_range, length(workerpool))
@@ -252,7 +251,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         @timeit to "λspch 2" λ_spch, dbg_string = if parallel
-                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool, νmax=sP.n_iν)
+                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool)
             else
                 extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         end

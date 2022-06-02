@@ -12,7 +12,7 @@ const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const γT = Array{_eltype,3}
 const χT = Array{_eltype,2}
-const GνqT = OffsetMatrix{ComplexF64, Matrix{_eltype}}
+const GνqT = OffsetMatrix{ComplexF64, Matrix{ComplexF64}}
 const qGridT = Array{Tuple{Int64,Int64,Int64},1}
 
 struct χ₀T
@@ -66,5 +66,21 @@ mutable struct NonLocalQuantities
     λ::Float64
 end
 
+struct WorkerCache
+    νω_range::Array{NTuple{4,Int}}
+    ωind_map::Dict{Int,Int}
+    χsp::Array{ComplexF64,2}
+    χch::Array{ComplexF64,2}
+    γsp::Array{ComplexF64,3}
+    γch::Array{ComplexF64,3}
+    λ₀::Array{ComplexF64,3}
+    G::GνqT
+    kG::KGrid
+    # function WorkerCache()
+    #     new(NTuple{4,Int}[], Dict{Int,Int}(), Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,2}(undef,0,0),  
+    #         Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0),
+    #         OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),0)
+    # end
+end
 
 Base.copy(x::T) where T <: Union{NonLocalQuantities, ImpurityQuantities} = T([deepcopy(getfield(x, k)) for k ∈ fieldnames(T)]...)

@@ -28,11 +28,13 @@ end
 @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
 @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
 
-#λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-#@timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
-#println("=========================================================================")
-#@timeit LadderDGA.to "new λ par" λsp_new_par = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
-#@info "parallel data agrees with sequential: " all(λsp_new.zero .≈ λsp_new_par.zero)
+λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+@timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
+println("=========================================================================")
+@timeit LadderDGA.to "new λ par" λsp_new_par = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
+@timeit LadderDGA.to "new λ clean" λsp_new_clean = LadderDGA.extended_λ_clean(nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+@info "parallel data agrees with sequential: " all(λsp_new.zero .≈ λsp_new_par.zero)
+@info "clean data agrees with fast: " all(λsp_new.zero .≈ λsp_new_clean.zero)
 
 @info "Σ"
 @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
@@ -53,4 +55,5 @@ println("=======================================================================
 Σ_ladder2 = sum(Σ_ladder_parts, dims=3)[:,:,1]
 @info "Channel split data agrees with sequential: " all(Σ_ladder .≈ Σ_ladder2)
 !all(Σ_ladder .≈ Σ_ladder2) && error("Channel split and normal computation of the self energy do not yield the same result.")
+
 true
