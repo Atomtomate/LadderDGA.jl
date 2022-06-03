@@ -19,7 +19,7 @@ function calc_λsp_correction_clean(χ_in::AbstractArray, usable_ω::AbstractArr
     @warn "calc λsp assumes real χ_sp/ch"
     χr    = real.(χ_in[:,usable_ω])
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β)
-    f_c1_clean(λint::Float64) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],EKin,iωn))/mP.β  -EKin*mP.β/12 - rhs
+    f_c1_clean(λint::Float64) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],mP.Ekin_DMFT,iωn))/mP.β  -mP.Ekin_DMFT*mP.β/12 - rhs
     df_c1_clean(λint::Float64) = sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:])/mP.β
 
     λsp = newton_right(f_c1_clean, df_c1_clean, get_χ_min(χr))
@@ -29,7 +29,7 @@ end
 function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         Gνω::GνqT, λ₀::Array{ComplexF64,3},
         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-        νmax::Int = -1, iterations=1000, ftol=1e-8)
+        νmax::Int = -1, iterations=1000, ftol=1e-6)
 
     # general definitions
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)

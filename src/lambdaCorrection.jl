@@ -127,6 +127,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
 
+
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     F[1] = lhs_c1 - rhs_c1
@@ -140,7 +141,7 @@ end
 function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters, workerpool::AbstractWorkerPool;
-            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-8, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -164,9 +165,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = min(size(nlQ_ch.γ,ν_axis), νZero + νmax - 1)
         for (νii,νi) in enumerate(νZero:maxn)
-            if νi <= νmax
                 push!(νω_range, (ωi, ωn, νi, νii))
-            end
         end
     end
     νωi_part = par_partition(νω_range, length(workerpool))
@@ -188,8 +187,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
 
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        cond_both_int!(F, λ, nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ, 
-        χsp_bak, χch_bak,  νω_range, νωi_part, remote_results,Σ_ladder,
+        cond_both_int!(F, λ, χsp_bak, χch_bak, nlQ_sp.γ, nlQ_ch.γ, 
+        nlQ_sp.χ, nlQ_ch.χ, νω_range, νωi_part, remote_results,Σ_ladder,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool)
     
     # TODO: test this for a lot of data before refactor of code

@@ -63,9 +63,29 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Di
                                    U, β, χ₀Asym[qi,ωii], χ_helper);
         data[2:end, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* data[1,i])
     end
+    if (nworkers() > 1)
+        
+    end
     return data
 end
 
+# struct WorkerCache
+#     initialized::Bool = false;
+#     νω_range::Array{NTuple{4,Int}}
+#     ωind_map::Dict{Int,Int}
+#     χsp::Array{ComplexF64,2}
+#     χch::Array{ComplexF64,2}
+#     γsp::Array{ComplexF64,3}
+#     γch::Array{ComplexF64,3}
+#     λ₀::Array{ComplexF64,3}
+#     G::GνqT
+#     kG::KGrid
+#     function WorkerCache()
+#         new(false, NTuple{4,Int}[], Dict{Int,Int}(), Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,2}(undef,0,0),  
+#             Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0),
+#             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),0)
+#     end
+# end
 
 function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, ωνi_range::Vector{NTuple{4,Int}})::Array{ComplexF64,2}
     data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(ωνi_range))
