@@ -82,9 +82,10 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
-        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, workerpool::AbstractWorkerPool)::Nothing
-    χ_λ!(χsp, χsp_bak, λ[1])
-    χ_λ!(χch, χch_bak, λ[2])
+        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, workerpool::AbstractWorkerPool, trafo::Function)::Nothing
+    λi::Vector{Float64} = trafo(λ)
+    χ_λ!(χsp, χsp_bak, λi[1])
+    χ_λ!(χch, χch_bak, λi[2])
     k_norm::Int = Nk(kG)
 
     ### Untroll start
@@ -173,8 +174,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     ###
 
     # preallications
-    χsp_bak::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
-    χch_bak::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
+    χsp_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
+    χch_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -185,54 +186,31 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     E_pot_tail::Matrix{ComplexF64} = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
+    sp_min = get_χ_min(real.(χsp_tmp))
+    ch_min = get_χ_min(real.(χch_tmp))
+    sp_max = 10.0
+    ch_max = 5000.0
+    trafo(x) = [((sp_max - sp_min)/2)*(tanh(x[1])+1) + sp_min, ((ch_max-ch_min)/2)*(tanh(x[2])+1) + ch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        cond_both_int!(F, λ, χsp_bak, χch_bak, nlQ_sp.γ, nlQ_ch.γ, 
+        cond_both_int!(F, λ, χsp_tmp, χch_tmp, nlQ_sp.γ, nlQ_ch.γ, 
         nlQ_sp.χ, nlQ_ch.χ, νω_range, νωi_part, remote_results,Σ_ladder,
-        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool)
+        G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool, trafo)
+    
+    println("λ search interval: $(trafo([-Inf, -Inf])) to $(trafo([Inf, Inf]))")
+
     
     # TODO: test this for a lot of data before refactor of code
     
-    δ   = 0.0 # safety from first pole. decrese this if no roots are found
-    λl = [get_χ_min(real.(χsp_bak)), get_χ_min(real.(χch_bak))] .+ δ
-    λr = [0.0, 0.0]
-    Fr = [0.0, 0.0]
-    Fm = [0.0, 0.0]
-    Fl = [0.0, 0.0]
-    
-    dbg_log = IOBuffer()
-    cond_both!(Fr, λr)
-    #find λr
-    println(dbg_log, "correct_margins: λl=$(round.(λl,digits=3)), λr=$(round.(λr,digits=3)) F=$(round.(Fr,digits=3))")
-    while any(Fr .> 0)
-        λl, λr  = correct_margins(λl, λr, Fl, Fr)
-        println(dbg_log, λl, " ...... ", λr)
-        cond_both!(Fr, λr)
-        println(dbg_log, "correct_margins: λl=$(round.(λl,digits=3)), λr=$(round.(λr,digits=3))Fr=$(round.(Fr,digits=3))")
-    end
-    
-    #bisect
-    for i in 1:5
-        Δh = (λr .- λl)./2
-        λm = λl .+ Δh
-        cond_both!(Fm, λm)
-        cond_both!(Fl, λl)
-        i > 1 && cond_both!(Fr, λr)
-        println(dbg_log, "$i: λl=$(round.(λl,digits=4)), λm=$(round.(λm,digits=4)), λr=$(round.(λr,digits=4))")
-        println(dbg_log, "    Fl=$(round.(Fl,digits=4)), Fm=$(round.(Fm,digits=4)), Fr=$(round.(Fr,digits=4))")
-        println(dbg_log, "<- λl=$(round.(λl,digits=4)),                     λr=$(round.(λr,digits=4))")
-        λl, λr = correct_margins(λl, λr, Fl, Fr)
-        println(dbg_log, "-> λl=$(round.(λl,digits=4)),                     λr=$(round.(λr,digits=4))")
-        λl, λr = bisect(λl, λm, λr, Fm)
-        
-    end
-    @info "start: " λl .+ (λr .- λl)./2
-    
-    λnew = nlsolve(cond_both!, λl .+ (λr .- λl)./2, ftol=1e-6, iterations=50)
+    δ   = 1.0 # safety from first pole. decrese this if no roots are found
+    λs = [sp_min, ch_min] .+ δ
+    λnew = nlsolve(cond_both!, λs, ftol=1e-6, iterations=100)
+    λnew.zero = trafo(λnew.zero)
     println(λnew)
     
-    return λnew, String(take!(dbg_log))
+    return λnew, ""
 end
+    
 
 function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
