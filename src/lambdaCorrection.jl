@@ -204,7 +204,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
     λs = [sp_min, ch_min] .+ δ
-    λnew = nlsolve(cond_both!, λs, ftol=1e-6, iterations=100)
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
     

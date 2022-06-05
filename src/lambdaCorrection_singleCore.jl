@@ -47,7 +47,7 @@ end
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-8, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -104,7 +104,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
     λs = [sp_min, ch_min] .+ δ
-    λnew = nlsolve(cond_both!, λs, ftol=1e-6, iterations=100)
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
     nlQ_sp.χ = χsp_bak
