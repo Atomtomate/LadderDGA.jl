@@ -11,6 +11,7 @@ function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_post
 
 
     for kIteration in 1:length(kGridsStr)
+        cfg_string = read(cfg_file, String)
         @info "Running calculation for $(kGridsStr[kIteration])"
         @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
@@ -71,7 +72,7 @@ function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_post
         @info "Writing to $(fname)"
         @timeit LadderDGA.to "write" jldopen(fname, "w") do f
             f["Description"] = descr
-            f["config"] = read(cfg_file, String)
+            f["config"] = cfg_string 
             f["kIt"] = kIteration  
             f["Nk"] = kG.Ns
             f["sP"] = sP
