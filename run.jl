@@ -79,7 +79,7 @@ function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_post
             f["mP"] = mP
             f["imp_density"] = imp_density
             f["Sigma_loc"] = Σ_ladderLoc
-            f["λ₀_sp"] = λ₀
+            (kG.Nk < 27000) && (f["λ₀_sp"] = λ₀)
             f["nlQ_sp"] = nlQ_sp
             f["nlQ_ch"] = nlQ_ch
             f["Σ_ladder_DMFT"] = Σ_ladder_DMFT
