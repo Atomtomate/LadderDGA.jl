@@ -34,14 +34,14 @@ function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_post
         flush(log_io)
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        λspch = try
+        λspch, λspch_z = try
             @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
             @info λspch
-            λspch.zero
+            λspch, λspch.zero
         catch e
             @warn e
             @warn "new lambda correction did non converge, resetting lambda to zero"
-            [0.0,0.0]
+            nothing, [0.0,0.0]
         end
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
@@ -49,13 +49,13 @@ function run_sim(; fname="", descr="", cfg_file=nothing, res_prefix="", res_post
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
         @timeit LadderDGA.to "nl Σ par" Σ_ladder_λsp = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch[1]); 
-        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch[2]); 
-        nlQ_sp.λ = λspch[1];
-        nlQ_ch.λ = λspch[2];
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch_z[1]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch_z[2]); 
+        nlQ_sp.λ = λspch_z[1];
+        nlQ_ch.λ = λspch_z[2];
         @timeit LadderDGA.to "nl Σ par" Σ_ladder_λspch = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch[1]); 
-        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch[2]); 
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch_z[1]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch_z[2]); 
         nlQ_sp.λ = 0.0;
         nlQ_ch.λ = 0.0;
 

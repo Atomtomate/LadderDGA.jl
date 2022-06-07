@@ -142,7 +142,7 @@ end
 function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters, workerpool::AbstractWorkerPool;
-            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=100, ftol::Float64=1e-7, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -188,8 +188,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
 
     sp_min = get_χ_min(real.(χsp_tmp))
     ch_min = get_χ_min(real.(χch_tmp))
-    sp_max = 10.0
-    ch_max = 5000.0
+    sp_max = 100.0 + sp_min
+    ch_max = 100.0 + (30)^(mP.U+1) + ch_min
     trafo(x) = [((sp_max - sp_min)/2)*(tanh(x[1])+1) + sp_min, ((ch_max-ch_min)/2)*(tanh(x[2])+1) + ch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
@@ -203,7 +203,9 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     # TODO: test this for a lot of data before refactor of code
     
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
-    λs = [sp_min, ch_min] .+ δ
+    λs_sp = sp_min + abs.(sp_min/10.0)
+    λs_ch = ch_min + abs.(ch_min/10.0)
+    λs = [λs_sp, λs_ch]
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
