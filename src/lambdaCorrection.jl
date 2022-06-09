@@ -202,11 +202,14 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     E_pot_tail::Matrix{ComplexF64} = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
-    sp_min = get_χ_min(real.(χsp_tmp))
-    ch_min = get_χ_min(real.(χch_tmp))
-    sp_max = 100.0 + sp_min
-    ch_max = 100.0 + (30)^(mP.U+1) + ch_min
-    trafo(x) = [((sp_max - sp_min)/2)*(tanh(x[1])+1) + sp_min, ((ch_max-ch_min)/2)*(tanh(x[2])+1) + ch_min]
+    rhs_c1 = mP.n/2 * (1 - mP.n/2)
+    λsp_min = get_χ_min(real.(χsp_tmp))
+    λch_min = get_χ_min(real.(χch_tmp))
+    λsp_max = sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
+    λch_max = sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
+    @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
+
+    trafo(x) = [((sp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((ch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, νωi_part, νω_range, χsp_tmp, χch_tmp, 
@@ -219,10 +222,10 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     # TODO: test this for a lot of data before refactor of code
     
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
-    λs_sp = sp_min + abs.(sp_min/10.0)
-    λs_ch = ch_min + abs.(ch_min/10.0)
+    λs_sp = λsp_min + abs.(λsp_min/10.0)
+    λs_ch = λch_min + abs.(λch_min/10.0)
     λs = [λs_sp, λs_ch]
-    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=1)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
     

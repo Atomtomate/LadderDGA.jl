@@ -1,5 +1,5 @@
 function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
-        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χsp_bak::χT, χch_bak::χT,
+        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χsp_tmp::χT, χch_tmp::χT,
         ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 
         Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
@@ -7,8 +7,8 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
         λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, trafo::Function)::Nothing
 
     λi = trafo(λ)
-    χ_λ!(nlQ_sp.χ, χsp_bak, λi[1])
-    χ_λ!(nlQ_ch.χ, χch_bak, λi[2])
+    χ_λ!(nlQ_sp.χ, χsp_tmp, λi[1])
+    χ_λ!(nlQ_ch.χ, χch_tmp, λi[2])
     k_norm::Int = Nk(kG)
 
     #TODO: unroll 
@@ -74,8 +74,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
                               1:Nq, 0:νmax-1)
 
     # preallications
-    χsp_bak::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
-    χch_bak::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
+    χsp_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
+    χch_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -85,30 +85,33 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     tail = [1 ./ (iν_array(mP.β, νGrid) .^ n) for n in 1:length(E_pot_tail_c)]
     E_pot_tail::Matrix{ComplexF64} = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-    sp_min = get_χ_min(real.(χsp_bak))
-    ch_min = get_χ_min(real.(χch_bak))
-    sp_max = 10.0
-    ch_max = 5000.0
 
-    trafo(x) = [((sp_max - sp_min)/2)*(tanh(x[1])+1) + sp_min, ((ch_max-ch_min)/2)*(tanh(x[2])+1) + ch_min]
+    rhs_c1 = mP.n/2 * (1 - mP.n/2)
+    λsp_min = get_χ_min(real.(χsp_tmp))
+    λch_min = get_χ_min(real.(χch_tmp))
+    λsp_max = sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
+    λch_max = sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
+    @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
+
+    trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
     println("λ search interval: $(trafo([-Inf, -Inf])) to $(trafo([Inf, Inf]))")
 
     
     #WARNING: THIS METHOD CHANGES nlQ and chi needs to be reset later!!
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, 
-        nlQ_sp, nlQ_ch, χsp_bak, χch_bak,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
+        nlQ_sp, nlQ_ch, χsp_tmp, χch_tmp,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP, trafo)
     
     # TODO: test this for a lot of data before refactor of code
     
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
-    λs = [sp_min, ch_min] .+ δ
-    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
+    λs = [λsp_min, λch_min] .+ δ
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=1)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    nlQ_sp.χ = χsp_bak
-    nlQ_ch.χ = χch_bak
+    nlQ_sp.χ = χsp_tmp
+    nlQ_ch.χ = χch_tmp
     
     return λnew, ""
 end
