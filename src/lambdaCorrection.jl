@@ -75,11 +75,9 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
     return λsp
 end
 
-function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
-        χsp::χT, χch::χT, γsp::γT, γch::γT,
-        χsp_bak::χT, χch_bak::χT,
-        νω_range::Array{NTuple{4,Int}}, νωi_part::Vector{UnitRange{Int64}}, remote_results::Vector{Future},
-        Σ_ladder::Array{ComplexF64,2}, 
+function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
+        χsp::χT, χch::χT, χsp_bak::χT, χch_bak::χT,
+        remote_results::Vector{Future},Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
         λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, workerpool::AbstractWorkerPool, trafo::Function)::Nothing
@@ -92,6 +90,13 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     
     n_iν = size(Σ_ladder, 2)
     # distribute
+    # workers = collect(workerpool.workers)
+    # for (i,ind) in enumerate(νωi_part)
+    #     ωi = sort(unique(map(x->x[1],νω_range[ind])))
+    #     remote_results[i] = remotecall(update_χ, workers[i], :sp, χsp[:,ωi])
+    #     remote_results[i] = remotecall(update_χ, workers[i], :ch, χch[:,ωi])
+    #     remote_results[i] = remotecall(calc_Σ_eom_par, workers[i], n_iν, mP.U)
+    # end
     for (i,ind) in enumerate(νωi_part)
         ωi = sort(unique(map(x->x[1],νω_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
@@ -101,7 +106,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
 
     # collect results
     fill!(Σ_ladder, Σ_hartree .* mP.β)
-    for (i,ind) in enumerate(νωi_part)
+    for i in 1:length(remote_results)
         data_i = fetch(remote_results[i])
         Σ_ladder[:,:] += data_i
     end
@@ -110,6 +115,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
 
     lhs_c1 = 0.0
     lhs_c2 = 0.0
+    #TODO: sum can be done on each worker
     for (ωi,t) in enumerate(χ_tail)
         tmp1 = 0.0
         tmp2 = 0.0
@@ -171,7 +177,17 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     end
     νωi_part = par_partition(νω_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(νωi_part))
+    # distribute
+    # workers = collect(workerpool.workers)
+    # for (i,ind) in enumerate(νωi_part)
+    #     ωi = sort(unique(map(x->x[1],νω_range[ind])))
+    #     ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
+    #     remote_results[i] = remotecall(initialize_cache, workers[i], νω_range[ind], ωind_map, 
+    #                nlQ_sp.χ[:,ωi], nlQ_ch.χ[:,ωi], nlQ_sp.γ[:,:,ωi], nlQ_ch.γ[:,:,ωi], λ₀[:,:,ωi], Gνω, kG)
+    # end
+    # wait.(remote_results)
     ###
+
 
     # preallications
     χsp_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
@@ -193,8 +209,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     trafo(x) = [((sp_max - sp_min)/2)*(tanh(x[1])+1) + sp_min, ((ch_max-ch_min)/2)*(tanh(x[2])+1) + ch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        cond_both_int!(F, λ, χsp_tmp, χch_tmp, nlQ_sp.γ, nlQ_ch.γ, 
-        nlQ_sp.χ, nlQ_ch.χ, νω_range, νωi_part, remote_results,Σ_ladder,
+        cond_both_int!(F, λ, νωi_part, νω_range, χsp_tmp, χch_tmp, 
+        nlQ_sp.χ, nlQ_ch.χ, remote_results,Σ_ladder,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool, trafo)
     
     println("λ search interval: $(trafo([-Inf, -Inf])) to $(trafo([Inf, Inf]))")

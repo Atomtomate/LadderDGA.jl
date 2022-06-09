@@ -52,8 +52,8 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Di
 
     for i in 1:length(qωi_range)
         qi,ωi = qωi_range[i]
-        ωn = ωi + ω_offset
         ωii = ωind_map[ωi]
+        ωn = ωii + ω_offset
         copy!(χννpω, view(Γr,:,:,ωii))
         for l in 1:size(χννpω,1)
             χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωii]
@@ -63,33 +63,12 @@ function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Di
                                    U, β, χ₀Asym[qi,ωii], χ_helper);
         data[2:end, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* data[1,i])
     end
-    if (nworkers() > 1)
-        
-    end
     return data
 end
 
-# struct WorkerCache
-#     initialized::Bool = false;
-#     νω_range::Array{NTuple{4,Int}}
-#     ωind_map::Dict{Int,Int}
-#     χsp::Array{ComplexF64,2}
-#     χch::Array{ComplexF64,2}
-#     γsp::Array{ComplexF64,3}
-#     γch::Array{ComplexF64,3}
-#     λ₀::Array{ComplexF64,3}
-#     G::GνqT
-#     kG::KGrid
-#     function WorkerCache()
-#         new(false, NTuple{4,Int}[], Dict{Int,Int}(), Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,2}(undef,0,0),  
-#             Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0), Array{ComplexF64,2}(undef,0,0,0),
-#             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),0)
-#     end
-# end
-
-function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, ωνi_range::Vector{NTuple{4,Int}})::Array{ComplexF64,2}
-    data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(ωνi_range))
-    for (i,ωνn) in enumerate(ωνi_range)
+function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, νωi_range::Vector{NTuple{4,Int}})::Array{ComplexF64,2}
+    data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(νωi_range))
+    for (i,ωνn) in enumerate(νωi_range)
         ωn,νn,_,_ = ωνn
         conv_fft_noPlan!(kG, view(data,:,i), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
     end
@@ -104,17 +83,15 @@ Calculates the bubble, based on two fourier-transformed Greens functions where t
 function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false, workerpool::AbstractWorkerPool=default_worker_pool())
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
-    ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
-                 for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
-    ωνi_part = par_partition(ωνi_range, length(workerpool))
-    remote_results = Vector{Future}(undef, length(ωνi_part))
+    νωi_range, νωi_part = gen_νω_part(sP, workerpool)
+    remote_results = Vector{Future}(undef, length(νωi_part))
     
-    for (i,ind) in enumerate(ωνi_part)
-        remote_results[i] = remotecall(χ₀_conv, workerpool, kG, Gνω, Gνω_r, ωνi_range[ind])
+    for (i,ind) in enumerate(νωi_part)
+        remote_results[i] = remotecall(χ₀_conv, workerpool, kG, Gνω, Gνω_r, νωi_range[ind])
     end
-    for (i,ind) in enumerate(ωνi_part)
+    for (i,ind) in enumerate(νωi_part)
         data_i = fetch(remote_results[i])
-        for (j,ωνind) in enumerate(ωνi_range[ind])
+        for (j,ωνind) in enumerate(νωi_range[ind])
             _,_,ωi,νi = ωνind
             data[:,νi,ωi] = data_i[:,j] .* -mP.β
         end
@@ -210,6 +187,26 @@ end
 
 #@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
 #  2*sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2))
+function calc_Σ_eom_par(νmax::Int, U::Float64) 
+    
+    Nq::Int = size(wcache.χsp,1)
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    Σ_tmp::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    Σ_res::Array{ComplexF64,2} = zeros(ComplexF64, Nq, νmax)
+    # wcache.νω_map = νω_map
+    # wcache.ωind_map = ωind_map
+    for (ωi, ωn, νi, νii) in wcache.νω_map
+        ωii = wcache.ωind_map[ωi]
+        v = reshape(view(wcache.G,:,(νii-1) + ωn), gridshape(wcache.kG)...)
+        for qi in 1:Nq
+            Kνωq_pre[qi] = eom(U, wcache.γsp[qi,νi,ωii], wcache.γch[qi,νi,ωii], wcache.χsp[qi,ωii], 
+                            wcache.χch[qi,ωii], wcache.λ₀[qi,νi,ωii])
+        end
+        conv_fft1_noPlan!(wcache.kG, Σ_tmp, Kνωq_pre, v)
+        Σ_res[:,νii] += Σ_tmp
+    end
+    return Σ_res
+end
 function calc_Σ_eom(νωindices::Vector{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, νmax::Int, χsp::χT, χch::χT,
                     γsp::γT, γch::γT, Gνω::GνqT, λ₀::Array{ComplexF64,3}, U::Float64, kG::KGrid) 
             
@@ -249,7 +246,6 @@ function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = min(size(Q_ch.γ,ν_axis), νZero + νmax - 1)
-        #println("tt: $ωn: $maxn vs $maxn2 /// $(size(Q_ch.γ,ν_axis)) : $(νZero + νmax) :: $(νZero) + $(νmax)")
         for (νii,νi) in enumerate(νZero:maxn)
             push!(νω_range, (ωi, ωn, νi, νii))
         end
@@ -258,6 +254,17 @@ function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::
     remote_results = Vector{Future}(undef, length(νωi_part))
 
     # distribute
+    # workers = collect(workerpool.workers)
+    # for (i,ind) in enumerate(νωi_part)
+    #     ωi = sort(unique(map(x->x[1],νω_range[ind])))
+    #     ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
+    #     remote_results[i] = remotecall(initialize_cache, workers[i], νω_range[ind], ωind_map, 
+    #                Q_sp.χ[:,ωi], Q_ch.χ[:,ωi], Q_sp.γ[:,:,ωi], Q_ch.γ[:,:,ωi], λ₀[:,:,ωi], Gνω, kG)
+    # end
+    # wait.(remote_results)
+    # for (i,ind) in enumerate(νωi_part)
+    #     remote_results[i] = remotecall(calc_Σ_eom_par, workers[i], νmax, mP.U)
+    # end
     for (i,ind) in enumerate(νωi_part)
         ωi = sort(unique(map(x->x[1],νω_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))

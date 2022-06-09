@@ -44,7 +44,7 @@ using .LapackWrapper
 
 # ==================== Parallelization Bookkeeping ====================
 global_vars = String[]
-const wcache = Ref{WorkerCache}(WorkerCache())
+wcache = WorkerCache()
 
 # ==================== Precompilation ====================
 # TODO: precompile calc_... for CompleX{Float64}
