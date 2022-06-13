@@ -64,3 +64,92 @@ function bisect(λl::Vector{Float64}, λm::Vector{Float64}, λr::Vector{Float64}
     λl_2, λr_2 = bisect(λl[2], λm[2], λr[2], Fm[2])
     ([λl_1, λl_2], [λr_1, λr_2])
 end
+
+
+function cond_both_int(
+        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+        ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 
+        Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
+        G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
+        E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
+        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+    k_norm::Int = Nk(kG)
+
+    #TODO: unroll 
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+
+    lhs_c1 = 0.0
+    lhs_c2 = 0.0
+    for (ωi,t) in enumerate(χ_tail)
+        tmp1 = 0.0
+        tmp2 = 0.0
+        for (qi,km) in enumerate(kG.kMult)
+            χsp_i_λ = real(nlQ_sp.χ[qi,ωi])
+            χch_i_λ = real(nlQ_ch.χ[qi,ωi])
+            tmp1 += (χch_i_λ + χsp_i_λ) * km
+            tmp2 += (χch_i_λ - χsp_i_λ) * km
+        end
+        lhs_c1 += 0.5*tmp1/k_norm - t
+        lhs_c2 += 0.5*tmp2/k_norm
+    end
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
+
+    lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
+    lhs_c2 = lhs_c2/mP.β
+
+    #TODO: the next line is expensive: Optimize G_from_Σ
+    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    rhs_c1 = mP.n/2 * (1 - mP.n/2)
+    rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+    return lhs_c1, rhs_c1, lhs_c2, rhs_c2
+    return 
+end
+
+function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
+        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χsp_tmp::χT, χch_tmp::χT,
+        ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 
+        Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
+        G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
+        E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
+        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, trafo::Function)::Nothing
+
+    λi = trafo(λ)
+    χ_λ!(nlQ_sp.χ, χsp_tmp, λi[1])
+    χ_λ!(nlQ_ch.χ, χch_tmp, λi[2])
+    k_norm::Int = Nk(kG)
+
+    #TODO: unroll 
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+
+    lhs_c1 = 0.0
+    lhs_c2 = 0.0
+    for (ωi,t) in enumerate(χ_tail)
+        tmp1 = 0.0
+        tmp2 = 0.0
+        for (qi,km) in enumerate(kG.kMult)
+            χsp_i_λ = real(nlQ_sp.χ[qi,ωi])
+            χch_i_λ = real(nlQ_ch.χ[qi,ωi])
+            tmp1 += (χch_i_λ + χsp_i_λ) * km
+            tmp2 += (χch_i_λ - χsp_i_λ) * km
+        end
+        lhs_c1 += 0.5*tmp1/k_norm - t
+        lhs_c2 += 0.5*tmp2/k_norm
+    end
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
+
+    lhs_c1 = lhs_c1/mP.β - mP.Ekin_DMFT*mP.β/12
+    lhs_c2 = lhs_c2/mP.β
+
+    #TODO: the next line is expensive: Optimize G_from_Σ
+    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    rhs_c1 = mP.n/2 * (1 - mP.n/2)
+    rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+    F[1] = lhs_c1 - rhs_c1
+    F[2] = lhs_c2 - rhs_c2
+    return nothing
+end

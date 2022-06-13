@@ -62,7 +62,6 @@ end
 function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int64},
                             EKin::Float64, rhs::Float64, kG::KGrid, 
                             mP::ModelParameters, sP::SimulationParameters)
-    @warn "calc λsp assumes real χ_sp/ch"
     χr::Matrix{Float64}    = real.(χ_in[:,usable_ω])
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β)
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf

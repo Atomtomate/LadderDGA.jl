@@ -16,7 +16,6 @@ end
 function calc_λsp_correction_clean(χ_in::AbstractArray, usable_ω::AbstractArray{Int64},
                             EKin::Float64, rhs::Float64, kG::KGrid, 
                             mP::ModelParameters, sP::SimulationParameters)
-    @warn "calc λsp assumes real χ_sp/ch"
     χr    = real.(χ_in[:,usable_ω])
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β)
     f_c1_clean(λint::Float64) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],mP.Ekin_DMFT,iωn))/mP.β  -mP.Ekin_DMFT*mP.β/12 - rhs

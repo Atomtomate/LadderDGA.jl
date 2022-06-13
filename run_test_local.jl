@@ -54,6 +54,8 @@ println("=======================================================================
 @info "Channel split data agrees with sequential: " all(Σ_ladder .≈ Σ_ladder2)
 !all(Σ_ladder .≈ Σ_ladder2) && error("Channel split and normal computation of the self energy do not yield the same result.")
 
+c2_res = c2_curve(1000, 20, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+
 # lch_list = -2:0.01:2
 # lsp_lch = Array{Float64,1}(undef, length(lch_list))
 # c2_vals = Array{Float64,1}(undef, length(lch_list))
