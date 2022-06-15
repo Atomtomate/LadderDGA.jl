@@ -123,7 +123,7 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, nlQ_sp::NonLocalQu
     λch_max = 1000.0
     λch_max2 = 1e12
 
-    λch_range_negative = 10.0.^(range(0,stop=log10(-λch_min+1),length=NPoints_negative+2)) .+ λch_min .- 1
+    λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+1),length=NPoints_negative+2)) .+ λch_min .- 1
     λch_range_coarse = 10.0.^(range(0,stop=log10(λch_max-λch_min+1),length=NPoints_coarse-4)) .+ λch_min .- 1
     λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=4)) .+ 2*λch_max .- 1
     #λch_range_old = 10.0.^(range(0,stop=log10(-λch_min+1),length=NPoints_negative+2)) .+ λch_min .- 1

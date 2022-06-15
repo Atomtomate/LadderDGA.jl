@@ -147,7 +147,7 @@ end
 function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters, workerpool::AbstractWorkerPool;
-            νmax::Int = -1, iterations::Int=100, ftol::Float64=1e-7, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=20, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -208,7 +208,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λch_max = sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
-    trafo(x) = [((sp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((ch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
+    trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((ch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, νωi_part, νω_range, χsp_tmp, χch_tmp, 

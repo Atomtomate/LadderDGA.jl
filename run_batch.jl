@@ -52,6 +52,6 @@ description = "lDGA at U=$(mP.U), β=$(mP.β) with direct asymptotic improvement
 
 open(logfile_path,"w") do io
     redirect_stdout(io) do
-        run_sim(fname = out_path *"/"*name,descr=description, cfg_file=cfg_file, res_postfix="", res_prefix=out_path*"/", save_results=true, log_io=io)
+        run_sim(run_c2_curve=true, fname = out_path,descr=description, cfg_file=cfg_file, res_postfix=asym_str, res_prefix=out_path*"/", save_results=true, log_io=io)
     end
 end
