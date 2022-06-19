@@ -67,7 +67,7 @@ end
 
 
 function cond_both_int(
-        nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+        λch_i::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, χsp_tmp::χT, χch_tmp::χT,
         ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 
         Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}}, Kνωq_pre::Vector{ComplexF64},
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
@@ -75,6 +75,20 @@ function cond_both_int(
         λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
 
     k_norm::Int = Nk(kG)
+
+    χ_λ!(nlQ_ch.χ, χch_tmp, λch_i)
+    rhs_c1 = 0.0
+    for (ωi,t) in enumerate(χ_tail)
+        tmp1 = 0.0
+        for (qi,km) in enumerate(kG.kMult)
+            χch_i_λ = nlQ_ch.χ[qi,ωi]
+            tmp1 += χch_i_λ * km
+        end
+        rhs_c1 -= (0.5*tmp1/k_norm - t)
+    end
+    rhs_c1 += mP.n * (1 - mP.n/2)
+    λsp_i = calc_λsp_correction(nlQ_sp.χ, ωindices, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
+    χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
 
     #TODO: unroll 
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
@@ -104,7 +118,7 @@ function cond_both_int(
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-    return lhs_c1, rhs_c1, lhs_c2, rhs_c2
+    return λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2
     return 
 end
 
@@ -145,7 +159,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     lhs_c2 = lhs_c2/mP.β
 
     #TODO: the next line is expensive: Optimize G_from_Σ
-    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
+    @timeit to "G from Sigma" G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)));
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)

@@ -75,7 +75,7 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
 end
 
 function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
-        χsp::χT, χch::χT, χsp_bak::χT, χch_bak::χT,
+        χsp::χT, χch::χT, γsp::γT, γch::γT, χsp_bak::χT, χch_bak::χT,
         remote_results::Vector{Future},Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
         E_pot_tail::Matrix{ComplexF64},E_pot_tail_inv::Vector{Float64},Gνω::GνqT,
@@ -145,9 +145,9 @@ end
 # after optimization, revert to:
 # calc_Σ, correct Σ, calc G(Σ), calc E
 function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
-            Gνω::GνqT, λ₀::Array{ComplexF64,3},
+            Gνω::GνqT, λ₀::Array{ComplexF64,3}, x₀::Vector{Float64},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters, workerpool::AbstractWorkerPool;
-            νmax::Int = -1, iterations::Int=20, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=20, ftol::Float64=1e-6)
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -204,15 +204,21 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     λsp_min = get_χ_min(real.(χsp_tmp))
     λch_min = get_χ_min(real.(χch_tmp))
-    λsp_max = sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
-    λch_max = sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
+    λch_min = if λch_min > 10000
+        @warn "found λch_min=$λch_min, resetting to -500"
+        -500.0
+    else
+        λch_min
+    end
+    λsp_max = 50.0#sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
+    λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
-    trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((ch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
+    trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, νωi_part, νω_range, χsp_tmp, χch_tmp, 
-        nlQ_sp.χ, nlQ_ch.χ, remote_results,Σ_ladder,
+        nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ, remote_results,Σ_ladder,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool, trafo)
     
     println("λ search interval: $(trafo([-Inf, -Inf])) to $(trafo([Inf, Inf]))")
@@ -223,7 +229,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
     λs_sp = λsp_min + abs.(λsp_min/10.0)
     λs_ch = λch_min + abs.(λch_min/10.0)
-    λs = [λs_sp, λs_ch]
+    λs = x₀#[λs_sp, λs_ch]
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=1)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
@@ -236,7 +242,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
             nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, 
             Gνω::GνqT, λ₀::Array{ComplexF64,3}, kG::KGrid,
             mP::ModelParameters, sP::SimulationParameters;
-            workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false)
+            workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false, x₀::Vector{Float64}=[0.0,0.0])
     res = if type == :sp
         rhs,usable_ω_λc = calc_λsp_rhs_usable(imp_density, nlQ_sp, nlQ_ch, kG, mP, sP)
         @timeit to "λsp" λsp = calc_λsp_correction(real.(nlQ_sp.χ), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
@@ -248,9 +254,9 @@ function λ_correction(type::Symbol, imp_density::Float64,
         #@time λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         #@time λ_spch = extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
         @timeit to "λspch 2" λ_spch, dbg_string = if parallel
-                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP, workerpool)
+                extended_λ_par(nlQ_sp, nlQ_ch, Gνω, λ₀, x₀, kG, mP, sP, workerpool)
             else
-                extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)
+                extended_λ(nlQ_sp, nlQ_ch, Gνω, λ₀, x₀, kG, mP, sP)
         end
         @warn "extended λ correction dbg string: " dbg_string
         #@timeit to "λspch clean 2" λ_spch_clean = extended_λ_clean(nlQ_sp, nlQ_ch, Gνω, λ₀, kG, mP, sP)

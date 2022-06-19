@@ -8,10 +8,9 @@ function find_root(c2_data)
     c2_curve = c2_data[5,:] .- c2_data[6,:]
     xvals = c2_data[2,:]
     sc_ind = findlast(x -> x > 0, c2_curve)
-    println("index: ", sc_ind)
-    check = (c2_data[3,sc_ind] - c2_data[4,sc_ind])*(c2_data[3,sc_ind+1] - c2_data[4,sc_ind+1])
     (sc_ind == nothing) && return (Inf,Inf,0)
     (sc_ind == 1) && return (Inf,-Inf,0)
+    check = (c2_data[3,sc_ind] - c2_data[4,sc_ind])*(c2_data[3,sc_ind+1] - c2_data[4,sc_ind+1])
     y1 = c2_curve[sc_ind]
     y2 = c2_curve[sc_ind+1]
     x1 = xvals[sc_ind]
@@ -65,6 +64,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
 
         λspch, λspch_z = try
             @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
+            println("extended lambda: ", λspch)
             @info λspch
             λspch, λspch.zero
         catch e
@@ -75,34 +75,32 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         @timeit LadderDGA.to "pp" begin
-            Σ_ladder_DMFT = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-            println(size(Σ_ladder_DMFT.parent))
-            flush(stdout)
             ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
             iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-            E_kin_DMFT_1, E_pot_DMFT_1 = calc_E(sum(Σ_ladder_DMFT.parent, dims=3)[:,:,1], kG, mP)
+            @timeit LadderDGA.to "Σ" Σ_ladder_DMFT = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+            χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
+            E_kin_DMFT_1, E_pot_DMFT_1 = calc_E(Σ_ladder_DMFT.parent, kG, mP)
             E_pot_DMFT_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
-            Σ_ladder_λsp = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            E_kin_λsp_1, E_pot_λsp_1 = calc_E(sum(Σ_ladder_λsp.parent, dims=3)[:,:,1], kG, mP)
+            Σ_ladder_λsp = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+            E_kin_λsp_1, E_pot_λsp_1 = calc_E(Σ_ladder_λsp.parent, kG, mP)
             E_pot_λsp_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch_z[1]); 
             χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch_z[2]); 
             nlQ_sp.λ = λspch_z[1];
             nlQ_ch.λ = λspch_z[2];
-            Σ_ladder_λspch = LadderDGA.calc_Σ_parts(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            E_kin_λspch_1, E_pot_λspch_1 = calc_E(sum(Σ_ladder_λspch.parent, dims=3)[:,:,1], kG, mP)
+            Σ_ladder_λspch = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+            E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP)
             E_pot_λspch_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch_z[1]); 
             χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch_z[2]); 
             nlQ_sp.λ = 0.0;
             nlQ_ch.λ = 0.0;
 
-            c2_res = run_c2_curve ? c2_curve(20, 20, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
-            c2_root_res = find_root(c2_res)
-            println("c2 root result: ", c2_root_res)
         end
+        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(40, 10, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
+        c2_root_res = find_root(c2_res)
+        @info "c2 root result:  $c2_root_res"
 
     # Prepare data
         if kG.Nk >= 27000

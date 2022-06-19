@@ -1,9 +1,9 @@
 
 #TODO: combine c2_curves and extended_λ
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
-            Gνω::GνqT, λ₀::Array{ComplexF64,3},
+            Gνω::GνqT, λ₀::Array{ComplexF64,3}, x₀::Vector{Float64},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6, x₀ = [0.1, 0.1])
+            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6)
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
@@ -45,6 +45,12 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     λsp_min = get_χ_min(real.(χsp_tmp))
     λch_min = get_χ_min(real.(χch_tmp))
+    λch_min = if λch_min > 10000
+        @warn "found λch_min=$λch_min, resetting to -500"
+        -500.0
+    else
+        λch_min
+    end
     λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β 
     λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β
     λsp_max = calc_λsp_correction(χsp_tmp, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
@@ -65,7 +71,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     # TODO: test this for a lot of data before refactor of code
     
     δ   = 0.0 # safety from first pole. decrese this if no roots are found
-    λs = [λsp_min, λch_min] .+ δ
+    λs = x₀
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
@@ -118,33 +124,35 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, nlQ_sp::NonLocalQu
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     λsp_min = get_χ_min(real.(χsp_tmp))
     λch_min = get_χ_min(real.(χch_tmp))
+    λch_min = if λch_min > 10000
+        @warn "found λch_min=$λch_min, resetting to -500"
+        -500.0
+    else
+        λch_min
+    end
     @info "λsp/ch min" λsp_min λch_min
-    λsp_max = 100.0
-    λch_max = 1000.0
+    λsp_max = 500.0
+    λch_max = maximum([1000.0, 10*abs(λch_min)])
     λch_max2 = 1e12
 
     λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+1),length=NPoints_negative+2)) .+ λch_min .- 1
-    λch_range_coarse = 10.0.^(range(0,stop=log10(λch_max-λch_min+1),length=NPoints_coarse-4)) .+ λch_min .- 1
-    λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=4)) .+ 2*λch_max .- 1
+    λch_range_coarse = range(0,stop=λch_max,length=NPoints_coarse)
+    λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=6)) .+ 2*λch_max .- 1
     #λch_range_old = 10.0.^(range(0,stop=log10(-λch_min+1),length=NPoints_negative+2)) .+ λch_min .- 1
     
     λch_range = Float64.(sort(union([0], λch_range_negative, λch_range_coarse, λch_range_large)))
     # λsp, λch, lhs2_c1,rhs_c1 ,lhs_c2, rhs_c2, Epot_1, Epot_2
     # #TODO: this could be made more memory efficient
+    r_χsp = real.(nlQ_sp.χ)
     c2_curve_res = zeros(6, length(λch_range))
-    for (i,λch_i) in enumerate(λch_range)
-        χ_λ!(nlQ_ch.χ, χch_tmp, λch_i)
-        χch_ω = kintegrate(kG, nlQ_ch.χ[:,ωindices], 1)[1,:]
-        χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
-        rhs = mP.n * (1 - mP.n/2) - χch_sum
-        λsp_i = calc_λsp_correction(real.(nlQ_sp.χ), ωindices, mP.Ekin_DMFT, rhs, kG, mP, sP)
-        χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
-        lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int(nlQ_sp, nlQ_ch,
+    @timeit to "c2 loop" for (i,λch_i) in enumerate(λch_range)
+            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int(λch_i, nlQ_sp, nlQ_ch, χsp_tmp, χch_tmp,
             ωindices, Σ_ladder_ω, Σ_ladder, Kνωq_pre, G_corr, νGrid, χ_tail, Σ_hartree,
             E_pot_tail, E_pot_tail_inv, Gνω,λ₀, kG, mP, sP)
         
 
         c2_curve_res[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2]
+        @timeit to "7" nlQ_sp.χ = deepcopy(χsp_tmp)
         nlQ_sp.χ = deepcopy(χsp_tmp)
         nlQ_ch.χ = deepcopy(χch_tmp)
     end
