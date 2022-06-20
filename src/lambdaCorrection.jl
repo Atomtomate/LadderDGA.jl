@@ -74,7 +74,7 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
     return λsp
 end
 
-function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
+function cond_both_int_par!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
         χsp::χT, χch::χT, γsp::γT, γch::γT, χsp_bak::χT, χch_bak::χT,
         remote_results::Vector{Future},Σ_ladder::Array{ComplexF64,2}, 
         G_corr::Matrix{ComplexF64},νGrid::UnitRange{Int},χ_tail::Vector{ComplexF64},Σ_hartree::Float64,
@@ -214,11 +214,12 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
-    trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
+    #trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
+    trafo(x) = x
     
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
-        cond_both_int!(F, λ, νωi_part, νω_range, χsp_tmp, χch_tmp, 
-        nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ, remote_results,Σ_ladder,
+        cond_both_int_par!(F, λ, νωi_part, νω_range,
+        nlQ_sp.χ, nlQ_ch.χ, nlQ_sp.γ, nlQ_ch.γ, χsp_tmp, χch_tmp,  remote_results,Σ_ladder,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, workerpool, trafo)
     
     println("λ search interval: $(trafo([-Inf, -Inf])) to $(trafo([Inf, Inf]))")
@@ -230,7 +231,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λs_sp = λsp_min + abs.(λsp_min/10.0)
     λs_ch = λch_min + abs.(λch_min/10.0)
     λs = x₀#[λs_sp, λs_ch]
-    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=1)
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=20)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
     

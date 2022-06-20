@@ -7,7 +7,7 @@ flush(stderr)
 function find_root(c2_data)
     c2_curve = c2_data[5,:] .- c2_data[6,:]
     xvals = c2_data[2,:]
-    sc_ind = findlast(x -> x > 0, c2_curve)
+    sc_ind = (c2_curve[end] < 0) ? findlast(x -> x > 0, c2_curve) : findlast(x -> x < 0, c2_curve)
     (sc_ind == nothing) && return (Inf,Inf,0)
     (sc_ind == 1) && return (Inf,-Inf,0)
     check = (c2_data[3,sc_ind] - c2_data[4,sc_ind])*(c2_data[3,sc_ind+1] - c2_data[4,sc_ind+1])
@@ -52,6 +52,8 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         @info "chi ch"
         flush(log_io)
         @timeit LadderDGA.to "nl xch par" nlQ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
+        flush(stdout)
+        flush(stderr)
 
         @timeit LadderDGA.to "λ₀" begin
             Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
@@ -62,8 +64,13 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         flush(log_io)
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
+
+        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(20, 50, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
+        c2_root_res = find_root(c2_res)
+        @info "c2 root result:  $c2_root_res"
+
         λspch, λspch_z = try
-            @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
+            @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[c2_root_res[1], c2_root_res[2]], parallel=true, workerpool=wp)
             println("extended lambda: ", λspch)
             @info λspch
             λspch, λspch.zero
@@ -96,11 +103,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch_z[2]); 
             nlQ_sp.λ = 0.0;
             nlQ_ch.λ = 0.0;
-
         end
-        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(40, 10, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
-        c2_root_res = find_root(c2_res)
-        @info "c2 root result:  $c2_root_res"
 
     # Prepare data
         if kG.Nk >= 27000
@@ -109,8 +112,10 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             nlQ_ch.γ = similar(nlQ_ch.γ, 0,0,0)
         end
 
-        flush(log_io)
         @info "Writing to $(fname_out)"
+        flush(log_io)
+        flush(stdout)
+        flush(stderr)
         @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
             f["Description"] = descr
             f["config"] = cfg_string 

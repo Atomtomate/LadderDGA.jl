@@ -75,8 +75,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    nlQ_sp.χ = χsp_tmp
-    nlQ_ch.χ = χch_tmp
+    nlQ_sp.χ = deepcopy(χsp_tmp)
+    nlQ_ch.χ = deepcopy(χch_tmp)
     
     return λnew, ""
 end
