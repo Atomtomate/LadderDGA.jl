@@ -84,9 +84,9 @@ function cond_both_int(
             χch_i_λ = nlQ_ch.χ[qi,ωi]
             tmp1 += χch_i_λ * km
         end
-        rhs_c1 -= (0.5*tmp1/k_norm - t)
+        rhs_c1 -= real(tmp1/k_norm - t)
     end
-    rhs_c1 += mP.n * (1 - mP.n/2)
+    rhs_c1 = rhs_c1/mP.β + mP.Ekin_DMFT*mP.β/12 + mP.n * (1 - mP.n/2)
     λsp_i = calc_λsp_correction(nlQ_sp.χ, ωindices, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
     χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
 
@@ -167,3 +167,4 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     F[2] = lhs_c2 - rhs_c2
     return nothing
 end
+

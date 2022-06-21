@@ -40,11 +40,11 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.BSE_SC]]
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
-git-tree-sha1 = "8f8356ca19912a0be965493a3a05252441003f81"
-repo-rev = "master"
+git-tree-sha1 = "0617576de8674e3a270a73fe4c6032a718a1cbe9"
+repo-rev = "b8169e5"
 repo-url = "https://github.com/Atomtomate/BSE_SC.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
-version = "2.3.3"
+version = "2.3.1"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"

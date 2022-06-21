@@ -35,13 +35,13 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
     for kIteration in 1:length(kGridsStr)
         cfg_string = read(cfg_file, String)
         @info "Running calculation for $(kGridsStr[kIteration])"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
         tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
-        fname_out =  res_prefix*"lDGA_"*tc_s*"_k$(kG.Ns)_"*res_postfix*".jld2" 
+        fname_out =  res_prefix*"lDGA_"*tc_s*"_k$(kGridsStr[kIteration][2])_"*res_postfix*".jld2" 
         if isfile(fname_out)
             @warn "Skipping existing file " fname_out
             continue
         end
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[kIteration], mP, sP, env);
 
         @info "non local bubble"
         flush(log_io)
@@ -65,7 +65,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
 
-        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(20, 50, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
+        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(5, 5, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
         c2_root_res = find_root(c2_res)
         @info "c2 root result:  $c2_root_res"
 
