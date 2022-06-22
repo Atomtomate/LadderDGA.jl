@@ -205,8 +205,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λsp_min = get_χ_min(real.(χsp_tmp))
     λch_min = get_χ_min(real.(χch_tmp))
     λch_min = if λch_min > 10000
-        @warn "found λch_min=$λch_min, resetting to -500"
-        -500.0
+        @warn "found λch_min=$λch_min, resetting to -400"
+        -400.0
     else
         λch_min
     end

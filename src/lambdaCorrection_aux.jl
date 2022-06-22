@@ -118,6 +118,8 @@ function cond_both_int(
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+    nlQ_sp.χ = deepcopy(χsp_tmp)
+    nlQ_ch.χ = deepcopy(χch_tmp)
     return λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2
     return 
 end
