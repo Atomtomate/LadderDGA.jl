@@ -53,6 +53,8 @@ println("=======================================================================
 Σ_ladder2 = sum(Σ_ladder_parts, dims=3)[:,:,1]
 @info "Channel split data agrees with sequential: " all(Σ_ladder .≈ Σ_ladder2)
 !all(Σ_ladder .≈ Σ_ladder2) && error("Channel split and normal computation of the self energy do not yield the same result.")
+LadderDGA.writeFortranΣ("klist_parts_test", Σ_ladder_parts.parent, mP.β)
+LadderDGA.writeFortranΣ("klist_summed_test", Σ_ladder.parent, mP.β)
 
 c2_res = c2_curve(1000, 20, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 

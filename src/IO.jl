@@ -484,7 +484,7 @@ function writeFortranΓ(dirName::String, fileName::String, simParams, inCol1, in
 end
 
 function writeFortranΣ(dirName::String, Σ_ladder, β)
-    res = zeros(size(Σ_ladder,2), 3)
+    res = zeros(size(Σ_ladder,2), ndims(Σ_ladder) == 2 ? 3 : 9) 
     if !isdir(dirName)
         mkdir(dirName)
     end
@@ -494,8 +494,19 @@ function writeFortranΣ(dirName::String, Σ_ladder, β)
         open(fn, write=true) do f
             write(f, "header...\n")
             res[:,1] = (2 .*(0:size(Σ_ladder,2)-1) .+ 1) .* π ./ β
-            res[:,2] = real.(Σ_ladder[ki,:])
-            res[:,3] = imag.(Σ_ladder[ki,:])
+            if ndims(Σ_ladder) == 2
+                res[:,2] = real.(Σ_ladder[ki,:])
+                res[:,3] = imag.(Σ_ladder[ki,:])
+            else
+                res[:,2] = real.(sum(Σ_ladder, dims=3)[ki,:,1])
+                res[:,3] = imag.(sum(Σ_ladder, dims=3)[ki,:,1])
+                res[:,4] = real.(Σ_ladder[ki,:, 2])
+                res[:,5] = imag.(Σ_ladder[ki,:, 2])
+                res[:,6] = real.(Σ_ladder[ki,:, 1])
+                res[:,7] = imag.(Σ_ladder[ki,:, 1])
+                res[:,8] = real.(Σ_ladder[ki,:, 3])
+                res[:,9] = imag.(Σ_ladder[ki,:, 3])
+            end
             writedlm(f,  rpad.(round.(res; digits=14), 22, " "), "\t")
         end
     end
