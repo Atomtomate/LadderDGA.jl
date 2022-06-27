@@ -86,7 +86,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         @timeit LadderDGA.to "pp" begin
             ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
             iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-            nh = ceil(Int,size(f["nlQ_sp"].χ, 2)/2)
+            nh = ceil(Int,size(nlQ_sp.χ, 2)/2)
             # DMFT
             @timeit LadderDGA.to "Σ" Σ_ladder_DMFT = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
             χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
