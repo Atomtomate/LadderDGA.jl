@@ -84,20 +84,26 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         ch_pos = false
 
         @timeit LadderDGA.to "pp" begin
+
             ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
             iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
             nh = ceil(Int,size(nlQ_sp.χ, 2)/2)
+            νmax::Int = min(sP.n_iν,floor(Int,3*length(ωindices)/8))
+
             # DMFT
             @timeit LadderDGA.to "Σ" Σ_ladder_DMFT = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
             χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
+            LadderDGA.writeFortranΣ("klist_DMFT", Σ_ladder_DMFT.parent .- mP.n * mP.U/2, mP.β)
+            E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
 
             # Pauli
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-            E_kin_DMFT_1, E_pot_DMFT_1 = calc_E(Σ_ladder_DMFT.parent, kG, mP)
-            E_pot_DMFT_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
+            E_kin_DMFT_1, E_pot_DMFT_1 = calc_E(Σ_ladder_DMFT.parent, kG, mP, νmax = νmax)
+            E_pot_DMFT_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
             Σ_ladder_λsp = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            E_kin_λsp_1, E_pot_λsp_1 = calc_E(Σ_ladder_λsp.parent, kG, mP)
-            E_pot_λsp_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
+            LadderDGA.writeFortranΣ("klist_l_sp", Σ_ladder_λsp.parent  .- mP.n * mP.U/2, mP.β)
+            E_kin_λsp_1, E_pot_λsp_1 = calc_E(Σ_ladder_λsp.parent, kG, mP, νmax = νmax)
+            E_pot_λsp_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)  + mP.U * mP.n^2/4
             χAF_λsp = real(1 / (1 / nlQ_sp.χ[end,nh]))
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
 
@@ -110,8 +116,9 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             ch_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
             @info "check for positivity of susceptibilities. spin channel: " sp_pos ", charge channel: " ch_pos
             Σ_ladder_λspch = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP)
-            E_pot_λspch_2 = 0.5 * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)
+            LadderDGA.writeFortranΣ("klist_lspch", Σ_ladder_λspch.parent  .- mP.n * mP.U/2, mP.β)
+            E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP, νmax = νmax)
+            E_pot_λspch_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
             χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch_z[1]); 
             χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch_z[2]); 
@@ -148,6 +155,8 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             f["Σ_ladder_DMFT"] = Σ_ladder_DMFT
             f["Σ_ladder_λsp"] = Σ_ladder_λsp
             f["Σ_ladder_λspch"] = Σ_ladder_λspch
+            f["E_kin_ED"] = E_kin_ED
+            f["E_pot_ED"] = E_pot_ED
             f["E_kin_DMFT_1"] = E_kin_DMFT_1
             f["E_pot_DMFT_1"] = E_pot_DMFT_1
             f["E_pot_DMFT_2"] = E_pot_DMFT_2
