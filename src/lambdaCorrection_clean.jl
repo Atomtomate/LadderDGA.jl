@@ -54,13 +54,13 @@ function extended_λ_clean(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantitie
         Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, λ₀, Gνω, kG, mP, sP).parent[:,1:νmax]
         χupup_ω = subtract_tail(0.5 * kintegrate(kG,nlQ_ch.χ .+ nlQ_sp.χ,1)[1,ωindices], mP.Ekin_DMFT, iωn)
         χupdo_ω = 0.5 * kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices]
-        E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
+        #E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
         G_corr = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
         E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
         lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
         lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+        rhs_c2 = E_pot2/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
         return nothing

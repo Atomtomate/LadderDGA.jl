@@ -89,6 +89,9 @@ function cond_both_int(
     rhs_c1 = rhs_c1/mP.β + mP.Ekin_DMFT*mP.β/12 + mP.n * (1 - mP.n/2)
     λsp_i = calc_λsp_correction(nlQ_sp.χ, ωindices, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
     χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
+    χsp_sum = sum(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices])/mP.β
+    χch_sum = sum(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices])/mP.β
+    @info "c1 check: $χsp_sum + $χch_sum  = $(χsp_sum + χch_sum) ?=? 1/2" 
 
     #TODO: unroll 
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)

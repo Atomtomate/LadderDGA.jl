@@ -234,7 +234,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=20)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    
+    nlQ_sp.χ = deepcopy(χsp_tmp)
+    nlQ_ch.χ = deepcopy(χch_tmp)
     return λnew, ""
 end
     
