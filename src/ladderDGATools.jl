@@ -151,6 +151,26 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
     if typeof(sP.χ_helper) <: BSE_Asym_Helpers
         λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(Qr.γ,1,:,:), view(Qr.χ,1,:),
                              mP.U, mP.β, sP.χ_helper)
+             # F::AbstractArray{ComplexF64,3}, χ₀::AbstractArray{ComplexF64,3}, 
+             # χ₀_asym::Array{ComplexF64,2}, γ::AbstractArray{ComplexF64,2}, 
+             # χ::AbstractArray{ComplexF64,1},
+             # U::Float64, β::Float64, h; diag_zero::Bool=true)
+        # s = -1 # Always sp correction#(type == :ch) ? -1 : +1
+        # ind_core = (h.Nν_shell+1):(size(χ₀,2)-h.Nν_shell)
+        # Nq = size(χ₀,1)
+        # Nν = length(ind_core)
+        # Nω = size(χ₀,3)
+        # λasym = Array{ComplexF64,1}(undef, Nν)
+        # λcore = Array{ComplexF64,1}(undef, Nν)
+        # res = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
+
+        # for (ωi,ωn) in enumerate(ωgrid)
+            # λasym = -(view(γ,:,ωi) .* (1 .+ s*U .* χ[ωi]) ) .+ 1
+            # for qi in 1:Nq
+                # λcore[:] = [s*dot(view(χ₀,qi,ind_core,ωi), view(F,νi,:,ωi))/(β^2) for νi in 1:size(F,1)]
+                # res[qi,:,ωi] = λcore + χ₀_asym[qi,ωi].*U.*(λasym .- 1)
+            # end
+        # end
     else
         #TODO: this is not well optimized, but also not often executed
         tmp = Array{ComplexF64, 1}(undef, Niν)

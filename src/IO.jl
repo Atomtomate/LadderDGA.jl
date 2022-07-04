@@ -142,9 +142,13 @@ function readConfig(cfg_in)
                                sEH
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
-    for i in 1:length(tml["Simulation"]["Nk"])
-        Nk = tml["Simulation"]["Nk"][i]
-        kGrids[i] = (tml["Model"]["kGrid"], Nk)
+    if typeof(tml["Simulation"]["Nk"]) === String && strip(lowercase(tml["Simulation"]["Nk"])) == "conv"
+        kGrids = [(tml["Model"]["kGrid"], 0)]
+    else
+        for i in 1:length(tml["Simulation"]["Nk"])
+            Nk = tml["Simulation"]["Nk"][i]
+            kGrids[i] = (tml["Model"]["kGrid"], Nk)
+        end
     end
 
     workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi

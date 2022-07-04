@@ -99,12 +99,13 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             @info "check for positivity of susceptibilities, DMFT. spin channel: " sp_pos ", charge channel: " ch_pos
             @info "sum check: " χsp_sum χch_sum
             χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
-            LadderDGA.writeFortranΣ("klist_DMFT", Σ_ladder_DMFT.parent .- mP.n * mP.U/2, mP.β)
+            #LadderDGA.writeFortranΣ("klist_DMFT", Σ_ladder_DMFT.parent .- mP.n * mP.U/2, mP.β)
             E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
 
             # Pauli
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-            E_kin_DMFT_1, E_pot_DMFT_1 = calc_E(Σ_ladder_DMFT.parent, kG, mP, νmax = νmax)
+            #gLoc = G_from_Σ(Σ_loc, kG.ϵkGrid, sP.fft_range, mP);
+            E_kin_DMFT_1, E_pot_DMFT_1 = 0.0, 0.0 #calc_E(gLoc, Σ_loc, kG, mP, νmax = length(Σ_loc))
             E_pot_DMFT_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
             sp_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
             ch_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
@@ -113,7 +114,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             @info "check for positivity of susceptibilities, λsp. spin channel: " sp_pos ", charge channel: " ch_pos
             @info "sum check: " χsp_sum χch_sum
             Σ_ladder_λsp = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            LadderDGA.writeFortranΣ("klist_l_sp", Σ_ladder_λsp.parent  .- mP.n * mP.U/2, mP.β)
+            #LadderDGA.writeFortranΣ("klist_l_sp", Σ_ladder_λsp.parent  .- mP.n * mP.U/2, mP.β)
             E_kin_λsp_1, E_pot_λsp_1 = calc_E(Σ_ladder_λsp.parent, kG, mP, νmax = νmax)
             E_pot_λsp_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)  + mP.U * mP.n^2/4
             χAF_λsp = real(1 / (1 / nlQ_sp.χ[end,nh]))
@@ -132,9 +133,8 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             @info "sum check: $χsp_sum + $χch_sum  = $(χsp_sum + χch_sum) ?=? 1/2" 
 
             Σ_ladder_λspch = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-            LadderDGA.writeFortranΣ("klist_lspch", Σ_ladder_λspch.parent  .- mP.n * mP.U/2, mP.β)
+            #LadderDGA.writeFortranΣ("klist_lspch", Σ_ladder_λspch.parent  .- mP.n * mP.U/2, mP.β)
             E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP, νmax = νmax)
-            E_kin_λspch_1_GLoc, E_pot_λspch_1_GLoc = calc_E(reshape(Σ_loc[1:νmax],(1,νmax)), Σ_ladder_λspch.parent, kG, mP, νmax = νmax)
             E_pot_λspch_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
             χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
             χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch_z[1]); 
@@ -183,8 +183,6 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
             f["E_kin_λspch_1"] = E_kin_λspch_1
             f["E_pot_λspch_1"] = E_pot_λspch_1
             f["E_pot_λspch_2"] = E_pot_λspch_2
-            f["E_kin_λspch_1_GLoc"] = E_kin_λspch_1_GLoc
-            f["E_pot_λspch_1_GLoc"] = E_pot_λspch_1_GLoc
             f["λsp"] = λsp
             f["λspch"] = λspch
             f["c2_λspch"] = c2_root_res

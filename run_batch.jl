@@ -5,7 +5,8 @@ Pkg.activate(@__DIR__)
 using LadderDGA
 
 using Distributed
-addprocs(parse(Int,ARGS[3]))
+np = parse(Int,ARGS[3])
+addprocs(np, topology=:master_worker)
 @everywhere using Pkg
 @everywhere Pkg.activate(@__DIR__)
 using LadderDGA
