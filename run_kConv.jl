@@ -3,6 +3,7 @@ using Logging
 using Pkg
 Pkg.activate(@__DIR__)
 using LadderDGA
+using NLsolve
 
 using Distributed
 np = parse(Int,ARGS[3])
@@ -47,11 +48,21 @@ open(logfile_path,"w") do io
     if isfile(fname_out)
         jldopen(fname_out,"r") do f
             max_prev_Nk = maximum(union(filter(x->x !== nothing, tryparse.(Int,keys(f))),[0]))
-            λ_root_guess[:] = max_prev_Nk > 10 ? f["$max_prev_Nk/λspch"] : [0.0, 0.0]
-            Nk = max_prev_Nk + 10;
+            λ_root_guess[:] = max_prev_Nk > 10 ? f["$max_prev_Nk/λspch"].zero : [0.0, 0.0]
+            Nk = max_prev_Nk
+            if  max_prev_Nk == 0 || f["$max_prev_Nk/conv_error"] || !f["$Nk/sp_pos"] || !f["$Nk/ch_pos"]
+                @warn "Previous convergence failed. Resetting to Nk = 10!"
+                close(f)
+                rm(fname_out)
+                Nk = 10
+            else
+                Nk = Nk + 10
+                conv = f["$max_prev_Nk/conv"]
+                @info "Found existing kConv file. Continuing at Nk = $Nk, last conv status = $conv"
+            end
         end
-        @info "Found existing kConv file. Continuing at Nk = $Nk"
-    else
+    end
+    if !isfile(fname_out)
         @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
             E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
             f["config"] = cfg_string 
@@ -78,8 +89,9 @@ open(logfile_path,"w") do io
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         if Nk == 10
-            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [Inf, Inf], nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
             c2_root_res = find_root(c2_res)
+            @info "c2 root result:  $c2_root_res"
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
         end
 
@@ -141,6 +153,7 @@ open(logfile_path,"w") do io
             end
             if !sp_pos || !ch_pos
                 println("ERROR: negative χ. check sp: $sp_pos, ch: $ch_pos")
+                conv_error = true
             end
             f["$Nk/χAF_DMFT"] = χAF_DMFT
             f["$Nk/χAF_λsp"] = χAF_λsp

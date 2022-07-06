@@ -204,12 +204,6 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     λsp_min = get_χ_min(real.(χsp_tmp))
     λch_min = get_χ_min(real.(χch_tmp))
-    λch_min = if λch_min > 10000
-        @warn "found λch_min=$λch_min, resetting to -400"
-        -400.0
-    else
-        λch_min
-    end
     λsp_max = 50.0#sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
     λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
@@ -231,7 +225,8 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λs_sp = λsp_min + abs.(λsp_min/10.0)
     λs_ch = λch_min + abs.(λch_min/10.0)
     λmin = [λsp_min, λch_min]
-    λs = all(x₀ .> λmin) ? x₀ : [λsp_min + abs.(λsp_min/10.0), λch_min + abs.(λch_min/10.0)]#[λs_sp, λs_ch]
+    λs = x₀
+    all(x₀ .< λmin) && @warn "starting point $x₀ is not compatible with λmin $λmin !"
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=iterations)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
