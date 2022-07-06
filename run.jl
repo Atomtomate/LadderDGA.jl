@@ -32,6 +32,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
 
+    last_λ = [-Inf, -Inf]
     for kIteration in 1:length(kGridsStr)
         cfg_string = read(cfg_file, String)
         @info "Running calculation for $(kGridsStr[kIteration])"
@@ -65,7 +66,7 @@ function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res
         flush(log_io)
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
-        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(15, 15, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
+        @timeit LadderDGA.to "c2" c2_res = run_c2_curve ? c2_curve(15, 15, last_λ, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP) : Matrix{Float64}(undef, 6,0)
         c2_root_res = find_root(c2_res)
         @info "c2 root result:  $c2_root_res"
 

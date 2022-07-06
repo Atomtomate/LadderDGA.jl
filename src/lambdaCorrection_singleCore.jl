@@ -81,7 +81,7 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     return λnew, ""
 end
 
-function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Float64}, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax::Int = -1)
     @info "Using DMFT GF for second condition in new lambda correction"
@@ -137,12 +137,13 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, nlQ_sp::NonLocalQu
     λch_max2 = 1e12
 
     λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+1),length=NPoints_negative+2)) .+ λch_min .- 1
-    λch_range_negative_2 = range(maximum([-200,λch_min]),stop=100,length=30)
+    λch_range_negative_2 = range(maximum([-200,λch_min]),stop=100,length=20)
     λch_range_coarse = range(0,stop=λch_max,length=NPoints_coarse)
     λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=6)) .+ 2*λch_max .- 1
+    last_λch_range = isfinite(last_λ[2]) ? range(last_λ[2] - abs(last_λ[2]*0.1), stop = last_λ[2] + abs(last_λ[2]*0.1), length=8) : []
     #λch_range_old = 10.0.^(range(0,stop=log10(-λch_min+1),length=NPoints_negative+2)) .+ λch_min .- 1
     
-    λch_range = Float64.(sort(unique(union([0], λch_range_negative, λch_range_negative_2, λch_range_coarse, λch_range_large))))
+    λch_range = Float64.(sort(unique(union([0], last_λch_range, λch_range_negative, λch_range_negative_2, λch_range_coarse, λch_range_large))))
     # λsp, λch, lhs2_c1,rhs_c1 ,lhs_c2, rhs_c2, Epot_1, Epot_2
     # #TODO: this could be made more memory efficient
     r_χsp = real.(nlQ_sp.χ)

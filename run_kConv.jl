@@ -38,21 +38,31 @@ open(logfile_path,"w") do io
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
     conv = false
+    conv_error = false
     Nk   = 10
     tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
     fname_out =  out_path*"/lDGA_"*tc_s*"_kConv.jld2" 
     λ_root_guess = [0.0, 0.0]
-    E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
 
-    @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
-        f["config"] = cfg_string 
-        f["sP"] = sP
-        f["mP"] = mP
-        f["E_kin_ED"] = E_kin_ED
-        f["E_pot_ED"] = E_pot_ED
+    if isfile(fname_out)
+        jldopen(fname_out,"r") do f
+            max_prev_Nk = maximum(union(filter(x->x !== nothing, tryparse.(Int,keys(f))),[0]))
+            λ_root_guess[:] = max_prev_Nk > 10 ? f["$max_prev_Nk/λspch"] : [0.0, 0.0]
+            Nk = max_prev_Nk + 10;
+        end
+        @info "Found existing kConv file. Continuing at Nk = $Nk"
+    else
+        @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
+            E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
+            f["config"] = cfg_string 
+            f["sP"] = sP
+            f["mP"] = mP
+            f["E_kin_ED"] = E_kin_ED
+            f["E_pot_ED"] = E_pot_ED
+        end
     end
 
-    while !conv
+    while !conv && !conv_error
         @info "Running k-grid convergence calculation for Nk = $Nk"
         @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA((kGridsStr[1][1], Nk), mP, sP, env);
 
@@ -68,7 +78,7 @@ open(logfile_path,"w") do io
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         if Nk == 10
-            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [Inf, Inf], nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
             c2_root_res = find_root(c2_res)
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
         end
@@ -83,7 +93,7 @@ open(logfile_path,"w") do io
             @warn e
             @warn "new lambda correction did non converge, resetting lambda to zero"
             nothing, [λ_root_guess[1], λ_root_guess[2]]
-            conv = true
+            conv_error = true
         end
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
@@ -108,15 +118,29 @@ open(logfile_path,"w") do io
         E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP, νmax = νmax)
         E_pot_λspch_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
         χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
+        sp_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
+        ch_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
         nlQ_sp = nothing
         nlQ_ch = nothing
 
         @timeit LadderDGA.to "write" jldopen(fname_out, "a+") do f
             relC = Inf
             if Nk > 10
-                relC = abs(χAF_λspch - f["$(Nk-10)/χAF_λspch"]/χAF_λspch)
+                println("χAF = $χAF_λspch")
+                old_val = f["$(Nk-10)/χAF_λspch"]
+                println("old χAF = $old_val")
+                relC = abs((χAF_λspch - old_val)/χAF_λspch)
                 println("Change: $(100*relC) %")
-                relC < 0.05 && (conv = true)
+                if relC < 0.005 
+                    conv = true
+                     open(out_path*"/kConv.txt","w") do f_conv
+                         write(f_conv, "Ns = $Nk\n")
+                         write(f_conv, "relative error between last iterations: $(relC)")
+                     end
+                end
+            end
+            if !sp_pos || !ch_pos
+                println("ERROR: negative χ. check sp: $sp_pos, ch: $ch_pos")
             end
             f["$Nk/χAF_DMFT"] = χAF_DMFT
             f["$Nk/χAF_λsp"] = χAF_λsp
@@ -132,6 +156,10 @@ open(logfile_path,"w") do io
             f["$Nk/λspch"] = λspch
             f["$Nk/ΔχAF"] = relC
             f["$Nk/log"] = LadderDGA.get_log()
+            f["$Nk/sp_pos"] = sp_pos
+            f["$Nk/ch_pos"] = ch_pos
+            f["$Nk/conv_error"] = conv_error
+            f["$Nk/conv"] = conv
         end
 
 

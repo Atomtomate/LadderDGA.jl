@@ -230,8 +230,9 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     δ   = 1.0 # safety from first pole. decrese this if no roots are found
     λs_sp = λsp_min + abs.(λsp_min/10.0)
     λs_ch = λch_min + abs.(λch_min/10.0)
-    λs = x₀#[λs_sp, λs_ch]
-    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=20)
+    λmin = [λsp_min, λch_min]
+    λs = all(x₀ .> λmin) ? x₀ : [λsp_min + abs.(λsp_min/10.0), λch_min + abs.(λch_min/10.0)]#[λs_sp, λs_ch]
+    λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=iterations)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
     nlQ_sp.χ = deepcopy(χsp_tmp)
