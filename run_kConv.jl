@@ -5,9 +5,13 @@ Pkg.activate(@__DIR__)
 using LadderDGA
 using NLsolve
 
-using Distributed
-np = parse(Int,ARGS[3])
-addprocs(np, topology=:master_worker)
+using Distributed, SlurmClusterManager
+if length(ARGS) >= 3 
+    np =  parse(Int,ARGS[3])
+    addprocs(np, topology=:master_worker)
+else
+    addprocs(SlurmManager(), topology=:master_worker)
+end
 @everywhere using Pkg
 @everywhere Pkg.activate(@__DIR__)
 using LadderDGA
@@ -39,7 +43,8 @@ open(logfile_path,"w") do io
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
     conv = false
-    conv_error = false
+    conv_dm_error = false
+    conv_m_error = false
     Nk   = 10
     tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
     fname_out =  out_path*"/lDGA_"*tc_s*"_kConv.jld2" 
@@ -73,7 +78,7 @@ open(logfile_path,"w") do io
         end
     end
 
-    while !conv && !conv_error
+    while !conv && !(conv_dm_error && conv_m_error)
         @info "Running k-grid convergence calculation for Nk = $Nk"
         @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA((kGridsStr[1][1], Nk), mP, sP, env);
 
@@ -95,65 +100,90 @@ open(logfile_path,"w") do io
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
         end
 
-        λspch, λspch_z = try
-            @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
-            println("extended lambda: ", λspch)
-            @info λspch
-            λ_root_guess = λspch.zero
-            λspch, λspch.zero
-        catch e
-            @warn e
-            @warn "new lambda correction did non converge, resetting lambda to zero"
-            nothing, [λ_root_guess[1], λ_root_guess[2]]
-            conv_error = true
+        @info "trying to obtain root with guess: $λ_root_guess"
+        λspch, λspch_z = if !conv_dm_error
+
+            λspch = nothing
+            λspch_z = [-Inf, -Inf]
+              try
+                @timeit LadderDGA.to "new λ par" λspch = 
+                    if Nk < 60
+                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
+                    else
+                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
+                    end
+                println("extended lambda: ", λspch)
+                @info λspch
+                λ_root_guess = λspch.zero
+                λspch, λspch_z =  λspch, λspch.zero
+            catch e
+                @warn e
+                @warn "new lambda correction did non converge, resetting lambda to zero"
+                conv_dm_error = true
+                pch, λspch_z = nothing, [λ_root_guess[1], λ_root_guess[2]]
+            end
         end
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
         iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
         nh = ceil(Int,size(nlQ_sp.χ, 2)/2)
         νmax::Int = min(sP.n_iν,floor(Int,3*length(ωindices)/8))
+        
+        println("DMFT Epot")
+        E_pot_DMFT_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
         χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
 
+        println("λ_m Epot")
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-        E_pot_DMFT_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
-        Σ_ladder_λsp = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-        E_kin_λsp_1, E_pot_λsp_1 = calc_E(Σ_ladder_λsp.parent, kG, mP, νmax = νmax)
-        E_pot_λsp_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β)  + mP.U * mP.n^2/4
+        E_kin_λsp_1, E_pot_λsp_1 = calc_E(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
+        E_pot_λsp_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
         χAF_λsp = real(1 / (1 / nlQ_sp.χ[end,nh]))
+        sp_m_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
+        ch_m_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
-        Σ_ladder_λsp = nothing
 
         # Both
+        println("λ_md Epot")
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch_z[1]); 
         χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch_z[2]); 
-        Σ_ladder_λspch = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-        E_kin_λspch_1, E_pot_λspch_1 = calc_E(Σ_ladder_λspch.parent, kG, mP, νmax = νmax)
-        E_pot_λspch_2 = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,ωindices])/mP.β) + mP.U * mP.n^2/4
+        E_kin_λspch_1, E_pot_λspch_1 = calc_E(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
+        E_pot_λspch_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
         χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
-        sp_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
-        ch_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
+        sp_dm_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
+        ch_dm_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
         nlQ_sp = nothing
         nlQ_ch = nothing
 
+        relC = -Inf
+        relC_m = -Inf
+
         @timeit LadderDGA.to "write" jldopen(fname_out, "a+") do f
-            relC = Inf
+            if !sp_dm_pos || !ch_dm_pos
+                println("ERROR: negative χ_dm. check sp: $sp_dm_pos, ch: $ch_dm_pos")
+                conv_dm_error = true
+            end
+            if !sp_m_pos
+                println("ERROR: negative χ_AF_m. check sp: $sp_m_pos")
+                conv_m_error = true
+            end
             if Nk > 10
-                println("χAF = $χAF_λspch")
+                println("χAF_dm = $χAF_λspch")
                 old_val = f["$(Nk-10)/χAF_λspch"]
-                println("old χAF = $old_val")
+                println("old χAF_dm = $old_val")
                 relC = abs((χAF_λspch - old_val)/χAF_λspch)
                 println("Change: $(100*relC) %")
-                if relC < 0.005 
+                println("χAF_m = $χAF_λsp")
+                old_val_m = f["$(Nk-10)/χAF_λsp"]
+                println("old χAF_m = $old_val_m")
+                relC_m = abs((χAF_λsp - old_val_m)/χAF_λsp)
+                println("Change: $(100*relC_m) %")
+                if (relC < 0.01 || conv_dm_error)  && (relC_m < 0.01 || conv_m_error)
                     conv = true
                      open(out_path*"/kConv.txt","w") do f_conv
                          write(f_conv, "Ns = $Nk\n")
-                         write(f_conv, "relative error between last iterations: $(relC)")
+                         write(f_conv, "relative error between last iterations: $(relC) for λ_dm and $(relC_m) for λ_m")
                      end
                 end
-            end
-            if !sp_pos || !ch_pos
-                println("ERROR: negative χ. check sp: $sp_pos, ch: $ch_pos")
-                conv_error = true
             end
             f["$Nk/χAF_DMFT"] = χAF_DMFT
             f["$Nk/χAF_λsp"] = χAF_λsp
@@ -168,17 +198,18 @@ open(logfile_path,"w") do io
             f["$Nk/λsp"] = λsp
             f["$Nk/λspch"] = λspch
             f["$Nk/ΔχAF"] = relC
+            f["$Nk/ΔχAF_m"] = relC_m
             f["$Nk/log"] = LadderDGA.get_log()
-            f["$Nk/sp_pos"] = sp_pos
-            f["$Nk/ch_pos"] = ch_pos
-            f["$Nk/conv_error"] = conv_error
+            f["$Nk/sp_pos"] = sp_dm_pos
+            f["$Nk/ch_pos"] = ch_dm_pos
+            f["$Nk/conv_error"] = conv_dm_error
             f["$Nk/conv"] = conv
         end
 
 
         @info "Runtime for iteration:"
         @info LadderDGA.to
-        Nk += 10;
+        Nk += (Nk > 20 && relC > 10) ? 20 : 10;
         flush(stdout)
         flush(stderr)
     end

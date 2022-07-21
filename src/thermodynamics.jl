@@ -28,6 +28,21 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; full=false)
     return E_kin, E_pot
 end
 
+function calc_Epot2(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, 
+                sP::SimulationParameters, mP::ModelParameters)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail::Vector{Float64} = real.(mP.Ekin_DMFT ./ (iωn.^2))
+    Epot2 = mP.U * lhs_c2_fast(nlQ_sp, nlQ_ch, χ_tail, kG.kMult, Nk(kG), mP.β)
+end
+
+function calc_E(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,  λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
+    Σ_ladder = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+    E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)
+    return E_kin, E_pot
+end
+
 function calc_E(Σ::AbstractArray{ComplexF64,2}, kG, mP; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
     G = transpose(flatten_2D(G_from_Σ(Σ[:,1:νmax], kG.ϵkGrid, νGrid, mP)));

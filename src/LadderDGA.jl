@@ -10,7 +10,7 @@ export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ_ω, calc_Σ, calc
 export calc_bubble_par, calc_χγ_par, calc_Σ_par
 export λsp, λ_correction, λ_correction!, calc_λsp_rhs_usable, calc_λsp_correction!, c2_curve
 export λ_from_γ, F_from_χ, G_from_Σ
-export calc_E, flatten_2D, to_m_index
+export calc_E, calc_Epot2, flatten_2D
 export χ_λ, χ_λ!, subtract_tail, subtract_tail!
 
 end
