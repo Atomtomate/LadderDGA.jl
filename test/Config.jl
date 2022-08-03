@@ -20,4 +20,6 @@ end
     @test sP_1.λ_rhs == :native
     @test sP_1.fullChi == false
     @test sP_1.usable_prct_reduction == 0.1
+    @test sP_1.dbg_full_eom_omega == false
+    @test sumExtrapolationHelper === nothing
 end

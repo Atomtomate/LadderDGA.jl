@@ -38,13 +38,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
-    if env.inputDataType == "text"
-        convert_from_fortran(sP, env, false)
-    elseif env.inputDataType == "parquet"
-        convert_from_fortran_pq(sP, env)
-    elseif env.inputDataType == "jld2"
-        in_file = env.inputDir*"/"*env.inputVars
-    end
+    in_file = env.inputDir*"/"*env.inputVars
     @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
