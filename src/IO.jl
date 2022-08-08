@@ -87,11 +87,8 @@ function readConfig(cfg_in::String)
     asympt_sc = lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt" ? 1 : 0
     Nν_shell  = tml["Simulation"]["chi_asympt_shell"]
     Nν_full = nFermi + asympt_sc*Nν_shell
-    sh_f = get_sum_helper(default_fit_range(-Nν_full:Nν_full-1), tml["Simulation"]["fermionic_tail_coeffs"], tc_type_f)
     freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
-    lo = npartial_sums(sh_f)
-    up = 2*Nν_full - lo + 1 
 
     # chi asymptotics
 

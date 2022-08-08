@@ -55,7 +55,7 @@ jobs:
     name: Documentation
     on: 
       push:
-        brachnes:
+        branches:
           - master
           - dev
           - dev_cleanup

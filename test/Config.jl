@@ -11,7 +11,7 @@ end
 @testset "SimulationParameters" begin
     @test sP_1.n_iω == 1
     @test sP_1.n_iν == 2
-    @test sP_2.n_iν_shell == 3
+    @test sP_1.n_iν_shell == 3
     @test sP_1.shift == false
     @test sumExtrapolationHelper === nothing
     @test sP_1.fft_range == :native
