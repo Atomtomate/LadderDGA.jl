@@ -1,5 +1,7 @@
 [deps]
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+LoggingExtras = "e6f89c97-d47a-5376-807f-9c37f3926c36"
 
 [compat]
 Documenter = "0.26"
