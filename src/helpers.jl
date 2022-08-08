@@ -77,9 +77,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     @timeit to "local correction" begin
         #TODO: unify checks
-        (sP.ωsum_type == :full && (sP.tc_type_b != :nothing)) && @warn "Full Sums combined with tail correction will probably yield wrong results due to border effects."
         (sP.tc_type_b == :nothing) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
-        sP.ωsum_type == :individual && @error "Individual ranges not tested yet"
         ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
 
         kGridLoc = gen_kGrid(kGridStr[1], 1)
@@ -134,11 +132,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         usable_loc_sp = find_usable_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
         usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_sp, usable_loc_ch)
-        if sP.ωsum_type == :common
-            @info "setting usable ranges of sp and ch channel from $usable_loc_sp and $usable_loc_ch to the same range of $loc_range"
-            usable_loc_ch = loc_range
-            usable_loc_sp = loc_range
-        end
 
         sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
         sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
@@ -239,17 +232,11 @@ function to_m_index!(res::AbstractArray{T,2}, arr::AbstractArray{T,2}, sP::Simul
 end
 
 function ωindex_range(sP::SimulationParameters)
-    r = 1:(2*sP.n_iω+1)
-    ωindices = if sP.fullChi
-        r 
-    elseif fixed_ω
-        mid_index = Int(ceil(length(r)/2))
-        default_sum_range(mid_index, sP.ωsum_type)
-    else
-        indh = ceil(Int64, length(r)/2)
-        [(i == 0) ? indh : ((i % 2 == 0) ? indh+floor(Int64,i/2) : indh-floor(Int64,i/2)) for i in r]
-    end
-    return ωindices
+    return 1:(2*sP.n_iω+1)
+
+    # TODO: placeholder for reduced omega-range computations
+    #  example: 
+    #  mid_index = Int(ceil(length(r)/2))
 end
 
 """

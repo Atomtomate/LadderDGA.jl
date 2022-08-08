@@ -1,4 +1,18 @@
-# ===================== Dependencies ======================
+# ==================================================================================================== #
+#                                           DepsInit.jl                                                #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+#   Last Edit Date  : 04.08.22                                                                         #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   Setup after loading the module. All dependencies, precompilation, logging and multi-core           #
+#   preperations should be done here.                                                                  #
+# -------------------------------------------- TODO -------------------------------------------------- #
+#   initialize workers here instead of relying on julia -p                                             #
+#   logging to file does not work correctly
+# ==================================================================================================== #
+
+
+# ========================================== Dependencies ============================================
 using ArgParse
 using Logging, LoggingExtras
 using OffsetArrays
@@ -12,20 +26,17 @@ using Printf
 using FiniteDiff
 using ShiftedArrays
 
-#using ForwardDiff, Zygote
-using Query
 #using IntervalArithmetic, IntervalRootFinding
 using FFTW          # used for convolutions
 using NLsolve
 
 # lDGA related
-using SeriesAcceleration
 using Dispersions
 using BSE_SC
 
 using TimerOutputs
 
-# ======================= Includes ========================
+# ============================================= Includes =============================================
 include("$(@__DIR__)/LapackWrapper.jl")
 include("$(@__DIR__)/Config.jl")
 include("$(@__DIR__)/DataTypes.jl")
@@ -39,10 +50,10 @@ include("$(@__DIR__)/ladderDGATools_singleCore.jl")
 include("$(@__DIR__)/lambdaCorrection.jl")
 include("$(@__DIR__)/thermodynamics.jl")
 
-# ======================= Internal Packages ========================
+# ======================================== Internal Packages =========================================
 using .LapackWrapper
 
-# ==================== Parallelization Bookkeeping ====================
+# ================================= Parallelization Bookkeeping ======================================
 global_vars = String[]
 wcache = WorkerCache()
 
@@ -66,9 +77,6 @@ function __init__()
     end
 
     args = parse_args([], s)
-    #TODO: initialize workers here instead of relying on julia -p
-    #TODO: set lazy=  false and initialize master to worker topology! Memory leak bug in julia!!!
-    #TODO: this should be set from command line and only default back to stdout
     io = stdout
     metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
     global logger_console = ConsoleLogger(io, Logging.Info, meta_formatter=Logging.default_metafmt, show_limited=true, right_justify=0)

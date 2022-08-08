@@ -30,25 +30,7 @@ function readConfig(cfg_in)
         TOML.parse(cfg_in)
     end
     sim = tml["Simulation"]
-    χfill = nothing
     rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"
-    tc_type_f = Symbol(lowercase(tml["Simulation"]["fermionic_tail_correction"]))
-    if !(tc_type_f in [:nothing, :richardson, :shanks])
-        error("Unrecognized tail correction type \"$(tc_type_f)\"")
-    end
-    tc_type_b = Symbol(lowercase(tml["Simulation"]["bosonic_tail_correction"]))
-    if !(tc_type_b in [:nothing, :richardson, :shanks, :coeffs])
-        error("Unrecognized tail correction type \"$(tc_type_b)\"")
-    end
-    ωsum_inp = lowercase(tml["Simulation"]["bosonic_sum_range"])
-    m = match(rr, ωsum_inp)
-    ωsum_type = if m !== nothing
-        tuple(parse.(Int, m.captures)...)
-    elseif ωsum_inp in ["common", "individual", "full"]
-        Symbol(ωsum_inp)
-    else
-        error("Could not parse bosonic_sum. Allowed input is: common, individual, full, fixed:N:M")
-    end
     smoothing = Symbol(lowercase(tml["Simulation"]["omega_smoothing"]))
     if !(smoothing in [:nothing, :range, :full])
         error("Unrecognized smoothing type \"$(smoothing)\"")
@@ -59,11 +41,9 @@ function readConfig(cfg_in)
 
     env = EnvironmentVars(   tml["Environment"]["inputDir"],
                              tml["Environment"]["inputVars"],
-                             tml["Environment"]["cast_to_real"],
                              String([(i == 1) ? uppercase(c) : lowercase(c)
                                      for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
-                             lowercase(tml["Environment"]["logfile"]),
-                             tml["Environment"]["progressbar"]
+                             lowercase(tml["Environment"]["logfile"])
                             )
 
     mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputDir*"/"*env.inputVars, "r") do f
@@ -118,31 +98,12 @@ function readConfig(cfg_in)
                     nothing
                 end
 
-    sEH = if ((tc_type_f == :richardson) || (tc_type_b == :richardson)) 
-        SumExtrapolationHelper(
-                           tml["Simulation"]["bosonic_tail_coeffs"],
-                           tml["Simulation"]["fermionic_tail_coeffs"],
-                           smoothing,
-                           sh_f,
-                           lo,
-                           up,
-                           Array{Float64, 1}(undef, lo),
-                           Array{ComplexF64, 1}(undef, lo))
-    else
-        nothing
-    end
-
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
-                               tc_type_f,
-                               tc_type_b,
                                χ_helper,
-                               ωsum_type,
                                λrhs_type,
-                               tml["Simulation"]["force_full_bosonic_chi"],
                                fft_range,
                                tml["Simulation"]["usable_prct_reduction"],
-                               dbg_full_eom_omega,
-                               sEH
+                               dbg_full_eom_omega
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
     if typeof(tml["Simulation"]["Nk"]) === String && strip(lowercase(tml["Simulation"]["Nk"])) == "conv"

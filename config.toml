@@ -15,11 +15,6 @@ lambda_correction = "sp"                # nothing, sp, sp_ch
 rhs  = "native"                         # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch). For small frequency grids, one should always use error_comp
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-bosonic_sum_range = "common"            # common (intersection of individual ranges), individual (max range in each channel; fortran default), full (all frequencies), fixed:N:M (always sum from N to (including) M, indexing starts at 0)
-force_full_bosonic_chi = true           # compute all omega frequencies for chi and trilex
-chi_unusable_fill_value = "chi_lambda"  # can be "0", "chi_lambda" or "chi". sets either 0, lambda corrected or non lambda corrected values outside usable omega range
-fermionic_tail_coeffs = [0,1,2,3,4]     # internal parameter for richardson sum extrapolation
-bosonic_tail_coeffs = [0,1,2,3,4]       # internal parameter for richardson sum extrapolation
 usable_prct_reduction = 0.1             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
 omega_smoothing = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
 
@@ -32,9 +27,7 @@ inputVars = "triqs_out.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-cast_to_real = false                    # TODO: not implemented. cast all arrays with vanishing imaginary part to real
 loglevel = "debug"                      # error, warn, info, debug
-progressbar = false                     # LEGACY, do not change
 
 [Debug]
 read_bubble = false                     # LEGACY, do not change

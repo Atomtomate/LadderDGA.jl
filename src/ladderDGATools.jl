@@ -183,13 +183,7 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
                     @simd for νpi in 1:Niν 
                         @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
                     end
-                    #TODO: update sum_freq_full to accept sP und figure out sum type by itself
-                    sEH = sP.sumExtrapolationHelper
-                    λ0[qi,νi,ωi] = if sEH !== nothing
-                        sum_freq_full!(tmp, sP.sh_f, 1.0, sEH.fνmax_cache_c, sEH.lo, sEH.up)/(mP.β^2)
-                    else
-                        sum(tmp)/mP.β^2
-                    end
+                    sum(tmp)/mP.β^2
                 end
             end
         end

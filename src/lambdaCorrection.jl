@@ -2,7 +2,7 @@ include("lambdaCorrection_aux.jl")
 include("lambdaCorrection_clean.jl")
 include("lambdaCorrection_singleCore.jl")
 
-function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
     usable_ω = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
     # min(usable_sp, usable_ch) = min($(nlQ_sp.usable_ω),$(nlQ_ch.usable_ω)) = $(usable_ω) for all calculations. relax this?"
 
@@ -12,7 +12,7 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
     @info "λsp correction infos:"
-    rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else

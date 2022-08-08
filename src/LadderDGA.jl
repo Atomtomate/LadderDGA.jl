@@ -3,7 +3,7 @@ module LadderDGA
 
 include("DepsInit.jl")
 
-export kintegrate, sum_freq, get_sum_helper
+export kintegrate
 export ModelParameters, SimulationParameters, EnvironmentVars
 export LocalQuantities, NonLocalQuantities, ΓT, χ₀T, GνqT, FUpDoT
 export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ_ω, calc_Σ, calc_Σ_parts, calc_Σνω, calc_λ0, Σ_loc_correction

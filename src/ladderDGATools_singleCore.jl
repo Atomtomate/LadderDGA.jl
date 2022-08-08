@@ -16,6 +16,7 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
     #TODO: move tail calculation to definition of GF (GF should know about its tail)
     t1, t2 = if local_tail
         convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
+        #TODO: move tail to GF struct
         mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
     else
         convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
@@ -59,20 +60,9 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
                 end
-                #TODO: this is not necessary, sum_freq defaults to sum!
-                if sP.tc_type_f == :nothing
-                    χ[qi,ωi] = sum(χννpω)/mP.β^2
-                    for νk in νi_range
-                        γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
-                    end
-                else
-                    sEH = sP.sumExtrapolationHelper
-                    χ[qi, ωi] = sum_freq_full!(χννpω, sEH.sh_f, mP.β, sEH.fνmax_cache_c, sEH.lo, sEH.up)
-                    for νk in νi_range
-                        γ[qi,νk,ωi] = sum_freq_full!(view(χννpω,:,νk),sEH.sh_f,1.0,
-                                                     sEH.fνmax_cache_c,sEH.lo,sEH.up)  / (χ₀.data[qi, νk, ωi] * (1.0 + s*mP.U * χ[qi, ωi]))
-                    end
-                    extend_γ!(view(γ,qi,:, ωi), 2*π/mP.β)
+                χ[qi,ωi] = sum(χννpω)/mP.β^2
+                for νk in νi_range
+                    γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
                 end
             end
         end
@@ -81,7 +71,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
         χ_ω[ωi] = kintegrate(kG, v)
     end
     log_q0_χ_check(kG, sP, χ, type)
-    usable = find_usable_interval(real.(collect(χ_ω)), sum_type=sP.ωsum_type, reduce_range_prct=sP.usable_prct_reduction)
+    usable = find_usable_interval(real.(collect(χ_ω)), reduce_range_prct=sP.usable_prct_reduction)
     sP.χ_helper != nothing && @warn "DBG: currently forcing omega FULL range!!"
     sP.χ_helper != nothing && (usable = 1:length(χ_ω))
     return NonLocalQuantities(χ, γ, usable, 0.0)
