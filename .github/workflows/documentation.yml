@@ -20,10 +20,8 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.7'
-      - name: Install dependencies
-        run: julia --project=docs/ -e 'using Pkg; Pkg.Registry.update(); Pkg.activate(); Pkg.instantiate()'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run: julia --project=docs/ docs/make.jl
+        run: julia --project=docs/ -e 'using Pkg; Pkg.Registry.update(); Pkg.activate(); Pkg.instantiate(); include("make.jl");'
