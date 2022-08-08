@@ -15,7 +15,17 @@
 
 include("IO_legacy.jl")
 
-function readConfig(cfg_in)
+"""
+    readConfig(cfg_in::String)
+
+Reads a config.toml file either as string or from a file and returns 
+    - workerpool
+    - [`ModelParameters`](@ref)
+    - [`SimulationParameters`](@ref)
+    - [`EnvironmentVars`](@ref)
+    - kGrid (see Dispersions.jl)
+"""
+function readConfig(cfg_in::String)
     @info "Reading Inputs..."
 
     cfg_is_file = true
@@ -117,18 +127,6 @@ function readConfig(cfg_in)
 
     workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
     return workerpool, mP, sP, env, kGrids
-end
-
-function print_chi_bubble(qList, res, simParams)
-    for j in 1:size(res,1)
-        print(" ========== ω = $(j-(simParams.n_iω + 1)) =============== \n")
-        for k in 1:size(res,2)
-            print(" ---------- ν = $(k-1) -------------- \n")
-            for (qi,q) in enumerate(qList)
-                @printf("   q = (%.2f,%.2f): %.2f + %.2fi\n", q[1],q[2], real(res[j, k, qi]), imag(res[j, k, qi]))
-            end
-        end
-    end
 end
 
 function get_log()

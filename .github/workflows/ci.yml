@@ -53,31 +53,29 @@ jobs:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
   docs:
     name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
-        with:
-          version: '1.7'
-      - uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@master
-      - run: julia -e 'using Pkg; Pkg.activate(); push!(LOAD_PATH, pwd());'
-      - run: julia --project=docs/ -e 'using Pkg; Pkg.activate();  push!(LOAD_PATH,pwd());'
-      - run: julia --project=docs/ -e 'using Pkg; 
-                                       Pkg.Registry.add(""); 
-                                       Pkg.Registry.add("");
-                                       Pkg.develop(PackageSpec(path=pwd())); 
-                                       Pkg.instantiate()'
-      - run: julia --project=docs/ docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+    on: 
+      push:
+        brachnes:
+          - master
+          - dev
+          - dev_cleanup
+        tags: '*'
+      pull_request:
+    jobs:
+      build:
+        permissions:
+          contents: write
+          statuses: write
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v2
+          - uses: julia-actions/setup-julia@v1
+            with:
+              version: '1.7'
+          - name: Install dependencies
+            run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
+          - name: Build and deploy
+            env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+            run: julia --project=docs/ docs/make.jl
