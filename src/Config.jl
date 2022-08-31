@@ -99,7 +99,6 @@ Custom output for SimulationParameters
 """
 function Base.show(io::IO, m::SimulationParameters)
     compact = get(io, :compact, false)
-
     if !compact
         println(io, "B/F range    : $(m.n_iω)/$(m.n_iν) $(m.shift ? "with" : "without") shifted fermionic frequencies")
         println(io, "   ($(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM.")
@@ -107,13 +106,8 @@ function Base.show(io::IO, m::SimulationParameters)
         println(io, "   $(100*m.usable_prct_reduction) % reduction of usable range and ω smoothing $(m.usable_prct_reduction)")
         println(io, "λ-Correction : $(m.λc_type)")
     else
-        print(io, "SimulationParams[nB=$m.n_iω, nF=m.n_iν, shift=m.shift]")
+        print(io, "SimulationParams[nB=$(m.n_iω), nF=$(m.n_iν), shift=$(m.shift)]")
     end
-end
-
-function Base.show(io::IO, ::MIME"text/plain", m::SimulationParameters)
-    println(io, "LadderDGA.jl SimulationParameters:")
-    show(io, m)
 end
 
 """
@@ -128,8 +122,14 @@ function Base.show(io::IO, m::ModelParameters)
         println(io, "U=$(m.U), β=$(m.β), n=$(m.n), μ=$(m.μ)")
         println(io, "DMFT Energies: T=$(m.Ekin_DMFT), V=$(m.Epot_DMFT)")
     else
-        print(io, "SimulationParams[nB=$m.n_iω, nF=m.n_iν, shift=m.shift]")
+        print(io, "ModelParams[U=$(m.U), β=$(m.β), μ=$(m.μ), n=$(m.n)]")
     end
+end
+
+
+function Base.show(io::IO, ::MIME"text/plain", m::SimulationParameters)
+    println(io, "LadderDGA.jl SimulationParameters:")
+    show(io, m)
 end
 
 function Base.show(io::IO, ::MIME"text/plain", m::ModelParameters)

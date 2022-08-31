@@ -195,6 +195,8 @@ end
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
+@inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
+@inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)
 @inline eom_sp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - 1.5)
 @inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) - 0.5)
 @inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀

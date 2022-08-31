@@ -2,13 +2,13 @@
 #                                           DepsInit.jl                                                #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 04.08.22                                                                         #
+#   Last Edit Date  : 29.08.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Setup after loading the module. All dependencies, precompilation, logging and multi-core           #
 #   preperations should be done here.                                                                  #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   initialize workers here instead of relying on julia -p                                             #
-#   logging to file does not work correctly
+#   logging to file does not work correctly.                                                           #
 # ==================================================================================================== #
 
 
@@ -18,16 +18,13 @@ using Logging, LoggingExtras
 using OffsetArrays
 using Distributed
 using JLD2, FileIO
-using DelimitedFiles
 using LinearAlgebra, GenericLinearAlgebra
 using Combinatorics
 using TOML          # used for input
-using Printf
-using FiniteDiff
-using ShiftedArrays
 
-#using IntervalArithmetic, IntervalRootFinding
-using FFTW          # used for convolutions
+# Fortran compatibility:
+using Printf, DelimitedFiles
+
 using NLsolve
 
 # lDGA related
@@ -53,7 +50,7 @@ include("$(@__DIR__)/thermodynamics.jl")
 # ======================================== Internal Packages =========================================
 using .LapackWrapper
 
-# ================================= Parallelization Bookkeeping ======================================
+# =================================== Parallelization Bookkeeping ====================================
 global_vars = String[]
 wcache = WorkerCache()
 
@@ -61,13 +58,12 @@ wcache = WorkerCache()
 # TODO: precompile calc_... for CompleX{Float64}
 # TODO: use SnoopCompiler to find bottlenecks
 #
+# ======================================== Initialization ============================================
 function __init__()
 
     global to = TimerOutput()
     global LOG_BUFFER = IOBuffer()
     global LOG = ""
-#addprocs(2; topology=:master_worker)
-    # ==================== Argument Parser ====================
     s = ArgParseSettings()
     @add_arg_table s begin
         "--config", "-c"

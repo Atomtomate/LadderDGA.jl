@@ -3,14 +3,10 @@ using SeriesAcceleration
 using Test
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
-sP_1 = SimulationParameters(1,2,3,false,:nothing,1:3,0.1,false)
+sP_1 = SimulationParameters(1,2,3,false,nothing,1:3,0.1,false)
 
 @testset "Config" begin
     include("Config.jl")
-end
-
-@testset "IO" begin
-    include("IO.jl")
 end
 
 @testset "Helpers" begin

@@ -13,8 +13,8 @@ end
     @test sP_1.n_iν == 2
     @test sP_1.n_iν_shell == 3
     @test sP_1.shift == false
-    @test sumExtrapolationHelper === nothing
-    @test sP_1.fft_range == :native
+    @test sP_1.χ_helper === nothing
+    @test sP_1.fft_range == 1:3
     @test sP_1.usable_prct_reduction == 0.1
     @test sP_1.dbg_full_eom_omega == false
 end

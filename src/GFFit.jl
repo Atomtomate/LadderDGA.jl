@@ -1,7 +1,16 @@
-#TODO: write function to tune for best range/exps. use usable_ω for that purpose
-default_fit_range(arr::AbstractArray) = default_fit_range(length(arr))
-default_fit_range(s::Int) = ceil(Int,s/3):floor(Int, s/2)
+# ==================================================================================================== #
+#                                            GFFit.jl                                                  #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+#   Last Edit Date  : 29.08.22                                                                         #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   Functionality for the estimation of valid ranges, sum extrapolations and fixing of tails.          #
+#   This functionality hast mostly been replaces by analytic methods in BSE_SC.jl                      #
+# -------------------------------------------- TODO -------------------------------------------------- #
+#                                                                                                      #
+# ==================================================================================================== #
 
+# ======================================== Usable Inervals ===========================================
 function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
     mid_index = Int(ceil(length(arr)/2))
     if sum_type == :full
@@ -51,7 +60,7 @@ end
     find_usable_γ(arr; threshold=50, prct_red=0.05)
 
 Usable νₙ range for γ. γ(ωₙ) is usable, for a range in which `γ[n]/γ[n-1]` does not
-exceed some threshold value. See also [`extend_γ!`](@ref extend_γ!)
+exceed some threshold value.
 
 Arguments
 -------------

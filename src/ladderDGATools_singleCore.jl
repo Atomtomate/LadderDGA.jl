@@ -141,13 +141,15 @@ function calc_Σ_parts(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀
     #TODO: implement real fft and make _pre real
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
-    Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 3)
-    @timeit to "Σ_ω sp" calc_Σ_ω!(eom_sp, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 4)
+    @timeit to "Σ_ω sp" calc_Σ_ω!(eom_sp_01, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
+    @timeit to "Σ_ω sp" calc_Σ_ω!(eom_sp_02, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:,2] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
     @timeit to "Σ_ω ch" calc_Σ_ω!(eom_ch, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder[:,:,2] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
+    Σ_ladder[:,:,3] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
     @timeit to "Σ_ω rest" calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder[:,:,3] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    Σ_ladder[:,:,4] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
-    return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:3)
+    return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:4)
 end
