@@ -89,3 +89,14 @@ function find_usable_γ(arr; threshold=50, prct_red=0.05)
     (up < length(arr)) && (up -= red)
     return lo,up
 end
+
+function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
+    return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
+end
+
+function reduce_range(range::AbstractArray, red_prct::Float64)
+    sub = floor(Int, length(range)/2 * red_prct)
+    lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
+    fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
+    return fst:lst
+end

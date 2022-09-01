@@ -142,6 +142,15 @@ function reset_log()
     LOG = ""
 end
 
+# ============================================== Misc. ===============================================
+
+"""
+    print 4 digits of the real part of `x`
+"""
+printr_s(x::ComplexF64) = round(real(x), digits=4)
+printr_s(x::Float64) = round(x, digits=4)
+
+
 # ====================================== Custom Type Custum IO =======================================
 
 """

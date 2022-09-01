@@ -1,39 +1,23 @@
-#TODO: This file needs to be cleaned up. major blocks should be: BLAS helpers, GF helpers, general helpers
-#
-#TODO: this should be a macro
-@inline get_symm_f(f::Array{ComplexF64,1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
-@inline get_symm_f_1(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
-@inline get_symm_f_2(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[:,-i]) : f[:,i+1]
-store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
-store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
-
-# This function exploits, that χ(ν, ω) = χ*(-ν, -ω) and a storage of χ with only positive fermionic frequencies
-# TODO: For now a fixed order of axis is assumed
-
-
-function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
-    return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
-end
+# ==================================================================================================== #
+#                                           helpers.jl                                                 #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+#   Last Edit Date  : 01.09.22                                                                         #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   General purpose helper functions for the ladder DΓA code.                                          #
+# -------------------------------------------- TODO -------------------------------------------------- #
+#   Cleanup of setup function
+# ==================================================================================================== #
 
 
-function reduce_range(range::AbstractArray, red_prct::Float64)
-    sub = floor(Int, length(range)/2 * red_prct)
-    lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
-    fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
-    return fst:lst
-end
 
-
-split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
-split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
-
+# =============================================== Setup ==============================================
 """
-    print 4 digits of the real part of `x`
+    setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true])
+
+Computes all needed objects for DΓA calculations. Returns:
+    Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 """
-printr_s(x::ComplexF64) = round(real(x), digits=4)
-printr_s(x::Float64) = round(x, digits=4)
-
-
 function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true)
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
@@ -158,17 +142,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
     return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
 end
-#TODO: cleanup clutter in return
 
-# ================== Index Functions ==================
+# ========================================== Index Functions =========================================
 
-function flatten_2D(arr)
-    res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
-    for i in 1:length(arr)
-        res[i,:] = arr[i][:]
-    end
-    return res
-end
+q0_index(kG::KGrid) = findfirst(x -> all(x .≈ (0,0,0)), kG.kGrid)
+ω0_index(sP::SimulationParameters) = sP.n_iω+1
 
 """
     OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters [, Nν_shell])
@@ -233,29 +211,11 @@ end
 
 function ωindex_range(sP::SimulationParameters)
     return 1:(2*sP.n_iω+1)
-
     # TODO: placeholder for reduced omega-range computations
-    #  example: 
-    #  mid_index = Int(ceil(length(r)/2))
-end
-
-"""
-    flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})
-
-transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
-depends on grid shape.
-"""
-function flatten_gLoc(arr::AbstractArray)
-    ndim = length(size(arr[1]))+1
-    arr_new = Array{eltype(arr[1]),ndim}(undef,size(arr[1])...,length(arr));
-    for (i,el) in enumerate(arr)
-        selectdim(arr_new, ndim, i) .= el
-    end
-    return arr_new
 end
 
 
-# ================== Noise Filter ==================
+# =========================================== Noise Filter ===========================================
 
 function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
     res = deepcopy(X)
@@ -284,9 +244,7 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     return res
 end
 
-q0_index(kG::KGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
-#TODO: most quantities should know their indices! Implement this in DataTypes
-ω0_index(sP::SimulationParameters) = sP.n_iω+1
+# ======================================== Consistency Checks ========================================
 
 function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
     q0_ind = q0_index(kG)
@@ -296,3 +254,42 @@ function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{
     end
 end
 
+# ============================================== Misc. ===============================================
+
+
+"""
+    flatten_gLoc(arr)
+
+Transforms Array of Arrays to Array of rank 2.
+"""
+function flatten_2D(arr)
+    res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
+    for i in 1:length(arr)
+        res[i,:] = arr[i][:]
+    end
+    return res
+end
+
+"""
+    flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})
+
+transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
+depends on grid shape.
+"""
+function flatten_gLoc(arr::AbstractArray)
+    ndim = length(size(arr[1]))+1
+    arr_new = Array{eltype(arr[1]),ndim}(undef,size(arr[1])...,length(arr));
+    for (i,el) in enumerate(arr)
+        selectdim(arr_new, ndim, i) .= el
+    end
+    return arr_new
+end
+
+@inline get_symm_f(f::Array{ComplexF64,1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
+@inline get_symm_f_1(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
+@inline get_symm_f_2(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[:,-i]) : f[:,i+1]
+store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
+store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
+
+split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
+split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
