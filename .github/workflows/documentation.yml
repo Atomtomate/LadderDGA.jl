@@ -21,7 +21,7 @@ jobs:
         with:
           version: '1.7'
       - name: Install dependencies
-        run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry")); Pkg.activate("."); Pkg.instantiate();'
+        run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/JuliaRegistries/General")); Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry")); Pkg.activate("."); Pkg.instantiate(); Pkg.activate("docs"); Pkg.instantiate();'
         shell: bash
       - name: Build and deploy
         env:
