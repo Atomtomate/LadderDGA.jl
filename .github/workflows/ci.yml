@@ -25,10 +25,8 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: julia-actions/add-julia-registry@v1
-        with:
-          key: ${{ secrets.SSH_KEY }}
-          registry: Atomtomate/JuliaRegistry
+      - run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry"))'
+        shell: bash
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
