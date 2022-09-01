@@ -9,6 +9,7 @@
 #   This file could be a separate module                                                               #
 #   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
+#   Rename subtrac_tail and make it more general for arbitrary tails                                   #
 # ==================================================================================================== #
 
 
@@ -55,6 +56,23 @@ G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP
 
 
 # =============================== Frequency Tail Modification Helpers ================================
+
+"""
+    subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+
+subtract the c/(iω)^2 high frequency tail from `inp`.
+"""
+function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+    res = Array{eltype(inp),1}(undef, length(inp))
+    subtract_tail!(res, inp, c, iω)
+    return res
+end
+
+"""
+    subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+
+subtract the c/(iω)^2 high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
+"""
 function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
     for n in 1:length(inp)
         if iω[n] != 0
@@ -65,8 +83,3 @@ function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Fl
     end
 end
 
-function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
-    res = Array{eltype(inp),1}(undef, length(inp))
-    subtract_tail!(res, inp, c, iω)
-    return res
-end

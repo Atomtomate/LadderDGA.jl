@@ -1,6 +1,4 @@
-#TODO: define GF type that knows about which dimension stores which variable
 using Base.Iterators
-using FFTW
 
 
 function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
