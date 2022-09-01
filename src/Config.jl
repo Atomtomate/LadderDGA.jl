@@ -2,7 +2,7 @@
 #                                            Config.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 03.08.22                                                                         #
+#   Last Edit Date  : 01.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   This file contains legacy functionality for read/write operations of files generated and need      #
 #   by a number of auxilliary Fortran codes.                                                           #
@@ -90,49 +90,4 @@ struct EnvironmentVars <: ConfigStruct
     inputVars::String
     loglevel::String      # disabled, error, warn, info, debug
     logfile::String       # STDOUT, STDERR, filename
-end
-
-"""
-	Base.show(io::IO, m::SimulationParameters)
-
-Custom output for SimulationParameters
-"""
-function Base.show(io::IO, m::SimulationParameters)
-    compact = get(io, :compact, false)
-    if !compact
-        println(io, "B/F range    : $(m.n_iω)/$(m.n_iν) $(m.shift ? "with" : "without") shifted fermionic frequencies")
-        println(io, "   ($(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM.")
-        println(io, "Asymptotic correction : $(typeof(m.χ_helper))")
-        println(io, "   $(100*m.usable_prct_reduction) % reduction of usable range and ω smoothing $(m.usable_prct_reduction)")
-        println(io, "λ-Correction : $(m.λc_type)")
-    else
-        print(io, "SimulationParams[nB=$(m.n_iω), nF=$(m.n_iν), shift=$(m.shift)]")
-    end
-end
-
-"""
-	Base.show(io::IO, m::ModelParameters)
-
-Custom output for ModelParameters
-"""
-function Base.show(io::IO, m::ModelParameters)
-    compact = get(io, :compact, false)
-
-    if !compact
-        println(io, "U=$(m.U), β=$(m.β), n=$(m.n), μ=$(m.μ)")
-        println(io, "DMFT Energies: T=$(m.Ekin_DMFT), V=$(m.Epot_DMFT)")
-    else
-        print(io, "ModelParams[U=$(m.U), β=$(m.β), μ=$(m.μ), n=$(m.n)]")
-    end
-end
-
-
-function Base.show(io::IO, ::MIME"text/plain", m::SimulationParameters)
-    println(io, "LadderDGA.jl SimulationParameters:")
-    show(io, m)
-end
-
-function Base.show(io::IO, ::MIME"text/plain", m::ModelParameters)
-    println(io, "LadderDGA.jl ModelParameters:")
-    show(io, m)
 end
