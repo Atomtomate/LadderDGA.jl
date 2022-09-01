@@ -12,7 +12,7 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
     @info "λsp correction infos:"
-    rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && λ_rhs == :native) || λ_rhs == :fixed)
+    rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else

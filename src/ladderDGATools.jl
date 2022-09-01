@@ -1,6 +1,18 @@
-using Base.Iterators
+# ==================================================================================================== #
+#                                        ladderDGATools.jl                                             #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+#   Last Edit Date  : 01.09.22                                                                         #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   ladder DΓA related functions                                                                       #
+# -------------------------------------------- TODO -------------------------------------------------- #
+# ==================================================================================================== #
 
 
+# ========================================== Transformations =========================================
+"""
+    λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
+"""
 function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
     s = (type == :ch) ? -1 : 1
     res = similar(γ)
@@ -12,14 +24,14 @@ function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractA
     return res
 end
 
-function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64)
+function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64; diag_term=true)
     F = similar(χ)
     for ωi in 1:size(F,3)
     for νpi in 1:size(F,2)
         ωn, νpn = OneToIndex_to_Freq(ωi, νpi, sP) #, sP.n_iν_shell)
         for νi in 1:size(F,1)
             _, νn = OneToIndex_to_Freq(ωi, νi, sP) #, sP.n_iν_shell)
-            F[νi,νpi,ωi] = -(χ[νi,νpi,ωi] + (νn == νpn) * β * G[νn] * G[ωn+νn])/(
+            F[νi,νpi,ωi] = -(χ[νi,νpi,ωi] + (νn == νpn && diag_term) * β * G[νn] * G[ωn+νn])/(
                                           G[νn] * G[ωn+νn] * G[νpn] * G[ωn+νpn])
         end
         end
@@ -185,7 +197,6 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParame
                 end
             end
         end
-        (sP.tc_type_f != :nothing) && extend_corr!(λ0)
     end
     return λ0
 end

@@ -19,6 +19,7 @@ using OffsetArrays
 using Distributed
 using JLD2, FileIO
 using LinearAlgebra, GenericLinearAlgebra
+using FFTW
 using Combinatorics
 using TOML          # used for input
 
@@ -32,6 +33,8 @@ using Dispersions
 using BSE_SC
 
 using TimerOutputs
+
+using Base.Iterators
 
 # ============================================= Includes =============================================
 include("$(@__DIR__)/LapackWrapper.jl")

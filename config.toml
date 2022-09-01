@@ -8,11 +8,7 @@ kGrid = "3Dsc-0.2041241452319315"
 [Simulation]
 Nk        = [10]                         # number of k points in each dimension
 chi_asympt_method = "direct"            # direct/sc/nothong, see BSE_SC module for more
-chi_asympt_shell = 20                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
-fermionic_tail_correction = "nothing"   # improvement algorithm for sum extrapolations. possible values: Nothing, Richardson, Shanks
-bosonic_tail_correction = "coeffs"      # nothing (normal sum), Richardson, Shanks, coeffs (known tail coefficients, this should be the default)
-lambda_correction = "sp"                # nothing, sp, sp_ch
-rhs  = "native"                         # native (fixed for tc, error_comp for naive), fixed (n/2 (1 - n/2) - sum(chi_ch)), error_comp (chi_loc_ch + chi_loc_sp - chi_ch). For small frequency grids, one should always use error_comp
+chi_asympt_shell = 10                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
 usable_prct_reduction = 0.1             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
@@ -30,5 +26,4 @@ logfile = "stderr"                      # STDOUT, STDERR, filename
 loglevel = "debug"                      # error, warn, info, debug
 
 [Debug]
-read_bubble = false                     # LEGACY, do not change
 full_EoM_omega = true                  # compatibility flag for fortran code

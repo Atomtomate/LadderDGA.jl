@@ -1,4 +1,3 @@
-
 #TODO: combine c2_curves and extended_λ
 function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
             Gνω::GνqT, λ₀::Array{ComplexF64,3}, x₀::Vector{Float64},

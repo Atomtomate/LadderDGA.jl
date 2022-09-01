@@ -6,7 +6,8 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   General purpose helper functions for the ladder DΓA code.                                          #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Cleanup of setup function
+#   Add documentation for all functions                                                                #
+#   Cleanup of setup function                                                                          #
 # ==================================================================================================== #
 
 
@@ -61,9 +62,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     @timeit to "local correction" begin
         #TODO: unify checks
-        (sP.tc_type_b == :nothing) && @error "Having no tail correction activated usually requires full omega sums in EoM for error compansation. Add full_EoM_omega = true under [Debug] to your config.toml"
-        ((sP.n_iν < 30 || sP.n_iω < 15) && (sP.tc_type_f != :nothing)) && @warn "Improved sums usually require at least 30 positive fermionic frequencies"
-
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
         χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
@@ -90,26 +88,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
             end
         end
-
-        if sP.sumExtrapolationHelper !== nothing
-            if sP.sumExtrapolationHelper.ω_smoothing == :full
-                ωZero = sP.n_iω
-                @warn "smoothing deactivated for now!"
-                filter_MA!(χLocsp_ω[1:ωZero],3,χLocsp_ω[1:ωZero])
-                filχsp_ω_naiiveter_MA!(χLocsp_ω[ωZero:end],3,χLocsp_ω[ωZero:end])
-                filter_MA!(χLocch_ω[1:ωZero],3,χLocch_ω[1:ωZero])
-                filter_MA!(χLocch_ω[ωZero:end],3,χLocch_ω[ωZero:end])
-                χLocsp_ω_tmp[:] = collect(χLocsp_ω)
-                χLocch_ω_tmp[:] = collect(χLocch_ω)
-            elseif sP.sumExtrapolationHelper.ω_smoothing == :range
-                ωZero = sP.n_iω
-                @warn "smoothing deactivated for now!"
-                χLocsp_ω_tmp[1:ωZero]   = filter_MA(3,χLocsp_ω[1:ωZero])
-                χLocsp_ω_tmp[ωZero:end] = filter_MA(3,χLocsp_ω[ωZero:end])
-                χLocch_ω_tmp[1:ωZero]   = filter_MA(3,χLocch_ω[1:ωZero])
-                χLocch_ω_tmp[ωZero:end] = filter_MA(3,χLocch_ω[ωZero:end])
-            end
-        end
     end
 
     @timeit to "ranges/imp. dens." begin
@@ -117,13 +95,10 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_sp, usable_loc_ch)
 
-        sh_b_sp = get_sum_helper(usable_loc_sp, sP, :b)
-        sh_b_ch = get_sum_helper(usable_loc_ch, sP, :b)
         iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
 
-        @warn "TODO: update local omega sum with correction, update get_sum_helper to return tail sub"
-        χLocsp = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocsp_ω[usable_loc_sp], [1], sh_b_sp, mP.β, 0.0)[1]
-        χLocch = sP.tc_type_b == :coeffs ? sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12 : sum_freq(χLocch_ω[usable_loc_ch], [1], sh_b_ch, mP.β, 0.0)[1]
+        χLocsp = sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12
+        χLocch = sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12
         #impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
         #impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
