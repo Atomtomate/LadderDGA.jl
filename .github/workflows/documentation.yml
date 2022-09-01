@@ -20,8 +20,10 @@ jobs:
       - uses: julia-actions/setup-julia@v1
         with:
           version: '1.7'
+      - name: Install dependencies
+        run: julia -e 'using Pkg; Pkg.Registry.update(); Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry")); Pkg.activate("."); Pkg.instantiate(); Pkg.activate("docs"); Pkg.instantiate();'
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
-        run: julia -e 'using Pkg; Pkg.Registry.update(); pkg"registry add General https://github.com/Atomtomate/JuliaRegistry"; Pkg.activate("."); Pkg.instantiate(); Pkg.activate("docs"); Pkg.instantiate(); include("docs/make.jl");'
+        run: julia --project=docs/ docs/make.jl
