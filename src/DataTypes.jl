@@ -6,11 +6,11 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Data types for Matsubara functions.                                                                #
 # -------------------------------------------- TODO -------------------------------------------------- #
+#   define getproperty to mask internals of MatsubaraFunction                                          #
+#      Base.propertynames(F::TYPE, private::Bool=false) = ... see LU type (lu.jl 332)                  #
 #   Σ data type                                                                                        #
 #   Struct with asymptotics for Green's fnctions                                                       #
 #   χ₀: calculate t1,t2 of bubble from GFtails (first: define GF struct)                               #
-#   define getproperty to mask internals of MatsubaraFunction                                          #
-#      Base.propertynames(F::TYPE, private::Bool=false) = ... see LU type (lu.jl 332)                  #
 # ==================================================================================================== #
 
 
@@ -107,11 +107,15 @@ end
 # ============================================= Interface ============================================
 
 # ---------------------------------------------- Indexing --------------------------------------------
-Base.size(arr::MatsubaraFunction) = size(arr.data)
-Base.getindex(arr::MatsubaraFunction, i::Int) = Base.getindex(arr.data, i)
-#Base.getindex(arr::MatsubaraFunction, I::Vararg{Int,N}) = Base.getindex(arr.data, I)
-Base.setindex!(arr::MatsubaraFunction, v, i::Int) = Base.setindex!(arr.data, v, i)
-#Base.setindex!(arr::MatsubaraFunction, v, I::Vararg{Int,N}) = Base.setindex!(arr.data, v, I)
+Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
+Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
+Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I)
+Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I)
+Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I)
+Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
+Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.getindex(arr.data, v, I)
+Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.getindex(arr.data, v, I)
+Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.getindex(arr.data, v, I)
 
 # --------------------------------------------- Iteration --------------------------------------------
 # --------------------------------------------- Broadcast --------------------------------------------
