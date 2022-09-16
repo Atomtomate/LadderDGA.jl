@@ -109,13 +109,13 @@ end
 # ---------------------------------------------- Indexing --------------------------------------------
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
 Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
-Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I)
-Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I)
-Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I)
+Base.getindex(arr::χ₀T, I::Tuple{Int,3}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
-Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.getindex(arr.data, v, I)
-Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.getindex(arr.data, v, I)
-Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.getindex(arr.data, v, I)
+Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
+Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
+Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
 
 # --------------------------------------------- Iteration --------------------------------------------
 # --------------------------------------------- Broadcast --------------------------------------------
