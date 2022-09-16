@@ -28,17 +28,17 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; full=false)
     return E_kin, E_pot
 end
 
-function calc_Epot2(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities, kG::KGrid, 
+function calc_Epot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid, 
                 sP::SimulationParameters, mP::ModelParameters)
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
     χ_tail::Vector{Float64} = real.(mP.Ekin_DMFT ./ (iωn.^2))
-    Epot2 = mP.U * lhs_c2_fast(nlQ_sp, nlQ_ch, χ_tail, kG.kMult, Nk(kG), mP.β)
+    Epot2 = mP.U * lhs_c2_fast(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, χ_tail, kG.kMult, Nk(kG), mP.β)
 end
 
-function calc_E(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,  λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
-    Σ_ladder = LadderDGA.calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
+    Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
     E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)
     return E_kin, E_pot
 end

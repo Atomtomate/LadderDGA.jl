@@ -6,24 +6,36 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   ladder DΓA related functions                                                                       #
 # -------------------------------------------- TODO -------------------------------------------------- #
+#   Cleanup, combine *singlecore.jl                                                                    #
 # ==================================================================================================== #
 
 
 # ========================================== Transformations =========================================
+
 """
-    λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
+    λ_from_γ(type::Symbol, γ::γT, χ::χT, U::Float64)
+
+TODO: documentation
 """
-function λ_from_γ(type::Symbol, γ::AbstractArray{ComplexF64,3}, χ::AbstractArray{_eltype,2}, U::Float64)
+function λ_from_γ(type::Symbol, γ::γT, χ::χT, U::Float64)
     s = (type == :ch) ? -1 : 1
-    res = similar(γ)
+    q_rank = 
+    ω_rank =  
+    res = similar(γ.data)
     for ωi in 1:size(γ,3)
         for qi in 1:size(γ,1)
-            res[qi,:,ωi] = s .* view(γ,qi,:,ωi) .* (1 .+ s*U .* χ[qi, ωi]) .- 1
+            res[qi,:,ωi] = s .* view(γ,qi,:,ωi) .* (1 .+ s*U .* χ.data[qi, ωi]) .- 1
         end
     end
     return res
 end
 
+
+"""
+    F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64[; diag_term=true])
+
+TODO: documentation
+"""
 function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64; diag_term=true)
     F = similar(χ)
     for ωi in 1:size(F,3)
@@ -39,6 +51,8 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
     return F
 end
 
+
+# ======================================== LadderDGA Functions =======================================
 """
     calc_χ_trilex(Γr::ΓT, χ₀, kG::KGrid, U::Float64, mP, sP)
 
@@ -124,8 +138,9 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     Nν::Int = 2*sP.n_iν
     Nq::Int = size(χ₀.data,χ₀.axes[:q])
     Nω::Int = size(χ₀.data,χ₀.axes[:ω])
-    γ::γT = γT(undef, Nq, Nν, Nω)
-    χ::χT = χT(undef, Nq, Nω)
+
+    γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
+    χ = Array{ComplexF64,2}(undef, Nq, Nω)
     qωi_range = collect(Base.product(1:Nq, 1:Nω))[:]
     qωi_part = par_partition(qωi_range, length(workerpool))
     remote_results = Vector{Future}(undef, length(qωi_part))
@@ -146,20 +161,18 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     end
 
     log_q0_χ_check(kG, sP, χ, type)
-    @warn "DBG: currently forcing omega FULL range!!"
-    usable = 1:Nω
 
-    return NonLocalQuantities(χ, γ, usable, 0.0)
+    return χT(χ), γT(γ)
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, Qr::NonLocalQuantities, mP::ModelParameters, sP::SimulationParameters)
+function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
     if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(Qr.γ,1,:,:), view(Qr.χ,1,:),
+        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
                              mP.U, mP.β, sP.χ_helper)
              # F::AbstractArray{ComplexF64,3}, χ₀::AbstractArray{ComplexF64,3}, 
              # χ₀_asym::Array{ComplexF64,2}, γ::AbstractArray{ComplexF64,2}, 
@@ -203,6 +216,12 @@ end
 
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+
+@inline eom_χsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (U * χsp) )
+@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γsp * 0.5 * ( - U * χch))
+@inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
+@inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
+@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*1.0 + 0.0im
 
 @inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
 @inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)
@@ -251,17 +270,15 @@ function calc_Σ_eom(νωindices::Vector{NTuple{4,Int}}, ωind_map::Dict{Int,Int
     return Σ_res
 end
 
-function calc_Σ_par(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+function calc_Σ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
+                λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν, pre_expand=true, 
                 workerpool::AbstractWorkerPool=default_worker_pool())
-    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
-        @error "q Grids not matching"
-    end
     # initialize
     Σ_hartree = mP.n * mP.U/2.0;
-    Nk::Int = size(Q_sp.χ,1)
-    Nω::Int = size(Q_sp.χ,2)
+    Nk::Int = length(kG.kMult)
+    Nω::Int = size(χ_sp.data,χ_sp.axes[:ω])
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
     νrange = 0:(νmax-1)# 0:sP.n_iν-1
     Σ_ladder::Matrix{ComplexF64} = zeros(ComplexF64, Nk, length(νrange))

@@ -8,6 +8,11 @@ sP_1 = SimulationParameters(1,2,3,false,nothing,1:3,0.1,false)
     include("Config.jl")
 end
 
+@testset "DataTypes" begin
+    include("DataTypes.jl")
+end
+
+
 @testset "Helpers" begin
     include("helpers.jl")
 end

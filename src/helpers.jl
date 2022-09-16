@@ -11,18 +11,17 @@
 # ==================================================================================================== #
 
 
-
 # =============================================== Setup ==============================================
 """
     setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true])
 
 Computes all needed objects for DΓA calculations. Returns:
-    Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
+    Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χsp_loc, γsp_loc, χch_loc, γch_loc, χ₀Loc, gImp
 """
 function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true)
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
-    @timeit to "gen kGrid" kGrid    = gen_kGrid(kGridStr[1], kGridStr[2])
+    @timeit to "gen kGrid" kG    = gen_kGrid(kGridStr[1], kGridStr[2])
     in_file = env.inputDir*"/"*env.inputVars
     @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
@@ -51,12 +50,13 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         rm = maximum(abs.(sP.fft_range))
         t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
         gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
-        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kGrid.Nk, length(sP.fft_range)), 1:kGrid.Nk, sP.fft_range)
-        gLoc_full = G_from_Σ(Σ_loc, expandKArr(kGrid, kGrid.ϵkGrid)[:], sP.fft_range, mP);
-        for (i,el) in enumerate(gLoc_full)
-            gLoc_fft[:,sP.fft_range[i]] .= fft(reshape(el, gridshape(kGrid)...))[:]
-            gLoc_rfft[:,sP.fft_range[i]] .= fft(reverse(reshape(el, gridshape(kGrid)...)))[:]
+        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+        ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
+        for νi in sP.fft_range
+            GLoc_νi  = reshape(G_from_Σ(νi, Σ_loc, ϵk_full, mP.β, mP.μ), gridshape(kG))
+            gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
+            gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
         end
     end
 
@@ -65,10 +65,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
         χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
-        locQ_sp = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
-        locQ_ch = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
-        λ₀Loc = calc_λ0(χ₀Loc, Fsp, locQ_sp, mP, sP)
-        Σ_ladderLoc = calc_Σ(locQ_sp, locQ_ch, λ₀Loc, gImp, kGridLoc, mP, sP)
+        println(size(χ₀Loc.data))
+        χsp_loc, γsp_loc = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
+        χch_loc, γch_loc = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
+        λ₀Loc = calc_λ0(χ₀Loc, Fsp, χsp_loc, γsp_loc, mP, sP)
+        Σ_ladderLoc = calc_Σ(χsp_loc, γsp_loc, χch_loc, γch_loc, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
@@ -81,8 +82,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                χLocsp_ω[ωi] = locQ_sp.χ[ωi]
-                χLocch_ω[ωi] = locQ_ch.χ[ωi]
+                χLocsp_ω[ωi] = χ_sp[ωi]
+                χLocch_ω[ωi] = χ_ch[ωi]
             else
                 χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
                 χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
@@ -99,8 +100,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         χLocsp = sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12
         χLocch = sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12
-        #impQ_sp = ImpurityQuantities(Γsp, χDMFTsp, χLocsp_ω, χLocsp, usable_loc_sp, [0,0,mP.Ekin_DMFT])
-        #impQ_ch = ImpurityQuantities(Γch, χDMFTch, χLocch_ω, χLocch, usable_loc_ch, [0,0,mP.Ekin_DMFT])
 
         χupup_DMFT_ω = 0.5 * (χLocsp_ω + χLocch_ω)[loc_range]
         χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range])
@@ -115,7 +114,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χsp_loc, γsp_loc, χch_loc, γch_loc, χ₀Loc, gImp
 end
 
 # ========================================== Index Functions =========================================

@@ -2,14 +2,15 @@
 #                                           GFTools.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 01.09.22                                                                         #
+#   Last Edit Date  : 16.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   This file could be a separate module                                                               #
 #   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
-#   Rename subtrac_tail and make it more general for arbitrary tails                                   #
+#   Rename subtrac_tail and make it more general for arbitrary tails (GF should know its tail)         #
+#   Cleanip G_from_Σ signature mess                                                                    #
 # ==================================================================================================== #
 
 
@@ -25,30 +26,38 @@ iω_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i)* π/β) for i
 # ===================================== Dyson Equations Helpers ======================================
 
 """
-    G(ind::Int64, Σ::Array{ComplexF64,1}, ϵkGrid, β::Float64, μ)
+    G_from_Σ(freq::Int64, Σ::Array{ComplexF64,[1 or 2]}, ϵkGrid, β, μ)
+    G_from_Σ(freq::[Int64 or ComplexF64], β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)
+    G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) 
 
 Constructs GF from k-independent self energy, using the Dyson equation
 and the dispersion relation of the lattice.
 """
-@inline function G(ind::Int64, Σ::Array{ComplexF64,1},
-                   ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
+@inline function G_from_Σ(ind::Int64, Σ::Vector{ComplexF64}, 
+        ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
     Σν = get_symm_f(Σ,ind)
     return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
 end
 
-@inline function G(ind::Int64, Σ::Array{ComplexF64,2},
+@inline function G_from_Σ(ind::Int64, Σ::Array{ComplexF64,2},
                    ϵkGrid, β::Float64, μ::Float64)
     Σνk = get_symm_f_2(Σ,ind)
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
 
-@inline @fastmath G_from_Σ(n::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
-                    1/((π/β)*(2*n + 1)*1im + μ - ϵₖ - Σ)
-@inline @fastmath G_from_Σ(mf::ComplexF64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
+@inline @fastmath G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
+                    1/((π/β)*(2*ind + 1)*1im + μ - ϵₖ - Σ)
+@inline @fastmath G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/(mf + μ - ϵₖ - Σ)
 
-G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) = [G(ind, Σ, ϵkGrid, mP.β, mP.μ) for ind in range]
+function G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) 
+    res = Array{ComplexF64,2}(undef, length(ϵkGrid), length(range))
+    for (i,ind) in enumerate(range)
+        res[:,i] = G_from_Σ(ind, Σ, ϵkGrid, mP.β, mP.μ)
+    end
+    return res
+end
 
 
 Σ_Dyson(GBath::Array{ComplexF64,1}, GImp::Array{ComplexF64,1}, eps = 1e-3) =

@@ -1,4 +1,5 @@
-#TODO: implement complex to real fftw
+#TODO: combine this with ladderDGATool.jl
+
 function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
@@ -32,8 +33,9 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     Nν = 2*sP.n_iν
     Nq  = length(kG.kMult)
     Nω  = size(χ₀.data,ω_axis)
-    γ = γT(undef, Nq, Nν, Nω)
-    χ = χT(undef, Nq, Nω)
+    #TODO: use predifened ranks for Nq,... cleanup definitions
+    γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
+    χ = Array{ComplexF64,2}(undef, Nq, Nω)
     ωi_range = 1:Nω
     νi_range = 1:Nν
     qi_range = 1:Nq
@@ -53,6 +55,8 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             end
             inv!(χννpω, ipiv, work)
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
+                println(size(χ₀.data))
+                println(size(χ₀.asym))
                 χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])
@@ -71,15 +75,13 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
         χ_ω[ωi] = kintegrate(kG, v)
     end
     log_q0_χ_check(kG, sP, χ, type)
-    usable = find_usable_interval(real.(collect(χ_ω)), reduce_range_prct=sP.usable_prct_reduction)
-    sP.χ_helper != nothing && @warn "DBG: currently forcing omega FULL range!!"
-    sP.χ_helper != nothing && (usable = 1:length(χ_ω))
-    return NonLocalQuantities(χ, γ, usable, 0.0)
+
+    return χT(χ), γT(γ)
 end
 
 function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
-            Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, 
+            χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
@@ -88,68 +90,64 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([size(Q_ch.γ,ν_axis), νZero + size(Σ, 2) - 1])
+        maxn = minimum([size(γ_ch,ν_axis), νZero + size(Σ, 2) - 1])
         # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
         # println("tt: $ωn: $maxn vs $maxn2")
         for (νii,νi) in enumerate(νZero:maxn)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ,q_axis)
-                Kνωq_pre[qi] = eomf(U, Q_sp.γ[qi,νi,ωi], Q_ch.γ[qi,νi,ωi],
-                                   Q_sp.χ[qi,ωi], Q_ch.χ[qi,ωi], λ₀[qi,νi,ωi])
+                Kνωq_pre[qi] = eomf(U, γ_sp[qi,νi,ωi], γ_ch[qi,νi,ωi],
+                                   χ_sp[qi,ωi], χ_ch[qi,ωi], λ₀[qi,νi,ωi])
             end
             conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
         end
     end
 end
 
-function calc_Σ(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+function calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
-    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
-        @error "q Grids not matching"
-    end
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq::Int = size(Q_sp.χ,1)
-    Nω::Int = size(Q_sp.χ,2)
+    Nq, Nω = size(χ_sp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     νmax::Int = floor(Int,length(ωindices)/3)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
-    @timeit to "Σ_ω" calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    @timeit to "Σ_ω" calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
     res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end
 
-function calc_Σ_parts(Q_sp::NonLocalQuantities, Q_ch::NonLocalQuantities, λ₀::AbstractArray{_eltype,3},
+function calc_Σ_parts(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
-    if (size(Q_sp.χ,1) != size(Q_ch.χ,1)) || (size(Q_sp.χ,1) != length(kG.kMult))
-        @error "q Grids not matching"
-    end
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq::Int = size(Q_sp.χ,1)
-    Nω::Int = size(Q_sp.χ,2)
+    Nq, Nω = size(χ_sp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(Q_sp.usable_ω, Q_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     νmax::Int = floor(Int,length(ωindices)/3)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     #TODO: implement real fft and make _pre real
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
-    Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 4)
-    @timeit to "Σ_ω sp" calc_Σ_ω!(eom_sp_01, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 6)
+    calc_Σ_ω!(eom_χsp, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    @timeit to "Σ_ω sp" calc_Σ_ω!(eom_sp_02, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_γsp, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,2] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    @timeit to "Σ_ω ch" calc_Σ_ω!(eom_ch, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_χch, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,3] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
-    @timeit to "Σ_ω rest" calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, Q_sp, Q_ch, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder[:,:,4] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    calc_Σ_ω!(eom_γch, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:,4] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
+    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:,5] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
+    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    Σ_ladder[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
 
-    return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:4)
+    return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:6)
 end

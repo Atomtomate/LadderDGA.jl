@@ -23,7 +23,7 @@ using FFTW
 using Combinatorics
 using TOML          # used for input
 
-# Fortran compatibility:
+# Fortran compatibility
 using Printf, DelimitedFiles
 
 using NLsolve

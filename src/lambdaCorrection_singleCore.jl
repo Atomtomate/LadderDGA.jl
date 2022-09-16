@@ -1,17 +1,17 @@
+
 #TODO: combine c2_curves and extended_λ
-function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
-            Gνω::GνqT, λ₀::Array{ComplexF64,3}, x₀::Vector{Float64},
-            kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-            νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6)
+function extended_λ(
+        χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
+        Gνω::GνqT, λ₀::Array{ComplexF64,3}, x₀::Vector{Float64},
+        kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+        νmax::Int = -1, iterations::Int=400, ftol::Float64=1e-6)
         # --- prepare auxiliary vars ---
     @info "Using DMFT GF for second condition in new lambda correction"
 
     # general definitions
-    Nq::Int = size(nlQ_sp.γ,1)
-    Nν::Int = size(nlQ_sp.γ,2)
-    Nω::Int = size(nlQ_sp.γ,3)
+    Nq, Nν, Nω = size(γ_sp)
     EKin::Float64 = mP.Ekin_DMFT
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ_ch,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     ωrange_list = (-sP.n_iω:sP.n_iω)[ωindices]
     ωrange::UnitRange{Int} = first(ωrange_list):last(ωrange_list)
     νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
@@ -29,8 +29,8 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
                               1:Nq, 0:νmax-1)
 
     # preallications
-    χsp_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
-    χch_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
+    χsp_tmp::Matrix{ComplexF64}  = deepcopy(χ.data)
+    χch_tmp::Matrix{ComplexF64}  = deepcopy(χ.data)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -60,11 +60,9 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     trafo(x) = x
     @info "After transformation: λsp ∈ [$(trafo(λsp_min)), $(trafo(λsp_max))], λch ∈ [$(trafo(λch_min)), $(trafo(λch_max))]"
 
-    
-    #WARNING: THIS METHOD CHANGES nlQ and chi needs to be reset later!!
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, 
-        nlQ_sp, nlQ_ch, χsp_tmp, χch_tmp,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
+        χ_sp, γ_sp, χ_ch, γ_ch, χsp_tmp, χch_tmp,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP, trafo)
     
     # TODO: test this for a lot of data before refactor of code
@@ -74,23 +72,22 @@ function extended_λ(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    nlQ_sp.χ = deepcopy(χsp_tmp)
-    nlQ_ch.χ = deepcopy(χch_tmp)
+    χ_sp.data = deepcopy(χsp_tmp)
+    χ_ch.data = deepcopy(χch_tmp)
     
     return λnew, ""
 end
 
-function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Float64}, nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
+function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Float64}, 
+        χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax::Int = -1)
     @info "Using DMFT GF for second condition in new lambda correction"
 
     # general definitions
-    Nq::Int = size(nlQ_sp.γ,1)
-    Nν::Int = size(nlQ_sp.γ,2)
-    Nω::Int = size(nlQ_sp.γ,3)
+    Nq, Nν, Nω = size(γ_sp)
     EKin::Float64 = mP.Ekin_DMFT
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(nlQ_ch.χ,2)) : intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ_ch,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     ωrange_list = (-sP.n_iω:sP.n_iω)[ωindices]
     ωrange::UnitRange{Int} = first(ωrange_list):last(ωrange_list)
     νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
@@ -108,8 +105,8 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Fl
                               1:Nq, 0:νmax-1)
 
     # preallications
-    χsp_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_sp.χ)
-    χch_tmp::Matrix{ComplexF64}  = deepcopy(nlQ_ch.χ)
+    χsp_tmp::Matrix{ComplexF64}  = deepcopy(χ_sp.data)
+    χch_tmp::Matrix{ComplexF64}  = deepcopy(χ_ch.data)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -145,41 +142,19 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Fl
     λch_range = Float64.(sort(unique(union([0], last_λch_range, λch_range_negative, λch_range_negative_2, λch_range_coarse, λch_range_large))))
     # λsp, λch, lhs2_c1,rhs_c1 ,lhs_c2, rhs_c2, Epot_1, Epot_2
     # #TODO: this could be made more memory efficient
-    r_χsp = real.(nlQ_sp.χ)
-
-
-
-    # c2_curve_clean_res = zeros(6, length(λch_range))
-    # for (i,λch_i) in enumerate(λch_range)
-    #     χ_λ!(nlQ_ch.χ, χch_tmp, λch_i)
-    #     χch_ω = kintegrate(kG, nlQ_ch.χ[:,ωindices], 1)[1,:]
-    #     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
-    #     rhs = mP.n * (1 - mP.n/2) - χch_sum
-    #     λsp_i = calc_λsp_correction(real.(nlQ_sp.χ), ωindices, mP.Ekin_DMFT, rhs, kG, mP, sP)
-    #     χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
-    #     lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int_clean(nlQ_sp, nlQ_ch,
-    #         ωindices, Σ_ladder_ω, Σ_ladder, Kνωq_pre, G_corr, νGrid, χ_tail, Σ_hartree,
-    #         E_pot_tail, E_pot_tail_inv, Gνω,λ₀, kG, mP, sP)
-        
-
-    #     c2_curve_clean_res[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2]
-    #     nlQ_sp.χ = deepcopy(χsp_tmp)
-    #     nlQ_ch.χ = deepcopy(χch_tmp)
-    # end
+    r_χsp = real.(χ_sp.data)
 
 
     c2_curve_res = zeros(6, length(λch_range))
     @timeit to "c2 loop" for (i,λch_i) in enumerate(λch_range)
-            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int(λch_i, nlQ_sp, nlQ_ch, χsp_tmp, χch_tmp,
+            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, χsp_tmp, χch_tmp,
             ωindices, Σ_ladder_ω, Σ_ladder, Kνωq_pre, G_corr, νGrid, χ_tail, Σ_hartree,
             E_pot_tail, E_pot_tail_inv, Gνω,λ₀, kG, mP, sP)
 
         c2_curve_res[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2]
-        nlQ_sp.χ = deepcopy(χsp_tmp)
-        nlQ_ch.χ = deepcopy(χch_tmp)
+        χ_sp.data = deepcopy(χsp_tmp)
+        χ_ch.data = deepcopy(χch_tmp)
     end
-    # println("!!!!!!! c2 curve check!", all(c2_curve_res .≈ c2_curve_clean_res))
-    # @info "!!!!!!! c2 curve check!" all(c2_curve_res .≈ c2_curve_clean_res)
 
     return c2_curve_res
 end
