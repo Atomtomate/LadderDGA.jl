@@ -82,11 +82,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                χLocsp_ω[ωi] = χ_sp[ωi]
-                χLocch_ω[ωi] = χ_ch[ωi]
+                χLocsp_ω[ωi] = χsp_loc[ωi]
+                χLocch_ω[ωi] = χch_loc[ωi]
             else
-                χLocsp_ω[ωi] = sum_freq_full_f!(view(χDMFTsp,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
-                χLocch_ω[ωi] = sum_freq_full_f!(view(χDMFTch,:,:,ωi), mP.β, sP.sumExtrapolationHelper)
+                χLocsp_ω[ωi] = sum(view(χDMFTsp,:,:,ωi))/mP.β^2
+                χLocch_ω[ωi] = sum(view(χDMFTch,:,:,ωi))/mP.β^2
             end
         end
     end
@@ -111,7 +111,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
           χLoc_sp($(usable_loc_sp)) = $(printr_s(χLocsp)), χLoc_ch($(usable_loc_ch)) = $(printr_s(χLocch))
-          sum χupup check (fit, tail sub, tail sub + fit, expected): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
+          sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
     return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χsp_loc, γsp_loc, χch_loc, γch_loc, χ₀Loc, gImp
@@ -220,29 +220,22 @@ end
 
 # ======================================== Consistency Checks ========================================
 
+"""
+    log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+
+TODO: documentation
+"""
 function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
     q0_ind = q0_index(kG)
     if q0_ind != nothing
-        ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)#TODO: adapt for arbitrary ω indices
+        #TODO: adapt for arbitrary ω indices
+        ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)
         @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
     end
 end
 
 # ============================================== Misc. ===============================================
 
-
-"""
-    flatten_gLoc(arr)
-
-Transforms Array of Arrays to Array of rank 2.
-"""
-function flatten_2D(arr)
-    res = zeros(eltype(arr[1]),length(arr), length(arr[1]))
-    for i in 1:length(arr)
-        res[i,:] = arr[i][:]
-    end
-    return res
-end
 
 """
     flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})

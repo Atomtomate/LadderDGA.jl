@@ -17,7 +17,7 @@ for cfg_file_i in cfg_list
     @info "Processing cfg: " cfg_file
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
     #TODO: loop over kGrids
-    @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+    @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
     # ladder quantities
     @info "bubble"
@@ -29,26 +29,24 @@ for cfg_file_i in cfg_list
     end
 
     @info "chi"
-    @timeit LadderDGA.to "nl xsp" nlQ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
-    @timeit LadderDGA.to "nl xch" nlQ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+    @timeit LadderDGA.to "nl xsp" χ_sp, γ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+    @timeit LadderDGA.to "nl xch" χ_ch, γ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
 
-    λsp_old = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-    @timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
+    λsp_old = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+    @timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
     println("=========================================================================")
-    #@timeit LadderDGA.to "new λ par" λsp_new_par = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=true, workerpool=wp)
-    #@info "parallel data agrees with sequential: " all(λsp_new.zero .≈ λsp_new_par.zero)
 
     @info "Σ"
-    @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+    @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
     println("=========================================================================")
-    @timeit LadderDGA.to "nl Σ par" Σ_ladder_par = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+    @timeit LadderDGA.to "nl Σ par" Σ_ladder_par = LadderDGA.calc_Σ_par(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
     @info "parallel data agrees with sequential: " all(Σ_ladder .≈ Σ_ladder_par)
 
     @timeit LadderDGA.to "nl bblt par" bubble_par = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
-    @timeit LadderDGA.to "nl xsp par" nlQ_sp_par = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
-    @info "parallel data agrees with sequential: " all(nlQ_sp_par.γ .≈ nlQ_sp.γ)
-    !all(nlQ_sp_par.γ .≈ nlQ_sp.γ) && error("Sequential and parallel computation of the susceptibilities do not yield the same result.")
-    @timeit LadderDGA.to "nl Σ par" Σ_ladder_par = LadderDGA.calc_Σ_par(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+    @timeit LadderDGA.to "nl xsp par" χ_sp_par, γ_sp_par = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
+    @info "parallel data agrees with sequential: " all(γ_sp_par .≈ γ_sp)
+    !all(γ_sp_par .≈ γ_sp) && error("Sequential and parallel computation of the susceptibilities do not yield the same result.")
+    @timeit LadderDGA.to "nl Σ par" Σ_ladder_par = LadderDGA.calc_Σ_par(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
     @info "parallel data agrees with sequential: " all(Σ_ladder .≈ Σ_ladder_par)
     !all(Σ_ladder .≈ Σ_ladder_par) && error("Sequential and parallel computation of the self energy do not yield the same result.")
     #Σ_ladder = Σ_loc_correction(Σ_ladder, Σ_ladderLoc, Σ_loc);

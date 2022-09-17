@@ -80,21 +80,21 @@ open(logfile_path,"w") do io
 
     while !conv && !(conv_dm_error && conv_m_error)
         @info "Running k-grid convergence calculation for Nk = $Nk"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA((kGridsStr[1][1], Nk), mP, sP, env);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
         @timeit LadderDGA.to "nl bblt par" bubble = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
-        @timeit LadderDGA.to "nl xsp par" nlQ_sp = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
-        @timeit LadderDGA.to "nl xch par" nlQ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
-        ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+        @timeit LadderDGA.to "nl xsp par" χ_sp, γ_sp = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
+        @timeit LadderDGA.to "nl xch par" χ_ch, γ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
+        ωindices = intersect(χ_sp.usable_ω, χ_ch.usable_ω)
 
         @timeit LadderDGA.to "λ₀" begin
             Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-            λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
+            λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
         end
-        λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+        λsp = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         if Nk == 10
-            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
             c2_root_res = find_root(c2_res)
             @info "c2 root result:  $c2_root_res"
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
@@ -108,9 +108,9 @@ open(logfile_path,"w") do io
               try
                 @timeit LadderDGA.to "new λ par" λspch = 
                     if Nk < 60
-                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
+                        λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
                     else
-                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
+                        λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
                     end
                 println("extended lambda: ", λspch)
                 @info λspch
@@ -123,36 +123,33 @@ open(logfile_path,"w") do io
                 pch, λspch_z = nothing, [λ_root_guess[1], λ_root_guess[2]]
             end
         end
-        #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-        ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
+        ωindices = intersect(χ_sp.usable_ω, χ_ch.usable_ω)
         iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-        nh = ceil(Int,size(nlQ_sp.χ, 2)/2)
+        nh = ceil(Int,size(χ_sp.data, 2)/2)
         νmax::Int = min(sP.n_iν,floor(Int,3*length(ωindices)/8))
         
         println("DMFT Epot")
-        E_pot_DMFT_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
-        χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
+        E_pot_DMFT_2 = calc_Epot2(χ_sp, γ_sp, χ_ch, γ_ch, kG, sP, mP) + mP.U * mP.n^2/4
+        χAF_DMFT = real(1 / (1 / χ_sp[end,nh]))
 
         println("λ_m Epot")
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
-        E_kin_λsp_1, E_pot_λsp_1 = calc_E(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
-        E_pot_λsp_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
-        χAF_λsp = real(1 / (1 / nlQ_sp.χ[end,nh]))
-        sp_m_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
-        ch_m_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
+        χ_λ!(χ_sp, λsp); 
+        E_kin_λsp_1, E_pot_λsp_1 = calc_E(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
+        E_pot_λsp_2 = calc_Epot2(χ_sp, γ_sp, χ_ch, γ_ch, kG, sP, mP) + mP.U * mP.n^2/4
+        χAF_λsp = real(1 / (1 / χ_sp[end,nh]))
+        sp_m_pos = all(kintegrate(kG,real(χ_sp.data),1)[1,ωindices] .>= 0)
+        ch_m_pos = all(kintegrate(kG,real(χ_ch.data),1)[1,ωindices] .>= 0)
+        χ_λ!(χ_sp, -λsp); 
 
         # Both
         println("λ_md Epot")
-        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λspch_z[1]); 
-        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, λspch_z[2]); 
-        E_kin_λspch_1, E_pot_λspch_1 = calc_E(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
-        E_pot_λspch_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
-        χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
-        sp_dm_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
-        ch_dm_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
-        nlQ_sp = nothing
-        nlQ_ch = nothing
+        χ_λ!(χ_sp, λspch_z[1]); 
+        χ_λ!(χ_ch, λspch_z[2]); 
+        E_kin_λspch_1, E_pot_λspch_1 = calc_E(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
+        E_pot_λspch_2 = calc_Epot2(χ_sp, γ_sp, χ_ch, γ_ch, kG, sP, mP) + mP.U * mP.n^2/4
+        χAF_λspch = real(1 / (1 / χ_sp[end,nh]))
+        sp_dm_pos = all(kintegrate(kG,real(χ_sp.data),1)[1,ωindices] .>= 0)
+        ch_dm_pos = all(kintegrate(kG,real(χ_ch.data),1)[1,ωindices] .>= 0)
 
         relC = -Inf
         relC_m = -Inf

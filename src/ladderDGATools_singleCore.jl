@@ -55,8 +55,6 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             end
             inv!(χννpω, ipiv, work)
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                println(size(χ₀.data))
-                println(size(χ₀.asym))
                 χ[qi, ωi] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀.data,qi,:,ωi), 
                                            mP.U, mP.β, χ₀.asym[qi,ωi], sP.χ_helper);
                 γ[qi, :, ωi] = (1 .- s*λ_cache) ./ (1 .+ s*mP.U .* χ[qi, ωi])
@@ -92,7 +90,6 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([size(γ_ch,ν_axis), νZero + size(Σ, 2) - 1])
         # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
-        # println("tt: $ωn: $maxn vs $maxn2")
         for (νii,νi) in enumerate(νZero:maxn)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ,q_axis)

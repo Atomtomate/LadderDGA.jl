@@ -20,9 +20,18 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.7'
-      - name: Install dependencies
-        run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/JuliaRegistries/General")); Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry")); Pkg.activate("."); Pkg.instantiate(); Pkg.activate("docs"); Pkg.instantiate();'
+      - run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry"))'
         shell: bash
+      - uses: actions/cache@v1
+        env:
+          cache-name: cache-artifacts
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-test-${{ env.cache-name }}-
+            ${{ runner.os }}-test-
+            ${{ runner.os }}-
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

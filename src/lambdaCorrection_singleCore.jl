@@ -29,8 +29,8 @@ function extended_λ(
                               1:Nq, 0:νmax-1)
 
     # preallications
-    χsp_tmp::Matrix{ComplexF64}  = deepcopy(χ.data)
-    χch_tmp::Matrix{ComplexF64}  = deepcopy(χ.data)
+    χsp_tmp::χT = deepcopy(χ_sp)
+    χch_tmp::χT = deepcopy(χ_ch)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -42,18 +42,18 @@ function extended_λ(
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λsp_min = get_χ_min(real.(χsp_tmp))
-    λch_min = get_χ_min(real.(χch_tmp))
+    λsp_min = get_χ_min(real.(χsp_tmp.data))
+    λch_min = get_χ_min(real.(χch_tmp.data))
     λch_min = if λch_min > 10000
         @warn "found λch_min=$λch_min, resetting to -500"
         -500.0
     else
         λch_min
     end
-    λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β 
-    λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β
-    λsp_max = calc_λsp_correction(χsp_tmp, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
-    λch_max = calc_λsp_correction(χch_tmp, ωindices, mP.Ekin_DMFT, λch_max_rhs, kG, mP, sP) + 0.1
+    λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β
+    λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β 
+    λsp_max = calc_λsp_correction(χsp_tmp.data, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
+    λch_max = calc_λsp_correction(χch_tmp.data, ωindices, mP.Ekin_DMFT, λch_max_rhs, kG, mP, sP) + 0.1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
     trafo_bak(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
@@ -62,7 +62,7 @@ function extended_λ(
 
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, 
-        χ_sp, γ_sp, χ_ch, γ_ch, χsp_tmp, χch_tmp,ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
+        χ_sp, γ_sp, χ_ch, γ_ch, χsp_tmp, χch_tmp, ωindices, Σ_ladder_ω,Σ_ladder, Kνωq_pre,
         G_corr, νGrid, χ_tail, Σ_hartree, E_pot_tail, E_pot_tail_inv, Gνω, λ₀, kG, mP, sP, trafo)
     
     # TODO: test this for a lot of data before refactor of code
@@ -72,9 +72,9 @@ function extended_λ(
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=100)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    χ_sp.data = deepcopy(χsp_tmp)
-    χ_ch.data = deepcopy(χch_tmp)
     
+    χ_sp.data = deepcopy(χsp_tmp.data)
+    χ_ch.data = deepcopy(χch_tmp.data)
     return λnew, ""
 end
 
@@ -105,8 +105,8 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Fl
                               1:Nq, 0:νmax-1)
 
     # preallications
-    χsp_tmp::Matrix{ComplexF64}  = deepcopy(χ_sp.data)
-    χch_tmp::Matrix{ComplexF64}  = deepcopy(χ_ch.data)
+    χsp_tmp::χT = deepcopy(χ_sp)
+    χch_tmp::χT = deepcopy(χ_ch)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -118,8 +118,8 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Fl
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λsp_min = get_χ_min(real.(χsp_tmp))
-    λch_min = get_χ_min(real.(χch_tmp))
+    λsp_min = get_χ_min(real.(χsp_tmp.data))
+    λch_min = get_χ_min(real.(χch_tmp.data))
     λch_min = if λch_min > 1000
         @warn "found positive λch_min=$λch_min, setting to 0!"
         #throw("Vertex input corrupted!")
@@ -152,8 +152,8 @@ function c2_curve(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Fl
             E_pot_tail, E_pot_tail_inv, Gνω,λ₀, kG, mP, sP)
 
         c2_curve_res[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2]
-        χ_sp.data = deepcopy(χsp_tmp)
-        χ_ch.data = deepcopy(χch_tmp)
+        χ_sp.data = deepcopy(χsp_tmp.data)
+        χ_ch.data = deepcopy(χch_tmp.data)
     end
 
     return c2_curve_res

@@ -129,7 +129,7 @@ function cond_both_int_par!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part,
     lhs_c2 = lhs_c2/mP.β
 
     #TODO: the next two lines are expensive
-    G_corr[:] = transpose(flatten_2D(G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP)));
+    G_corr[:] = G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP);
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
 
 
@@ -176,8 +176,8 @@ function extended_λ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     remote_results = Vector{Future}(undef, length(νωi_part))
 
     # preallications
-    χsp_tmp::Matrix{ComplexF64}  = deepcopy(χ_sp.data)
-    χch_tmp::Matrix{ComplexF64}  = deepcopy(χ_ch.data)
+    χsp_tmp::χT = deepcopy(χ_sp)
+    χch_tmp::χT = deepcopy(χ_ch)
     G_corr::Matrix{ComplexF64} = Matrix{ComplexF64}(undef, Nq, νmax)
 
     # Therodynamics preallocations
@@ -189,10 +189,10 @@ function extended_λ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λsp_min = get_χ_min(real.(χsp_tmp))
-    λch_min = get_χ_min(real.(χch_tmp))
-    λsp_max = 50.0#sum(kintegrate(kG,χ_λ(real.(χch_tmp), λch_min + 1e-8), 1)) / mP.β - rhs_c1
-    λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
+    λsp_min = get_χ_min(real.(χsp_tmp.data))
+    λch_min = get_χ_min(real.(χch_tmp.data))
+    λsp_max = 50.0#sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β - rhs_c1
+    λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
     #trafo(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
@@ -217,8 +217,8 @@ function extended_λ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=iterations)
     λnew.zero = trafo(λnew.zero)
     println(λnew)
-    χ_sp.data = deepcopy(χsp_tmp)
-    χ_ch.data = deepcopy(χch_tmp)
+    χ_sp.data = deepcopy(χsp_tmp.data)
+    χ_ch.data = deepcopy(χch_tmp.data)
     return λnew, ""
 end
     

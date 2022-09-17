@@ -1,3 +1,22 @@
+# ==================================================================================================== #
+#                                        thermodynamics.jl                                             #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+#   Last Edit Date  : 17.09.22                                                                         #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   Thermodynamic quantities from impurity and lDΓA GFs.                                               #
+# -------------------------------------------- TODO -------------------------------------------------- #
+# ==================================================================================================== #
+
+# ================================================ ED ================================================
+
+"""
+    calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; full=false)
+    calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP::ModelParameters; full=false)
+    calc_E_ED(fname::String; full=false)
+
+Returns E_kin and E_pot calculated from ED impurity quantities. 
+"""
 function calc_E_ED(fname::String; full=false)
     E_kin, E_pot = jldopen(fname,"r") do f
         Nν = length(f["gImp"])
@@ -23,11 +42,13 @@ function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; full=false)
         E_kin += 2*real(GImp[n] * Δ_n - E_kin_tail/(iνₙ[n]^2))
         E_pot += 2*real(GImp[n] * Σ_n - E_pot_tail/(iνₙ[n]^2))
     end
-    E_kin = E_kin .* (2/β) - (β/2) .* E_kin_tail
-    E_pot = E_pot .* (1/β) .+ 0.5*Σ_hartree .- (β/4) .* E_pot_tail
+    E_kin = E_kin * (2/β) - (β/2) * E_kin_tail
+    E_pot = E_pot * (1/β) + 0.5*Σ_hartree - (β/4) * E_pot_tail
     return E_kin, E_pot
 end
 
+
+# =============================================== lDΓA ===============================================
 function calc_Epot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid, 
                 sP::SimulationParameters, mP::ModelParameters)
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
@@ -45,7 +66,7 @@ end
 
 function calc_E(Σ::AbstractArray{ComplexF64,2}, kG, mP; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
-    G = transpose(flatten_2D(G_from_Σ(Σ[:,1:νmax], kG.ϵkGrid, νGrid, mP)));
+    G = G_from_Σ(Σ[:,1:νmax], kG.ϵkGrid, νGrid, mP);
     return calc_E(G, Σ, kG, mP; νmax = νmax,  trace=trace)
 end
 
