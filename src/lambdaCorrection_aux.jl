@@ -178,7 +178,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     lhs_c1, lhs_c2 = lhs_fast(χ_sp, χ_ch, χ_tail, kG.kMult, k_norm, mP.Ekin_DMFT, mP.β)
 
     #TODO: the next line is expensive: Optimize G_from_Σ
-    @timeit to "G from Sigma" G_corr[:] = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)
+    G_corr[:] = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)
     E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)

@@ -201,7 +201,7 @@ end
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
 @inline eom_χsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (U * χsp) )
-@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γsp * 0.5 * ( - U * χch))
+@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * ( - U * χch))
 @inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
 @inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
 @inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*1.0 + 0.0im
@@ -282,16 +282,12 @@ function calc_Σ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     for (i,ind) in enumerate(νωi_part)
         ωi = sort(unique(map(x->x[1],νω_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-
-                                       calc_Σ_eom(νω_range[ind], ωind_map, νmax, χ_sp[:,ωi],
-                                       χ_ch[:,ωi], γ_sp[:,:,ωi], γ_ch[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
         remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, νmax, χ_sp[:,ωi],
                                        χ_ch[:,ωi], γ_sp[:,:,ωi], γ_ch[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
     end
 
     for (i,ind) in enumerate(νωi_part)
         data_i = fetch(remote_results[i])
-        println(data_i)
         Σ_ladder[:,:] += data_i
     end
     Σ_ladder = Σ_ladder ./ mP.β .+ Σ_hartree
