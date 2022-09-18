@@ -1,3 +1,5 @@
+#TODO: cleanup documentation
+
 dχ_λ(χ, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), χ)
 χ_λ2(χ, λ) = map(χi -> 1.0 / ((1.0 / χi) + λ), χ)
 
@@ -187,3 +189,38 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     return nothing
 end
 
+
+"""
+    find_lin_interp_root(xdata::AbstractVector{Float64}, ydata::AbstractVector{Float64})
+
+Warning, this is a specialiazed function which assumes strictly monotonic data!
+Given sampled `x` and `y` data, find the root using linear interpolation.
+Returns estimated `x₀`.
+"""
+function find_lin_interp_root(xdata::AbstractVector{Float64}, ydata::AbstractVector{Float64})
+    ind = findlast(x -> x < 0, ydata)
+    (ind == nothing) && return NaN
+    (ind == 1) && return NaN
+    (ind == length(xdata)) && return NaN
+    Δx = xdata[ind+1] - xdata[ind]
+    Δy = ydata[ind+1] - ydata[ind]
+    m = Δy/Δx
+    x₀ = Δx > 0 ? -(ydata[ind]-xdata[ind])/m : (ydata[ind]-xdata[ind+1])/m 
+    return x₀
+end
+
+"""
+    find_root(c2_data::Array{Float64,2})
+
+Find lambda values from c2 curves.
+TODO: documentation
+"""
+function find_root(c2_data::Array{Float64,2})
+    ydata = (c2_data[5,end] .- c2_data[6,end]) > 0 ? c2_data[5,:] .- c2_data[6,:] : c2_data[6,:] .- c2_data[5,:]
+    xdata_sp = c2_data[1,:]
+    xdata_ch = c2_data[2,:]
+    λsp = find_lin_interp_root(xdata_sp, ydata)
+    λch = find_lin_interp_root(xdata_ch, ydata)
+    check = (isnan(λsp) && isnan(λch)) ? Inf : 0.0 
+    λsp, λch, check
+end

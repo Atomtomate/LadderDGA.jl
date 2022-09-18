@@ -4,26 +4,29 @@ println("Modules loaded")
 flush(stdout)
 flush(stderr)
 
-function find_root(c2_data)
-    c2_curve = c2_data[5,:] .- c2_data[6,:]
-    xvals = c2_data[2,:]
-    sc_ind = (c2_curve[end] < 0) ? findlast(x -> x > 0, c2_curve) : findlast(x -> x < 0, c2_curve)
-    (sc_ind == nothing) && return (Inf,Inf,0)
-    (sc_ind == 1) && return (Inf,-Inf,0)
-    check = (c2_data[3,sc_ind] - c2_data[4,sc_ind])*(c2_data[3,sc_ind+1] - c2_data[4,sc_ind+1])
-    y1 = c2_curve[sc_ind]
-    y2 = c2_curve[sc_ind+1]
-    x1 = xvals[sc_ind]
-    x2 = xvals[sc_ind+1]
-    m = (y2-y1)/(x2-x1)
-    x0_lch = x1 - y1/m
-    y1 = c2_data[1,sc_ind]
-    y2 = c2_data[1,sc_ind+1]
-    x1 = xvals[sc_ind]
-    x2 = xvals[sc_ind+1]
-    m = (y2-y1)/(x2-x1)
-    x0_lsp = y1 + m*(x1 - x0_lch)
-    x0_lsp, x0_lch, check
+
+function find_lin_interp_root(xdata::AbstractVector{Float64}, ydata::AbstractVector{Float64})
+    ind = findlast(x -> x < 0, ydata)
+    println(ind)
+    (ind == nothing) && return NaN
+    (ind == 1) && return NaN
+    (ind == length(xdata)) && return NaN
+    Δx = xdata[ind+1] - xdata[ind]
+    Δy = ydata[ind+1] - ydata[ind]
+    m = Δy/Δx
+    println("m=$m; yd=$(ydata[ind]); yd1=$(ydata[ind+1]); xd=$(xdata[ind]); xd1=$(xdata[ind+1])")
+    x₀ = Δx > 0 ? -(ydata[ind]-xdata[ind])/m : (ydata[ind]-xdata[ind+1])/m 
+    return x₀
+end
+
+function find_root(c2_data::Array{Float64,2})
+    ydata = (c2_data[5,end] .- c2_data[6,end]) > 0 ? c2_data[5,:] .- c2_data[6,:] : c2_data[6,:] .- c2_data[5,:]
+    xdata_sp = c2_data[1,:]
+    xdata_ch = c2_data[2,:]
+    λsp = find_lin_interp_root(xdata_sp, ydata)
+    λch = find_lin_interp_root(xdata_ch, ydata)
+    check = (isnan(λsp) && isnan(λch)) ? Inf : 0.0 
+    λsp, λch, check
 end
 
 function run_sim(; run_c2_curve=false, fname="", descr="", cfg_file=nothing, res_prefix="", res_postfix="", save_results=true, log_io=devnull)

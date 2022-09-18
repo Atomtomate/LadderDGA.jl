@@ -170,10 +170,12 @@ end
 function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
+    Nq  = size(χ₀.data, χ₀.axes[:q])
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
-    if typeof(sP.χ_helper) <: BSE_Asym_Helpers
+    @warn "Forcing naiive computation of λ₀"
+    if false typeof(sP.χ_helper) <: BSE_Asym_Helpers
         λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
                              mP.U, mP.β, sP.χ_helper)
     else

@@ -12,7 +12,6 @@ end
     include("DataTypes.jl")
 end
 
-
 @testset "Helpers" begin
     include("helpers.jl")
 end
@@ -26,12 +25,16 @@ end
    # include("GFFit.jl")
 end
 
+@testset "LapackWrapper" begin
+    include("LapackWrapper.jl")
+end
+
 @testset "ladderDGATools" begin
     include("ladderDGATools.jl")
 end
 
-@testset "LapackWrapper" begin
-    include("LapackWrapper.jl")
+@testset "lambdaCorrection" begin
+    include("lambdaCorrection.jl")
 end
 
 @testset "full run" begin

@@ -2,7 +2,7 @@
 #                                           GFTools.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 16.09.22                                                                         #
+#   Last Edit Date  : 01.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -10,7 +10,6 @@
 #   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
 #   Rename subtrac_tail and make it more general for arbitrary tails (GF should know its tail)         #
-#   Cleanip G_from_Σ signature mess                                                                    #
 # ==================================================================================================== #
 
 
@@ -26,9 +25,8 @@ iω_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i)* π/β) for i
 # ===================================== Dyson Equations Helpers ======================================
 
 """
-    G_from_Σ(freq::Int64, Σ::Array{ComplexF64,[1 or 2]}, ϵkGrid, β, μ)
+    G_from_Σ(ind::Int64, Σ::Array{ComplexF64,[1,2,3]}, ϵkGrid, β, μ)
     G_from_Σ(freq::[Int64 or ComplexF64], β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)
-    G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) 
 
 Constructs GF from k-independent self energy, using the Dyson equation
 and the dispersion relation of the lattice.
@@ -45,16 +43,15 @@ end
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 
-
 @inline @fastmath G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/((π/β)*(2*ind + 1)*1im + μ - ϵₖ - Σ)
 @inline @fastmath G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/(mf + μ - ϵₖ - Σ)
 
-function G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::UnitRange{Int64}, mP::ModelParameters) 
+function G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ ,  Σloc = nothing) 
     res = Array{ComplexF64,2}(undef, length(ϵkGrid), length(range))
     for (i,ind) in enumerate(range)
-        res[:,i] = G_from_Σ(ind, Σ, ϵkGrid, mP.β, mP.μ)
+        res[:,i] = abs(ind) < size(Σ,2) ? G_from_Σ(ind, Σ, ϵkGrid, mP.β, μ) : G_from_Σ(ind, Σloc, ϵkGrid, mP.β, μ)
     end
     return res
 end
@@ -63,6 +60,40 @@ end
 Σ_Dyson(GBath::Array{ComplexF64,1}, GImp::Array{ComplexF64,1}, eps = 1e-3) =
     Σ::Array{ComplexF64,1} =  1 ./ GBath .- 1 ./ GImp
 
+#TODO: test/documentation (see SC and Sigma Tails notebook)
+function filling(G, νn_list, kG::KGrid, β::Float64)
+    n = 0.0
+    @assert length(νn_list) == size(G,2)
+    for (νi, νn) in enumerate(νn_list)
+        n += kintegrate(kG, G[:,νi],1)[1] - 1.0/νn
+    end
+    n = 2*n/β + 0.5*2
+end
+
+
+function GLoc_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    νRange = sP.fft_range
+    gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νRange, mP; Σloc=Σloc);
+    νn = iν_array(mP.β, νRange);
+    function fix_μ(μ::Vector{Float64})
+        gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ[1], Σloc=Σloc);
+        real(filling(gLoc_red, νn, kG, mP.β) - mP.n)
+    end
+    #res = nlsolve(fix_μ, [mP.μ])
+    #println("μ solver output: $res \nμ = $μ")
+    μ = mP.μ # res.zero[1]
+    gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ, Σloc=Σloc);
+    gLoc_red = OffsetArray(gLoc_red, 1:length(kG.ϵkGrid), νRange)
+    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
+    for νi in sP.fft_range
+        GLoc_νi  = expandKArr(kG, gLoc_red[:,νi].parent)
+        gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
+        gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
+    end
+    return μ, gLoc_red, gLoc_fft, gLoc_rfft
+end
 
 # =============================== Frequency Tail Modification Helpers ================================
 

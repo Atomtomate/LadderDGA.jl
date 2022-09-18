@@ -34,7 +34,7 @@ Fields
 - **`Epot_DMFT`** : `Float64`, DMFT potential energy
 - **`Ekin_DMFT`** : `Float64`, DMFT kinetic intergy
 """
-struct ModelParameters <: ConfigStruct
+mutable struct ModelParameters <: ConfigStruct
     U::Float64              # Hubbard U
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
