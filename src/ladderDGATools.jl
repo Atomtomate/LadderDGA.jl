@@ -178,17 +178,16 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
                              mP.U, mP.β, sP.χ_helper)
     else
         #TODO: this is not well optimized, but also not often executed
-        tmp = Array{ComplexF64, 1}(undef, Niν)
+        fill!(λ0, 0.0)
         for ωi in ω_range
             for νi in 1:Niν
                 #TODO: export realview functions?
                 v1 = view(Fr,νi,:,ωi)
-                for qi in axes(χ₀.data,q_axis)
-                    v2 = view(χ₀.data,qi,:,ωi) 
-                    @simd for νpi in 1:Niν 
-                        @inbounds tmp[νpi] = v1[νpi] * v2[νpi]
+                for qi in 1:Nq
+                    v2 = χ₀.data[qi,(sP.n_iν_shell+1):(size(χ₀.data,2)-sP.n_iν_shell),ωi]
+                    for νpi in 1:Niν 
+                        λ0[qi,νi,ωi] += v1[νpi] * v2[νpi] / mP.β^2
                     end
-                    sum(tmp)/mP.β^2
                 end
             end
         end

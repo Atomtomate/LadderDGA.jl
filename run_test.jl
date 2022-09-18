@@ -25,7 +25,7 @@ for cfg_file_i in cfg_list
 
     @timeit LadderDGA.to "λ₀" begin
         Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-        λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
+        λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
     end
 
     @info "chi"

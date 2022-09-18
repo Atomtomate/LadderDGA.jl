@@ -10,7 +10,7 @@ wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 χ₀ = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
 Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 Fupdo = F_from_χ((χDMFTch .- χDMFTsp) .* 0.5 , gImp[1,:], sP, mP.β, diag_term=false);
-λ₀ = calc_λ0(χ₀, Fsp, locQ_sp, mP, sP)
+λ₀ = calc_λ0(χ₀, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
 
 χ_sp, γ_sp = calc_χγ(:sp, Γsp, χ₀, kG, mP, sP);
 χ_ch, γ_ch = calc_χγ(:ch, Γch, χ₀, kG, mP, sP);
