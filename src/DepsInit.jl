@@ -18,7 +18,6 @@ using Logging, LoggingExtras
 using OffsetArrays
 using Distributed
 using JLD2, FileIO
-using LinearAlgebra, GenericLinearAlgebra
 using FFTW
 using Combinatorics
 using TOML          # used for input
@@ -48,10 +47,12 @@ include("$(@__DIR__)/GFFit.jl")
 include("$(@__DIR__)/ladderDGATools.jl")
 include("$(@__DIR__)/ladderDGATools_singleCore.jl")
 include("$(@__DIR__)/lambdaCorrection.jl")
+include("$(@__DIR__)/LambdaCorrection/LambdaCorrection.jl")
 include("$(@__DIR__)/thermodynamics.jl")
 
 # ======================================== Internal Packages =========================================
 using .LapackWrapper
+using .LambdaCorrection
 
 # =================================== Parallelization Bookkeeping ====================================
 global_vars = String[]

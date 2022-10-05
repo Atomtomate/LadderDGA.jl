@@ -2,7 +2,7 @@
 #                                            Config.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 01.09.22                                                                         #
+#   Last Edit Date  : 22.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   This file contains legacy functionality for read/write operations of files generated and need      #
 #   by a number of auxilliary Fortran codes.                                                           #
@@ -14,6 +14,8 @@
 
 
 import Base.show
+
+# ============================================= Type Def. ============================================
 
 abstract type ConfigStruct end
 
@@ -34,7 +36,7 @@ Fields
 - **`Epot_DMFT`** : `Float64`, DMFT potential energy
 - **`Ekin_DMFT`** : `Float64`, DMFT kinetic intergy
 """
-mutable struct ModelParameters <: ConfigStruct
+struct ModelParameters <: ConfigStruct
     U::Float64              # Hubbard U
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
@@ -91,3 +93,7 @@ struct EnvironmentVars <: ConfigStruct
     loglevel::String      # disabled, error, warn, info, debug
     logfile::String       # STDOUT, STDERR, filename
 end
+
+# ============================================= Interface ============================================
+
+#update_μ(mP::ModelParameters) 

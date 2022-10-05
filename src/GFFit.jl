@@ -2,7 +2,7 @@
 #                                            GFFit.jl                                                  #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 29.08.22                                                                         #
+#   Last Edit Date  : 22.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Functionality for the estimation of valid ranges, sum extrapolations and fixing of tails.          #
 #   This functionality hast mostly been replaces by analytic methods in BSE_SC.jl                      #
@@ -11,32 +11,43 @@
 # ==================================================================================================== #
 
 # ======================================== Usable Inervals ===========================================
+
 """
-    find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
+    find_usable_χ_interval(χ_ω::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
 
 Determines usable range for physical susceptibilities ``\\chi^\\omega`` and additionally cut away `reduce_range_prct` % of the range.
 The unusable region is given whenever the susceptibility becomes negative, or the first derivative changes sign.
 
+Returns: 
+-------------
+`range::AbstractVector{Float64}` : Usable ``\\omega`` range for ``\\chi``
+
+Arguments:
+-------------
+- **`χ_ω`**                : ``\\chi^\\omega`` 
+- **`sum_type`**           : Optional, default `:common`. Can be set to `:full` to enforce full range, or a `::Tuple{Int,Int}` to enforce a specific interval size.
+- **`reduce_range_prct`**  : Optional, default `0.1`. After finding the usable interval it is reduced by an additional percentage given by this value.
 """
-function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
-    mid_index = Int(ceil(length(arr)/2))
+function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)::AbstractVector{Int}
+    mid_index = Int(ceil(length(χ_ω)/2))
     if sum_type == :full
-        return 1:length(arr)
+        return 1:length(χ_ω)
     elseif typeof(sum_type) == Tuple{Int,Int}
-        return default_sum_range(mid_index, sum_type)
+        return sum_type[1]:sum_type[2]
     end
 
-    darr = diff(arr; dims=1)
-    if arr[mid_index] < 0.0
+    res = 1:length(χ_ω)
+    darr = diff(χ_ω; dims=1)
+    if χ_ω[mid_index] < 0.0
         res = [mid_index]
         return res
     end
     # interval for condition 1 (positive values)
     cond1_intervall_range = 1
     # find range for positive values
-    @inbounds while (cond1_intervall_range < mid_index) &&
-        (arr[(mid_index-cond1_intervall_range)] > 0) &&
-        (arr[(mid_index+cond1_intervall_range)] > 0)
+    @inbounds while (cond1_intervall_range < mid_index - 1) &&
+        (χ_ω[(mid_index-cond1_intervall_range-1)] > 0) &&
+        (χ_ω[(mid_index+cond1_intervall_range+1)] > 0)
         cond1_intervall_range = cond1_intervall_range + 1
     end
 
@@ -50,7 +61,7 @@ function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tupl
     end
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
-    if length(arr)%2 == 1
+    if length(χ_ω)%2 == 1
         res = ((mid_index-range):(mid_index+range-1) .+ 1)
     else
         res = ((mid_index-range):(mid_index+range-1) .+ 2)
@@ -61,49 +72,4 @@ function find_usable_interval(arr::Array{Float64,1}; sum_type::Union{Symbol,Tupl
         res = [mid_index]
     end
     return res
-end
-
-"""
-    find_usable_γ(arr; threshold=50, prct_red=0.05)
-
-Usable νₙ range for γ. γ(ωₙ) is usable, for a range in which `γ[n]/γ[n-1]` does not
-exceed some threshold value.
-
-Arguments
--------------
-- **`arr`**    : 1D γ(νₙ) slice for fixed ω and q
-- **`threshold`** : Optional, default `50`, unusable if `arr[i]/arr[i±1] > threshold`
-- **`prct_red`**  : Optional, default `0.05`, reduce unusble range by this amount
-"""
-function find_usable_γ(arr; threshold=50, prct_red=0.05)
-    indh = ceil(Int, length(arr)/2)
-    i = indh + floor(Int,indh/5)
-    red = ceil(Int,length(arr)*prct_red)
-    lo = 1
-    up = length(arr)
-    while i <= length(arr)
-        change = abs(real(arr[i]/arr[i-1]))
-        (change > threshold) && (up = i-1; break)
-        i += 1
-    end
-    i = indh - floor(Int,indh/5)
-    while i > 0
-        change = abs(real(arr[i]/arr[i+1]))
-        (change > threshold) && (lo = i+1; break)
-        i -= 1
-    end
-    (lo > 1) && (lo += red)
-    (up < length(arr)) && (up -= red)
-    return lo,up
-end
-
-function default_sum_range(mid_index::Int, lim_tuple::Tuple{Int,Int}) where T
-    return union((mid_index - lim_tuple[2]):(mid_index - lim_tuple[1]), (mid_index + lim_tuple[1]):(mid_index + lim_tuple[2]))
-end
-
-function reduce_range(range::AbstractArray, red_prct::Float64)
-    sub = floor(Int, length(range)/2 * red_prct)
-    lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
-    fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
-    return fst:lst
 end

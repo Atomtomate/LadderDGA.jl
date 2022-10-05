@@ -21,8 +21,7 @@ end
 end
 
 @testset "GFFit" begin
-    #TODO: not used right now, reactivate at some point
-   # include("GFFit.jl")
+    include("GFFit.jl")
 end
 
 @testset "LapackWrapper" begin
@@ -37,6 +36,7 @@ end
     include("lambdaCorrection.jl")
 end
 
+
 @testset "full run" begin
     #bubble_f, χch_f, χsp_f, trilexch_f, trilexsp_f, Σ_f = loadFortranData(dir)
 
@@ -45,3 +45,4 @@ end
     #@test all(χsp[usable_sp,:] .≈ χch_f[usable_sp,:])
     #@test all(χch[usable_ch,:] .≈ χch_f[usable_ch,:])
 end
+include("LambdaCorrection/runtests.jl")

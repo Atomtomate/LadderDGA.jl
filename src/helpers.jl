@@ -12,6 +12,7 @@
 
 
 # =============================================== Setup ==============================================
+
 """
     setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true])
 
@@ -46,6 +47,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
         χDMFTsp, χDMFTch, Γsp, Γch, gImp, Σ_loc
     end
+
     @timeit to "Compute GLoc" begin
         rm = maximum(abs.(sP.fft_range))
         t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
@@ -92,8 +94,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     @timeit to "ranges/imp. dens." begin
-        usable_loc_sp = find_usable_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
-        usable_loc_ch = find_usable_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
+        usable_loc_sp = find_usable_χ_interval(real(χLocsp_ω), reduce_range_prct=sP.usable_prct_reduction)
+        usable_loc_ch = find_usable_χ_interval(real(χLocch_ω), reduce_range_prct=sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_sp, usable_loc_ch)
 
         iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
@@ -260,3 +262,10 @@ store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_s
 
 split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
 split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
+
+function reduce_range(range::AbstractArray, red_prct::Float64)
+    sub = floor(Int, length(range)/2 * red_prct)
+    lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
+    fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
+    return fst:lst
+end

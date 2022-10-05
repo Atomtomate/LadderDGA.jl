@@ -6,6 +6,7 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
+#   Documentation                                                                                      #
 #   This file could be a separate module                                                               #
 #   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
@@ -73,14 +74,14 @@ end
 
 function GLoc_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     νRange = sP.fft_range
-    gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νRange, mP; Σloc=Σloc);
+    #gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νRange, mP; Σloc=Σloc);
     νn = iν_array(mP.β, νRange);
+
     function fix_μ(μ::Vector{Float64})
         gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ[1], Σloc=Σloc);
         real(filling(gLoc_red, νn, kG, mP.β) - mP.n)
     end
     #res = nlsolve(fix_μ, [mP.μ])
-    #println("μ solver output: $res \nμ = $μ")
     μ = mP.μ # res.zero[1]
     gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ, Σloc=Σloc);
     gLoc_red = OffsetArray(gLoc_red, 1:length(kG.ϵkGrid), νRange)

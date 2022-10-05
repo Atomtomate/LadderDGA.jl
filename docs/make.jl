@@ -2,6 +2,7 @@ using Documenter
 using Pkg
 Pkg.activate(String(@__DIR__) * "/..")
 using LadderDGA
+using LadderDGA.LambdaCorrection
 
 push!(LOAD_PATH, "../src")
 makedocs(;

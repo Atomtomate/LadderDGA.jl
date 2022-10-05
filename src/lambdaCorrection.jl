@@ -69,7 +69,7 @@ function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int
     f_c1_int(λint::Float64)::Float64 = f_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
     df_c1_int(λint::Float64)::Float64 = df_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
 
-    λsp = newton_right(f_c1_int, df_c1_int, get_χ_min(χr))
+    λsp = newton_right(f_c1_int, df_c1_int, get_λ_min(χr))
     return λsp
 end
 
@@ -189,8 +189,8 @@ function extended_λ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λsp_min = get_χ_min(real.(χsp_tmp.data))
-    λch_min = get_χ_min(real.(χch_tmp.data))
+    λsp_min = get_λ_min(real.(χsp_tmp.data))
+    λch_min = get_λ_min(real.(χch_tmp.data))
     λsp_max = 50.0#sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β - rhs_c1
     λch_max = 1000.0#sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β - rhs_c1
     @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
@@ -259,66 +259,4 @@ function λ_correction!(type::Symbol, imp_density, F, Σ_loc_pos, Σ_ladderLoc,
         χ_λ!(χ_sp, λ[1])
         χ_λ!(χ_ch, λ[2])
     end
-end
-
-function newton_right(f::Function, df::Function,
-                            start::Float64; nsteps=5000, atol=1e-11)
-    done = false
-    δ = 0.1
-    x0 = start + δ
-    xi = x0
-    i = 1
-    while !done
-        fi = f(xi)
-        dfii = 1 / df(xi)
-        xlast = xi
-        xi = x0 - dfii * fi
-        (norm(xi-x0) < atol) && break
-        if xi < x0               # only ever search to the right!
-            δ  = δ/2.0
-            x0  = start + δ      # reset with smaller delta
-            xi = x0
-        else
-            x0 = xi
-        end
-        (i >= nsteps ) && (done = true)
-        i += 1
-    end
-    return xi
-end
-
-#TODO: not working for now. fallback to nlsolve
-function newton_2d_right(f::Function, 
-                start::Vector{Float64}; nsteps=500, atol=1e-6, max_x2=3.0)
-    done = false
-    δ = [0.1, 0.1]
-    x0 = start .+ δ
-    xi = x0
-    i = 1
-    cache = FiniteDiff.JacobianCache(xi)
-    J2 = Matrix{Float64}(undef, 2,2)
-    while !done
-        fi = f(xi)
-        dfii = inv(FiniteDiff.finite_difference_jacobian(f, xi, cache))
-        xlast = xi
-        xi = x0 - dfii * fi
-        (norm(xi-x0) < atol) && break
-        if xi[1] .< x0[1]        # only ever search to the right!
-            println("$(xi[1]) .< $(x0[1]) reset to $δ to $(δ .+ 0.1 .* δ)")
-            flush(stdout)
-            δ  = δ .+ 0.1 .* δ
-            x0 = start .+ δ      # reset with larger delta
-            xi = x0
-        elseif xi[2] > max_x2    # λch has some cutoff value, here just 0, later to be determined
-            println("$(xi[2]) > $(max_x2) reset to $δ to $(δ ./ 2)")
-            δ  = δ ./ 2 
-            x0 = start .+ δ      # reset with smaller delta
-            xi = x0
-        else
-            x0 = xi
-        end
-        (i >= nsteps ) && (done = true)
-        i += 1
-    end
-    return xi
 end

@@ -21,7 +21,7 @@ function calc_λsp_correction_clean(χ_in::AbstractArray, usable_ω::AbstractArr
     f_c1_clean(λint::Float64) = sum(subtract_tail(kintegrate(kG, χ_λ(χr, λint), 1)[1,:],mP.Ekin_DMFT,iωn))/mP.β  -mP.Ekin_DMFT*mP.β/12 - rhs
     df_c1_clean(λint::Float64) = sum(kintegrate(kG, -χ_λ(χr, λint) .^ 2, 1)[1,:])/mP.β
 
-    λsp = newton_right(f_c1_clean, df_c1_clean, get_χ_min(χr))
+    λsp = newton_right(f_c1_clean, df_c1_clean, get_λ_min(χr))
     return λsp
 end
 

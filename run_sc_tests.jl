@@ -13,17 +13,13 @@ function run_sc_test_full(cfg_file, fname, Nit)
     for it in 1:Nit
 
         # ladder quantities
-        @info "bubble"
-        @timeit LadderDGA.to "nl bblt" bubble = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
+        bubble = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
 
-        @timeit LadderDGA.to "λ₀" begin
-            Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-            λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
-        end
+        Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
+        λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
 
-        @info "chi"
-        @timeit LadderDGA.to "nl xsp" χ_sp, γ_sp = calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
-        @timeit LadderDGA.to "nl xch" χ_ch, γ_ch = calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
+        χ_sp, γ_sp = calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
+        χ_ch, γ_ch = calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
         c2_res = c2_curve(20, 20, [0.0,0.0], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         λsp,λch, _ = find_root(c2_res)
 
