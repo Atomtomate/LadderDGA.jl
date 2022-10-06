@@ -28,6 +28,10 @@ end
     include("LapackWrapper.jl")
 end
 
+@testset "thermodynamics" begin
+    include("thermodynamics.jl")
+end
+
 @testset "ladderDGATools" begin
     include("ladderDGATools.jl")
 end

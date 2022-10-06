@@ -18,7 +18,7 @@ module LadderDGA
     export λ_from_γ, F_from_χ, G_from_Σ, GLoc_from_Σladder
 
     # Thermodynamics
-    export calc_E, calc_Epot2
+    export calc_E_ED, calc_E, calc_Epot2
 
     # LambdaCorrection
     export χ_λ, χ_λ!

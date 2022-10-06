@@ -12,33 +12,48 @@
 # ================================================ ED ================================================
 
 """
-    calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; [full=false])
-    calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP::ModelParameters; [full=false])
-    calc_E_ED(fname::String; [full=false])
+    calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, U, n, μ, β)
+    calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, mP::ModelParameters)
+    calc_E_ED(fname::String)
 
-Returns E_kin and E_pot calculated from ED impurity quantities. 
+Computes kinetic and potential energies from Anderson parameters.
+
+
+Returns: 
+-------------
+(EKin, EPot): `Tuple{Float64,Float64}`, kinetic and potential energy.
+
+Arguments:
+-------------
+- **`fname`** : `jld2`-file containing the fields: `[gImp, β, ϵₖ, Vₖ, U, nden, μ]` (see below)
+- **`ϵₖ`**    : bath levels
+- **`Vₖ`**    : hoppend amplitudes
+- **`GImp`**  : impurity Green's function. WARNING: the arguments are assumed to by fermionic Matsuabra indices 0:length(GImp)-1!
+- **`U`**     : Coulomb interaction strength
+- **`n`**     : number density
+- **`μ`**     : chemical potential
+- **`β`**     : inverse temperature
+- **`mP`**    : Alternative call with model parameters as `Float64`. See also [`ModelParameters`](ModelParameters).
 """
-function calc_E_ED(fname::String; full=false)
+function calc_E_ED(fname::String)
     E_kin, E_pot = jldopen(fname,"r") do f
-        Nν = length(f["gImp"])
-        iνₙ = iν_array(f["β"], Nν)
-        calc_E_ED(iνₙ,  f["ϵₖ"], f["Vₖ"], f["gImp"], f["U"], f["nden"], f["μ"], f["β"]; full=full)
+        calc_E_ED(f["ϵₖ"], f["Vₖ"], f["gImp"], f["U"], f["nden"], f["μ"], f["β"])
     end
 end
 
-calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP; full=false) = calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, mP.U, mP.n, mP.μ, mP.β; full=full)
+calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, mP) = calc_E_ED(ϵₖ, Vₖ, GImp, mP.U, mP.n, mP.μ, mP.β)
 
-function calc_E_ED(iνₙ, ϵₖ, Vₖ, GImp, U, n, μ, β; full=false)
-    full && @error "Not implemented for full GF."
+function calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, U::Float64, n::Float64, μ::Float64, β::Float64)
     E_kin = 0.0
     E_pot = 0.0
     vk = sum(Vₖ .^ 2)
     Σ_hartree = n * U/2
     E_pot_tail = (U^2)/2 * n * (1-n/2) - Σ_hartree*(Σ_hartree-μ)
     E_kin_tail = vk
+    iνₙ = iν_array(β, length(GImp))
 
     for n in 1:length(GImp)
-        Δ_n = sum((Vₖ .^ 2) ./ (iνₙ[n] .- ϵₖ))
+        Δ_n = sum((Vₖ .* conj.(Vₖ)) ./ (iνₙ[n] .- ϵₖ))
         Σ_n = iνₙ[n] .- Δ_n .- 1.0 ./ GImp[n] .+ μ
         E_kin += 2*real(GImp[n] * Δ_n - E_kin_tail/(iνₙ[n]^2))
         E_pot += 2*real(GImp[n] * Σ_n - E_pot_tail/(iνₙ[n]^2))

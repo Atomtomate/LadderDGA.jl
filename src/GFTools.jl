@@ -17,11 +17,54 @@
 
 # =================================== Matsubara Frequency Helpers ====================================
 
-iν_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el + 1)* π/β) for el in grid]
-iν_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i + 1)* π/β) for i in 0:size-1]
-iω_array(β::Real, grid::AbstractArray{Int64,1}) = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
-iω_array(β::Real, size::Integer)    = ComplexF64[1.0im*((2.0 *i)* π/β) for i in 0:size-1]
+"""
+    iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}
+    iν_array(β::Real, size::Int)::Vector{ComplexF64}
 
+Computes list of fermionic Matsubara frequencies.
+If length `size` is given, the grid will have indices `0:size-1`.
+Bosonic arrays can be generated with [`iω_array`](@ref iω_array).
+
+Returns: 
+-------------
+Vector of fermionic Matsubara frequencies, given either a list of indices or a length. 
+"""
+iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} = ComplexF64[1.0im*((2.0 *el + 1)* π/β) for el in grid]
+iν_array(β::Real, size::Int)::Vector{ComplexF64} = iν_array(β, 0:(size-1))
+
+"""
+    iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}
+    iω_array(β::Real, size::Int)::Vector{ComplexF64}
+
+Computes list of bosonic Matsubara frequencies.
+If length `size` is given, the grid will have indices `0:size-1`.
+Fermionic arrays can be generated with [`iν_array`](iν_array).
+
+Returns: 
+-------------
+Vector of bosonic Matsubara frequencies, given either a list of indices or a length. 
+"""
+iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}  = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
+iω_array(β::Real, size::Int)::Vector{ComplexF64} = iω_array(β, 0:(size-1))
+
+# =================================== Anderson Parameters Helepers ===================================
+"""
+    Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64}
+
+Computes hybridization function ``\\Delta(i\\nu_n) = \\sum_k \\frac{|V_k|^2}{\\nu_n - \\epsilon_k}`` from Anderson parameters (for example obtained through exact diagonalization).
+
+Returns: 
+-------------
+Hybridization function  over list of given fermionic Matsubara frequencies.
+
+Arguments:
+-------------
+- **`ϵₖ`** : list of bath levels
+- **`Vₖ`** : list of hopping amplitudes
+- **`νₙ`** : Vector of fermionic Matsubara frequencies, see also: [`iν_array`](iν_array).
+
+"""
+Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64} = [sum((Vₖ .* conj.(Vₖ)) ./ (ν .- ϵₖ)) for ν in νₙ]
 
 # ===================================== Dyson Equations Helpers ======================================
 
@@ -121,6 +164,24 @@ function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Fl
         else
             outp[n] = inp[n]
         end
+    end
+end
+
+"""
+    ω_tail(ωindices::AbstractVector{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+    ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+
+
+"""
+function ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ω_tail(ωindices, coeffs, sP) 
+end
+function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    for (i,ci) in enumerate(coeffs)
+        χ_tail::Vector{Float64} = real.(ci ./ (iωn.^i))
     end
 end
 
