@@ -1,41 +1,3 @@
-function lhs_EPot_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{Float64},
-                  kMult::Vector{Float64}, k_norm::Int, β::Float64)
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χsp_i_λ = real(χ_sp[qi,ωi])
-            χch_i_λ = real(χ_ch[qi,ωi])
-            tmp2 += (χch_i_λ - χsp_i_λ) * km
-        end
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c2 = lhs_c2/β
-    return lhs_c2 
-end
-
-function lhs_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{ComplexF64},
-                  kMult::Vector{Float64}, k_norm::Int, Ekin_DMFT::Float64, β::Float64)
-    lhs_c1 = 0.0
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp1 = 0.0
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χsp_i_λ = real(χ_sp[qi,ωi])
-            χch_i_λ = real(χ_ch[qi,ωi])
-            tmp1 += (χch_i_λ + χsp_i_λ) * km
-            tmp2 += (χch_i_λ - χsp_i_λ) * km
-        end
-        lhs_c1 += 0.5*tmp1/k_norm - t
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c1 = lhs_c1/β - Ekin_DMFT*β/12
-    lhs_c2 = lhs_c2/β
-    return lhs_c1, lhs_c2 
-end
-
-
 function cond_both_int(
         λch_i::Float64, 
         χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
@@ -73,7 +35,7 @@ function cond_both_int(
 
     #TODO: the next line is expensive: Optimize G_from_Σ
     G_corr[:] = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP);
-    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    E_pot = EPot1(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     χ_sp.data = deepcopy(χsp_tmp.data)
@@ -104,7 +66,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
 
     #TODO: the next line is expensive: Optimize G_from_Σ
     G_corr[:] = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP)
-    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    E_pot = EPot1(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     F[1] = lhs_c1 - rhs_c1

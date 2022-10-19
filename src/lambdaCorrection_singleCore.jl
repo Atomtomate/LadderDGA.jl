@@ -1,4 +1,3 @@
-
 #TODO: combine c2_curves and extended_λ
 function extended_λ(
         χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,

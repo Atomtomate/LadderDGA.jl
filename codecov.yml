@@ -5,4 +5,4 @@ coverage:
         target: auto
         threshold: 10%
 ignore:
-  - "src/backup"
+  - "src/backup/"

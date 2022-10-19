@@ -53,15 +53,15 @@ function extended_λ_clean(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
         χ_λ!(χ_sp, χsp_bak, λ[1])
         χ_λ!(χ_ch, χch_bak, λ[2])
         Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, Gνω, kG, mP, sP).parent[:,1:νmax]
-        χupup_ω = subtract_tail(0.5 * kintegrate(kG,χ_ch.data .+ χ_sp.data,1)[1,ωindices], mP.Ekin_DMFT, iωn)
-        χupdo_ω = 0.5 * kintegrate(kG,χ_ch.data .- χ_sp.data,1)[1,ωindices]
+        χupup_ω  = subtract_tail(0.5 * kintegrate(kG,χ_ch.data .+ χ_sp.data,1)[1,ωindices], mP.Ekin_DMFT, iωn)
+        χupdo_ω  = 0.5 * kintegrate(kG,χ_ch.data .- χ_sp.data,1)[1,ωindices]
         #E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
         G_corr = G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP);
-        E_pot2 = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
+        E_pot1 = EPot1(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
         lhs_c1 = real(sum(χupup_ω))/mP.β - mP.Ekin_DMFT*mP.β/12
         lhs_c2 = real(sum(χupdo_ω))/mP.β
         rhs_c1 = mP.n/2 * (1 - mP.n/2)
-        rhs_c2 = E_pot2/mP.U - (mP.n/2) * (mP.n/2)
+        rhs_c2 = E_pot1/mP.U - (mP.n/2) * (mP.n/2)
         F[1] = lhs_c1 - rhs_c1
         F[2] = lhs_c2 - rhs_c2
         return nothing
@@ -108,7 +108,7 @@ function cond_both_int_clean(
 
     #TODO: the next line is expensive: Optimize G_from_Σ
     G_corr[:] = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νGrid, mP);
-    E_pot = calc_E_pot(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
+    E_pot = EPot1(kG, G_corr, Σ_ladder.parent, E_pot_tail, E_pot_tail_inv, mP.β)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     return lhs_c1, rhs_c1, lhs_c2, rhs_c2

@@ -65,22 +65,89 @@ end
 
 
 # ========================================== lDΓA Energies ===========================================
+# ----------------------------------------------- EPot -----------------------------------------------
+function calc_EPot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid, 
+                sP::SimulationParameters, mP::ModelParameters)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail::Vector{Float64} = real.(mP.Ekin_DMFT ./ (iωn.^2))
+    Epot2 = mP.U * calc_EPot2_int(χ_sp, χ_ch, χ_tail, kG.kMult, Nk(kG), mP.β)
+end
+
+function calc_EPot2(χ_sp::χT, χ_ch::χT, χ_tail::Vector{Float64},
+                      kMult::Vector{Float64}, k_norm::Int, β::Float64)
+    lhs_c2 = 0.0
+    for (ωi,t) in enumerate(χ_tail)
+        tmp2 = 0.0
+        for (qi,km) in enumerate(kMult)
+            χsp_i_λ = real(χ_sp[qi,ωi])
+            χch_i_λ = real(χ_ch[qi,ωi])
+            tmp2 += (χch_i_λ - χsp_i_λ) * km
+        end
+        lhs_c2 += 0.5*tmp2/k_norm
+    end
+    lhs_c2 = lhs_c2/β
+    return lhs_c2 
+end
+
+"""
+
+Specialized function for DGA potential energy. Better performance than calc_E.
+"""
+function EPot1(kG::KGrid, G::AbstractArray{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
+                    tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
+    E_pot = real.(G .* Σ .- tail);
+    return kintegrate(kG, 2 .* sum(view(E_pot,:,1:size(Σ,2)), dims=[2])[:,1] .+ tail_inv) / β
+end
+
+function calc_E_pot_νn(kG, G, Σ, tail, tail_inv)
+    E_pot = real.(G .* Σ .- tail);
+    @warn "possibly / β missing in this version! Test this first against calc_E_pot"
+    return [kintegrate(kG, 2 .* sum(E_pot[:,1:i], dims=[2])[:,1] .+ tail_inv) for i in 1:size(E_pot,1)]
+end
+
+
+# ----------------------------------------------- EKin -----------------------------------------------
+function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 1}, ϵqGrid, tail::Array{ComplexF64, 1}, tail_inv::Vector{Float64}, β::Float64)
+    E_kin = ϵqGrid' .* real.(G .- tail)
+    return kintegrate(kG, 4 .* E_kin .+ tail_inv) / β
+end
+
+function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 2}, ϵqGrid, tail::Array{ComplexF64, 2}, tail_inv::Vector{Float64}, β::Float64)
+    E_kin = ϵqGrid' .* real.(G .- tail)
+    return kintegrate(kG, 4 .* sum(E_kin, dims=[2])[:,1] .+ tail_inv) / β
+end
+
 # ---------------------------------------------- Common ----------------------------------------------
+
+function lhs_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{ComplexF64},
+                  kMult::Vector{Float64}, k_norm::Int, Ekin_DMFT::Float64, β::Float64)
+    lhs_c1 = 0.0
+    lhs_c2 = 0.0
+    for (ωi,t) in enumerate(χ_tail)
+        tmp1 = 0.0
+        tmp2 = 0.0
+        for (qi,km) in enumerate(kMult)
+            χsp_i_λ = real(χ_sp[qi,ωi])
+            χch_i_λ = real(χ_ch[qi,ωi])
+            tmp1 += (χch_i_λ + χsp_i_λ) * km
+            tmp2 += (χch_i_λ - χsp_i_λ) * km
+        end
+        lhs_c1 += 0.5*tmp1/k_norm - t
+        lhs_c2 += 0.5*tmp2/k_norm
+    end
+    lhs_c1 = lhs_c1/β - Ekin_DMFT*β/12
+    lhs_c2 = lhs_c2/β
+    return lhs_c1, lhs_c2 
+end
+
 function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
     Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
     E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)
     return E_kin, E_pot
 end
 
-# ----------------------------------------------- EPot -----------------------------------------------
-function calc_Epot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid, 
-                sP::SimulationParameters, mP::ModelParameters)
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{Float64} = real.(mP.Ekin_DMFT ./ (iωn.^2))
-    Epot2 = mP.U * lhs_c2_fast(χ_sp, γ_sp, χ_ch, γ_ch, χ_tail, kG.kMult, Nk(kG), mP.β)
-end
 
 function calc_E(Σ::AbstractArray{ComplexF64,2}, kG, mP; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
@@ -114,70 +181,3 @@ function calc_E(G::AbstractArray{ComplexF64,2}, Σ::AbstractArray{ComplexF64,2},
     end
     return E_kin, E_pot
 end
-
-"""
-
-Specialized function for DGA potential energy. Better performance than calc_E.
-"""
-function calc_E_pot(kG::KGrid, G::AbstractArray{ComplexF64, 2}, Σ::Array{ComplexF64, 2}, 
-                    tail::Array{ComplexF64, 2}, tail_inv::Array{Float64, 1}, β::Float64)::Float64
-    E_pot = real.(G .* Σ .- tail);
-    return kintegrate(kG, 2 .* sum(view(E_pot,:,1:size(Σ,2)), dims=[2])[:,1] .+ tail_inv) / β
-end
-
-function calc_E_pot_νn(kG, G, Σ, tail, tail_inv)
-    E_pot = real.(G .* Σ .- tail);
-    @warn "possibly / β missing in this version! Test this first against calc_E_pot"
-    return [kintegrate(kG, 2 .* sum(E_pot[:,1:i], dims=[2])[:,1] .+ tail_inv) for i in 1:size(E_pot,1)]
-end
-
-
-function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 1}, ϵqGrid, tail::Array{ComplexF64, 1}, tail_inv::Vector{Float64}, β::Float64)
-    E_kin = ϵqGrid' .* real.(G .- tail)
-    return kintegrate(kG, 4 .* E_kin .+ tail_inv) / β
-end
-
-function calc_E_kin(kG::KGrid, G::Array{ComplexF64, 2}, ϵqGrid, tail::Array{ComplexF64, 2}, tail_inv::Vector{Float64}, β::Float64)
-    E_kin = ϵqGrid' .* real.(G .- tail)
-    return kintegrate(kG, 4 .* sum(E_kin, dims=[2])[:,1] .+ tail_inv) / β
-end
-
-function lhs_EPot_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{Float64},
-                  kMult::Vector{Float64}, k_norm::Int, β::Float64)
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χsp_i_λ = real(χ_sp[qi,ωi])
-            χch_i_λ = real(χ_ch[qi,ωi])
-            tmp2 += (χch_i_λ - χsp_i_λ) * km
-        end
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c2 = lhs_c2/β
-    return lhs_c2 
-end
-
-function lhs_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{ComplexF64},
-                  kMult::Vector{Float64}, k_norm::Int, Ekin_DMFT::Float64, β::Float64)
-    lhs_c1 = 0.0
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp1 = 0.0
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χsp_i_λ = real(χ_sp[qi,ωi])
-            χch_i_λ = real(χ_ch[qi,ωi])
-            tmp1 += (χch_i_λ + χsp_i_λ) * km
-            tmp2 += (χch_i_λ - χsp_i_λ) * km
-        end
-        lhs_c1 += 0.5*tmp1/k_norm - t
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c1 = lhs_c1/β - Ekin_DMFT*β/12
-    lhs_c2 = lhs_c2/β
-    return lhs_c1, lhs_c2 
-end
-
-
-# ----------------------------------------------- EKin -----------------------------------------------

@@ -130,7 +130,7 @@ function cond_both_int_par!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part,
 
     #TODO: the next two lines are expensive
     G_corr[:] = G_from_Σ(Σ_ladder, kG.ϵkGrid, νGrid, mP);
-    E_pot = calc_E_pot(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
+    E_pot = EPot1(kG, G_corr, Σ_ladder, E_pot_tail, E_pot_tail_inv, mP.β)
 
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
