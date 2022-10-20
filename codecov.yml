@@ -5,4 +5,7 @@ coverage:
         target: auto
         threshold: 10%
 ignore:
+  - "docs/"
   - "src/backup/"
+  - "src/IO_legacy.jl"
+  - "notebooks/"
