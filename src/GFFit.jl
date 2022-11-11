@@ -29,6 +29,9 @@ Arguments:
 - **`reduce_range_prct`**  : Optional, default `0.1`. After finding the usable interval it is reduced by an additional percentage given by this value.
 """
 function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)::AbstractVector{Int}
+    if length(χ_ω)%2 == 0
+        throw(ArgumentError("Finding a usable interval is only implemented for uneven size of χ_ω!"))
+    end
     mid_index = Int(ceil(length(χ_ω)/2))
     if sum_type == :full
         return 1:length(χ_ω)
@@ -43,29 +46,25 @@ function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,
         return res
     end
     # interval for condition 1 (positive values)
-    cond1_intervall_range = 1
+    cond1_intervall_range = 0
     # find range for positive values
-    @inbounds while (cond1_intervall_range < mid_index - 1) &&
+    while (cond1_intervall_range < mid_index - 1) &&
         (χ_ω[(mid_index-cond1_intervall_range-1)] > 0) &&
         (χ_ω[(mid_index+cond1_intervall_range+1)] > 0)
         cond1_intervall_range = cond1_intervall_range + 1
     end
 
     # interval for condition 2 (monotonicity)
-    cond2_intervall_range = 1
+    cond2_intervall_range = 0
     # find range for first turning point
-   @inbounds while (cond2_intervall_range < mid_index-1) &&
-        (darr[(mid_index-cond2_intervall_range)] > 0) &&
+   while (cond2_intervall_range < mid_index-1) &&
+        (darr[(mid_index-cond2_intervall_range-1)] > 0) &&
         (darr[(mid_index+cond2_intervall_range)] < 0)
         cond2_intervall_range = cond2_intervall_range + 1
     end
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
-    if length(χ_ω)%2 == 1
-        res = ((mid_index-range):(mid_index+range-1) .+ 1)
-    else
-        res = ((mid_index-range):(mid_index+range-1) .+ 2)
-    end
+    res = ((mid_index-range):(mid_index+range))
 
     if length(res) < 1
         @warn "   ---> WARNING: could not determine usable range. Defaulting to single frequency!"

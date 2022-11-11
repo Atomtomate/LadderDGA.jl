@@ -78,7 +78,6 @@ function __init__()
 
     args = parse_args([], s)
     io = stdout
-    metafmt(level::Logging.LogLevel, _module, group, id, file, line) = Logging.default_metafmt(level, nothing, group,id, nothing, nothing)
     global logger_console = ConsoleLogger(io, Logging.Info, meta_formatter=Logging.default_metafmt, show_limited=true, right_justify=0)
     global logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
     global logger = global_logger(TeeLogger(logger_console,logger_file))

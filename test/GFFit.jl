@@ -40,11 +40,16 @@
     t0 = [ 0.6, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, 0.6]
     t1 = [ 0.8, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, 0.8]
     t2 = [-0.8, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, -0.8]
+    t3 = [-0.8, 0.7, 0.8, 0.9, 1.0, 0.9, 0.8, 0.7, -0.8, -0.9]
+    t4 = [-0.8, 0.3, -0.2]
     @test find_usable_χ_interval(t1) == 2:8
     @test find_usable_χ_interval(t1, reduce_range_prct=0.0) == 2:8
     @test find_usable_χ_interval(t1, reduce_range_prct=0.50) == 3:7
-    @test find_usable_χ_interval(t2) == 2:8
+    @test find_usable_χ_interval(t2, reduce_range_prct=0.0) == 2:8
+    @test_throws ArgumentError find_usable_χ_interval(t3)
     @test find_usable_χ_interval(t0, reduce_range_prct=0.0) == 1:9
     @test find_usable_χ_interval(t2, sum_type=:full, reduce_range_prct=0.5) == 1:9
     @test find_usable_χ_interval(t2, sum_type=(2,8), reduce_range_prct=0.5) == 2:8
+    @test all(find_usable_χ_interval([-1.0, -2.0, -1.0]) .== [2])
+    @test find_usable_χ_interval(t4, reduce_range_prct=0.9) == [2]
 end
