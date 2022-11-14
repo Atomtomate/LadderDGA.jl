@@ -16,6 +16,9 @@ end
     t1 = ComplexF64.([1,2,3])
     t = LadderDGA.χ₀T(td, kG_1, t1, 1.0, 2.0, 1:4, 1, 1)
     @test all(t.data .≈ td)
+    @test t[1,1,1] ≈ 1
+    t[1,1,1] = -1
+    @test t[1,1,1] ≈ -1
 end
 
 @testset "χT" begin

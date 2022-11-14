@@ -238,31 +238,12 @@ end
 
 # ============================================== Misc. ===============================================
 
-
 """
-    flatten_gLoc(kG::KGrid, arr::AbstractArray{AbstractArray})
+    reduce_range(range::AbstractArray, red_prct::Float64)
 
-transform Array{Array,1}(Nf) of Arrays to Array of dim `(Nk,Nk,...,Nf)`. Number of dimensions
-depends on grid shape.
+Returns indices for 1D array slice, reduced by `red_prct` % (compared to initial `range`).
+Range is symmetrically reduced fro mstart and end.
 """
-function flatten_gLoc(arr::AbstractArray)
-    ndim = length(size(arr[1]))+1
-    arr_new = Array{eltype(arr[1]),ndim}(undef,size(arr[1])...,length(arr));
-    for (i,el) in enumerate(arr)
-        selectdim(arr_new, ndim, i) .= el
-    end
-    return arr_new
-end
-
-@inline get_symm_f(f::Array{ComplexF64,1}, i::Int64) = (i < 0) ? conj(f[-i]) : f[i+1]
-@inline get_symm_f_1(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[-i,:]) : f[i+1,:]
-@inline get_symm_f_2(f::Array{ComplexF64,2}, i::Int64) = (i < 0) ? conj(f[:,-i]) : f[:,i+1]
-store_symm_f(f::Array{T, 1}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
-store_symm_f(f::Array{T, 2}, range::UnitRange{Int64}) where T <: Number = [get_symm_f(f,i) for i in range]
-
-split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
-split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
-
 function reduce_range(range::AbstractArray, red_prct::Float64)
     sub = floor(Int, length(range)/2 * red_prct)
     lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])

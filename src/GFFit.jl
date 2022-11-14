@@ -2,7 +2,7 @@
 #                                            GFFit.jl                                                  #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 22.09.22                                                                         #
+#   Last Edit Date  : 14.11.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Functionality for the estimation of valid ranges, sum extrapolations and fixing of tails.          #
 #   This functionality hast mostly been replaces by analytic methods in BSE_SC.jl                      #
@@ -65,10 +65,5 @@ function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,
     intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
     res = ((mid_index-range):(mid_index+range))
-
-    if length(res) < 1
-        @warn "   ---> WARNING: could not determine usable range. Defaulting to single frequency!"
-        res = [mid_index]
-    end
     return res
 end

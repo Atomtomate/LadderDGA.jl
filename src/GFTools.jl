@@ -77,13 +77,14 @@ and the dispersion relation of the lattice.
 """
 @inline function G_from_Σ(ind::Int64, Σ::Vector{ComplexF64}, 
         ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
-    Σν = get_symm_f(Σ,ind)
+
+    Σν = (ind < 0 ) ? conj(Σ[-ind]) : Σ[ind + 1]
     return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
 end
 
 @inline function G_from_Σ(ind::Int64, Σ::Array{ComplexF64,2},
                    ϵkGrid, β::Float64, μ::Float64)
-    Σνk = get_symm_f_2(Σ,ind)
+    Σνk = (ind < 0 ) ? conj(Σ[:,-ind]) : Σ[:,ind + 1]
     return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
 end
 

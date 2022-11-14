@@ -8,4 +8,5 @@
     @test all(LadderDGA.reduce_range(1:21, 0.1) .== 2:20)
     @test all(LadderDGA.reduce_range(1:20, 0.5) .== 6:15)
     @test all(LadderDGA.reduce_range(1:21, 0.5) .== 6:16)
+
 end

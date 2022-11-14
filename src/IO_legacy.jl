@@ -227,6 +227,8 @@ function readGImp(filename; only_positive=false)
     return iνₙ, GImp
 end
 
+split_n(str, n) = [str[(i-n+1):(i)] for i in n:n:length(str)]
+split_n(str, n, len) = [str[(i-n+1):(i)] for i in n:n:len]
 
 function readFortranSymmGF(nFreq, filename; storedInverse, storeFull=false)
     GFString = open(filename, "r") do f

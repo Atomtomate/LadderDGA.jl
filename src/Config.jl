@@ -95,5 +95,3 @@ struct EnvironmentVars <: ConfigStruct
 end
 
 # ============================================= Interface ============================================
-
-#update_μ(mP::ModelParameters) 

@@ -2,7 +2,7 @@
 #                                           DataTypes.jl                                               #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 16.09.22                                                                         #
+#   Last Edit Date  : 14.11.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Data types for Matsubara functions.                                                                #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -109,7 +109,7 @@ end
 # ---------------------------------------------- Indexing --------------------------------------------
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
 Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
-Base.getindex(arr::χ₀T, I::Tuple{Int,3}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
