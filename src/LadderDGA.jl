@@ -3,7 +3,7 @@ module LadderDGA
     include("DepsInit.jl")
 
     # KGrid
-    export kintegrate
+    export gen_kGrid, kintegrate
 
     # Types
     export ModelParameters, SimulationParameters, EnvironmentVars

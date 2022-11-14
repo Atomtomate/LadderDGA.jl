@@ -121,7 +121,7 @@ end
 
 # ========================================== Index Functions =========================================
 
-q0_index(kG::KGrid) = findfirst(x -> all(x .≈ (0,0,0)), kG.kGrid)
+q0_index(kG::KGrid) = findfirst(x -> all(x .≈ zeros(length(gridshape(kG)))), kG.kGrid)
 ω0_index(sP::SimulationParameters) = sP.n_iω+1
 
 """
