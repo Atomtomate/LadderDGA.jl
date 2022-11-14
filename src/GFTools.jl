@@ -2,7 +2,7 @@
 #                                           GFTools.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 01.09.22                                                                         #
+#   Last Edit Date  : 14.11.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -69,41 +69,67 @@ Arguments:
 # ===================================== Dyson Equations Helpers ======================================
 
 """
-    G_from_Σ(ind::Int64, Σ::Array{ComplexF64,[1,2,3]}, ϵkGrid, β, μ)
-    G_from_Σ(freq::[Int64 or ComplexF64], β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)
+    G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)
+    G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)
 
-Constructs GF from k-independent self energy, using the Dyson equation
-and the dispersion relation of the lattice.
+Computes Green's function according to ``[\\frac{(2 n + 1)\\pi i}{\\beta} + \\mu - \\epsilon_k - \\Sigma(k,i\\nu_n)]^{-1}``, where ``\\epsilon_k`` and ``\\Sigma(k,i\\nu_n)`` are given as single values. Convenience wrappers for full grids are provided below.
+
+Arguments:
+-------------
+- **`ind`** : Matsubara frequency index
+- **`mf`**  : Matsubara frequency
+- **`β`**   : Inverse temperature (only needs to be set, if index instead of frequency is given)
+- **`μ`**   : Chemical potential
+- **`ϵₖ`**  : Dispersion relation at fixed `k`, see below for convenience wrappers.
+- **`Σ`**   : Self energy at fixed frequency (and potentially fixed `k`), see below for convenience wrappers.
 """
-@inline function G_from_Σ(ind::Int64, Σ::Vector{ComplexF64}, 
-        ϵkGrid::Union{Array{Float64,1},Base.Generator}, β::Float64, μ::Float64)
-
-    Σν = (ind < 0 ) ? conj(Σ[-ind]) : Σ[ind + 1]
-    return map(ϵk -> G_from_Σ(ind, β, μ, ϵk, Σν), ϵkGrid)
-end
-
-@inline function G_from_Σ(ind::Int64, Σ::Array{ComplexF64,2},
-                   ϵkGrid, β::Float64, μ::Float64)
-    Σνk = (ind < 0 ) ? conj(Σ[:,-ind]) : Σ[:,ind + 1]
-    return reshape(map(((ϵk, Σνk_i),) -> G_from_Σ(ind, β, μ, ϵk, Σνk_i), zip(ϵkGrid, Σνk)), size(ϵkGrid)...)
-end
-
 @inline @fastmath G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/((π/β)*(2*ind + 1)*1im + μ - ϵₖ - Σ)
 @inline @fastmath G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
                     1/(mf + μ - ϵₖ - Σ)
 
-function G_from_Σ(Σ::AbstractArray, ϵkGrid::AbstractArray, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ ,  Σloc = nothing) 
+"""
+    G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractArray = nothing) 
+    G_from_Σ!(res::Matrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector = nothing) 
+
+Computes Green's function from self energy `Σ` and dispersion `ϵkGrid` over given frequency indices `range`.
+Optionally, a different chemical potential `μ` can be provided.
+When the non-local self energy is used, one typically wants to extend the usefull range of frequencies by
+attaching the tail of the local self energy in the high frequency regime. This is done by providing a
+`range` larger than the array size of `Σ` and in addition setting `Σloc` (the size of `Σloc` must be as large or larger than `range`). 
+The inplace version stores the result in `res`.
+"""
+function G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
     res = Array{ComplexF64,2}(undef, length(ϵkGrid), length(range))
-    for (i,ind) in enumerate(range)
-        res[:,i] = abs(ind) < size(Σ,2) ? G_from_Σ(ind, Σ, ϵkGrid, mP.β, μ) : G_from_Σ(ind, Σloc, ϵkGrid, mP.β, μ)
-    end
+    G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ,  Σloc = Σloc)
     return res
 end
 
+function G_from_Σ!(res::Matrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
+    for (i,ind) in enumerate(range)
+        Σi = abs(ind) < size(Σ,2) ? Σ[i] : Σloc[i]
+        for (ki, ϵk) in enumerate(ϵkGrid)
+            @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+        end
+    end
+end
 
-Σ_Dyson(GBath::Array{ComplexF64,1}, GImp::Array{ComplexF64,1}, eps = 1e-3) =
-    Σ::Array{ComplexF64,1} =  1 ./ GBath .- 1 ./ GImp
+
+"""
+    Σ_Dyson(GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
+    Σ_Dyson!(Σ::Vector{ComplexF64}, GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
+
+Calculates ``\\Sigma = 1 / G_\\text{bath} - 1 / G_\\text{imp}``.
+"""
+function Σ_Dyson(GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
+    Σ = similar(GImp)
+    Σ_Dyson!(Σ, GBath, GImp)
+end
+    
+function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})
+    Σ[:] =  1 ./ GBath .- 1 ./ GImp
+end
+
 
 #TODO: test/documentation (see SC and Sigma Tails notebook)
 function filling(G, νn_list, kG::KGrid, β::Float64)

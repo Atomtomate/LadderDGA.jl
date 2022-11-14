@@ -8,4 +8,5 @@ ignore:
   - "docs/"
   - "src/backup/"
   - "src/IO_legacy.jl"
+  - "src/IO.jl"
   - "notebooks/"
