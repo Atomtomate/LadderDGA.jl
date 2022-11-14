@@ -15,7 +15,7 @@
 """
     find_lin_interp_root(xdata::AbstractVector{Float64}, ydata::AbstractVector{Float64})
 
-WARNING: this is a specialiazed function which assumes strictly monotonic data!
+WARNING: this is a specialized function which assumes strictly monotonic data!
 Given sampled `xdata` and `ydata`, find the root using linear interpolation.
 Returns estimated `x₀`.
 
