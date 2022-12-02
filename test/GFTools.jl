@@ -20,7 +20,7 @@ end
 end
 
 @testset "filling" begin
-    νnGrid = LadderDGA.iν_array(mP_1.β, -50:49)
-    G = G_from_Σ(zeros(ComplexF64,length(νnGrid)), LadderDGA.dispersion(kG_2), -50:49, mP_1)
-    @test filling(G, νnGrid, kG_1, mP_1.β) > 0.0
+    νnGrid = LadderDGA.iν_array(10.0, -50:49)
+    G = G_from_Σ(zeros(ComplexF64,length(νnGrid)), LadderDGA.dispersion(kG_1), -50:49, mP_1)
+    @test filling(G, νnGrid, kG_1, 10.0) > 0.0
 end

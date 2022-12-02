@@ -2,7 +2,6 @@
 #                                           GFTools.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 14.11.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -83,10 +82,9 @@ Arguments:
 - **`ϵₖ`**  : Dispersion relation at fixed `k`, see below for convenience wrappers.
 - **`Σ`**   : Self energy at fixed frequency (and potentially fixed `k`), see below for convenience wrappers.
 """
-@inline @fastmath G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
-                    1/((π/β)*(2*ind + 1)*1im + μ - ϵₖ - Σ)
-@inline @fastmath G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64) =
-                    1/(mf + μ - ϵₖ - Σ)
+G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = G_from_Σ(1im*(2*ind + 1)*π/β, μ, ϵₖ, Σ)
+G_from_Σ(mf::ComplexF64        , μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = 1/(mf + μ - ϵₖ - Σ)
+                    
 
 """
     G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractArray = nothing) 
@@ -112,6 +110,7 @@ function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Vector{ComplexF64}, ϵkGrid::Ve
             @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
+    return nothing
 end
 
 
@@ -124,10 +123,12 @@ Calculates ``\\Sigma = 1 / G_\\text{bath} - 1 / G_\\text{imp}``.
 function Σ_Dyson(GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
     Σ = similar(GImp)
     Σ_Dyson!(Σ, GBath, GImp)
+    return Σ 
 end
     
 function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})
     Σ[:] =  1 ./ GBath .- 1 ./ GImp
+    return nothing
 end
 
 

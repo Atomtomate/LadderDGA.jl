@@ -2,7 +2,6 @@
 #                                           DepsInit.jl                                                #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 29.08.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Setup after loading the module. All dependencies, precompilation, logging and multi-core           #
 #   preperations should be done here.                                                                  #
