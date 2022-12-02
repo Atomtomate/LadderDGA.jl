@@ -99,15 +99,15 @@ attaching the tail of the local self energy in the high frequency regime. This i
 `range` larger than the array size of `Σ` and in addition setting `Σloc` (the size of `Σloc` must be as large or larger than `range`). 
 The inplace version stores the result in `res`.
 """
-function G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ(Σ::Vector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
     res = Array{ComplexF64,2}(undef, length(ϵkGrid), length(range))
     G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ,  Σloc = Σloc)
     return res
 end
 
-function G_from_Σ!(res::Matrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Vector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
     for (i,ind) in enumerate(range)
-        Σi = abs(ind) < size(Σ,2) ? Σ[i] : Σloc[i]
+        Σi = abs(ind) < length(Σ) ? Σ[i] : Σloc[i]
         for (ki, ϵk) in enumerate(ϵkGrid)
             @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
@@ -132,13 +132,15 @@ end
 
 
 #TODO: test/documentation (see SC and Sigma Tails notebook)
-function filling(G, νn_list, kG::KGrid, β::Float64)
+function filling(G::Matrix{ComplexF64}, νn_list::Vector{ComplexF64}, kG::KGrid, β::Float64)
     n = 0.0
     @assert length(νn_list) == size(G,2)
     for (νi, νn) in enumerate(νn_list)
         n += kintegrate(kG, G[:,νi],1)[1] - 1.0/νn
     end
-    n = 2*n/β + 0.5*2
+    n = 2*(n/β + 0.5)
+    imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
+    return real(n)
 end
 
 
@@ -171,7 +173,7 @@ end
 """
     subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
 
-subtract the c/(iω)^2 high frequency tail from `inp`.
+subtract the ``\\frac{c}{(i\\omega)^2}`` high frequency tail from input array `inp`.
 """
 function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
     res = Array{eltype(inp),1}(undef, length(inp))

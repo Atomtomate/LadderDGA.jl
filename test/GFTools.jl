@@ -18,3 +18,9 @@ end
                     [1/(mf_t0 + 1.4  - 1.2 - 1.1) 1/(mf_t1 + 1.4 - 1.2 - 1.3)], atol=0.0001))
     @test LadderDGA.Σ_Dyson([1.1 + 0.0im], [1.2 + 0.0im])[1] ≈ 1/1.1 - 1/1.2
 end
+
+@testset "filling" begin
+    νnGrid = LadderDGA.iν_array(mP_1.β, -50:49)
+    G = G_from_Σ(zeros(ComplexF64,length(νnGrid)), LadderDGA.dispersion(kG_2), -50:49, mP_1)
+    @test filling(G, νnGrid, kG_1, mP_1.β) > 0.0
+end

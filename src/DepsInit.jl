@@ -36,19 +36,19 @@ using TimerOutputs
 using Base.Iterators
 
 # ============================================= Includes =============================================
-include("$(@__DIR__)/LapackWrapper.jl")
-include("$(@__DIR__)/Config.jl")
-include("$(@__DIR__)/DataTypes.jl")
-include("$(@__DIR__)/parallelization_helpers.jl")
-include("$(@__DIR__)/helpers.jl")
-include("$(@__DIR__)/IO.jl")
-include("$(@__DIR__)/GFTools.jl")
-include("$(@__DIR__)/GFFit.jl")
-include("$(@__DIR__)/ladderDGATools.jl")
-include("$(@__DIR__)/ladderDGATools_singleCore.jl")
-include("$(@__DIR__)/lambdaCorrection.jl")
-include("$(@__DIR__)/LambdaCorrection/LambdaCorrection.jl")
-include("$(@__DIR__)/thermodynamics.jl")
+include("LapackWrapper.jl")
+include("Config.jl")
+include("DataTypes.jl")
+include("parallelization_helpers.jl")
+include("helpers.jl")
+include("IO.jl")
+include("GFTools.jl")
+include("GFFit.jl")
+include("ladderDGATools.jl")
+include("ladderDGATools_singleCore.jl")
+include("lambdaCorrection.jl")
+include("LambdaCorrection/LambdaCorrection.jl")
+include("thermodynamics.jl")
 
 # ======================================== Internal Packages =========================================
 using .LapackWrapper
