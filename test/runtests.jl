@@ -6,6 +6,9 @@ sP_1 = SimulationParameters(1,2,3,false,nothing,1:3,0.1,false)
 kG_1 = gen_kGrid("2dsc-1.0",2)
 kG_2 = gen_kGrid("2dsc-0.25",100)
 
+χ_1 = χT([1.1 1.2 1.1; 2.1 2.3 2.1])
+χ_2 = χT([-1.1 1.2 1.1; 2.1 2.3 2.1], full_range=false, reduce_range_prct=0.0)
+
 
 @testset "Config" begin
     include("Config.jl")
@@ -39,17 +42,12 @@ end
     include("ladderDGATools.jl")
 end
 
-@testset "lambdaCorrection" begin
-    include("lambdaCorrection.jl")
+@testset "parallelization" begin
+    include("parallelization_helpers.jl")
 end
-
 
 @testset "full run" begin
-    #bubble_f, χch_f, χsp_f, trilexch_f, trilexsp_f, Σ_f = loadFortranData(dir)
-
-    #bubble, χch, χsp, χsp_λ, usable_sp, usable_ch,trilexch, trilexsp, Σ_ladder = calculate_Σ_ladder("../config.toml")
-    #@test all(bubble .≈ bubble_f)
-    #@test all(χsp[usable_sp,:] .≈ χch_f[usable_sp,:])
-    #@test all(χch[usable_ch,:] .≈ χch_f[usable_ch,:])
+    #include("full_run.jl")
 end
+
 include("LambdaCorrection/runtests.jl")

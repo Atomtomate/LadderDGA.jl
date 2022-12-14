@@ -13,9 +13,9 @@
 # ======================================== Usable Inervals ===========================================
 
 """
-    find_usable_χ_interval(χ_ω::Array{Float64,1}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
+    find_usable_χ_interval(χ_ω::Array{Float64,1/2}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)
 
-Determines usable range for physical susceptibilities ``\\chi^\\omega`` and additionally cut away `reduce_range_prct` % of the range.
+Determines usable range for physical susceptibilities ``\\chi^\\omega`` or ``\\chi^\\omega`` and additionally cut away `reduce_range_prct` % of the range.
 The unusable region is given whenever the susceptibility becomes negative, or the first derivative changes sign.
 
 Returns: 
@@ -28,7 +28,7 @@ Arguments:
 - **`sum_type`**           : Optional, default `:common`. Can be set to `:full` to enforce full range, or a `::Tuple{Int,Int}` to enforce a specific interval size.
 - **`reduce_range_prct`**  : Optional, default `0.1`. After finding the usable interval it is reduced by an additional percentage given by this value.
 """
-function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)::AbstractVector{Int}
+function find_usable_χ_interval(χ_ω::AbstractVector{Float64}; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)::AbstractVector{Int}
     if length(χ_ω)%2 == 0
         throw(ArgumentError("Finding a usable interval is only implemented for uneven size of χ_ω!"))
     end
@@ -66,4 +66,19 @@ function find_usable_χ_interval(χ_ω::Vector{Float64}; sum_type::Union{Symbol,
     range = ceil(Int64, intervall_range*(1-reduce_range_prct))
     res = ((mid_index-range):(mid_index+range))
     return res
+end
+
+function find_usable_χ_interval(χ_qω::Matrix; sum_type::Union{Symbol,Tuple{Int,Int}}=:common, reduce_range_prct::Float64 = 0.1)::AbstractVector{Int}
+    intersect([find_usable_χ_interval(x, sum_type=:common, reduce_range_prct=0.1) for x in eachslice(χ_qω, dims=1)]...)
+end
+
+"""
+    usable_ωindices(sP::SimulationParameters, χ_sp::χT, χ_ch::χT)
+
+Helper function, returning the indices `n` for ``\\omega_n`` ranges of multiple channels. If `dbg_full_eom_omega` is set to `true` in the config,
+the full range will be returned, otherwise an intersection of the usable ranges obtained from [`find_usable_χ_interval`](@ref find_usable_χ_interval).
+"""
+function usable_ωindices(sP::SimulationParameters, χ_list::Vararg{χT,N}) where N
+    ωindices = (sP.dbg_full_eom_omega) ? (1:size(χ_list[1],2)) : intersect(getfield.(χ_list,:usable_ω)...)
+    return ωindices
 end

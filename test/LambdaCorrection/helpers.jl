@@ -16,6 +16,3 @@ end
     @test newton_right(f, df, -1.0) ≈ 1.0
     @test all(newton_right(f2, [-1.0, -1.0]) .≈ [1.0, 0.0])
 end
-
-@testset "misc" begin
-end

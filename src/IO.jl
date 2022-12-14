@@ -41,21 +41,20 @@ function readConfig(cfg_in::String)
         TOML.parse(cfg_in)
     end
     sim = tml["Simulation"]
-    rr = r"^fixed:(?P<start>\N+):(?P<stop>\N+)"
-    smoothing = Symbol(lowercase(tml["Simulation"]["omega_smoothing"]))
+    smoothing = Symbol(lowercase(sim["omega_smoothing"]))
     if !(smoothing in [:nothing, :range, :full])
         error("Unrecognized smoothing type \"$(smoothing)\"")
     end
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
 
-    env = EnvironmentVars(   tml["Environment"]["inputDir"],
-                             tml["Environment"]["inputVars"],
-                             String([(i == 1) ? uppercase(c) : lowercase(c)
-                                     for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
-                             lowercase(tml["Environment"]["logfile"])
-                            )
+    env = EnvironmentVars(tml["Environment"]["inputDir"],
+                          tml["Environment"]["inputVars"],
+                          String([(i == 1) ? uppercase(c) : lowercase(c)
+                                  for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
+                          lowercase(tml["Environment"]["logfile"]))
 
-    mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputDir*"/"*env.inputVars, "r") do f
+    cfg_path = abspath(joinpath(env.inputDir,env.inputVars))
+    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(cfg_path, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -65,57 +64,51 @@ function readConfig(cfg_in::String)
             @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
         end
         U, μ, β, nden, Vk = if haskey(f, "U")
-            @warn "Found Hubbard Parameters in input .jld2, ignoring config.toml"
             f["U"], f["μ"], f["β"], f["nden"], f["Vₖ"]
         else
-            @warn "reading Hubbard Parameters from config. These should be supplied through the input jld2!"
+            @warn "Reading Hubbard Parameters from config. These should be supplied through the input jld2!"
             tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"], f["Vₖ"]
         end
-        ModelParameters(U, μ, β, nden, sum(Vk.^2), EPot_DMFT, EKin_DMFT), 
-        f["χ_sp_asympt"] ./ f["β"]^2, f["χ_ch_asympt"] ./ f["β"]^2, f["χ_pp_asympt"] ./ f["β"]^2
-    end
-    freqString =  tml["Environment"]["freqFile"]
-    nBose, nFermi, shift = if !isfile(freqString)
-        @warn "Frequency file not found, reconstructing grid from config."
-        m = match(r"b(?<bf>\d+)f(?<ff>\d+)s(?<s>\d)", freqString)
-        parse(Int, m[:bf]), parse(Int, m[:ff]), parse(Int, m[:s])
-    else
-        load(freqString, "nBose"), load(freqString, "nFermi"), load(freqString, "shift")
+        return f["grid_nBose"], f["grid_nFermi"], f["grid_shift"], 
+               ModelParameters(U, μ, β, nden, sum(Vk.^2), EPot_DMFT, EKin_DMFT), 
+               f["χ_sp_asympt"] ./ β^2, 
+               f["χ_ch_asympt"] ./ β^2, 
+               f["χ_pp_asympt"] ./ β^2
     end
     #TODO: BSE inconsistency between direct and SC
-    asympt_sc = lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt" ? 1 : 0
-    Nν_shell  = tml["Simulation"]["chi_asympt_shell"]
+    asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0
+    Nν_shell  = sim["chi_asympt_shell"]
     Nν_full = nFermi + asympt_sc*Nν_shell
     freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
 
     # chi asymptotics
 
-    χ_helper = if lowercase(tml["Simulation"]["chi_asympt_method"]) == "asympt"
+    χ_helper = if lowercase(sim["chi_asympt_method"]) == "asympt"
                     BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift)
-                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct"
+                elseif lowercase(sim["chi_asympt_method"]) == "direct"
                     BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
-                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "direct_approx2"
+                elseif lowercase(sim["chi_asympt_method"]) == "direct_approx2"
                     BSE_Asym_Helper_Approx2(Nν_shell)
-                elseif lowercase(tml["Simulation"]["chi_asympt_method"]) == "nothing"
+                elseif lowercase(sim["chi_asympt_method"]) == "nothing"
                     nothing
                 else
-                    @error "could not parse chi_asympt_method $(tml["Simulation"]["chi_asympt_method"]). Options are: asympt/direct/nothing"
+                    @error "could not parse chi_asympt_method $(sim["chi_asympt_method"]). Options are: asympt/direct/nothing"
                     nothing
                 end
 
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
                                χ_helper,
                                fft_range,
-                               tml["Simulation"]["usable_prct_reduction"],
+                               sim["usable_prct_reduction"],
                                dbg_full_eom_omega
     )
-    kGrids = Array{Tuple{String,Int}, 1}(undef, length(tml["Simulation"]["Nk"]))
-    if typeof(tml["Simulation"]["Nk"]) === String && strip(lowercase(tml["Simulation"]["Nk"])) == "conv"
+    kGrids = Array{Tuple{String,Int}, 1}(undef, length(sim["Nk"]))
+    if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"
         kGrids = [(tml["Model"]["kGrid"], 0)]
     else
-        for i in 1:length(tml["Simulation"]["Nk"])
-            Nk = tml["Simulation"]["Nk"][i]
+        for i in 1:length(sim["Nk"])
+            Nk = sim["Nk"][i]
             kGrids[i] = (tml["Model"]["kGrid"], Nk)
         end
     end

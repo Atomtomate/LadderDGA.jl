@@ -15,25 +15,45 @@
 """
     setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true])
 
-Computes all needed objects for DΓA calculations. Returns:
-    Σ_ladderLoc, Σ_loc, imp_density, kGrid, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χsp_loc, γsp_loc, χch_loc, γch_loc, χ₀Loc, gImp
+Computes all needed objects for DΓA calculations.
+
+Returns: 
+-------------
+NTuple{16, Any}[
+    Σ_ladderLoc, 
+    Σ_loc, 
+    imp_density, 
+    kGrid,
+    gLoc_fft,
+    gLoc_rfft, 
+    Γ_sp,
+    Γ_ch, 
+    χDMFTsp,
+    χDMFTch,
+    χ_sp_loc,
+    γ_sp_loc,
+    χ_ch_loc,
+    γ_ch_loc,
+    χ₀Loc,
+    gImp
+]
 """
 function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true)
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG    = gen_kGrid(kGridStr[1], kGridStr[2])
-    in_file = env.inputDir*"/"*env.inputVars
-    @timeit to "load f" χDMFTsp, χDMFTch, Γsp, Γch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
+    in_file = abspath(joinpath(env.inputDir,env.inputVars))
+    @timeit to "load f" χDMFTsp, χDMFTch, Γ_sp, Γ_ch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
         χDMFTsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
         χDMFTsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTsp"]) : f["χDMFTsp"], (2,3,1))
         χDMFTch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
         χDMFTch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(f["χDMFTch"]) : f["χDMFTch"], (2,3,1))
-        Γsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γsp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γsp"]) : -f["Γsp"], (2,3,1))
-        Γch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
-        Γch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γch"]) : -f["Γch"], (2,3,1))
+        Γ_sp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        Γ_sp[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γsp"]) : -f["Γsp"], (2,3,1))
+        Γ_ch = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
+        Γ_ch[(Ns+1):(end-Ns),(Ns+1):(end-Ns),:] = permutedims(_eltype === Float64 ? real.(-f["Γch"]) : -f["Γch"], (2,3,1))
         gImp, Σ_loc = if haskey(f, "g0")
             gImp = f["gImp"]
             g0 = f["g0"]
@@ -44,7 +64,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             Σ_loc = f["SigmaLoc"]
             gImp, Σ_loc
         end
-        χDMFTsp, χDMFTch, Γsp, Γch, gImp, Σ_loc
+        χDMFTsp, χDMFTch, Γ_sp, Γ_ch, gImp, Σ_loc
     end
 
     @timeit to "Compute GLoc" begin
@@ -54,10 +74,10 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
-        for νi in sP.fft_range
 
-            Σ_loc_i = (ind < 0 ) ? conj(Σ_loc[-νi]) : Σ_loc[νi + 1]
-            GLoc_νi  = reshape(map(ϵk -> G_from_Σ(νi, Σ_loc_i, ϵk, mP.β, mP.μ), ϵk_full), gridshape(kG))
+        for νi in sP.fft_range
+            Σ_loc_i = (νi < 0) ? conj(Σ_loc[-νi]) : Σ_loc[νi + 1]
+            GLoc_νi  = reshape(map(ϵk -> G_from_Σ(νi, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
             gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
             gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
         end
@@ -68,11 +88,10 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         Fsp   = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
         χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
-        println(size(χ₀Loc.data))
-        χsp_loc, γsp_loc = calc_χγ(:sp, Γsp, χ₀Loc, kGridLoc, mP, sP);
-        χch_loc, γch_loc = calc_χγ(:ch, Γch, χ₀Loc, kGridLoc, mP, sP);
-        λ₀Loc = calc_λ0(χ₀Loc, Fsp, χsp_loc, γsp_loc, mP, sP)
-        Σ_ladderLoc = calc_Σ(χsp_loc, γsp_loc, χch_loc, γch_loc, λ₀Loc, gImp, kGridLoc, mP, sP)
+        χ_sp_loc, γ_sp_loc = calc_χγ(:sp, Γ_sp, χ₀Loc, kGridLoc, mP, sP);
+        χ_ch_loc, γ_ch_loc = calc_χγ(:ch, Γ_ch, χ₀Loc, kGridLoc, mP, sP);
+        λ₀Loc = calc_λ0(χ₀Loc, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
+        Σ_ladderLoc = calc_Σ(χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
         χLocsp_ω = similar(χDMFTsp, size(χDMFTsp,3))
@@ -85,8 +104,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
                 improve_χ!(:ch, ωi, view(χDMFTch,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                χLocsp_ω[ωi] = χsp_loc[ωi]
-                χLocch_ω[ωi] = χch_loc[ωi]
+                χLocsp_ω[ωi] = χ_sp_loc[ωi]
+                χLocch_ω[ωi] = χ_ch_loc[ωi]
             else
                 χLocsp_ω[ωi] = sum(view(χDMFTsp,:,:,ωi))/mP.β^2
                 χLocch_ω[ωi] = sum(view(χDMFTch,:,:,ωi))/mP.β^2
@@ -117,13 +136,28 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
-    return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χsp_loc, γsp_loc, χch_loc, γch_loc, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γ_sp, Γ_ch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp
 end
 
 # ========================================== Index Functions =========================================
 
+"""
+    q0_index(kG::KGrid)   
+
+Index of zero k-vector.
+"""
 q0_index(kG::KGrid) = findfirst(x -> all(x .≈ zeros(length(gridshape(kG)))), kG.kGrid)
+
+"""
+    ω0_index(sP::SimulationParameters)
+    ω0_index(χ::χT)
+    ω0_index(χ::AbstractMatrix)
+
+Index of ω₀ frequency. 
+"""
 ω0_index(sP::SimulationParameters) = sP.n_iω+1
+ω0_index(χ::χT) = ω0_index(χ.data)
+ω0_index(χ::AbstractMatrix) = ceil(Int64, size(χ,2)/2)
 
 """
     OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters [, Nν_shell])

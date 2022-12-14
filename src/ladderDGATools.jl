@@ -70,18 +70,15 @@ Calculates the bubble, based on two fourier-transformed Greens functions where t
 function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false, workerpool::AbstractWorkerPool=default_worker_pool())
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
+    @assert length(workerpool) > 0
+
     νωi_range, νωi_part = gen_νω_part(sP, workerpool)
-    remote_results = Vector{Future}(undef, length(νωi_part))
     
-    for (i,ind) in enumerate(νωi_part)
-        remote_results[i] = remotecall(χ₀_conv, workerpool, kG, Gνω, Gνω_r, νωi_range[ind])
-    end
-    for (i,ind) in enumerate(νωi_part)
-        data_i = fetch(remote_results[i])
-        for (j,ωνind) in enumerate(νωi_range[ind])
-            _,_,ωi,νi = ωνind
-            data[:,νi,ωi] = data_i[:,j] .* -mP.β
-        end
+    for ind in νωi_part
+        tt = νωi_range[ind]
+        _,_,ωi,νi = νωi_range[ind]
+        println(ind, ": ", tt, "::", ωi, ", ", νi)
+        @async data[:,νi,ωi] = remotecall_fetch(χ₀_conv, workerpool, kG, Gνω, Gνω_r, νωi_range[ind])
     end
 
     #TODO: move tail calculation to definition of GF (GF should know about its tail)

@@ -11,9 +11,16 @@ function par_partition(set::AbstractVector, N::Int)
     [(i*s+1+(i<r)*(i)+(i>=r)*r):(i+1)*s+(i<r)*(i+1)+(i>=r)*r for i in 0:(N-1)]
 end
 
-function qω_partition(qList::AbstractVector, ωList::AbstractVector, N::Int)
-    qωi_range = collect(Base.product(qList, ωList))[:]
-    p = par_partition(set, N)
+"""
+    gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+
+Returns 
+"""
+function gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+    ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
+                 for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
+    ωνi_part = par_partition(ωνi_range, length(workerpool))
+    return ωνi_range, ωνi_part
 end
 
 mutable struct WorkerCache
@@ -32,13 +39,6 @@ mutable struct WorkerCache
             Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0),
             Array{ComplexF64,3}(undef,0,0,0), OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), nothing)
     end
-end
-
-function gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
-    ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
-                 for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
-    ωνi_part = par_partition(ωνi_range, length(workerpool))
-    return ωνi_range, ωνi_part
 end
 
 function initialize_cache(νω_map::Array{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, χsp::χT, χch::χT, 

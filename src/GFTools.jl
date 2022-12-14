@@ -46,7 +46,7 @@ Vector of bosonic Matsubara frequencies, given either a list of indices or a len
 iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}  = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
 iω_array(β::Real, size::Int)::Vector{ComplexF64} = iω_array(β, 0:(size-1))
 
-# =================================== Anderson Parameters Helepers ===================================
+# =================================== Anderson Parameters Helpers ====================================
 """
     Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64}
 
@@ -132,20 +132,9 @@ function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GI
 end
 
 
-#TODO: test/documentation (see SC and Sigma Tails notebook)
-function filling(G::Matrix{ComplexF64}, νn_list::Vector{ComplexF64}, kG::KGrid, β::Float64)
-    n = 0.0
-    @assert length(νn_list) == size(G,2)
-    for (νi, νn) in enumerate(νn_list)
-        n += kintegrate(kG, G[:,νi],1)[1] - 1.0/νn
-    end
-    n = 2*(n/β + 0.5)
-    imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
-    return real(n)
-end
-
-
-function GLoc_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+# =============================================== GLoc ===============================================
+#TODO: docs, test, cleanup, consistency with G_from_Σ 
+function G_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     νRange = sP.fft_range
     #gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νRange, mP; Σloc=Σloc);
     νn = iν_array(mP.β, νRange);
@@ -160,7 +149,6 @@ function GLoc_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP
     gLoc_red = OffsetArray(gLoc_red, 1:length(kG.ϵkGrid), νRange)
     gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
     gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
     for νi in sP.fft_range
         GLoc_νi  = expandKArr(kG, gLoc_red[:,νi].parent)
         gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
@@ -168,6 +156,47 @@ function GLoc_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP
     end
     return μ, gLoc_red, gLoc_fft, gLoc_rfft
 end
+
+# ============================================= Filling ==============================================
+"""
+    filling(G::Vector{ComplexF64}, [kG::KGrid, ] β::Float64)
+    filling(G::Vector, U::Float64, μ::Float64, β::Float64, [shell::Float64])
+
+Computes filling of (non-) local Green's function.
+
+If `U`, `μ` and `β` are provided, asymptotic corrections are used. The shell sum can be precomputed using [`G_shell_sum`](@ref G_shell_sum)
+"""
+function filling(G::Vector{ComplexF64}, β::Float64)
+    n = 2*sum(G)/β + 1
+    imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
+    return real(n)
+end
+
+function filling(G::Matrix{ComplexF64}, kG::KGrid, β::Float64)
+    n = 2*sum(kintegrate(kG, G, 1))/β + 1
+    imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
+    return real(n)
+end
+
+function filling(G::Vector, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
+    2*(real(sum(G))/β + 0.5 + μ * shell) / (1 + U * shell)
+end
+
+function filling(G::Vector, U::Float64, μ::Float64, β::Float64)
+    N = floor(Int, length(G)/2)
+    shell = G_shell_sum(N, β)
+    filling(G, U, μ, β, shell)
+end
+
+"""
+    F_shell_sum(N::Int, β::Float64)::Float64
+
+Calculate ``\\frac{1}{\\beta} \\sum_{n \\in \\Omega_\\mathrm{shell}} \\frac{1}{(i \\nu_n)^2}``
+"""
+function G_shell_sum(N::Int, β::Float64)::Float64
+    (polygamma(1, N + 1/2) - polygamma(1, 1/2 - N)) * β / (4*π^2) + β/4
+end
+
 
 # =============================== Frequency Tail Modification Helpers ================================
 

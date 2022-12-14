@@ -16,10 +16,11 @@ using ArgParse
 using Logging, LoggingExtras
 using OffsetArrays
 using Distributed
-using JLD2, FileIO
-using FFTW
-using Combinatorics
-using TOML          # used for input
+using FFTW              # used for convolutions
+using Combinatorics     # 
+using SpecialFunctions  # e.g. PolyLog in filling
+using TOML              # input configuration
+using JLD2, FileIO      # input/output files
 
 # Fortran compatibility
 using Printf, DelimitedFiles

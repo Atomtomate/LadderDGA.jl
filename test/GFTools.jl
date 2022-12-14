@@ -19,8 +19,14 @@ end
     @test LadderDGA.Σ_Dyson([1.1 + 0.0im], [1.2 + 0.0im])[1] ≈ 1/1.1 - 1/1.2
 end
 
+
+function G_shell_sum_naive(iν_array::Vector{ComplexF64}, β::Float64)::Float64
+    (real(sum((1 ./ iν_array) .^ 2))/β + β/4)/2
+end
+
 @testset "filling" begin
-    νnGrid = LadderDGA.iν_array(10.0, -50:49)
+    νnGrid = LadderDGA.iν_array(11.1, -50:49)
     G = G_from_Σ(zeros(ComplexF64,length(νnGrid)), LadderDGA.dispersion(kG_1), -50:49, mP_1)
-    @test filling(G, νnGrid, kG_1, 10.0) > 0.0
+    #@test filling(G, νnGrid, kG_1, 11.1) > 0.0
+    @test G_shell_sum_naive(νnGrid, 11.1) ≈ LadderDGA.G_shell_sum(length(νnGrid), 11.1) rtol=0.01
 end

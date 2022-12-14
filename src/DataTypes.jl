@@ -66,6 +66,11 @@ end
 
 Struct for the non-local susceptibilities. 
 
+Constructor
+-------------
+`χT(data::Array{T, 2}; full_range=true, reduce_range_prct=0.1)`: if `full_range` is set to `false`, the usable range 
+is determined via [`find_usable_χ_interval`](@ref find_usable_χ_interval).
+
 Fields
 -------------
 - **`data`**         : `Array{ComplexF64,3}`, data
@@ -74,13 +79,15 @@ Fields
 - **`usable_ω`**     : `AbstractArray{Int}`, usable indices for which data is assumed to be correct. See also [`find_usable_interval`](@ref find_usable_interval)
 """
 struct χT <: MatsubaraFunction{_eltype, 2}
-    data::Array{_eltype,2}
+    data::Matrix
     axes::Dict{Symbol, Int}
     λ::Float64
     usable_ω::AbstractArray{Int}
-    function χT(data::Array{_eltype, 2})
+
+    function χT(data::Array{T, 2}; full_range=true, reduce_range_prct=0.1) where T <: Union{ComplexF64, Float64}
         @warn "DBG: currently forcing omega FULL range!!"
-        new(data, Dict(:q => 1, :ω => 2), 0.0, 1:size(data,2))
+        range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
+        new(data, Dict(:q => 1, :ω => 2), 0.0, range)
     end
 end
 

@@ -120,27 +120,6 @@ end
 
 # ---------------------------------------------- Common ----------------------------------------------
 
-function lhs_int(χ_sp::χT, χ_ch::χT, χ_tail::Vector{ComplexF64},
-                  kMult::Vector{Float64}, k_norm::Int, Ekin_DMFT::Float64, β::Float64)
-    lhs_c1 = 0.0
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp1 = 0.0
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χsp_i_λ = real(χ_sp[qi,ωi])
-            χch_i_λ = real(χ_ch[qi,ωi])
-            tmp1 += (χch_i_λ + χsp_i_λ) * km
-            tmp2 += (χch_i_λ - χsp_i_λ) * km
-        end
-        lhs_c1 += 0.5*tmp1/k_norm - t
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c1 = lhs_c1/β - Ekin_DMFT*β/12
-    lhs_c2 = lhs_c2/β
-    return lhs_c1, lhs_c2 
-end
-
 function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
     Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
     E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)

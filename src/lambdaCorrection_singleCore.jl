@@ -12,7 +12,6 @@ function extended_λ(
     EKin::Float64 = mP.Ekin_DMFT
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ_ch,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     ωrange_list = (-sP.n_iω:sP.n_iω)[ωindices]
-    ωrange::UnitRange{Int} = first(ωrange_list):last(ωrange_list)
     νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid::UnitRange{Int} = 0:(νmax-1)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
@@ -22,8 +21,8 @@ function extended_λ(
 
     # EoM optimization related definitions
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}} = OffsetArray(Array{ComplexF64,3}(undef,Nq,νmax,length(ωrange)),
-                              1:Nq, 0:νmax-1, ωrange)
+    Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}} = OffsetArray(Array{ComplexF64,3}(undef,Nq,νmax,length(ωindices)),
+                              1:Nq, 0:νmax-1, ωindices)
     Σ_ladder::OffsetArray{ComplexF64,2,Array{ComplexF64,2}} = OffsetArray(Array{ComplexF64,2}(undef,Nq, νmax),
                               1:Nq, 0:νmax-1)
 
@@ -49,15 +48,16 @@ function extended_λ(
     else
         λch_min
     end
-    λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β
-    λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β 
-    λsp_max = calc_λsp_correction(χsp_tmp.data, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
-    λch_max = calc_λsp_correction(χch_tmp.data, ωindices, mP.Ekin_DMFT, λch_max_rhs, kG, mP, sP) + 0.1
-    @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
 
-    trafo_bak(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
-    trafo(x) = x
-    @info "After transformation: λsp ∈ [$(trafo(λsp_min)), $(trafo(λsp_max))], λch ∈ [$(trafo(λch_min)), $(trafo(λch_max))]"
+    # TODO: transformation not used for now
+    # λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β
+    # λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β 
+    # λsp_max = calc_λsp_correction(χsp_tmp.data, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
+    # λch_max = calc_λsp_correction(χch_tmp.data, ωindices, mP.Ekin_DMFT, λch_max_rhs, kG, mP, sP) + 0.1
+    # @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
+    # trafo_bak(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
+    # trafo(x) = x
+    # @info "After transformation: λsp ∈ [$(trafo(λsp_min)), $(trafo(λsp_max))], λch ∈ [$(trafo(λch_min)), $(trafo(λch_max))]"
 
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 
         cond_both_int!(F, λ, 

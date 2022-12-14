@@ -53,3 +53,10 @@
     @test all(find_usable_χ_interval([-1.0, -2.0, -1.0]) .== [2])
     @test find_usable_χ_interval(t4, reduce_range_prct=0.9) == [2]
 end
+
+@testset "usable indices" begin
+    println(usable_ωindices(sP_1, χ_1))
+    println(usable_ωindices(sP_1, χ_1, χ_2))
+    @test usable_ωindices(sP_1, χ_1) == [1,2,3]
+    @test usable_ωindices(sP_1, χ_1, χ_2) == [2]
+end

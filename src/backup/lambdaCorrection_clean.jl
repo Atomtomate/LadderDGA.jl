@@ -32,7 +32,7 @@ function extended_λ_clean(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
         νmax::Int = -1, iterations=1000, ftol=1e-6)
 
     # general definitions
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ_ch,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ωindices = usable_ωindices(sP::SimulationParameters, χ_sp, χ_ch)
     νmax::Int = νmax < 0 ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : νmax
     νGrid::UnitRange{Int} = 0:(νmax-1)
 

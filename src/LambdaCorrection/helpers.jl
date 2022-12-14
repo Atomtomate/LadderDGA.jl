@@ -2,11 +2,10 @@
 #                                            helpers.jl                                                #
 # ---------------------------------------------------------------------------------------------------- #
 #   Author          : Julian Stobbe                                                                    #
-#   Last Edit Date  : 02.10.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   λ-Correction related helper functions.                                                             #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   bisection root finding method is not tested properly.                                                   #
+#   bisection root finding method is not tested properly.                                              #
 #   use full version of bisection: `https://arxiv.org/pdf/1702.05542.pdf`                              #
 # ==================================================================================================== #
 
@@ -38,12 +37,12 @@ end
     χ_λ!(χ_destination::[AbstractArray,χT], [χ::[AbstractArray,χT], ] λ::Float64)
 
 Inplace version of [`χ_λ`](@ref χ_λ). If the second argument is omitted, results are stored
-in the input data structure.
+in the input `χ`.
 """
-function χ_λ!(χ_new::χT, χ::χT, λ::Float64)::χT
+function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
     χ_λ!(χ_new.data, χ.data, λ)
     χ_new.λ = χ.λ + λ
-    return χ_new 
+    return nothing 
 end
 
 χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) = χ_λ[:] = χ ./ ((λ .* χ) .+ 1)
@@ -131,7 +130,7 @@ function newton_right(f::Function, df::Function, start::Float64; nsteps=5000, at
         xlast = xi
         xi = x0 - dfii * fi
         (norm(xi-x0) < atol) && break
-        if xi < start               # only ever search to the right!
+        if xi < start            # only ever search to the right!
             δ  = δ/2.0
             x0  = start + δ      # reset with smaller delta
             xi = x0
@@ -180,6 +179,53 @@ Computes the smallest possible ``\\lambda``-correction parameter (i.e. first div
 given as ``\\lambda_\\text{min} = - \\min_{q}(1 / \\chi^{\\omega_0}_q)``.
 """
 function get_λ_min(χr::AbstractArray{Float64,2})::Float64
-    nh  = ceil(Int64, size(χr,2)/2)
+    nh  = ω0_index(χr)
     -minimum(1 ./ view(χr,:,nh))
+end
+
+"""
+    λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+
+Internal helper function for the right hand side of the Pauli principle conditions (old λ correction).
+TODO: documentation.
+"""
+function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+    usable_ω = intersect(χsp.usable_ω, χch.usable_ω)
+    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
+    χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
+    χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
+
+    @info "λsp correction infos:"
+    rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
+        @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
+        mP.n * (1 - mP.n/2) - χch_sum
+    else
+        @info "  ↳ using χupup_DMFT - Σ χch as rhs"
+        2*imp_density - χch_sum
+    end
+
+    @info """  ↳ Found usable intervals for non-local susceptibility of length 
+                 ↳ sp: $(χsp.usable_ω), length: $(length(χsp.usable_ω))
+                 ↳ ch: $(χch.usable_ω), length: $(length(χch.usable_ω))
+                 ↳ total: $(usable_ω), length: $(length(usable_ω))
+               ↳ χch sum = $(χch_sum), rhs = $(rhs)"""
+    return rhs, usable_ω
+end
+
+"""
+    λ_seach_range(χ::Matrix{Float64}; λ_max_default = 50)
+
+Calculates reasonable interval for the search of the ``\\lambda``-correction parameter. 
+
+The interval is chosen with ``\\lambda_\\text{min}``, such that all unphysical poles are excluded and
+``\\lambda_\\text{max} = \\lambda_\\text{default} / \\max_{q,\\omega} \\chi(q,\\omega)``. The `λ_max_default` parameter may need to be
+adjusted, depending on the model, since in principal arbitrarily large maximum values are possible.
+"""
+function λ_seach_range(χ::Matrix{Float64}; λ_max_default = 50)
+    λ_min = get_λ_min(χ)
+    λ_max = λ_max_default / maximum(χ)
+    if λ_min > 1000
+        @warn "found very large λ_min ( = $λ_min). This indicates problems with the susceptibility."
+    end
+    return λ_min, λ_max
 end
