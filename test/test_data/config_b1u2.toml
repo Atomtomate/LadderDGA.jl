@@ -16,7 +16,7 @@ omega_smoothing = "nothing"             # nothing, range, full. Smoothes data af
 
 
 [Environment]
-inputDir = "test_data"                  # path to input dir
+inputDir = "."                  # path to input dir
 inputVars = "b1u2_ED_data.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 

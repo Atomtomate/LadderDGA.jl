@@ -46,18 +46,29 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     axes::Dict{Symbol, Int}
     function χ₀T(data::Array{_eltype,3}, kG::KGrid, t1::Vector{ComplexF64}, t2::Float64,
                  β::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int)
-        χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
-        c1 = real.(kintegrate(kG, t1))
-        c2 = real.(conv(kG, t1, t1))
-        c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
-        asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
-        for (ωi,ωn) in enumerate(ω_grid)
-            for (qi,c2i) in enumerate(c2)
-                asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2[qi], c3)
-            end
-        end
+        asym = χ₀Asym(kG, ω_grid, β, t1, t2 ,n_iν, shift)
         new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3))
     end
+end
+
+"""
+    χ₀Asym(kG::KGrid, ω_grid::AbstractVector{Int}, β::Float64, t1::Vector{ComplexF64}, t2::Float64, n_iν::Int, shift::Int)
+
+Builds asymtotic helper array, using tail coefficients `t1` and `t2`. See [`calc_bubble`](@ref calc_bubble) implementation for an example.
+"""
+function χ₀Asym(kG::KGrid, ω_grid::AbstractVector{Int}, β::Float64, 
+                t1::Vector{ComplexF64}, t2::Float64, n_iν::Int, shift::Int)
+    χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
+    c1 = real.(kintegrate(kG, t1))
+    c2 = real.(conv(kG, t1, t1))
+    c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+    asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
+    for (ωi,ωn) in enumerate(ω_grid)
+        for (qi,c2i) in enumerate(c2)
+            asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2i, c3)
+        end
+    end
+    return asym
 end
 
 

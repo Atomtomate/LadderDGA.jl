@@ -53,43 +53,62 @@ end
 # ======================================== LadderDGA Functions =======================================
 # ------------------------------------------- Bubble Term --------------------------------------------
 
-function χ₀_conv(kG::KGrid, Gνω::GνqT, Gνω_r::GνqT, νωi_range::Vector{NTuple{4,Int}})::Array{ComplexF64,2}
+function χ₀_conv(νωi_range::Vector{NTuple{4,Int}})
+    kG = wcache[].kG
+    println(wcache[].initialized)
     data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(νωi_range))
     for (i,ωνn) in enumerate(νωi_range)
         ωn,νn,_,_ = ωνn
-        conv_fft_noPlan!(kG, view(data,:,i), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
+        conv_fft_noPlan!(kG, view(data,:,i), 
+                         reshape(wcache[].GLoc_fft[:,νn].parent,gridshape(kG)),
+                         reshape(wcache[].GLoc_fft_reverse[:,νn+ωn].parent,gridshape(kG)))
     end
-    return data
+
+    update_wcache(:χ₀, data)
+    update_wcache(:χ₀Indices, νωi_range)
+    return nothing
 end
 
 """
-    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+    calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
-function calc_bubble_par(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false, workerpool::AbstractWorkerPool=default_worker_pool())
-    data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
+    workerpool = get_workerpool()
     @assert length(workerpool) > 0
 
     νωi_range, νωi_part = gen_νω_part(sP, workerpool)
     
+    @sync begin
     for ind in νωi_part
-        tt = νωi_range[ind]
-        _,_,ωi,νi = νωi_range[ind]
-        println(ind, ": ", tt, "::", ωi, ", ", νi)
-        @async data[:,νi,ωi] = remotecall_fetch(χ₀_conv, workerpool, kG, Gνω, Gνω_r, νωi_range[ind])
+        @async r = remotecall_fetch(χ₀_conv, workerpool, νωi_range[ind])
+    end
     end
 
-    #TODO: move tail calculation to definition of GF (GF should know about its tail)
-    t1, t2 = if local_tail
-        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
-        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    res = if collect_data
+        data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+        @sync begin
+        for w in workers(workerpool)
+            @async begin
+                indices, χdata = @fetchfrom w (LadderDGA.wcache[].χ₀Indices,LadderDGA.wcache[].χ₀) 
+                println
+                for i in 1:length(indices)
+                    _,_,ωi,νi = indices[i]
+                    data[:,νi,ωi] = χdata[:,i]
+                end
+            end
+        end
+        end
+        #TODO: local tail not needed for parallel calculations
+        t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
+        t2 = (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
     else
-        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
-        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        nothing
     end
-    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
+    return res
 end
 
 # --------------------------------------------- χ and γ ----------------------------------------------
@@ -130,9 +149,10 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; workerpool::AbstractWorkerPool=default_worker_pool())
+function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
+    workerpool = get_workerpool()
     Nν::Int = 2*sP.n_iν
     Nq::Int = size(χ₀.data,χ₀.axes[:q])
     Nω::Int = size(χ₀.data,χ₀.axes[:ω])
@@ -146,7 +166,7 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
     for (i,ind) in enumerate(qωi_part)
         ωi = sort(unique(map(x->x[2],qωi_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-        remote_results[i] = remotecall(bse_inv, workerpool, type, qωi_range[ind], ωind_map, -sP.n_iω-1,
+        remote_results[i] = remotecall(bse_inv, type, qωi_range[ind], ωind_map, -sP.n_iω-1,
                                        Γr[:,:,ωi], χ₀.data[:,:,ωi], χ₀.asym[:,ωi], sP.n_iν_shell, 
                                        sP.χ_helper, mP.U, mP.β)
     end
@@ -254,8 +274,8 @@ end
 function calc_Σ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
                 λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
-                mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν, pre_expand=true, 
-                workerpool::AbstractWorkerPool=default_worker_pool())
+                mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν, pre_expand=true)
+    workerpool = get_workerpool()
     # initialize
     Σ_hartree = mP.n * mP.U/2.0;
     Nk::Int = length(kG.kMult)
@@ -279,7 +299,7 @@ function calc_Σ_par(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     for (i,ind) in enumerate(νωi_part)
         ωi = sort(unique(map(x->x[1],νω_range[ind])))
         ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-        remote_results[i] = remotecall(calc_Σ_eom, workerpool, νω_range[ind], ωind_map, νmax, χ_sp[:,ωi],
+        remote_results[i] = remotecall(calc_Σ_eom, νω_range[ind], ωind_map, νmax, χ_sp[:,ωi],
                                        χ_ch[:,ωi], γ_sp[:,:,ωi], γ_ch[:,:,ωi], Gνω, λ₀[:,:,ωi], mP.U, kG)
     end
 

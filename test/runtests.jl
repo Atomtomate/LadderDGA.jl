@@ -47,7 +47,7 @@ end
 end
 
 @testset "full run" begin
-    #include("full_run.jl")
+    include("full_run.jl")
 end
 
 include("LambdaCorrection/runtests.jl")

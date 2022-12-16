@@ -24,54 +24,45 @@ function gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
 end
 
 mutable struct WorkerCache
-    initialized::Bool
-    νω_map::Array{NTuple{4,Int}}
-    ωind_map::Dict{Int,Int}
-    χsp::Array{ComplexF64,2}
-    χch::Array{ComplexF64,2}
-    γsp::Array{ComplexF64,3}
-    γch::Array{ComplexF64,3}
-    λ₀::Array{ComplexF64,3}
-    G::GνqT
+    initialized::Dict{Symbol,Bool}
+    GLoc_fft::GνqT
+    GLoc_fft_reverse::GνqT
     kG::Union{KGrid, Nothing}
+    mP::Union{ModelParameters, Nothing}
+    sP::Union{SimulationParameters, Nothing}
+    χ₀::Array{_eltype, 2}
+    χ₀Indices::Vector{NTuple{4,Int}}
+    # χ_ind::Dict{Int,Int}
+    # γ_ind::Dict{Int,Int}
+    # χsp::Array{ComplexF64,2}
+    # χch::Array{ComplexF64,2}
+    # γsp::Array{ComplexF64,2}
+    # γch::Array{ComplexF64,2}
+    # λ₀::Array{ComplexF64,3}
     function WorkerCache()
-        new(false, NTuple{4,Int}[], Dict{Int,Int}(), Array{ComplexF64,2}(undef,0,0),
-            Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0),
-            Array{ComplexF64,3}(undef,0,0,0), OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), nothing)
+            # false, NTuple{4,Int}[], Dict{Int,Int}(), 
+            # Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,2}(undef,0,0), 
+            # Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0), 
+            # OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), 
+            # nothing)
+        new(Dict(:GLoc_fft => false, :GLoc_fft_reverse => false, :kG => false), 
+            OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
+            OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
+            nothing, nothing, nothing,
+            Array{_eltype,2}(undef, 0,0), Vector{NTuple{4,Int}}(undef, 0)
+        )
     end
 end
 
-function initialize_cache(νω_map::Array{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, χsp::χT, χch::χT, 
-                          γsp::γT, γch::γT, λ₀::γT, G::GνqT, kG::KGrid; override=false)
-    if !wcache.initialized || override
-        wcache.νω_map = νω_map
-        wcache.ωind_map = ωind_map
-        wcache.χsp = χsp
-        wcache.χch = χch
-        wcache.γsp = γsp
-        wcache.γch = γch
-        wcache.λ₀ = λ₀
-        wcache.G =G
-        wcache.kG = kG
-        wcache.initialized = true
+function update_wcache(name::Symbol, val; override=true)
+    if !haskey(wcache[].initialized, name) || !wcache[].initialized[name] || override
+        setfield!(wcache[], name, val)
+        wcache[].initialized[name] = true
+    else
+        @warn "Value of $name already set."
     end
 end
 
-function update_χ(type::Symbol, χ::χT)
-    if type == :sp
-        wcache.χsp = χ
-    elseif type == :ch
-        wcache.χch = χ
-    else
-        throw("Unkown channel type for worker update of chi")
-    end
-end
-function update_χ(type::Symbol, χ_uncorrected::χT, λ::Float64)
-    if type == :sp
-        χ_λ!(wcache.χsp, χ_uncorrected, λ)
-    elseif type == :ch
-        χ_λ!(wcache.χch, χ_uncorrected, λ)
-    else
-        throw("Unkown channel type for worker update of chi")
-    end
+function get_workerpool()
+    default_worker_pool()
 end

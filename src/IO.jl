@@ -33,6 +33,7 @@ function readConfig(cfg_in::String)
     try 
         cfg_is_file = isfile(cfg_in)
     catch e
+        @warn "cfg_file not found as file. Trying to parse as config string."
         cfg_is_file = false
     end
     tml = if cfg_is_file
@@ -47,14 +48,19 @@ function readConfig(cfg_in::String)
     end
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
 
-    env = EnvironmentVars(tml["Environment"]["inputDir"],
-                          tml["Environment"]["inputVars"],
+    input_dir = if isabspath(tml["Environment"]["inputDir"])
+        tml["Environment"]["inputDir"]
+    else
+        abspath(joinpath(dirname(cfg_in),tml["Environment"]["inputDir"]))
+    end
+
+    env = EnvironmentVars(input_dir,
+                          joinpath(input_dir,tml["Environment"]["inputVars"]),
                           String([(i == 1) ? uppercase(c) : lowercase(c)
                                   for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
                           lowercase(tml["Environment"]["logfile"]))
 
-    cfg_path = abspath(joinpath(env.inputDir,env.inputVars))
-    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(cfg_path, "r") do f
+    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputVars, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")

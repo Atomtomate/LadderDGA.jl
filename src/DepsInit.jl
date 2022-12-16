@@ -56,7 +56,7 @@ using .LambdaCorrection
 
 # =================================== Parallelization Bookkeeping ====================================
 global_vars = String[]
-wcache = WorkerCache()
+wcache = Ref(WorkerCache())
 
 # ==================== Precompilation ====================
 # TODO: precompile calc_... for CompleX{Float64}

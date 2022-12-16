@@ -42,8 +42,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG    = gen_kGrid(kGridStr[1], kGridStr[2])
-    in_file = abspath(joinpath(env.inputDir,env.inputVars))
-    @timeit to "load f" χDMFTsp, χDMFTch, Γ_sp, Γ_ch, gImp_in, Σ_loc = jldopen(in_file, "r") do f 
+    @timeit to "load f" χDMFTsp, χDMFTch, Γ_sp, Γ_ch, gImp_in, Σ_loc = jldopen(env.inputVars, "r") do f 
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
         χDMFTsp = zeros(_eltype, 2*sP.n_iν, 2*sP.n_iν, 2*sP.n_iω+1)
@@ -136,6 +135,19 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLocsp + χLocch)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
+
+    workerpool = get_workerpool()
+    @sync begin
+    for w in workers(workerpool)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:GLoc_fft, gLoc_fft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:GLoc_fft_reverse, gLoc_rfft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:kG, kG; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:kG, kG; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:mP, mP; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache,w,:sP, sP; override=true)
+    end
+    end
+
     return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γ_sp, Γ_ch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp
 end
 
