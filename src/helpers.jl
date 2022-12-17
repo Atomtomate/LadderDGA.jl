@@ -303,7 +303,7 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     return res
 end
 
-q0_index(kG::KGrid) = findfirst(x -> all(x .== (0,0,0)), kG.kGrid)
+q0_index(kG::KGrid) = findfirst(x -> all(x .== Tuple(repeat([0.0],length(kG.kGrid[1])))), kG.kGrid)
 #TODO: most quantities should know their indices! Implement this in DataTypes
 ω0_index(sP::SimulationParameters) = sP.n_iω+1
 

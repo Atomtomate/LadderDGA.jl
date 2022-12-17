@@ -19,6 +19,7 @@ using LadderDGA
 
 cfg_file = ARGS[1]
 out_path = ARGS[2]
+continue_on_error = true
 
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 println("using workerpool: ", wp)
@@ -43,6 +44,8 @@ open(logfile_path,"w") do io
     @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
     conv = false
+    conv_dm = false
+    conv_m = false
     conv_dm_error = false
     conv_m_error = false
     Nk   = 10
@@ -62,7 +65,7 @@ open(logfile_path,"w") do io
                 Nk = 10
             else
                 Nk = Nk + 10
-                conv = f["$max_prev_Nk/conv"]
+                conv = false # f["$max_prev_Nk/conv"]
                 @info "Found existing kConv file. Continuing at Nk = $Nk, last conv status = $conv"
             end
         end
@@ -78,7 +81,7 @@ open(logfile_path,"w") do io
         end
     end
 
-    while !conv && !(conv_dm_error && conv_m_error)
+    while !conv #&& !(conv_dm_error && conv_m_error && !continue_on_error)
         @info "Running k-grid convergence calculation for Nk = $Nk"
         @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, locQ_sp, locQ_ch, χ₀Loc, gImp = setup_LDGA((kGridsStr[1][1], Nk), mP, sP, env);
 
@@ -87,11 +90,19 @@ open(logfile_path,"w") do io
         @timeit LadderDGA.to "nl xch par" nlQ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
         ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
 
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (1): $cs_sp : $cs_ch"
+
         @timeit LadderDGA.to "λ₀" begin
             Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
             λ₀ = calc_λ0(bubble, Fsp, locQ_sp, mP, sP)
         end
         λsp = λ_correction(:sp, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (2): $cs_sp : $cs_ch"
 
         if Nk == 10
             @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
@@ -100,29 +111,36 @@ open(logfile_path,"w") do io
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
         end
 
-        @info "trying to obtain root with guess: $λ_root_guess"
-        λspch, λspch_z = if !conv_dm_error
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (3): $cs_sp : $cs_ch"
 
-            λspch = nothing
-            λspch_z = [-Inf, -Inf]
-              try
-                @timeit LadderDGA.to "new λ par" λspch = 
-                    if Nk < 60
-                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
-                    else
-                        λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
-                    end
-                println("extended lambda: ", λspch)
-                @info λspch
-                λ_root_guess = λspch.zero
-                λspch, λspch_z =  λspch, λspch.zero
-            catch e
-                @warn e
-                @warn "new lambda correction did non converge, resetting lambda to zero"
-                conv_dm_error = true
-                pch, λspch_z = nothing, [λ_root_guess[1], λ_root_guess[2]]
-            end
+        @info "trying to obtain root with guess: $λ_root_guess"
+        λspch = nothing
+        λspch_z = [-Inf, -Inf]
+        conv_dm = true
+          try
+            @timeit LadderDGA.to "new λ par" λspch = 
+                if Nk < 60
+                    λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
+                else
+                    λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
+                end
+            println("extended lambda: ", λspch)
+            @info λspch
+            λ_root_guess = λspch.zero
+            λspch, λspch_z =  λspch, λspch.zero
+        catch e
+            @warn e
+            @warn "new lambda correction did non converge, resetting lambda to zero"
+            conv_dm_error = true
+            pch, λspch_z = nothing, [λ_root_guess[1], λ_root_guess[2]]
         end
+
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (4): $cs_sp : $cs_ch"
+
         #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
         ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
         iωn = 1im .* 2 .* collect(-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
@@ -131,16 +149,31 @@ open(logfile_path,"w") do io
         
         println("DMFT Epot")
         E_pot_DMFT_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
+
+        # E_pot_DMFT_2_direct = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,:])/mP.β) + mP.U * mP.n^2/4
+        # check2 = sum(nlQ_ch.χ .- nlQ_sp.χ)
+        # check3 = sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,:])
+        # println("Epot_2 DMFT: $E_pot_DMFT_2 vs $E_pot_DMFT_2_direct, $check2, $check3")
         χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
+
+
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (5): $cs_sp : $cs_ch"
 
         println("λ_m Epot")
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, λsp); nlQ_sp.λ = λsp;
         E_kin_λsp_1, E_pot_λsp_1 = calc_E(nlQ_sp, nlQ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=νmax)
         E_pot_λsp_2 = calc_Epot2(nlQ_sp, nlQ_ch, kG, sP, mP) + mP.U * mP.n^2/4
+        println("Epot_2 λsp: $E_pot_λsp_2")
         χAF_λsp = real(1 / (1 / nlQ_sp.χ[end,nh]))
         sp_m_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
         ch_m_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
         χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λsp); 
+
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (6): $cs_sp : $cs_ch"
 
         # Both
         println("λ_md Epot")
@@ -151,6 +184,13 @@ open(logfile_path,"w") do io
         χAF_λspch = real(1 / (1 / nlQ_sp.χ[end,nh]))
         sp_dm_pos = all(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices] .>= 0)
         ch_dm_pos = all(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices] .>= 0)
+        χ_λ!(nlQ_sp.χ, nlQ_sp.χ, -λspch_z[1]); 
+        χ_λ!(nlQ_ch.χ, nlQ_ch.χ, -λspch_z[2]); 
+
+        # cs_sp = real(sum(nlQ_sp.χ))
+        # cs_ch = real(sum(nlQ_ch.χ))
+        # @warn "CHECK SUMS (7): $cs_sp : $cs_ch"
+
         nlQ_sp = nothing
         nlQ_ch = nothing
 
@@ -177,12 +217,17 @@ open(logfile_path,"w") do io
                 println("old χAF_m = $old_val_m")
                 relC_m = abs((χAF_λsp - old_val_m)/χAF_λsp)
                 println("Change: $(100*relC_m) %")
-                if (relC < 0.01 || conv_dm_error)  && (relC_m < 0.01 || conv_m_error)
-                    conv = true
-                     open(out_path*"/kConv.txt","w") do f_conv
-                         write(f_conv, "Ns = $Nk\n")
-                         write(f_conv, "relative error between last iterations: $(relC) for λ_dm and $(relC_m) for λ_m")
-                     end
+                if (relC < 0.01) 
+                   conv_dm = true 
+                end
+                if (relC_m < 0.01)
+                   conv_m = true 
+                end
+                conv= conv_m & conv_dm
+
+                open(out_path*"/kConv.txt","w") do f_conv
+                     write(f_conv, "Ns = $Nk\n")
+                     write(f_conv, "relative error between last iterations: $(relC) for λ_dm and $(relC_m) for λ_m")
                 end
             end
             f["$Nk/χAF_DMFT"] = χAF_DMFT
@@ -204,6 +249,8 @@ open(logfile_path,"w") do io
             f["$Nk/ch_pos"] = ch_dm_pos
             f["$Nk/conv_error"] = conv_dm_error
             f["$Nk/conv"] = conv
+            f["$Nk/conv_m"] = conv_m
+            f["$Nk/conv_dm"] = conv_dm
         end
 
 

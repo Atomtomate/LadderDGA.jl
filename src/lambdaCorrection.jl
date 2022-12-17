@@ -12,7 +12,8 @@ function calc_λsp_rhs_usable(imp_density::Float64, nlQ_sp::NonLocalQuantities, 
     χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
 
     @info "λsp correction infos:"
-    rhs = if (( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
+    rhs =  
+    if ( ( (typeof(sP.χ_helper) != Nothing || sP.tc_type_f != :nothing) && sP.λ_rhs == :native) || sP.λ_rhs == :fixed)
         @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
@@ -225,7 +226,7 @@ function extended_λ_par(nlQ_sp::NonLocalQuantities, nlQ_ch::NonLocalQuantities,
     λs_sp = λsp_min + abs.(λsp_min/10.0)
     λs_ch = λch_min + abs.(λch_min/10.0)
     λmin = [λsp_min, λch_min]
-    λs = x₀
+    λs = all(isfinite.(x₀)) ? x₀ : λmin
     all(x₀ .< λmin) && @warn "starting point $x₀ is not compatible with λmin $λmin !"
     λnew = nlsolve(cond_both!, λs, ftol=ftol, iterations=iterations)
     λnew.zero = trafo(λnew.zero)

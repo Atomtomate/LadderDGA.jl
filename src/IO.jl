@@ -60,7 +60,7 @@ function readConfig(cfg_in)
                              String([(i == 1) ? uppercase(c) : lowercase(c)
                                      for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
                              lowercase(tml["Environment"]["logfile"]),
-                             tml["Environment"]["progressbar"]
+                             false
                             )
 
     mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputDir*"/"*env.inputVars, "r") do f

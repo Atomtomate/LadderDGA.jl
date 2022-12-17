@@ -4,13 +4,13 @@ using Pkg
 Pkg.activate(@__DIR__)
 using LadderDGA
 
-using Distributed
+using Distributed, SlurmClusterManager
 np = parse(Int,ARGS[3])
-addprocs(np, topology=:master_worker)
-@everywhere using Pkg
-@everywhere Pkg.activate(@__DIR__)
-using LadderDGA
-@everywhere using LadderDGA
+# addprocs(SlurmManager(), topology=:master_worker)
+# @everywhere using Pkg
+# @everywhere Pkg.activate(@__DIR__)
+# using LadderDGA
+# @everywhere using LadderDGA
 
 cfg_file = ARGS[1]
 out_path = ARGS[2]

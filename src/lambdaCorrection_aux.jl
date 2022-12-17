@@ -128,7 +128,7 @@ function cond_both_int(
     χ_λ!(nlQ_sp.χ, χsp_tmp, λsp_i)
     χsp_sum = sum(kintegrate(kG,real(nlQ_sp.χ),1)[1,ωindices])/mP.β
     χch_sum = sum(kintegrate(kG,real(nlQ_ch.χ),1)[1,ωindices])/mP.β
-    @info "c1 check: $χsp_sum + $χch_sum  = $(χsp_sum + χch_sum) ?=? 1/2" 
+    @info "c1 check: $χsp_sum + $χch_sum  = $(χsp_sum + χch_sum) ?=? $(mP.n/2 * (1 - mP.n/2))" 
 
     #TODO: unroll 
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, nlQ_sp, nlQ_ch, Gνω, λ₀, mP.U, kG, sP)
