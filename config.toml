@@ -1,9 +1,9 @@
 [Model]
 U    = 2.0
-mu   = 1.0
-beta = 12.0
-nden = 1.0
-kGrid = "3Dsc-0.2041241452319315"
+mu   = 0.7
+beta = 7.0
+nden = 0.927047534045941
+kGrid = "2Dsc-0.25-0.2-0.1"
 
 [Simulation]
 Nk        = [10]                         # number of k points in each dimension
@@ -17,9 +17,9 @@ omega_smoothing = "nothing"             # nothing, range, full. Smoothes data af
 
 [Environment]
 inputDataType = "jld2"                  # test, jld2 (text will read fortran lDGA input dirs/files)
-inputDir = ""                           # absolute path to input dir
-freqFile = ""                           # absolute path to freqList.jld2 file
-inputVars = "triqs_out.jld2"
+inputDir = "/home/julian/Hamburg/Julia_lDGA/LadderDGA_stable/test_data"                           # absolute path to input dir
+freqFile = "b50f50s1"                           # absolute path to freqList.jld2 file
+inputVars = "b7_U2_mu0.7.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
