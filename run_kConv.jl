@@ -90,20 +90,11 @@ open(logfile_path,"w") do io
         @timeit LadderDGA.to "nl xch par" χ_ch, γ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
         ωindices = intersect(χ_sp.usable_ω, χ_ch.usable_ω)
 
-        # cs_sp = real(sum(nlQ_sp.χ))
-        # cs_ch = real(sum(nlQ_ch.χ))
-        # @warn "CHECK SUMS (1): $cs_sp : $cs_ch"
-
         @timeit LadderDGA.to "λ₀" begin
             Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
             λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
         end
         λsp = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-
-        # cs_sp = real(sum(nlQ_sp.χ))
-        # cs_ch = real(sum(nlQ_ch.χ))
-        # @warn "CHECK SUMS (2): $cs_sp : $cs_ch"
-
         if Nk == 10
             @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
             c2_root_res = find_root(c2_res)
@@ -116,35 +107,6 @@ open(logfile_path,"w") do io
         # @warn "CHECK SUMS (3): $cs_sp : $cs_ch"
 
         @info "trying to obtain root with guess: $λ_root_guess"
-<<<<<<< HEAD
-        λspch = nothing
-        λspch_z = [-Inf, -Inf]
-        conv_dm = true
-          try
-            @timeit LadderDGA.to "new λ par" λspch = 
-                if Nk < 60
-                    λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
-                else
-                    λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
-                end
-            println("extended lambda: ", λspch)
-            @info λspch
-            λ_root_guess = λspch.zero
-            λspch, λspch_z =  λspch, λspch.zero
-        catch e
-            @warn e
-            @warn "new lambda correction did non converge, resetting lambda to zero"
-            conv_dm_error = true
-            pch, λspch_z = nothing, [λ_root_guess[1], λ_root_guess[2]]
-        end
-
-        # cs_sp = real(sum(nlQ_sp.χ))
-        # cs_ch = real(sum(nlQ_ch.χ))
-        # @warn "CHECK SUMS (4): $cs_sp : $cs_ch"
-
-        #@timeit LadderDGA.to "new λ" λspch = λ_correction(:sp_ch, imp_density, nlQ_sp, nlQ_ch, gLoc_rfft, λ₀, kG, mP, sP)
-        ωindices = intersect(nlQ_sp.usable_ω, nlQ_ch.usable_ω)
-=======
         λspch, λspch_z = if !conv_dm_error
 
             λspch = nothing
@@ -168,18 +130,12 @@ open(logfile_path,"w") do io
             end
         end
         ωindices = intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-
-        # E_pot_DMFT_2_direct = 0.5 * mP.U * real(sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,:])/mP.β) + mP.U * mP.n^2/4
-        # check2 = sum(nlQ_ch.χ .- nlQ_sp.χ)
-        # check3 = sum(kintegrate(kG,nlQ_ch.χ .- nlQ_sp.χ,1)[1,:])
-        # println("Epot_2 DMFT: $E_pot_DMFT_2 vs $E_pot_DMFT_2_direct, $check2, $check3")
-        χAF_DMFT = real(1 / (1 / nlQ_sp.χ[end,nh]))
+        nh = ceil(Int,size(χ_sp.data, 2)/2)
+        νmax::Int = min(sP.n_iν,floor(Int,3*length(ωindices)/8))
+        
+        println("DMFT Epot")
         E_pot_DMFT_2 = calc_Epot2(χ_sp, γ_sp, χ_ch, γ_ch, kG, sP, mP) + mP.U * mP.n^2/4
-
-
-        # cs_sp = real(sum(nlQ_sp.χ))
-        # cs_ch = real(sum(nlQ_ch.χ))
-        # @warn "CHECK SUMS (5): $cs_sp : $cs_ch"
+        χAF_DMFT = real(1 / (1 / χ_sp[end,nh]))
 
         println("λ_m Epot")
         χ_λ!(χ_sp, λsp); 
@@ -189,10 +145,6 @@ open(logfile_path,"w") do io
         sp_m_pos = all(kintegrate(kG,real(χ_sp.data),1)[1,ωindices] .>= 0)
         ch_m_pos = all(kintegrate(kG,real(χ_ch.data),1)[1,ωindices] .>= 0)
         χ_λ!(χ_sp, -λsp); 
-
-        # cs_sp = real(sum(nlQ_sp.χ))
-        # cs_ch = real(sum(nlQ_ch.χ))
-        # @warn "CHECK SUMS (6): $cs_sp : $cs_ch"
 
         # Both
         println("λ_md Epot")

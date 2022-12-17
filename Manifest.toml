@@ -38,9 +38,15 @@ version = "1.1.1"
 
 [[deps.ArrayInterfaceCore]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
+<<<<<<< HEAD
 git-tree-sha1 = "badccc4459ffffb6bce5628461119b7057dec32c"
 uuid = "30b0a656-2188-435a-8636-2ec0e6a096e2"
 version = "0.1.27"
+=======
+git-tree-sha1 = "40debc9f72d0511e12d817c7ca06a721b6423ba3"
+uuid = "30b0a656-2188-435a-8636-2ec0e6a096e2"
+version = "0.1.17"
+>>>>>>> 844f1552908e3ddd14890b0a269c7367e0b67166
 
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
@@ -48,14 +54,13 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 [[deps.BSE_SC]]
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
 git-tree-sha1 = "97e3b54e6877c26c108848727a14127758d63975"
-repo-rev = "master"
-repo-url = "https://github.com/Atomtomate/BSE_SC.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
 version = "2.3.5"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
+<<<<<<< HEAD
 [[deps.BitFlags]]
 git-tree-sha1 = "43b1a4a8f797c1cddadf60499a8a077d4af2cd2d"
 uuid = "d1d4a3ce-64b1-5f1a-9ba4-7e7e69966f35"
@@ -66,6 +71,13 @@ deps = ["Compat", "LinearAlgebra", "SparseArrays"]
 git-tree-sha1 = "e7ff6cadf743c098e08fca25c91103ee4303c9bb"
 uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
 version = "1.15.6"
+=======
+[[deps.ChainRulesCore]]
+deps = ["Compat", "LinearAlgebra", "SparseArrays"]
+git-tree-sha1 = "80ca332f6dcb2508adba68f22f551adb2d00a624"
+uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+version = "1.15.3"
+>>>>>>> 844f1552908e3ddd14890b0a269c7367e0b67166
 
 [[deps.ChangesOfVariables]]
 deps = ["ChainRulesCore", "LinearAlgebra", "Test"]
@@ -92,9 +104,15 @@ version = "0.3.0"
 
 [[deps.Compat]]
 deps = ["Dates", "LinearAlgebra", "UUIDs"]
+<<<<<<< HEAD
 git-tree-sha1 = "00a2cccc7f098ff3b66806862d275ca3db9e6e5a"
 uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
 version = "4.5.0"
+=======
+git-tree-sha1 = "5856d3031cdb1f3b2b6340dfdc66b6d9a149a374"
+uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
+version = "4.2.0"
+>>>>>>> 844f1552908e3ddd14890b0a269c7367e0b67166
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -192,9 +210,15 @@ version = "0.27.23"
 
 [[deps.DocumenterTools]]
 deps = ["AbstractTrees", "Base64", "DocStringExtensions", "Documenter", "FileWatching", "Gumbo", "LibGit2", "OpenSSH_jll", "Sass"]
+<<<<<<< HEAD
 git-tree-sha1 = "d80421b418f6cc6321acd131011ea68e890f46f3"
 uuid = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
 version = "0.1.16"
+=======
+git-tree-sha1 = "6760c21f6eeee52eee7a5fa916e9e496196fd179"
+uuid = "35a29f4d-8980-5a13-9543-d66fff28ecb8"
+version = "0.1.15"
+>>>>>>> 844f1552908e3ddd14890b0a269c7367e0b67166
 
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
@@ -204,8 +228,6 @@ version = "1.6.0"
 [[deps.EquivalenceClassesConstructor]]
 deps = ["DataStructures", "DocumenterTools", "Lazy", "Printf", "StaticArrays"]
 git-tree-sha1 = "6ce16b2429d73b75e2db5a58dbc4d80aa499351d"
-repo-rev = "main"
-repo-url = "https://github.com/Atomtomate/EquivalenceClassesConstructor.jl"
 uuid = "b0d053df-94a8-4c0c-9762-4584a2fcd8b0"
 version = "0.5.5"
 
