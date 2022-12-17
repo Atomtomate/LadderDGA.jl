@@ -11,15 +11,15 @@ chi_asympt_method = "direct"            # direct/sc/nothong, see BSE_SC module f
 chi_asympt_shell = 10                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+usable_prct_reduction = 0.1             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
 omega_smoothing = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
 
 
 [Environment]
 inputDataType = "jld2"                  # test, jld2 (text will read fortran lDGA input dirs/files)
-inputDir = ""                           # absolute path to input dir
-freqFile = ""                           # absolute path to freqList.jld2 file
-inputVars = "triqs_out.jld2"
+inputDir = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/test/test_data"                           # absolute path to input dir
+freqFile = "b10f10s1"                           # absolute path to freqList.jld2 file
+inputVars = "b1u2_ED_data.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!

@@ -11,7 +11,7 @@ jobs:
       matrix:
         version:
           - '1.7'
-          - 'nightly'
+          - '1.8'
         os:
           - ubuntu-latest
           - macOS-latest
@@ -24,6 +24,8 @@ jobs:
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
+      - run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry"))'
+        shell: bash
       - uses: actions/cache@v1
         env:
           cache-name: cache-artifacts
@@ -34,6 +36,7 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
+
       - uses: julia-actions/julia-buildpkg@master
       - uses: julia-actions/julia-runtest@master
       - uses: julia-actions/julia-processcoverage@v1
@@ -51,33 +54,3 @@ jobs:
       - uses: julia-actions/julia-uploadcodecov@latest
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@latest
-        with:
-          version: '1.7'
-      - uses: actions/cache@v1
-        env:
-          cache-name: cache-artifacts
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-${{ env.cache-name }}-${{ hashFiles('**/Project.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-test-${{ env.cache-name }}-
-            ${{ runner.os }}-test-
-            ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@master
-      - run: julia -e 'using Pkg; Pkg.activate(); push!(LOAD_PATH, pwd());'
-      - run: julia --project=docs/ -e 'using Pkg; Pkg.activate();  push!(LOAD_PATH,pwd());'
-      - run: julia --project=docs/ -e 'using Pkg; 
-                                       Pkg.Registry.add(""); 
-                                       Pkg.Registry.add("");
-                                       Pkg.develop(PackageSpec(path=pwd())); 
-                                       Pkg.instantiate()'
-      - run: julia --project=docs/ docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}

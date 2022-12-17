@@ -70,9 +70,5 @@ module LapackWrapper
         getrf!(A, ipiv)
         getri!(A, ipiv, work)
     end
-
-    function inv!(A::AbstractMatrix{T}, ipiv::Vector{Int}, work::Vector{T}) where T
-        @warn "unkown type $(T), falling back to stdlib implementation"
-        inv(A)
-    end
+   
 end
