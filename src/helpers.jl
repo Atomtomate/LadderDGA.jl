@@ -296,3 +296,15 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     end
     return res
 end
+
+q0_index(kG::KGrid) = findfirst(x -> all(x .== zeros(length(gridshape(kG)))), kG.kGrid)
+#TODO: most quantities should know their indices! Implement this in DataTypes
+ω0_index(sP::SimulationParameters) = sP.n_iω+1
+
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+    q0_ind = q0_index(kG)
+    if q0_ind != nothing
+        ω_ind = setdiff(1:size(χ,2), sP.n_iω+1)#TODO: adapt for arbitrary ω indices
+        @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+    end
+end
