@@ -53,6 +53,6 @@ end
 # #LadderDGA.writeFortranΣ("klist_parts_test", Σ_ladder_parts.parent, mP.β)
 # #LadderDGA.writeFortranΣ("klist_summed_test", Σ_ladder.parent, mP.β)
 
-c2_res = c2_curve(15, 15, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+c2_res = residuals(15, 15, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
 true

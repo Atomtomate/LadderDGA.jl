@@ -128,29 +128,32 @@ end
 
 # =============================================== GLoc ===============================================
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
-function G_from_Σladder(Σ_ladder::Matrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function G_from_Σladder(Σ_ladder::Matrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; fix_μ::Bool=false)
     νRange = 0:last(sP.fft_range)
     Σloc_part = Σloc[1:last(νRange)+1]
     GLoc_new = Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange))
 
-    function fix_μ(μ::Vector{Float64})
+    function fμ(μ::Vector{Float64})
         G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc_part)
         filling_pos(GLoc_new, kG, mP.U, μ[1], mP.β) - mP.n
     end
-    μ_new_nls = nlsolve(fix_μ, [mP.μ])
+    μ_new_nls = nlsolve(fμ, [mP.μ])
     !μ_new_nls.f_converged && error("Could not determine μ")
-
     μ = mP.μ
-    mP.μ = μ_new_nls.zero[1]
-    G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
-    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    for νi in sP.fft_range
-        GLoc_νi  = νi < 0 ? expandKArr(kG, conj(GLoc_new[:,-νi])) : expandKArr(kG, GLoc_new[:,νi+1])
-        gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
-        gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
+    gLoc_fft = nothing
+    gLoc_rfft = nothing
+    if fix_μ
+        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+        mP.μ = μ_new_nls.zero[1]
+        G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
+        for νi in sP.fft_range
+            GLoc_νi  = νi < 0 ? expandKArr(kG, conj(GLoc_new[:,-νi])) : expandKArr(kG, GLoc_new[:,νi+1])
+            gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
+            gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
+        end
     end
-    return μ, gLoc_fft, gLoc_rfft
+    return μ, GLoc_new, gLoc_fft, gLoc_rfft
 end
 
 

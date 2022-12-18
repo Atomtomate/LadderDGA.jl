@@ -119,7 +119,7 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
 
     residuals = zeros(6, length(λch_range))
     for (i,λch_i) in enumerate(λch_range)
-            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, χ_sp_tmp, χ_ch_tmp,
+            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, χ_sp_tmp, χ_ch_tmp,
             ωindices, Σ_ladder_ω, Σ_ladder, Kνωq_pre, G_corr, νGrid, χ_tail, Σ_hartree,
             E_pot_tail, E_pot_tail_inv, Gνω,λ₀, kG, mP, sP)
 
