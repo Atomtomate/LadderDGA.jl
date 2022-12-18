@@ -21,7 +21,7 @@ function cond_both_int(
         rhs_c1 -= real(tmp1/k_norm - t)
     end
     rhs_c1 = rhs_c1/mP.β + mP.Ekin_DMFT*mP.β/12 + mP.n * (1 - mP.n/2)
-    λsp_i = calc_λsp_correction(χ_sp, ωindices, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
+    λsp_i = λsp_correction(χ_sp, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
     χ_λ!(χ_sp, χsp_tmp, λsp_i)
     χsp_sum = sum(kintegrate(kG,real(χ_sp),1)[1,ωindices])/mP.β
     χch_sum = sum(kintegrate(kG,real(χ_ch),1)[1,ωindices])/mP.β

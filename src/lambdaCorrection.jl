@@ -32,21 +32,6 @@ function df_c1(λ::Float64, kMult::Vector{Float64}, χ::Matrix{Float64},
     return res
 end
 
-function calc_λsp_correction(χ_in::AbstractArray, usable_ω::AbstractArray{Int64},
-                            EKin::Float64, rhs::Float64, kG::KGrid, 
-                            mP::ModelParameters, sP::SimulationParameters)
-    χr::Matrix{Float64}    = real.(χ_in[:,usable_ω])
-    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β)
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{Float64} = real.(EKin ./ (iωn.^2))
-
-    f_c1_int(λint::Float64)::Float64 = f_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
-    df_c1_int(λint::Float64)::Float64 = df_c1(λint, kG.kMult, χr, χ_tail)/mP.β - EKin*mP.β/12 - rhs
-
-    λsp = newton_right(f_c1_int, df_c1_int, get_λ_min(χr))
-    return λsp
-end
-
 function cond_both_int_par!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
         χsp::χT, χch::χT, γsp::γT, γch::γT, χsp_bak::χT, χch_bak::χT,
         remote_results::Vector{Future},Σ_ladder::Array{ComplexF64,2}, 
@@ -203,8 +188,8 @@ function λ_correction(type::Symbol, imp_density::Float64,
             mP::ModelParameters, sP::SimulationParameters;
             workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false, x₀::Vector{Float64}=[0.0,0.0])
     res = if type == :sp
-        rhs,usable_ω_λc = λsp_rhs(imp_density, χsp, χch, kG, mP, sP)
-        @timeit to "λsp" λsp = calc_λsp_correction(real.(χsp.data), usable_ω_λc, mP.Ekin_DMFT, rhs, kG, mP, sP)
+        rhs,usable_ω_λc = LambdaCorrection.λsp_rhs(imp_density, χsp, χch, kG, mP, sP)
+        @timeit to "λsp" λsp = λsp_correction(χsp, mP.Ekin_DMFT, rhs, kG, mP, sP)
         λsp
     elseif type == :sp_ch
         @timeit to "λspch 2" λspch, dbg_string = if parallel

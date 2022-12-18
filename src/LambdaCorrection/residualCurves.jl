@@ -82,7 +82,7 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
     νGrid::UnitRange{Int} = 0:(νmax-1)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{ComplexF64} = mP.EKin_DMFT ./ (iωn.^2)
+    χ_tail::Vector{ComplexF64} = mP.Ekin_DMFT ./ (iωn.^2)
 
     # Therodynamics preallocations
     Σ_hartree::Float64 = mP.n * mP.U/2.0;
@@ -93,8 +93,9 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
     E_pot_tail_inv::Vector{Float64} = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λsp_min, λsp_max = λ_search_range(real.(χ_sp.data))
-    λch_min, λch_max = λ_search_range(real.(χ_ch.data))
+    λsp_min, λsp_max = [get_λ_min(real(χ_sp.data)), 10]
+    λch_min, λch_max = [get_λ_min(real(χ_ch.data)), 10]
+    λch_max2 = 500
 
     λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+1),length=NPoints_negative+2)) .+ λch_min .- 1
     λch_range_negative_2 = range(maximum([-200,λch_min]),stop=100,length=20)

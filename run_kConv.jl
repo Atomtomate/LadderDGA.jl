@@ -5,18 +5,18 @@ Pkg.activate(@__DIR__)
 using LadderDGA
 using NLsolve
 
-using Distributed, SlurmClusterManager
+using Distributed
 if length(ARGS) >= 3 
     np =  parse(Int,ARGS[3])
     addprocs(np, topology=:master_worker)
-else
-    addprocs(SlurmManager(), topology=:master_worker)
 end
+
 @everywhere using Pkg
 @everywhere Pkg.activate(@__DIR__)
 using LadderDGA
 @everywhere using LadderDGA
-
+push!(ARGS,"/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/test/test_data/config_2.toml")
+push!(ARGS,"/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/test/test_data")
 cfg_file = ARGS[1]
 out_path = ARGS[2]
 
@@ -35,7 +35,7 @@ end
 
 println("config path: $cfg_file\noutput path: $out_path\nlogging to $(logfile_path)")
 include("./run.jl")
-include("/scratch/projects/hhp00048/codes/scripts/LadderDGA_utils/new_lambda_analysis.jl")
+#include("/scratch/projects/hhp00048/codes/scripts/LadderDGA_utils/new_lambda_analysis.jl")
 
 open(logfile_path,"w") do io
 
@@ -46,8 +46,7 @@ open(logfile_path,"w") do io
     conv_dm_error = false
     conv_m_error = false
     Nk   = 10
-    tc_s = (sP.tc_type_f != :nothing) ? "rtc" : "ntc"
-    fname_out =  out_path*"/lDGA_"*tc_s*"_kConv.jld2" 
+    fname_out =  out_path*"/lDGA_kConv.jld2" 
     λ_root_guess = [0.0, 0.0]
 
     if isfile(fname_out)
@@ -69,7 +68,7 @@ open(logfile_path,"w") do io
     end
     if !isfile(fname_out)
         @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
-            E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(env.inputDir*"/"*env.inputVars)
+            E_kin_ED, E_pot_ED = LadderDGA.calc_E_ED(joinpath(env.inputDir,env.inputVars))
             f["config"] = cfg_string 
             f["sP"] = sP
             f["mP"] = mP
@@ -82,9 +81,9 @@ open(logfile_path,"w") do io
         @info "Running k-grid convergence calculation for Nk = $Nk"
         @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
-        @timeit LadderDGA.to "nl bblt par" bubble = calc_bubble_par(gLoc_fft, gLoc_rfft, kG, mP, sP, workerpool=wp);
-        @timeit LadderDGA.to "nl xsp par" χ_sp, γ_sp = LadderDGA.calc_χγ_par(:sp, Γsp, bubble, kG, mP, sP, workerpool=wp);
-        @timeit LadderDGA.to "nl xch par" χ_ch, γ_ch = LadderDGA.calc_χγ_par(:ch, Γch, bubble, kG, mP, sP, workerpool=wp);
+        @timeit LadderDGA.to "nl bblt par" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
+        @timeit LadderDGA.to "nl xsp par" χ_sp, γ_sp = LadderDGA.calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+        @timeit LadderDGA.to "nl xch par" χ_ch, γ_ch = LadderDGA.calc_χγ(:ch, Γch, bubble, kG, mP, sP);
         ωindices = intersect(χ_sp.usable_ω, χ_ch.usable_ω)
 
         @timeit LadderDGA.to "λ₀" begin
@@ -94,7 +93,7 @@ open(logfile_path,"w") do io
         λsp = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 
         if Nk == 10
-            @timeit LadderDGA.to "c2" c2_res = c2_curve(15, 15, [-Inf, -Inf], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+            @timeit LadderDGA.to "c2" c2_res = residuals(15, 15, [-Inf, -Inf], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
             c2_root_res = find_root(c2_res)
             @info "c2 root result:  $c2_root_res"
             λ_root_guess[:] = [c2_root_res[1], c2_root_res[2]]
@@ -106,12 +105,7 @@ open(logfile_path,"w") do io
             λspch = nothing
             λspch_z = [-Inf, -Inf]
               try
-                @timeit LadderDGA.to "new λ par" λspch = 
-                    if Nk < 60
-                        λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=true, workerpool=wp)
-                    else
-                        λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
-                    end
+                @timeit LadderDGA.to "new λ par" λspch = λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, x₀=[λ_root_guess[1], λ_root_guess[2]], parallel=false)
                 println("extended lambda: ", λspch)
                 @info λspch
                 λ_root_guess = λspch.zero

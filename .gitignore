@@ -31,4 +31,4 @@ nohub.out
 *dbg*
 Roots NLSolve_files
 
-!test/test_data/*
+test/test_data/*

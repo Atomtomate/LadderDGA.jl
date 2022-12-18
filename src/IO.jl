@@ -119,7 +119,7 @@ function readConfig(cfg_in::String)
         end
     end
 
-    workerpool = default_worker_pool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    workerpool = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi
     return workerpool, mP, sP, env, kGrids
 end
 

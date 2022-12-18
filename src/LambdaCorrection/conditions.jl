@@ -31,6 +31,38 @@ function lhs_int(χ_sp::Matrix, χ_ch::Matrix, χ_tail::Vector{ComplexF64},
     return lhs_c1, lhs_c2 
 end
 
+#TODO: these need to be refactored. many code replications
+function f_c1(χ::Matrix, λ::Float64, kMult::Vector{Float64}, 
+                 tail::Vector{Float64})::Float64
+    res = 0.0
+    resi = 0.0
+    norm = sum(kMult)
+    for (i,ωi) in enumerate(tail)
+        resi = 0.0
+        for (ki,km) in enumerate(kMult)
+            resi += χ_λ(χ[ki,i],λ) * km
+        end
+        res += resi/norm - ωi
+    end
+    return res
+end
+
+function df_c1(χ::Matrix{Float64}, λ::Float64, kMult::Vector{Float64}, 
+                tail::Vector{Float64})::Float64
+    res = 0.0
+    resi = 0.0
+    norm = sum(kMult)
+    for (i,ωi) in enumerate(tail)
+        resi = 0.0
+        for (ki,km) in enumerate(kMult)
+            resi += dχ_λ(χ[ki,i],λ) * km
+        end
+        res += resi/norm - ωi
+    end
+    return res
+end
+
+
 function cond_both_int(
         λch_i::Float64, 
         χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
@@ -54,7 +86,7 @@ function cond_both_int(
         rhs_c1 -= real(tmp1/k_norm - t)
     end
     rhs_c1 = rhs_c1/mP.β + mP.Ekin_DMFT*mP.β/12 + mP.n * (1 - mP.n/2)
-    λsp_i = calc_λsp_correction(χ_sp, ωindices, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
+    λsp_i = λsp_correction(χ_sp, mP.Ekin_DMFT, real(rhs_c1), kG, mP, sP)
     χ_λ!(χ_sp, χsp_tmp, λsp_i)
 
     #TODO: unroll 
@@ -104,3 +136,17 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     return nothing
 end
 
+function λsp_correction(χ_sp::χT, EKin::Float64, 
+                             rhs::Float64, kG::KGrid, 
+                             mP::ModelParameters, sP::SimulationParameters)
+    χr::Matrix{Float64}    = real.(χ_sp[:,χ_sp.usable_ω])
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χ_sp.usable_ω] .* π ./ mP.β)
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail::Vector{Float64} = real.(EKin ./ (iωn.^2))
+
+    f_c1_int(λint::Float64)::Float64 = f_c1(χr, λint, kG.kMult, χ_tail)/mP.β - EKin*mP.β/12 - rhs
+    df_c1_int(λint::Float64)::Float64 = df_c1(χr, λint, kG.kMult, χ_tail)/mP.β - EKin*mP.β/12 - rhs
+
+    λsp = newton_right(f_c1_int, df_c1_int, get_λ_min(χr))
+    return λsp
+end

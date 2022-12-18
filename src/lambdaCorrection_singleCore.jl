@@ -52,11 +52,9 @@ function extended_λ(
     # TODO: transformation not used for now
     # λch_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χsp_tmp.data), λsp_min + 1e-8), 1)) / mP.β
     # λsp_max_rhs = rhs_c1# - sum(kintegrate(kG,χ_λ(real.(χch_tmp.data), λch_min + 1e-8), 1)) / mP.β 
-    # λsp_max = calc_λsp_correction(χsp_tmp.data, ωindices, mP.Ekin_DMFT, λsp_max_rhs, kG, mP, sP) + 0.1
-    # λch_max = calc_λsp_correction(χch_tmp.data, ωindices, mP.Ekin_DMFT, λch_max_rhs, kG, mP, sP) + 0.1
     # @info "λsp ∈ [$λsp_min, $λsp_max], λch ∈ [$λch_min, $λch_max]"
     # trafo_bak(x) = [((λsp_max - λsp_min)/2)*(tanh(x[1])+1) + λsp_min, ((λch_max-λch_min)/2)*(tanh(x[2])+1) + λch_min]
-    # trafo(x) = x
+    trafo(x) = x
     # @info "After transformation: λsp ∈ [$(trafo(λsp_min)), $(trafo(λsp_max))], λch ∈ [$(trafo(λch_min)), $(trafo(λch_max))]"
 
     cond_both!(F::Vector{Float64}, λ::Vector{Float64})::Nothing = 

@@ -1,10 +1,10 @@
 [Model]
-kGrid = "3Dsc-0.2041241452319315"
+kGrid = "2Dsc-0.25-0.2-0.1"
 
 [Simulation]
-Nk        = [4]                         # number of k points in each dimension
-chi_asympt_method = "direct"            # direct/sc/nothong, see BSE_SC module for more
-chi_asympt_shell = 4                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
+Nk        = [10]                         # number of k points in each dimension
+chi_asympt_method = "direct"            # direct/sc/nothing, see BSE_SC module for more
+chi_asympt_shell = 20                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
 usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
@@ -12,8 +12,8 @@ omega_smoothing = "nothing"             # nothing, range, full. Smoothes data af
 
 
 [Environment]
-inputDir = ""                           # path to input dir
-inputVars = ""                          # name of input file
+inputDir = "/home/julian/Hamburg/Julia_lDGA/LadderDGA_stable/test_data"                           # absolute path to input dir
+inputVars = "b7_U2_mu0.7.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!

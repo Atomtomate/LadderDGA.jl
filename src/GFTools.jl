@@ -104,13 +104,53 @@ function G_from_Σ(Σ::Vector{ComplexF64}, ϵkGrid::Vector{Float64}, range::Abst
 end
 
 function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Vector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
+    first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for (i,ind) in enumerate(range)
-        Σi = abs(ind) < length(Σ) ? Σ[i] : Σloc[i]
+        Σi = i < length(Σ) ? Σ[i] : Σloc[i]
         for (ki, ϵk) in enumerate(ϵkGrid)
             @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
+end
+
+function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Matrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
+    first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
+    for (i,ind) in enumerate(range)
+        for (ki, ϵk) in enumerate(ϵkGrid)
+            Σi = i < size(Σ,2) ? Σ[ki, i] : Σloc[i]
+            @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+        end
+    end
+    return nothing
+end
+
+
+# =============================================== GLoc ===============================================
+#TODO: docs, test, cleanup, consistency with G_from_Σ 
+function G_from_Σladder(Σ_ladder::Matrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    νRange = 0:last(sP.fft_range)
+    Σloc_part = Σloc[1:last(νRange)+1]
+    GLoc_new = Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange))
+
+    function fix_μ(μ::Vector{Float64})
+        G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc_part)
+        filling_pos(GLoc_new, kG, mP.U, μ[1], mP.β) - mP.n
+    end
+    μ_new_nls = nlsolve(fix_μ, [mP.μ])
+    !μ_new_nls.f_converged && error("Could not determine μ")
+
+    μ = mP.μ
+    mP.μ = μ_new_nls.zero[1]
+    G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
+    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    for νi in sP.fft_range
+        GLoc_νi  = νi < 0 ? expandKArr(kG, conj(GLoc_new[:,-νi])) : expandKArr(kG, GLoc_new[:,νi+1])
+        gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
+        gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
+    end
+    return μ, gLoc_fft, gLoc_rfft
 end
 
 
@@ -132,31 +172,6 @@ function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GI
 end
 
 
-# =============================================== GLoc ===============================================
-#TODO: docs, test, cleanup, consistency with G_from_Σ 
-function G_from_Σladder(Σ_ladder, Σloc, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    νRange = sP.fft_range
-    #gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, νRange, mP; Σloc=Σloc);
-    νn = iν_array(mP.β, νRange);
-
-    function fix_μ(μ::Vector{Float64})
-        gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ[1], Σloc=Σloc);
-        real(filling(gLoc_red, νn, kG, mP.β) - mP.n)
-    end
-    #res = nlsolve(fix_μ, [mP.μ])
-    μ = mP.μ # res.zero[1]
-    gLoc_red = G_from_Σ(Σ_ladder.parent, kG.ϵkGrid, collect(νRange), mP; μ = μ, Σloc=Σloc);
-    gLoc_red = OffsetArray(gLoc_red, 1:length(kG.ϵkGrid), νRange)
-    gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    for νi in sP.fft_range
-        GLoc_νi  = expandKArr(kG, gLoc_red[:,νi].parent)
-        gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
-        gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
-    end
-    return μ, gLoc_red, gLoc_fft, gLoc_rfft
-end
-
 # ============================================= Filling ==============================================
 """
     filling(G::Vector{ComplexF64}, [kG::KGrid, ] β::Float64)
@@ -165,6 +180,7 @@ end
 Computes filling of (non-) local Green's function.
 
 If `U`, `μ` and `β` are provided, asymptotic corrections are used. The shell sum can be precomputed using [`G_shell_sum`](@ref G_shell_sum)
+If `G` is defined only over positive Matsubara frequencies [`filling_pos`](@ref filling_pos) can be used.
 """
 function filling(G::Vector{ComplexF64}, β::Float64)
     n = 2*sum(G)/β + 1
@@ -178,14 +194,39 @@ function filling(G::Matrix{ComplexF64}, kG::KGrid, β::Float64)
     return real(n)
 end
 
-function filling(G::Vector, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
+function filling(G::Vector{ComplexF64}, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
     2*(real(sum(G))/β + 0.5 + μ * shell) / (1 + U * shell)
 end
 
-function filling(G::Vector, U::Float64, μ::Float64, β::Float64)
+function filling(G::Vector{ComplexF64}, U::Float64, μ::Float64, β::Float64)
     N = floor(Int, length(G)/2)
     shell = G_shell_sum(N, β)
     filling(G, U, μ, β, shell)
+end
+
+function filling(G::Matrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
+    filling(kintegrate(kG,G,1)[1,:], U, μ, β)
+end
+
+"""
+    filling_pos(G::Vector, U::Float64, μ::Float64, β::Float64[, shell::Float64])::Float64
+
+Returns filling from `G` only defined over positive Matsubara frequencies. 
+See [`filling`](@ref filling) for further documentation.
+"""
+function filling_pos(G::Vector{ComplexF64}, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
+    sG = sum(G)
+    2*(real(sG + conj(sG))/β + 0.5 + μ * shell) / (1 + U * shell)
+end
+
+function filling_pos(G::Vector{ComplexF64}, U::Float64, μ::Float64, β::Float64)::Float64
+    N = floor(Int, length(G)/2)
+    shell = G_shell_sum(N, β)
+    filling_pos(G, U, μ, β, shell)
+end
+
+function filling_pos(G::Matrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
+    filling_pos(kintegrate(kG,G,1)[1,:], U, μ, β)
 end
 
 """

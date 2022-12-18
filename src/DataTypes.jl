@@ -89,7 +89,7 @@ Fields
 - **`λ`**            : `Float64`, λ correction parameter.
 - **`usable_ω`**     : `AbstractArray{Int}`, usable indices for which data is assumed to be correct. See also [`find_usable_interval`](@ref find_usable_interval)
 """
-struct χT <: MatsubaraFunction{_eltype, 2}
+mutable struct χT <: MatsubaraFunction{_eltype, 2}
     data::Matrix
     axes::Dict{Symbol, Int}
     λ::Float64

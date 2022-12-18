@@ -73,7 +73,6 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
-
         for νi in sP.fft_range
             Σ_loc_i = (νi < 0) ? conj(Σ_loc[-νi]) : Σ_loc[νi + 1]
             GLoc_νi  = reshape(map(ϵk -> G_from_Σ(νi, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
