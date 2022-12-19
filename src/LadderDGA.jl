@@ -10,7 +10,8 @@ module LadderDGA
     export ΓT, FT, χ₀T, χT, γT, GνqT
     
     # Setup and auxilliary functions
-    export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ_ω, calc_Σ, calc_Σ_parts, calc_Σνω, calc_λ0, Σ_loc_correction, filling
+    export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ_ω, calc_Σ, calc_Σ_parts, calc_Σνω, calc_λ0, Σ_loc_correction
+    export filling, filling_pos
     export find_usable_χ_interval, usable_ωindices, subtract_tail, subtract_tail!
     export addprocs
 

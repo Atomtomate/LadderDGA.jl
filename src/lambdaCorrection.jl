@@ -188,7 +188,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
             mP::ModelParameters, sP::SimulationParameters;
             workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false, x₀::Vector{Float64}=[0.0,0.0])
     res = if type == :sp
-        rhs,usable_ω_λc = LambdaCorrection.λsp_rhs(imp_density, χsp, χch, kG, mP, sP)
+        rhs = LambdaCorrection.λsp_rhs(imp_density, χsp, χch, kG, mP, sP)
         @timeit to "λsp" λsp = λsp_correction(χsp, mP.Ekin_DMFT, rhs, kG, mP, sP)
         λsp
     elseif type == :sp_ch

@@ -184,12 +184,12 @@ function get_λ_min(χr::AbstractArray{Float64,2})::Float64
 end
 
 """
-    λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+    λsp_rhs([imp_density::Float64, ]χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
 
-Internal helper function for the right hand side of the Pauli principle conditions (old λ correction).
-TODO: documentation.
+Helper function for the right hand side of the Pauli principle conditions (old λ correction).
+TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
     usable_ω = intersect(χsp.usable_ω, χch.usable_ω)
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
@@ -197,19 +197,21 @@ function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::Mod
 
     @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
-        @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
+        verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
     else
-        @info "  ↳ using χupup_DMFT - Σ χch as rhs"
+        verbose && @info "  ↳ using χupup_DMFT - Σ χch as rhs"
         2*imp_density - χch_sum
     end
 
+    if verbose
     @info """  ↳ Found usable intervals for non-local susceptibility of length 
                  ↳ sp: $(χsp.usable_ω), length: $(length(χsp.usable_ω))
                  ↳ ch: $(χch.usable_ω), length: $(length(χch.usable_ω))
                  ↳ total: $(usable_ω), length: $(length(usable_ω))
                ↳ χch sum = $(χch_sum), rhs = $(rhs)"""
-    return rhs, usable_ω
+    end
+    return rhs
 end
 
 """

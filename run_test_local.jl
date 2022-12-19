@@ -1,14 +1,12 @@
 using TimerOutputs
-using Pkg
-Pkg.activate(@__DIR__)
+# using Pkg
+# Pkg.activate(@__DIR__)
 
 using Distributed
-@everywhere using Pkg
-@everywhere Pkg.activate(@__DIR__)
 using LadderDGA
 @everywhere using LadderDGA
 
-cfg_file = "config.toml"
+cfg_file = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/config.toml"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 #TODO: loop over kGrids
 @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
@@ -26,6 +24,9 @@ end
 @timeit LadderDGA.to "nl xsp" χ_sp, γ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
 @timeit LadderDGA.to "nl xch" χ_ch, γ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
 @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+
+t1 = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP)
+t2 = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP, fix_n=true)
 
 #λsp_old = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 #@timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
@@ -53,6 +54,6 @@ end
 # #LadderDGA.writeFortranΣ("klist_parts_test", Σ_ladder_parts.parent, mP.β)
 # #LadderDGA.writeFortranΣ("klist_summed_test", Σ_ladder.parent, mP.β)
 
-c2_res = residuals(15, 15, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+c2_res = residuals(15, 15, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP)
 
 true

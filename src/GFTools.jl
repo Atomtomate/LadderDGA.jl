@@ -106,7 +106,7 @@ end
 function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Vector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::Vector{ComplexF64} = ComplexF64[]) 
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for (i,ind) in enumerate(range)
-        Σi = i < length(Σ) ? Σ[i] : Σloc[i]
+        Σi = i <= length(Σ) ? Σ[i] : Σloc[i]
         for (ki, ϵk) in enumerate(ϵkGrid)
             @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
@@ -125,35 +125,39 @@ function G_from_Σ!(res::Matrix{ComplexF64}, Σ::Matrix{ComplexF64}, ϵkGrid::Ve
     return nothing
 end
 
-
 # =============================================== GLoc ===============================================
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
-function G_from_Σladder(Σ_ladder::Matrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; fix_μ::Bool=false)
+function G_from_Σladder(Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                        fix_n::Bool=false)
     νRange = 0:last(sP.fft_range)
     Σloc_part = Σloc[1:last(νRange)+1]
     GLoc_new = Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange))
 
     function fμ(μ::Vector{Float64})
-        G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc_part)
+        G_from_Σ!(GLoc_new, Σ_ladder.parent, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc_part)
         filling_pos(GLoc_new, kG, mP.U, μ[1], mP.β) - mP.n
     end
     μ_new_nls = nlsolve(fμ, [mP.μ])
-    !μ_new_nls.f_converged && error("Could not determine μ")
     μ = mP.μ
+    if !μ_new_nls.f_converged 
+        @warn "Could not determine μ!"
+        @warn μ_new_nls
+        μ = NaN
+    end
     gLoc_fft = nothing
     gLoc_rfft = nothing
-    if fix_μ
+    if fix_n
         gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         mP.μ = μ_new_nls.zero[1]
-        G_from_Σ!(GLoc_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
+        G_from_Σ!(GLoc_new, Σ_ladder.parent, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
         for νi in sP.fft_range
             GLoc_νi  = νi < 0 ? expandKArr(kG, conj(GLoc_new[:,-νi])) : expandKArr(kG, GLoc_new[:,νi+1])
             gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
             gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
         end
     end
-    return μ, GLoc_new, gLoc_fft, gLoc_rfft
+    return mP.μ, OffsetArray(GLoc_new, 1:size(GLoc_new,1), νRange), gLoc_fft, gLoc_rfft
 end
 
 
@@ -233,9 +237,10 @@ function filling_pos(G::Matrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, 
 end
 
 """
-    F_shell_sum(N::Int, β::Float64)::Float64
+    G_shell_sum(N::Int, β::Float64)::Float64
 
 Calculate ``\\frac{1}{\\beta} \\sum_{n \\in \\Omega_\\mathrm{shell}} \\frac{1}{(i \\nu_n)^2}``
+`N` should be the index of the largest frequency + 1, NOT the total lenth of the array, i.e. `50` for `indices = 0:49`.
 """
 function G_shell_sum(N::Int, β::Float64)::Float64
     (polygamma(1, N + 1/2) - polygamma(1, 1/2 - N)) * β / (4*π^2) + β/4

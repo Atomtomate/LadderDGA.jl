@@ -9,6 +9,7 @@ kG_2 = gen_kGrid("2dsc-0.25",100)
 χ_1 = χT([1.1 1.2 1.1; 2.1 2.3 2.1])
 χ_2 = χT([-1.1 1.2 1.1; 2.1 2.3 2.1], full_range=false, reduce_range_prct=0.0)
 
+# include("../run_test_local.jl")
 
 @testset "Config" begin
     include("Config.jl")
@@ -46,8 +47,8 @@ end
     include("parallelization_helpers.jl")
 end
 
-@testset "full run" begin
-    include("full_run.jl")
-end
+# @testset "full run" begin
+#     include("full_run.jl")
+# end
 
 include("LambdaCorrection/runtests.jl")

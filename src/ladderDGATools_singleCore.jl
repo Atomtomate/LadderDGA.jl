@@ -90,7 +90,9 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([size(γ_ch,ν_axis), νZero + size(Σ, 2) - 1])
         # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
-        for (νii,νi) in enumerate(νZero:maxn)
+        νlist = νZero:maxn
+        length(νlist) > size(Σ,2) && (νlist = νlist[1:size(Σ,2)])
+        for (νii,νi) in enumerate(νlist)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ,q_axis)
                 Kνωq_pre[qi] = eomf(U, γ_sp[qi,νi,ωi], γ_ch[qi,νi,ωi],
