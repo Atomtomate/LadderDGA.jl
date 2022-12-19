@@ -4,7 +4,9 @@ using TimerOutputs
 
 using Distributed
 using LadderDGA
+using JLD2
 @everywhere using LadderDGA
+out_path = ARGS[1]
 
 cfg_file = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/config.toml"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
@@ -25,8 +27,6 @@ end
 @timeit LadderDGA.to "nl xch" χ_ch, γ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
 @timeit LadderDGA.to "nl Σ" Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
 
-t1 = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP)
-t2 = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP, fix_n=true)
 
 #λsp_old = λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 #@timeit LadderDGA.to "new λ" λsp_new = λ_correction(:sp_ch, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP, parallel=false)
@@ -56,4 +56,10 @@ t2 = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP, fix_n=true)
 
 c2_res = residuals(15, 15, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP)
 
+fname_out =  out_path*"/lDGA_c2.jld2" 
+jldopen(fname_out, "a+") do f
+    cfg_string = read(cfg_file, String)
+    f["config"] = cfg_string 
+    f["c2_res"] = c2_res
+end
 true

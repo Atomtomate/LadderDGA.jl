@@ -15,8 +15,6 @@ end
 @everywhere Pkg.activate(@__DIR__)
 using LadderDGA
 @everywhere using LadderDGA
-push!(ARGS,"/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/test/test_data/config_2.toml")
-push!(ARGS,"/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/test/test_data")
 cfg_file = ARGS[1]
 out_path = ARGS[2]
 
