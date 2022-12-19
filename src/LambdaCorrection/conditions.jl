@@ -154,7 +154,7 @@ function cond_both_sc_int(λch_i::Float64,
             χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
             Σ_loc::Vector{ComplexF64},gLoc_rfft::GνqT,
             λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-            maxit=100, mixing=0.2)
+            maxit=50, mixing=0.2, conv_abs=1e-6)
 
     k_norm::Int = Nk(kG)
     ωindices = usable_ωindices(sP, χ_sp, χ_ch)
@@ -203,8 +203,11 @@ function cond_both_sc_int(λch_i::Float64,
         println("checks: sum(gLoc_rfft) =$(abs(sum(gLoc_rfft)))")
         println("checks: sum(GLoc_new) =$(abs(sum(GLoc_new))), sum(GLoc_old) =$(abs(sum(GLoc_old))), sum(Σ) = $(abs(sum(Σ_ladder)))")
 
-        if sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/kG.Nk < 1e-6  || it >= maxit
+        if sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/kG.Nk < conv_abs 
             converged = true
+        end
+        if it >= maxit
+            break
         end
         χ_sp.data = deepcopy(χsp_tmp)
         χ_ch.data = deepcopy(χch_tmp)

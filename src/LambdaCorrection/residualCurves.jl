@@ -96,11 +96,11 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
     χ_sp_tmp::χT = deepcopy(χ_sp)
     χ_ch_tmp::χT = deepcopy(χ_ch)
 
-    residuals = zeros(6, length(λch_range))
+    residuals = zeros(8, length(λch_range))
     for (i,λch_i) in enumerate(λch_range)
-            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2 = cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP)
+            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP)
 
-        residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2]
+        residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
         χ_sp.data = deepcopy(χ_sp_tmp.data)
         χ_ch.data = deepcopy(χ_ch_tmp.data)
     end
