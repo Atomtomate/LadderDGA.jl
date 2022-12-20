@@ -29,6 +29,7 @@ end
     t3[1,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
     t3[2,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
     t3[3,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
+    t3[:,101] .= 0.0
     t[1,2] = 0.1
     @test t[1,2] ≈ 0.1
     @test t.tail_c == []
@@ -40,7 +41,6 @@ end
     LadderDGA.update_tail!(χ_test, [0, 1.2, 4.0], ωn)
     @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 1.2
     @test real(χ_test.data[1,:] .* ωn .^ 2)[end] ≈ 4.0
-    println(χ_test.tail_c)
     @test all(χ_test.tail_c .== [0,1.2,4.0])
     @test all(isfinite.(χ_test.data))
 end
