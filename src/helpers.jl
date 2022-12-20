@@ -118,11 +118,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
 
-        χLocsp = sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp]))/mP.β -mP.Ekin_DMFT*mP.β/12
-        χLocch = sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch]))/mP.β -mP.Ekin_DMFT*mP.β/12
+        χLocsp = sum(subtract_tail(χLocsp_ω[usable_loc_sp], mP.Ekin_DMFT, iωn[usable_loc_sp], 2))/mP.β -mP.Ekin_DMFT*mP.β/12
+        χLocch = sum(subtract_tail(χLocch_ω[usable_loc_ch], mP.Ekin_DMFT, iωn[usable_loc_ch], 2))/mP.β -mP.Ekin_DMFT*mP.β/12
 
         χupup_DMFT_ω = 0.5 * (χLocsp_ω + χLocch_ω)[loc_range]
-        χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range])
+        χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range], 2)
 
         imp_density_ntc = real(sum(χupup_DMFT_ω))/mP.β
         imp_density = real(sum(χupup_DMFT_ω_sub))/mP.β -mP.Ekin_DMFT*mP.β/12

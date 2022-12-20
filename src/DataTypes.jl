@@ -92,13 +92,14 @@ Fields
 mutable struct χT <: MatsubaraFunction{_eltype, 2}
     data::Matrix
     axes::Dict{Symbol, Int}
+    tail_c::Vector{Float64}
     λ::Float64
     usable_ω::AbstractArray{Int}
 
-    function χT(data::Array{T, 2}; full_range=true, reduce_range_prct=0.1) where T <: Union{ComplexF64, Float64}
+    function χT(data::Array{T, 2}; tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0) where T <: Union{ComplexF64, Float64}
         @warn "DBG: currently forcing omega FULL range!!"
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
-        new(data, Dict(:q => 1, :ω => 2), 0.0, range)
+        new(data, Dict(:q => 1, :ω => 2), tail_c, 0.0, range)
     end
 end
 
@@ -122,6 +123,27 @@ struct γT <: MatsubaraFunction{ComplexF64,3}
 end
 
 # ============================================= Interface ============================================
+"""
+    update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
+
+Updates the ``\\frac{c_i}{\\omega_n^i}`` tail for all coefficients given in `new_tail_c` (index 1 corresponds to ``i=0``).
+"""
+function update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
+    length(new_tail_c) != length(χ.tail_c) && throw(ArgumentError("length of new tail coefficient array ($(length(new_tail_c))) must be the same as the old one ($(length(χ.tail_c)))!"))
+    length(ωnGrid) != size(χ.data,2) && throw(ArgumentError("length of ωnGrid ($(length(ωnGrid))) must be the same as for χ ($(size(χ.data,2)))!"))
+    !all(isfinite.(new_tail_c)) && throw(ArgumentError("One or more tail coefficients are not finite!"))
+    zero_ind = findall(x->x==0, ωnGrid) 
+    for ci in 2:length(new_tail_c)
+        if !(new_tail_c[ci] ≈ χ.tail_c[ci])
+            tmp = (new_tail_c[ci] - χ.tail_c[ci]) ./ (ωnGrid .^ (ci-1))  
+            tmp[zero_ind] .= 0
+            for qi in 1:size(χ.data,1)
+                χ.data[qi,:] = χ.data[qi,:] .+ tmp
+            end
+            χ.tail_c[ci] = new_tail_c[ci]
+        end
+    end
+end
 
 # ---------------------------------------------- Indexing --------------------------------------------
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)

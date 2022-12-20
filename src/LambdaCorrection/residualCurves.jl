@@ -41,7 +41,9 @@ function find_lin_interp_root(xdata::AbstractVector{Float64}, ydata::AbstractVec
     Δx = xdata[ind+1] - xdata[ind]
     Δy = ydata[ind+1] - ydata[ind]
     m = Δy/Δx
-    x₀ = Δx > 0 ? -(ydata[ind]-xdata[ind])/m : (ydata[ind]-xdata[ind+1])/m 
+    b = ydata[ind]
+    xᵢ = xdata[ind]
+    x₀ = -b/m + xᵢ
     return x₀
 end
 
@@ -73,7 +75,8 @@ end
 function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Float64}, 
             χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, Σ_loc::Vector{ComplexF64},
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
-            kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax::Int = -1)
+            kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+            νmax::Int = -1, maxit::Int = 50, update_χ_tail=false, mixing=0.2)
 
     # general definitions
 
@@ -83,11 +86,10 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
     λch_max2 = 500
 
     λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+1),length=NPoints_negative+2)) .+ λch_min .- 1
-    λch_range_negative_2 = range(maximum([-200,λch_min]),stop=100,length=20)
     λch_range_coarse = range(0,stop=λch_max,length=NPoints_coarse)
     λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=6)) .+ 2*λch_max .- 1
     last_λch_range = isfinite(last_λ[2]) ? range(last_λ[2] - abs(last_λ[2]*0.1), stop = last_λ[2] + abs(last_λ[2]*0.1), length=8) : []
-    λch_range = Float64.(sort(unique(union([0], last_λch_range, λch_range_negative, λch_range_negative_2, λch_range_coarse, λch_range_large))))
+    λch_range = Float64.(sort(unique(union([0], last_λch_range, λch_range_negative, λch_range_coarse, λch_range_large))))
 
 
     # EoM optimization related definitions
@@ -98,11 +100,15 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
 
     residuals = zeros(8, length(λch_range))
     for (i,λch_i) in enumerate(λch_range)
-            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP)
+            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = if maxit == 0
+            cond_both_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP)
+        else
+            cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP, mixing=mixing, maxit=maxit, update_χ_tail=update_χ_tail)
+        end
 
         residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
-        χ_sp.data = deepcopy(χ_sp_tmp.data)
-        χ_ch.data = deepcopy(χ_ch_tmp.data)
+        χ_sp = deepcopy(χ_sp_tmp)
+        χ_ch = deepcopy(χ_ch_tmp)
     end
 
     return residuals

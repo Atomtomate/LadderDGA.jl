@@ -137,12 +137,18 @@ function G_from_Σladder(Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::Vector{Comp
         G_from_Σ!(GLoc_new, Σ_ladder.parent, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc_part)
         filling_pos(GLoc_new, kG, mP.U, μ[1], mP.β) - mP.n
     end
-    μ_new_nls = nlsolve(fμ, [mP.μ])
-    μ = mP.μ
-    if !μ_new_nls.f_converged 
+    μ_new_nls = try 
+        nlsolve(fμ, [mP.μ])
+    catch e
+        @warn "μ determination failed with: $e"
+        return NaN, nothing, nothing, nothing
+    end
+    μ = if !μ_new_nls.f_converged 
         @warn "Could not determine μ!"
         @warn μ_new_nls
         μ = NaN
+    else
+         mP.μ
     end
     gLoc_fft = nothing
     gLoc_rfft = nothing
@@ -250,25 +256,25 @@ end
 # =============================== Frequency Tail Modification Helpers ================================
 
 """
-    subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+    subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
 
-subtract the ``\\frac{c}{(i\\omega)^2}`` high frequency tail from input array `inp`.
+subtract the ``\\frac{c}{(i\\omega)^\\text{power}}`` high frequency tail from input array `inp`.
 """
-function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
     res = Array{eltype(inp),1}(undef, length(inp))
-    subtract_tail!(res, inp, c, iω)
+    subtract_tail!(res, inp, c, iω, power)
     return res
 end
 
 """
-    subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+    subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
 
-subtract the c/(iω)^2 high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
+subtract the c/(iω)^power high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
 """
-function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}) where T <: Number
+function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
     for n in 1:length(inp)
         if iω[n] != 0
-            outp[n] = inp[n] - (c/(iω[n]^2))
+            outp[n] = inp[n] - (c/(iω[n]^power))
         else
             outp[n] = inp[n]
         end
@@ -293,3 +299,5 @@ function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64},
     end
 end
 
+#TODO: sum_ω functions
+# sum_ω(inp::AbstractVector, tail_c::)

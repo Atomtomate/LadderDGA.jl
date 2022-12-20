@@ -55,8 +55,6 @@
 end
 
 @testset "usable indices" begin
-    println(usable_ωindices(sP_1, χ_1))
-    println(usable_ωindices(sP_1, χ_1, χ_2))
     @test usable_ωindices(sP_1, χ_1) == [1,2,3]
     @test usable_ωindices(sP_1, χ_1, χ_2) == [2]
 end

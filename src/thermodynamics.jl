@@ -70,14 +70,13 @@ function calc_EPot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid,
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{Float64} = real.(mP.Ekin_DMFT ./ (iωn.^2))
-    Epot2 = mP.U * calc_EPot2_int(χ_sp, χ_ch, χ_tail, kG.kMult, Nk(kG), mP.β)
+    Epot2 = mP.U * calc_EPot2_int(χ_sp, χ_ch, kG.kMult, Nk(kG), mP.β)
 end
 
-function calc_EPot2(χ_sp::χT, χ_ch::χT, χ_tail::Vector{Float64},
+function calc_EPot2(χ_sp::χT, χ_ch::χT,
                       kMult::Vector{Float64}, k_norm::Int, β::Float64)
     lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
+    for ωi in 1:size(χ_sp, 2)
         tmp2 = 0.0
         for (qi,km) in enumerate(kMult)
             χsp_i_λ = real(χ_sp[qi,ωi])

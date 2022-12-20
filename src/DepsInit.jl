@@ -47,7 +47,7 @@ include("GFFit.jl")
 include("ladderDGATools.jl")
 include("ladderDGATools_singleCore.jl")
 include("thermodynamics.jl")
-include("lambdaCorrection.jl")
+#include("lambdaCorrection.jl")
 include("LambdaCorrection/LambdaCorrection.jl")
 
 # ======================================== Internal Packages =========================================

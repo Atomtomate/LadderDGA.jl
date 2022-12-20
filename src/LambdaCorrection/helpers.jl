@@ -22,7 +22,7 @@ The susceptibility ``\\chi`` can be either given element wise, or as χT See als
 χ_λ(χ::T, λ::Float64) where T <: Union{ComplexF64, Float64} = χ/(λ*χ + 1)
 
 function χ_λ(χ::χT, λ::Float64)::χT 
-    χ_new = χT(χ.data)
+    χ_new = χT(χ.data, tail_c=χ.tail_c)
     χ_λ!(χ_new, χ, λ)
     return χ_new 
 end
@@ -40,12 +40,17 @@ Inplace version of [`χ_λ`](@ref χ_λ). If the second argument is omitted, res
 in the input `χ`.
 """
 function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
+    !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
     χ_λ!(χ_new.data, χ.data, λ)
     χ_new.λ = χ.λ + λ
     return nothing 
 end
 
-χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) = χ_λ[:] = χ ./ ((λ .* χ) .+ 1)
+function χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) 
+    !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
+    χ_λ[:] = χ ./ ((λ .* χ) .+ 1)
+end
+
 χ_λ!(χ::χT, λ::Float64) = χ_λ!(χ, χ, λ)
 
 
@@ -191,9 +196,10 @@ TODO: write down formula, explain imp_density as compensation to DMFT.
 """
 function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
     usable_ω = intersect(χsp.usable_ω, χch.usable_ω)
+    !(χch.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
-    χch_sum = real(sum(subtract_tail(χch_ω, mP.Ekin_DMFT, iωn)))/mP.β - mP.Ekin_DMFT*mP.β/12
+    χch_sum = real(sum(subtract_tail(χch_ω, χch.tail_c[3], iωn, 2)))/mP.β - χch.tail_c[3] * mP.β/12
 
     @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)

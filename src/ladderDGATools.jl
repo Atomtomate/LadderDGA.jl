@@ -180,7 +180,7 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::Mod
 
     log_q0_χ_check(kG, sP, χ, type)
 
-    return χT(χ), γT(γ)
+    return χT(χ, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
 function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)

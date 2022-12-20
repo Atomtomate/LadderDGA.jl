@@ -1,36 +1,4 @@
-include("lambdaCorrection_aux.jl")
 include("lambdaCorrection_singleCore.jl")
-
-#TODO: refactor code repetition
-function f_c1(λ::Float64, kMult::Vector{Float64}, χ::Matrix{Float64}, 
-        tail::Vector{Float64})::Float64
-    res = 0.0
-    resi = 0.0
-    norm = sum(kMult)
-    for (i,ωi) in enumerate(tail)
-        resi = 0.0
-        for (ki,km) in enumerate(kMult)
-            resi += χ_λ(χ[ki,i],λ) * km
-        end
-        res += resi/norm - ωi
-    end
-    return res
-end
-
-function df_c1(λ::Float64, kMult::Vector{Float64}, χ::Matrix{Float64}, 
-        tail::Vector{Float64})::Float64
-    res = 0.0
-    resi = 0.0
-    norm = sum(kMult)
-    for (i,ωi) in enumerate(tail)
-        resi = 0.0
-        for (ki,km) in enumerate(kMult)
-            resi += dχ_λ(χ[ki,i],λ) * km
-        end
-        res += resi/norm - ωi
-    end
-    return res
-end
 
 function cond_both_int_par!(F::Vector{Float64}, λ::Vector{Float64}, νωi_part, νω_range::Array{NTuple{4,Int}},
         χsp::χT, χch::χT, γsp::γT, γch::γT, χsp_bak::χT, χch_bak::χT,
