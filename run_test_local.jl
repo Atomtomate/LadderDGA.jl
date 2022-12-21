@@ -5,8 +5,9 @@ using TimerOutputs
 using Distributed
 using LadderDGA
 using JLD2
-@everywhere using LadderDGA
-# out_path = ARGS[1]
+
+cfg_file = ARGS[1]
+out_path = ARGS[2]
 
 cfg_file = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/config.toml"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
@@ -54,16 +55,16 @@ end
 # #LadderDGA.writeFortranΣ("klist_parts_test", Σ_ladder_parts.parent, mP.β)
 # #LadderDGA.writeFortranΣ("klist_summed_test", Σ_ladder.parent, mP.β)
 
-c2_res = residuals(15, 10, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
-c2_res_sc = residuals(15, 10, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, maxit=100)
-c2_res_sc_tail = residuals(15, 10, [0.0, 0.0], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; mixing=0.4, maxit=200, update_χ_tail=true)
-λsp_sc, λch_sc, check_sc = find_root(c2_res_sc)
-λsp, λch, check = find_root(c2_res)
+c2_res = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
+c2_res_sc = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, maxit=100)
+c2_res_sc_tail = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; mixing=0.4, maxit=200, update_χ_tail=true)
 
-# fname_out =  out_path*"/lDGA_c2.jld2" 
-# jldopen(fname_out, "a+") do f
-#     cfg_string = read(cfg_file, String)
-#     f["config"] = cfg_string 
-#     f["c2_res"] = c2_res
-# end
+fname_out =  out_path*"/lDGA_c2_2_k"*kG.Ns*".jld2" 
+jldopen(fname_out, "a+") do f
+    cfg_string = read(cfg_file, String)
+    f["config"] = cfg_string 
+    f["c2_res"] = c2_res
+    f["c2_res_sc"] = c2_res_sc
+    f["c2_res_tail"] = c2_res_sc_tail
+end
 # true

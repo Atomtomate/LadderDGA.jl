@@ -74,7 +74,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     end
     log_q0_χ_check(kG, sP, χ, type)
 
-    return χT(χ, tail_c=[0, 0, mP.Ekin_DMFT]), γT(γ)
+    return χT(χ, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
 function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
@@ -98,7 +98,11 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
                 Kνωq_pre[qi] = eomf(U, γ_sp[qi,νi,ωi], γ_ch[qi,νi,ωi],
                                    χ_sp[qi,ωi], χ_ch[qi,ωi], λ₀[qi,νi,ωi])
             end
-            conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+            if nprocs() == 1
+                conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+            else
+                conv_fft1_noPlan!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+            end
         end
     end
 end

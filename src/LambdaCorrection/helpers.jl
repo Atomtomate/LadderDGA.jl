@@ -196,7 +196,7 @@ TODO: write down formula, explain imp_density as compensation to DMFT.
 """
 function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
     usable_ω = intersect(χsp.usable_ω, χch.usable_ω)
-    !(χch.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
+    #!(χch.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
     χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
     χch_sum = real(sum(subtract_tail(χch_ω, χch.tail_c[3], iωn, 2)))/mP.β - χch.tail_c[3] * mP.β/12
