@@ -14,7 +14,7 @@ end
 @testset "χ₀T" begin
     td = ComplexF64.(reshape(1:24,3,2,4))
     t1 = ComplexF64.([1,2,3])
-    t = LadderDGA.χ₀T(td, kG_1, t1, 1.0, 2.0, 1:4, 1, 1)
+    t = LadderDGA.χ₀T(td, kG_1, 1:4, 1, true, mP_1)
     @test all(t.data .≈ td)
     @test t[1,1,1] ≈ 1
     t[1,1,1] = -1

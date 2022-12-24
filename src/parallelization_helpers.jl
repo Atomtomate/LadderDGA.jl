@@ -14,13 +14,24 @@ end
 """
     gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
 
-Returns 
+Returns partition of frequency grid, according to the number of workers in `wp`.
 """
 function gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
     ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
                  for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
     ωνi_part = par_partition(ωνi_range, length(workerpool))
     return ωνi_range, ωνi_part
+end
+
+"""
+    gen_ω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+
+Returns partition of bosonic frequencies grid, according to the number of workers in `wp`.
+"""
+function gen_ω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+    ωi_range::Vector{NTuple{2, Int64}} = [(ωn,ωi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)]
+    ωi_part = par_partition(ωi_range, length(workerpool))
+    return ωi_range, ωi_part
 end
 
 mutable struct WorkerCache
@@ -31,6 +42,7 @@ mutable struct WorkerCache
     mP::Union{ModelParameters, Nothing}
     sP::Union{SimulationParameters, Nothing}
     χ₀::Array{_eltype, 2}
+    χ₀Asym::Array{_eltype, 2}
     χ₀Indices::Vector{NTuple{4,Int}}
     # χ_ind::Dict{Int,Int}
     # γ_ind::Dict{Int,Int}
@@ -49,7 +61,8 @@ mutable struct WorkerCache
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             nothing, nothing, nothing,
-            Array{_eltype,2}(undef, 0,0), Vector{NTuple{4,Int}}(undef, 0)
+            Array{_eltype,2}(undef,0,0), Array{_eltype,2}(undef,0,0), 
+            Vector{NTuple{4,Int}}(undef, 0)
         )
     end
 end

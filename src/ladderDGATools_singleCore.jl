@@ -13,17 +13,7 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
     end
     #TODO: not necessary after real fft
     data = _eltype === Float64 ? real.(data) : data
-
-    #TODO: move tail calculation to definition of GF (GF should know about its tail)
-    t1, t2 = if local_tail
-        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
-        #TODO: move tail to GF struct
-        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-    else
-        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
-        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-    end
-    return χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
+    return χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=local_tail) 
 end
 
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)

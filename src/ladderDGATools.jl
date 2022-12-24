@@ -55,7 +55,6 @@ end
 
 function χ₀_conv(νωi_range::Vector{NTuple{4,Int}})
     kG = wcache[].kG
-    println(wcache[].initialized)
     data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(νωi_range))
     for (i,ωνn) in enumerate(νωi_range)
         ωn,νn,_,_ = ωνn
@@ -63,8 +62,7 @@ function χ₀_conv(νωi_range::Vector{NTuple{4,Int}})
                          reshape(wcache[].GLoc_fft[:,νn].parent,gridshape(kG)),
                          reshape(wcache[].GLoc_fft_reverse[:,νn+ωn].parent,gridshape(kG)))
     end
-
-    update_wcache(:χ₀, data)
+    update_wcache(:χ₀, -wcache[].mP.β .* data)
     update_wcache(:χ₀Indices, νωi_range)
     return nothing
 end
@@ -81,19 +79,22 @@ function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameter
 
     νωi_range, νωi_part = gen_νω_part(sP, workerpool)
     
+    c1::Float64, c2::Vector{Float64}, c3::Float64 = 0, Float64[], 0 
     @sync begin
-    for ind in νωi_part
-        @async r = remotecall_fetch(χ₀_conv, workerpool, νωi_range[ind])
-    end
+        for ind in νωi_part
+            @async r = remotecall_fetch(χ₀_conv, workerpool, νωi_range[ind])
+        end
+        c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
     end
 
+    ω_grid = Int[]
+    asym = χ₀Asym(c1, c2, c3, ω_grid, sP.n_iν, sP.shift, mP.β)
     res = if collect_data
         data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
         @sync begin
         for w in workers(workerpool)
             @async begin
                 indices, χdata = @fetchfrom w (LadderDGA.wcache[].χ₀Indices,LadderDGA.wcache[].χ₀) 
-                println
                 for i in 1:length(indices)
                     _,_,ωi,νi = indices[i]
                     data[:,νi,ωi] = χdata[:,i]
@@ -102,9 +103,7 @@ function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameter
         end
         end
         #TODO: local tail not needed for parallel calculations
-        t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
-        t2 = (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-        χ₀T(data, kG, t1, t2, mP.β, -sP.n_iω:sP.n_iω, sP.n_iν, Int(sP.shift)) 
+        χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=false) 
     else
         nothing
     end

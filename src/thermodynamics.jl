@@ -38,6 +38,7 @@ function calc_E_ED(fname::String)
     E_kin, E_pot = jldopen(fname,"r") do f
         calc_E_ED(f["ϵₖ"], f["Vₖ"], f["gImp"], f["U"], f["nden"], f["μ"], f["β"])
     end
+    return E_kin, E_pot 
 end
 
 calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, mP) = calc_E_ED(ϵₖ, Vₖ, GImp, mP.U, mP.n, mP.μ, mP.β)

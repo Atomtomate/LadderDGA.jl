@@ -6,10 +6,11 @@ using Distributed
 using LadderDGA
 using JLD2
 
-cfg_file = ARGS[1]
-out_path = ARGS[2]
+fname_out =  "test.jld2"
+# cfg_file = ARGS[1]
+# out_path = ARGS[2]
 
-cfg_file = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/config.toml"
+# cfg_file = "/home/julian/Hamburg/Julia_lDGA/LadderDGA.jl/config.toml"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 #TODO: loop over kGrids
 @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
@@ -55,16 +56,44 @@ end
 # #LadderDGA.writeFortranΣ("klist_parts_test", Σ_ladder_parts.parent, mP.β)
 # #LadderDGA.writeFortranΣ("klist_summed_test", Σ_ladder.parent, mP.β)
 
+# jldopen(fname_out, "a+") do f
+#     cfg_string = read(cfg_file, String)
+#     f["config"] = cfg_string 
+#     f["χ_sp"] = χ_sp
+#     f["χ_ch"] = χ_ch
+#     f["Σ_ladder"] = Σ_ladder
+# end
+# true
 c2_res = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
 c2_res_sc = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, maxit=100)
-c2_res_sc_tail = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; mixing=0.4, maxit=200, update_χ_tail=true)
+# c2_res_sc_tail = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; mixing=0.4, maxit=200, update_χ_tail=true)
 
-fname_out =  out_path*"/lDGA_c2_2_k"*kG.Ns*".jld2" 
-jldopen(fname_out, "a+") do f
-    cfg_string = read(cfg_file, String)
-    f["config"] = cfg_string 
-    f["c2_res"] = c2_res
-    f["c2_res_sc"] = c2_res_sc
-    f["c2_res_tail"] = c2_res_sc_tail
-end
-# true
+λsp_old = c2_res[1,c2_res[2,:] .== 0][1]
+λsp_new,λch_new,check_new = find_root(c2_res[:,c2_res[8,:] .== 1])
+
+χ_λ!(χ_sp, χ_sp, λsp_new)
+χ_λ!(χ_ch, χ_ch, λch_new)
+Σ_ladder_new = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+χ_λ!(χ_sp, χ_sp, -λsp_new)
+χ_λ!(χ_ch, χ_ch, -λch_new)
+λsp_new_sc,λch_new_sc,check_new_sc = find_root(c2_res_sc[:,c2_res[8,:] .== 1])
+χ_λ!(χ_sp, χ_sp, λsp_new_sc)
+χ_λ!(χ_ch, χ_ch, λch_new_sc)
+Σ_ladder_new_sc = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+χ_λ!(χ_sp, χ_sp, -λsp_new_sc)
+χ_λ!(χ_ch, χ_ch, -λch_new_sc)
+
+# jldopen(fname_out, "a+") do f
+#     f["c2_res"] = c2_res
+#     f["c2_res_sc"] = c2_res_sc
+#     f["λsp_old"] = λsp_old
+#     f["λsp_new"] = λsp_new
+#     f["λch_new"] = λch_new
+#     f["check_new"] = check_new
+#     f["λsp_new_sc"] = λsp_new_sc
+#     f["λch_new_sc"] = λch_new_sc
+#     f["check_new_sc"] = check_new_sc
+#     f["Σ_ladder_new"] = Σ_ladder_new
+#     f["Σ_ladder_new_sc"] = Σ_ladder_new_sc
+# end
+# # true

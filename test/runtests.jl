@@ -47,8 +47,8 @@ end
     include("parallelization_helpers.jl")
 end
 
-# @testset "full run" begin
-#     include("full_run.jl")
-# end
+@testset "full run" begin
+    include("full_run.jl")
+end
 
 include("LambdaCorrection/runtests.jl")

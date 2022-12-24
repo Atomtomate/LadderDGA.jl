@@ -34,6 +34,13 @@ abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
 Struct for the bubble term. The `q`, `ω` dependent asymptotic behavior is computed from the 
 `t1` and `t2` input.
 
+Constructor
+-------------
+    χ₀T(data::Array{_eltype,3}, kG::KGrid, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Bool, mP::ModelParameters; local_tail=false)
+
+Set `local_tail=true` in case of the local bubble constructed fro mthe impurity Green's function. This is necessary in order to construct the correct asymptotics.
+
+
 Fields
 -------------
 - **`data`**         : `Array{ComplexF64,3}`, data
@@ -44,24 +51,25 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     data::Array{_eltype,3}
     asym::Array{_eltype,2}
     axes::Dict{Symbol, Int}
-    function χ₀T(data::Array{_eltype,3}, kG::KGrid, t1::Vector{ComplexF64}, t2::Float64,
-                 β::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int)
-        asym = χ₀Asym(kG, ω_grid, β, t1, t2 ,n_iν, shift)
+    function χ₀T(data::Array{_eltype,3}, kG::KGrid, ω_grid::AbstractVector{Int}, n_iν::Int,
+                 shift::Bool, mP::ModelParameters; local_tail=false)
+        c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
+        asym = χ₀Asym(c1, c2, c3, ω_grid, n_iν, shift, mP.β)
         new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3))
     end
 end
 
 """
-    χ₀Asym(kG::KGrid, ω_grid::AbstractVector{Int}, β::Float64, t1::Vector{ComplexF64}, t2::Float64, n_iν::Int, shift::Int)
+    χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int, β::Float64)
 
-Builds asymtotic helper array, using tail coefficients `t1` and `t2`. See [`calc_bubble`](@ref calc_bubble) implementation for an example.
+Builds asymtotic helper array. See [`calc_bubble`](@ref calc_bubble) implementation for details.
+
+`c1`, `c2` and `c3` are the coefficients for the asymtotic tail expansion and can be obtained through [`χ₀Asym_coeffs`](@ref χ₀Asym_coeffs`).
+`n_iν` is the number of positive fermionic Matsubara frequencies, `shift` is either `1` or `0`, depending on the type of freqiency grid.
 """
-function χ₀Asym(kG::KGrid, ω_grid::AbstractVector{Int}, β::Float64, 
-                t1::Vector{ComplexF64}, t2::Float64, n_iν::Int, shift::Int)
-    χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, shift)
-    c1 = real.(kintegrate(kG, t1))
-    c2 = real.(conv(kG, t1, t1))
-    c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+function χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64,
+                ω_grid::AbstractVector{Int}, n_iν::Int, shift::Bool, β::Float64)
+    χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, Int(shift))
     asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
     for (ωi,ωn) in enumerate(ω_grid)
         for (qi,c2i) in enumerate(c2)
@@ -69,6 +77,25 @@ function χ₀Asym(kG::KGrid, ω_grid::AbstractVector{Int}, β::Float64,
         end
     end
     return asym
+end
+
+"""
+    χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
+
+Builds tail coefficients for the χ₀ asymptotic helper, obtained through [`χ₀Asym`](@ref χ₀Asym).
+"""
+function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
+    t1,  t2 = if local_tail
+        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
+        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    else
+        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
+        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    end
+    c1 = real.(kintegrate(kG, t1))
+    c2 = real.(conv(kG, t1, t1))
+    c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+    return c1, c2, c3
 end
 
 

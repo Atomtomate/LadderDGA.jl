@@ -69,7 +69,7 @@ function __init__()
     global LOG_BUFFER = IOBuffer()
     global LOG = ""
     s = ArgParseSettings()
-    @add_arg_table s begin
+    @add_arg_table! s begin
         "--config", "-c"
             help = "configuration file, default `config.toml`"
             arg_type = String
