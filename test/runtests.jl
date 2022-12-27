@@ -2,7 +2,7 @@ using LadderDGA
 using Test
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
-sP_1 = SimulationParameters(1,2,3,false,nothing,1:3,0.1,false)
+sP_1 = SimulationParameters(1,2,3,true,nothing,1:3,0.1,false)
 kG_1 = gen_kGrid("2dsc-1.0",2)
 kG_2 = gen_kGrid("2dsc-0.25",100)
 
@@ -11,37 +11,37 @@ kG_2 = gen_kGrid("2dsc-0.25",100)
 
 # include("../run_test_local.jl")
 
-@testset "Config" begin
-    include("Config.jl")
-end
+# @testset "Config" begin
+#     include("Config.jl")
+# end
 
-@testset "DataTypes" begin
-    include("DataTypes.jl")
-end
+# @testset "DataTypes" begin
+#     include("DataTypes.jl")
+# end
 
-@testset "Helpers" begin
-    include("helpers.jl")
-end
+# @testset "Helpers" begin
+#     include("helpers.jl")
+# end
 
-@testset "GFTools" begin
-    include("GFTools.jl")
-end
+# @testset "GFTools" begin
+#     include("GFTools.jl")
+# end
 
-@testset "GFFit" begin
-    include("GFFit.jl")
-end
+# @testset "GFFit" begin
+#     include("GFFit.jl")
+# end
 
-@testset "LapackWrapper" begin
-    include("LapackWrapper.jl")
-end
+# @testset "LapackWrapper" begin
+#     include("LapackWrapper.jl")
+# end
 
-@testset "thermodynamics" begin
-    include("thermodynamics.jl")
-end
+# @testset "thermodynamics" begin
+#     include("thermodynamics.jl")
+# end
 
-@testset "ladderDGATools" begin
-    include("ladderDGATools.jl")
-end
+# @testset "ladderDGATools" begin
+#     include("ladderDGATools.jl")
+# end
 
 @testset "parallelization" begin
     include("parallelization_helpers.jl")

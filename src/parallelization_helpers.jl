@@ -41,9 +41,9 @@ mutable struct WorkerCache
     kG::Union{KGrid, Nothing}
     mP::Union{ModelParameters, Nothing}
     sP::Union{SimulationParameters, Nothing}
-    χ₀::Array{_eltype, 2}
+    χ₀::Array{_eltype, 3}
     χ₀Asym::Array{_eltype, 2}
-    χ₀Indices::Vector{NTuple{4,Int}}
+    χ₀Indices::Vector{NTuple{2,Int}}
     # χ_ind::Dict{Int,Int}
     # γ_ind::Dict{Int,Int}
     # χsp::Array{ComplexF64,2}
@@ -61,14 +61,17 @@ mutable struct WorkerCache
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             nothing, nothing, nothing,
-            Array{_eltype,2}(undef,0,0), Array{_eltype,2}(undef,0,0), 
-            Vector{NTuple{4,Int}}(undef, 0)
+            Array{_eltype,3}(undef,0,0,0), Array{_eltype,2}(undef,0,0), 
+            Vector{NTuple{3,Int}}(undef, 0)
         )
     end
 end
 
-function update_wcache(name::Symbol, val; override=true)
+function update_wcache!(name::Symbol, val; override=true)
     if !haskey(wcache[].initialized, name) || !wcache[].initialized[name] || override
+        if name == :kG
+            val = gen_kGrid(val[1], val[2])
+        end
         setfield!(wcache[], name, val)
         wcache[].initialized[name] = true
     else

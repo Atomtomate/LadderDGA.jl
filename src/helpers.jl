@@ -138,12 +138,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     workerpool = get_workerpool()
     @sync begin
     for w in workers(workerpool)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:GLoc_fft, gLoc_fft; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:GLoc_fft_reverse, gLoc_rfft; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:kG, kG; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:kG, kG; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:mP, mP; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache,w,:sP, sP; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:GLoc_fft, gLoc_fft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:GLoc_fft_reverse, gLoc_rfft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:kG, kGridStr; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:mP, mP; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:sP, sP; override=true)
     end
     end
 
@@ -151,6 +150,12 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 end
 
 # ========================================== Index Functions =========================================
+"""
+    νnGrid(ωn::Int, sP::SimulationParameters)
+
+Calculates grid of fermionic Matsubara frequencies for given bosonic frequency `ωn` (including shift, if set through `sP`).
+"""
+νnGrid(ωn::Int, sP::SimulationParameters) = ((-sP.n_iν-sP.n_iν_shell):(sP.n_iν+sP.n_iν_shell-1)) .- sP.shift*trunc(Int,ωn/2)
 
 """
     q0_index(kG::KGrid)   

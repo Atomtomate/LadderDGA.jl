@@ -53,17 +53,26 @@ end
 # ======================================== LadderDGA Functions =======================================
 # ------------------------------------------- Bubble Term --------------------------------------------
 
-function χ₀_conv(νωi_range::Vector{NTuple{4,Int}})
+function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
     kG = wcache[].kG
-    data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), length(νωi_range))
-    for (i,ωνn) in enumerate(νωi_range)
-        ωn,νn,_,_ = ωνn
-        conv_fft_noPlan!(kG, view(data,:,i), 
-                         reshape(wcache[].GLoc_fft[:,νn].parent,gridshape(kG)),
-                         reshape(wcache[].GLoc_fft_reverse[:,νn+ωn].parent,gridshape(kG)))
+    mP = wcache[].mP
+    sP = wcache[].sP
+    n_iν = 2*(sP.n_iν + sP.n_iν_shell)
+    data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), n_iν, length(ωi_range))
+    for (iω,ωnR) in enumerate(ωi_range)
+        ωn,_ = ωnR
+        νGrid = νnGrid(ωn, sP)
+        for (iν, νn) in enumerate(νGrid)
+            conv_fft_noPlan!(kG, view(data,:,iν,iω), 
+                     reshape(wcache[].GLoc_fft[:,νn].parent,gridshape(kG)),
+                     reshape(wcache[].GLoc_fft_reverse[:,νn+ωn].parent,gridshape(kG)))
+        end
     end
-    update_wcache(:χ₀, -wcache[].mP.β .* data)
-    update_wcache(:χ₀Indices, νωi_range)
+    c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
+    asym = χ₀Asym(c1, c2, c3, map(x->x[2],ωi_range), sP.n_iν, sP.shift, mP.β)
+    update_wcache!(:χ₀, -mP.β .* data)
+    update_wcache!(:χ₀Indices, ωi_range)
+    update_wcache!(:χ₀Asym, asym)
     return nothing
 end
 
@@ -75,39 +84,42 @@ Calculates the bubble, based on two fourier-transformed Greens functions where t
 function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
     workerpool = get_workerpool()
-    @assert length(workerpool) > 0
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    ωi_range, ωi_part = gen_ω_part(sP, workerpool)
 
-    νωi_range, νωi_part = gen_νω_part(sP, workerpool)
-    
-    c1::Float64, c2::Vector{Float64}, c3::Float64 = 0, Float64[], 0 
     @sync begin
-        for ind in νωi_part
-            @async r = remotecall_fetch(χ₀_conv, workerpool, νωi_range[ind])
+        for ind in ωi_part
+            @async r = remotecall_fetch(χ₀_conv, workerpool, ωi_range[ind])
         end
-        c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
     end
 
-    ω_grid = Int[]
-    asym = χ₀Asym(c1, c2, c3, ω_grid, sP.n_iν, sP.shift, mP.β)
-    res = if collect_data
-        data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
-        @sync begin
-        for w in workers(workerpool)
-            @async begin
-                indices, χdata = @fetchfrom w (LadderDGA.wcache[].χ₀Indices,LadderDGA.wcache[].χ₀) 
-                for i in 1:length(indices)
-                    _,_,ωi,νi = indices[i]
-                    data[:,νi,ωi] = χdata[:,i]
-                end
+    return collect_data ? collect_χ₀(kG, mP, sP) : nothing
+end
+
+"""
+    collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref `calc_bubble_par`).
+"""
+function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    workerpool = get_workerpool()
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+    @sync begin
+    for w in workers(workerpool)
+        @async begin
+            indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
+            χdata   = @fetchfrom w LadderDGA.wcache[].χ₀
+                println(size(indices))
+                println(size(χdata))
+            for i in 1:length(indices)
+                _,ωi = indices[i]
+                data[:,:,ωi] = χdata[:,:,i]
             end
         end
-        end
-        #TODO: local tail not needed for parallel calculations
-        χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=false) 
-    else
-        nothing
     end
-    return res
+    end
+    χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=false) 
 end
 
 # --------------------------------------------- χ and γ ----------------------------------------------
@@ -220,7 +232,7 @@ end
 @inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * ( - U * χch))
 @inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
 @inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
-@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*1.0 + 0.0im
+@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
 
 @inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
 @inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)

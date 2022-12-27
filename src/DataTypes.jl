@@ -69,7 +69,10 @@ Builds asymtotic helper array. See [`calc_bubble`](@ref calc_bubble) implementat
 """
 function χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64,
                 ω_grid::AbstractVector{Int}, n_iν::Int, shift::Bool, β::Float64)
-    χ₀_rest = χ₀_shell_sum_core(β, ω_grid, n_iν, Int(shift))
+    if length(ω_grid) == 0 || length(first(ω_grid):last(ω_grid)) == 0
+        throw(ArgumentError("Cannot construct χ₀ array with empty frequency mesh!"))
+    end
+    χ₀_rest = χ₀_shell_sum_core(β, first(ω_grid):last(ω_grid), n_iν, Int(shift))
     asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
     for (ωi,ωn) in enumerate(ω_grid)
         for (qi,c2i) in enumerate(c2)
@@ -93,7 +96,7 @@ function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
         (mP.U^2)*(mP.n/2)*(1-mP.n/2)
     end
     c1 = real.(kintegrate(kG, t1))
-    c2 = real.(conv(kG, t1, t1))
+    c2 = real.(conv_noPlan(kG, t1, t1))
     c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
     return c1, c2, c3
 end

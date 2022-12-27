@@ -11,5 +11,6 @@
 end
 
 @testset "Index Functions" begin
+    @test all(LadderDGA.νnGrid(4, sP_1) .== -7:2)
     @test LadderDGA.q0_index(kG_1) == 1
 end
