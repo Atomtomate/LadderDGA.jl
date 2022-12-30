@@ -44,25 +44,20 @@ mutable struct WorkerCache
     χ₀::Array{_eltype, 3}
     χ₀Asym::Array{_eltype, 2}
     χ₀Indices::Vector{NTuple{2,Int}}
-    # χ_ind::Dict{Int,Int}
-    # γ_ind::Dict{Int,Int}
-    # χsp::Array{ComplexF64,2}
-    # χch::Array{ComplexF64,2}
-    # γsp::Array{ComplexF64,2}
-    # γch::Array{ComplexF64,2}
+    χ_sp::Array{ComplexF64,2}
+    χ_ch::Array{ComplexF64,2}
+    γ_sp::Array{ComplexF64,3}
+    γ_ch::Array{ComplexF64,3}
     # λ₀::Array{ComplexF64,3}
     function WorkerCache()
-            # false, NTuple{4,Int}[], Dict{Int,Int}(), 
-            # Array{ComplexF64,2}(undef,0,0), Array{ComplexF64,2}(undef,0,0), 
-            # Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0), Array{ComplexF64,3}(undef,0,0,0), 
-            # OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), OffsetMatrix(Array{ComplexF64,2}(undef,0,0)), 
-            # nothing)
         new(Dict(:GLoc_fft => false, :GLoc_fft_reverse => false, :kG => false), 
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
             nothing, nothing, nothing,
             Array{_eltype,3}(undef,0,0,0), Array{_eltype,2}(undef,0,0), 
-            Vector{NTuple{3,Int}}(undef, 0)
+            Vector{NTuple{3,Int}}(undef, 0),
+            Array{ComplexF64,2}(undef, 0,0),Array{ComplexF64,2}(undef, 0,0),
+            Array{ComplexF64,3}(undef, 0,0,0),Array{ComplexF64,3}(undef, 0,0,0)
         )
     end
 end

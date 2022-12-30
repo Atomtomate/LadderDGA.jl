@@ -116,6 +116,28 @@ function calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::Abstract
     return  res
 end
 
+
+function calc_Σ_λki(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, kG::KGrid, λki::Vector{Float64},
+                mP::ModelParameters, sP::SimulationParameters; 
+                νmax::Int = sP.n_iν,
+                pre_expand=true)
+    Σ_hartree = mP.n * mP.U/2.0;
+    Nq, Nω = size(χ_sp)
+    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
+    #TODO: implement real fft and make _pre real
+    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
+                              1:Nq, 0:νmax-1, ωrange)
+    
+    @assert length(λki) == size(λ₀, 1)
+    λki_λ₀ = λki .* λ₀
+    @timeit to "Σ_ω" calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λki_λ₀, mP.U, kG, sP)
+    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    return  res
+end
 function calc_Σ_parts(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)

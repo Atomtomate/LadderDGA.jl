@@ -8,7 +8,7 @@ using Distributed
 using LadderDGA
 @everywhere using LadderDGA
 
-cfg_file = "/home/julian/Hamburg/ED_data/asympt_tests/config_14_small.toml"
+cfg_file = "/home/julian/Hamburg/ED_data/asympt_tests/b5.0_mu1.0_tp0.toml"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 #TODO: loop over kGrids
 @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
@@ -19,7 +19,7 @@ cfg_file = "/home/julian/Hamburg/ED_data/asympt_tests/config_14_small.toml"
 
 @timeit LadderDGA.to "λ₀" begin
     Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-    λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
+    @timeit LadderDGA.to "l0" λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
 end
 
 @info "chi"

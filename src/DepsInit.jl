@@ -21,6 +21,7 @@ using Combinatorics     #
 using SpecialFunctions  # e.g. PolyLog in filling
 using TOML              # input configuration
 using JLD2, FileIO      # input/output files
+using LinearAlgebra
 
 # Fortran compatibility
 using Printf, DelimitedFiles

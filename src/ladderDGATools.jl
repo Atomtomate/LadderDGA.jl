@@ -50,9 +50,38 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
 end
 
 
+# ========================================== Correction Term =========================================
+function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
+    #TODO: store nu grid in sP?
+    Niν = size(Fr,ν_axis)
+    Nq  = size(χ₀.data, χ₀.axes[:q])
+    ω_range = 1:size(χ₀.data,ω_axis)
+    λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
+
+    @warn "Forcing naiive computation of λ₀"
+    if typeof(sP.χ_helper) <: BSE_Asym_Helpers
+       λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
+                            mP.U, mP.β, sP.χ_helper)
+    else
+        #TODO: this is not well optimized, but also not often executed
+        @warn "Using plain summation for λ₀, check Σ_ladder tails!"
+        fill!(λ0, 0.0)
+        for ωi in ω_range
+            for νi in 1:Niν
+                #TODO: export realview functions?
+                v1 = view(Fr,νi,:,ωi)
+                for qi in 1:Nq
+                    v2 = view(χ₀.data,qi,(sP.n_iν_shell+1):(size(χ₀.data,2)-sP.n_iν_shell),ωi)
+                    λ0[qi,:,ωi] = λ0[qi,:,ωi] .+ v1 .* v2 ./ mP.β^2
+                end
+            end
+        end
+    end
+    return λ0
+end
+
 # ======================================== LadderDGA Functions =======================================
 # ------------------------------------------- Bubble Term --------------------------------------------
-
 function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
     kG = wcache[].kG
     mP = wcache[].mP
@@ -69,7 +98,7 @@ function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
         end
     end
     c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
-    asym = χ₀Asym(c1, c2, c3, map(x->x[2],ωi_range), sP.n_iν, sP.shift, mP.β)
+    asym = χ₀Asym(c1, c2, c3, map(x->x[1],ωi_range), sP.n_iν, sP.shift, mP.β)
     update_wcache!(:χ₀, -mP.β .* data)
     update_wcache!(:χ₀Indices, ωi_range)
     update_wcache!(:χ₀Asym, asym)
@@ -82,7 +111,6 @@ end
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
 function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
-
     workerpool = get_workerpool()
     !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     ωi_range, ωi_part = gen_ω_part(sP, workerpool)
@@ -105,13 +133,12 @@ function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     workerpool = get_workerpool()
     !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+
     @sync begin
     for w in workers(workerpool)
         @async begin
             indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
             χdata   = @fetchfrom w LadderDGA.wcache[].χ₀
-                println(size(indices))
-                println(size(χdata))
             for i in 1:length(indices)
                 _,ωi = indices[i]
                 data[:,:,ωi] = χdata[:,:,i]
@@ -123,32 +150,35 @@ function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
 end
 
 # --------------------------------------------- χ and γ ----------------------------------------------
-function bse_inv(type::Symbol, qωi_range::Vector{Tuple{Int,Int}}, ωind_map::Dict{Int,Int}, ω_offset::Int,
-        Γr::Array{ComplexF64,3}, χ₀Data::Array{ComplexF64,3}, χ₀Asym::Array{ComplexF64,2}, 
-        n_iν_shell::Int, χ_helper, U::Float64, β::Float64)
+function bse_inv(type::Symbol, Γr::Array{ComplexF64,3}) 
+    !(typeof(wcache[].sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     s = type === :ch ? -1 : 1
     Nν = size(Γr,1)
-    data = Array{eltype(Γr),2}(undef, Nν+1, length(qωi_range))
+    Nq = size(wcache[].χ₀, 1)
+    Nω = length(wcache[].χ₀Indices) 
+    χ_data = Array{eltype(Γr),2}(undef, Nq, Nω)
+    γ_data = Array{eltype(Γr),3}(undef, Nq, Nν, Nω)
 
     χννpω = Matrix{eltype(Γr)}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     λ_cache = Array{eltype(χννpω),1}(undef, Nν)
 
-    for i in 1:length(qωi_range)
-        qi,ωi = qωi_range[i]
-        ωii = ωind_map[ωi]
-        ωn = ωii + ω_offset
-        copy!(χννpω, view(Γr,:,:,ωii))
-        for l in 1:size(χννpω,1)
-            χννpω[l,l] += 1.0/χ₀Data[qi, n_iν_shell+l, ωii]
+    for (i,ω_el) in enumerate(wcache[].χ₀Indices)
+        ωn,ωi = ω_el
+        for qi in 1:Nq
+            copy!(χννpω, view(Γr,:,:,ωi))
+            for l in 1:size(χννpω,1)
+                χννpω[l,l] += 1.0/wcache[].χ₀[qi, wcache[].sP.n_iν_shell+l, i]
+            end
+            inv!(χννpω, ipiv, work)
+            χ_data[qi, i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(wcache[].χ₀,qi,:,i), 
+                    wcache[].mP.U, wcache[].mP.β, wcache[].χ₀Asym[qi,i], wcache[].sP.χ_helper);
+            γ_data[qi, :, i] = (1 .- s*λ_cache) ./ (1 .+ s* wcache[].mP.U .* χ_data[qi,i])
         end
-        inv!(χννpω, ipiv, work)
-        data[1,i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(χ₀Data,qi,:,ωii), 
-                                   U, β, χ₀Asym[qi,ωii], χ_helper);
-        data[2:end, i] = (1 .- s*λ_cache) ./ (1 .+ s* U .* data[1,i])
     end
-    return data
+    update_wcache!(Symbol(string("χ_", type)), χ_data)
+    update_wcache!(Symbol(string("γ_", type)), γ_data)
 end
 
 """
@@ -160,68 +190,42 @@ Solve χ = χ₀ - 1/β² χ₀ Γ χ
 
 with indices: χ[ω, q] = χ₀[]
 """
-function calc_χγ_par(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    !(typeof(sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
-    #TODO: reactivate integration to find usable frequencies: χ_ω = Array{_eltype, 1}(undef, Nω)
+function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
     workerpool = get_workerpool()
-    Nν::Int = 2*sP.n_iν
-    Nq::Int = size(χ₀.data,χ₀.axes[:q])
-    Nω::Int = size(χ₀.data,χ₀.axes[:ω])
 
-    γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
-    χ = Array{ComplexF64,2}(undef, Nq, Nω)
-    qωi_range = collect(Base.product(1:Nq, 1:Nω))[:]
-    qωi_part = par_partition(qωi_range, length(workerpool))
-    remote_results = Vector{Future}(undef, length(qωi_part))
-
-    for (i,ind) in enumerate(qωi_part)
-        ωi = sort(unique(map(x->x[2],qωi_range[ind])))
-        ωind_map::Dict{Int,Int} = Dict(zip(ωi, 1:length(ωi)))
-        remote_results[i] = remotecall(bse_inv, type, qωi_range[ind], ωind_map, -sP.n_iω-1,
-                                       Γr[:,:,ωi], χ₀.data[:,:,ωi], χ₀.asym[:,ωi], sP.n_iν_shell, 
-                                       sP.χ_helper, mP.U, mP.β)
+    @sync begin
+    for w in workers(workerpool)
+        @async r = remotecall_fetch(bse_inv, w, type, Γr)
     end
-    for (i,ind) in enumerate(qωi_part)
-        data_i = fetch(remote_results[i])
-        for (j,qωind) in enumerate(qωi_range[ind])
-            χ[qωind...] = data_i[1,j]
-            γ[qωind[1],:,qωind[2]] .= data_i[2:end,j]
-        end
     end
 
-    log_q0_χ_check(kG, sP, χ, type)
-
-    return χT(χ, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
+    return collect_data ? collect_χγ(type, kG, mP, sP) : nothing
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
-    #TODO: store nu grid in sP?
-    Niν = size(Fr,ν_axis)
-    Nq  = size(χ₀.data, χ₀.axes[:q])
-    ω_range = 1:size(χ₀.data,ω_axis)
-    λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
+function collect_χγ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    workerpool = get_workerpool()
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    χ_data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
+    γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
+    χfield = Symbol(string("χ_",type))
+    γfield = Symbol(string("γ_",type))
 
-    @warn "Forcing naiive computation of λ₀"
-    #if false typeof(sP.χ_helper) <: BSE_Asym_Helpers
-    #    λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
-    #                         mP.U, mP.β, sP.χ_helper)
-    #else
-        #TODO: this is not well optimized, but also not often executed
-        fill!(λ0, 0.0)
-        for ωi in ω_range
-            for νi in 1:Niν
-                #TODO: export realview functions?
-                v1 = view(Fr,νi,:,ωi)
-                for qi in 1:Nq
-                    v2 = χ₀.data[qi,(sP.n_iν_shell+1):(size(χ₀.data,2)-sP.n_iν_shell),ωi]
-                    for νpi in 1:Niν 
-                        λ0[qi,νi,ωi] += v1[νpi] * v2[νpi] / mP.β^2
-                    end
-                end
+    @sync begin
+    for w in workers(workerpool)
+        @async begin
+            indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
+            χdata   = @fetchfrom w getfield(LadderDGA.wcache[], χfield)
+            γdata   = @fetchfrom w getfield(LadderDGA.wcache[], γfield)
+            for i in 1:length(indices)
+                _,ωi = indices[i]
+                χ_data[:,ωi] = χdata[:,i]
+                γ_data[:,:,ωi] = γdata[:,:,i]
             end
         end
-    #end
-    return λ0
+    end
+    end
+    log_q0_χ_check(kG, sP, χ_data, type)
+    χT(χ_data, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ_data)
 end
 
 # ----------------------------------------------- EoM ------------------------------------------------
@@ -244,7 +248,7 @@ end
 #  2*sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2))
 function calc_Σ_eom_par(νmax::Int, U::Float64) 
     
-    Nq::Int = size(wcache.χsp,1)
+    Nq::Int = size(wcache[].χsp,1)
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_tmp::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_res::Array{ComplexF64,2} = zeros(ComplexF64, Nq, νmax)

@@ -13,4 +13,16 @@ bubble_par = calc_bubble_par(kG, mP, sP, collect_data=true);
 calc_bubble_par(kG, mP, sP, collect_data=false);
 @test all(bubble.data .≈ bubble_par.data)
 @test all(bubble.asym .≈ bubble_par.asym)
-println(LadderDGA.to)
+
+χ_sp, γ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+χ_ch, γ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+χ_sp_par, γ_sp_par = calc_χγ_par(:sp, Γsp, kG, mP, sP);
+χ_ch_par, γ_ch_par = calc_χγ_par(:ch, Γch, kG, mP, sP);
+@test all(χ_sp.data .≈ χ_sp_par.data)
+@test all(χ_ch.data .≈ χ_ch_par.data)
+@test all(χ_sp.tail_c .≈ χ_sp_par.tail_c)
+@test all(χ_ch.tail_c .≈ χ_ch_par.tail_c)
+@test all(χ_sp.usable_ω .≈ χ_sp_par.usable_ω)
+@test all(χ_ch.usable_ω .≈ χ_ch_par.usable_ω)
+@test all(γ_sp.data .≈ γ_sp_par.data)
+@test all(γ_ch.data .≈ γ_ch_par.data)
