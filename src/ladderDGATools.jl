@@ -51,6 +51,11 @@ end
 
 
 # ========================================== Correction Term =========================================
+"""
+    calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
+
+Correction term, TODO: documentation
+"""
 function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
@@ -150,6 +155,11 @@ function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
 end
 
 # --------------------------------------------- χ and γ ----------------------------------------------
+"""
+    bse_inv(type::Symbol, Γr::Array{ComplexF64,3}) 
+
+Kernel for calculation of susceptibility and triangular vertex. Used by [`calc_χγ_par`](@ref calc_χγ_par).
+"""
 function bse_inv(type::Symbol, Γr::Array{ComplexF64,3}) 
     !(typeof(wcache[].sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
     s = type === :ch ? -1 : 1
@@ -182,13 +192,13 @@ function bse_inv(type::Symbol, Γr::Array{ComplexF64,3})
 end
 
 """
-    calc_χ_trilex(Γr::ΓT, χ₀, kG::KGrid, U::Float64, mP, sP)
+    calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
-Solve χ = χ₀ - 1/β² χ₀ Γ χ
-⇔ (1 + 1/β² χ₀ Γ) χ = χ₀
-⇔      (χ⁻¹ - χ₀⁻¹) = 1/β² Γ
+Calculate susceptibility and triangular vertex parallel on workerpool. 
 
-with indices: χ[ω, q] = χ₀[]
+Set `collect_data` to return both quantities, or call [`collect_χγ`](@ref collect_χγ) at a later point.
+[`calc_χγ`](@ref calc_χγ) can be used for single core computations.
+
 """
 function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
     workerpool = get_workerpool()
@@ -202,6 +212,11 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, s
     return collect_data ? collect_χγ(type, kG, mP, sP) : nothing
 end
 
+"""
+    collect_χγ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
+"""
 function collect_χγ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     workerpool = get_workerpool()
     !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
@@ -228,7 +243,7 @@ function collect_χγ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulati
     χT(χ_data, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ_data)
 end
 
-# ----------------------------------------------- EoM ------------------------------------------------
+# -------------------------------------------- EoM: Defs ---------------------------------------------
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 @inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
 
@@ -244,16 +259,12 @@ end
 @inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) - 0.5)
 @inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
 
-#@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
-#  2*sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2))
-function calc_Σ_eom_par(νmax::Int, U::Float64) 
-    
+# -------------------------------------------- EoM: Main ---------------------------------------------
+function calc_Σ_eom_par() 
     Nq::Int = size(wcache[].χsp,1)
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_tmp::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_res::Array{ComplexF64,2} = zeros(ComplexF64, Nq, νmax)
-    # wcache.νω_map = νω_map
-    # wcache.ωind_map = ωind_map
     for (ωi, ωn, νi, νii) in wcache.νω_map
         ωii = wcache.ωind_map[ωi]
         v = reshape(view(wcache.G,:,(νii-1) + ωn), gridshape(wcache.kG)...)
@@ -266,6 +277,7 @@ function calc_Σ_eom_par(νmax::Int, U::Float64)
     end
     return Σ_res
 end
+
 function calc_Σ_eom(νωindices::Vector{NTuple{4,Int}}, ωind_map::Dict{Int,Int}, νmax::Int, 
     χsp::Array{ComplexF64,2}, χch::Array{ComplexF64,2},γsp::Array{ComplexF64,3}, γch::Array{ComplexF64,3},
                     Gνω::GνqT, λ₀::Array{ComplexF64,3}, U::Float64, kG::KGrid) 

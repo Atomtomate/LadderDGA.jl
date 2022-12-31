@@ -1,5 +1,18 @@
-#TODO: combine this with ladderDGATool.jl
+# ==================================================================================================== #
+#                                        ladderDGATools.jl                                             #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   ladder DΓA related functions                                                                       #
+# -------------------------------------------- TODO -------------------------------------------------- #
+#   Cleanup                                                                                            #
+# ==================================================================================================== #
 
+"""
+    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+
+TODO: documentation
+"""
 function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
@@ -16,6 +29,18 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
     return χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=local_tail) 
 end
 
+"""
+    calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Calculates susceptibility and triangular vertex in `type` channel. See [`calc_χγ_par`](@ref calc_χγ_par) for parallel calculation.
+
+This method solves the following equation:
+``
+\\chi_r = \\chi_0 - \\frac{1}{\\beta^2} \\chi_0 \\Gamma_r \\chi_r \\\\
+\\Leftrightarrow (1 + \\frac{1}{\\beta^2} \\chi_0 \\Gamma_r) = \\chi_0 \\\\
+\\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
+``
+"""
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
@@ -116,28 +141,6 @@ function calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::Abstract
     return  res
 end
 
-
-function calc_Σ_λki(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
-                Gνω::GνqT, kG::KGrid, λki::Vector{Float64},
-                mP::ModelParameters, sP::SimulationParameters; 
-                νmax::Int = sP.n_iν,
-                pre_expand=true)
-    Σ_hartree = mP.n * mP.U/2.0;
-    Nq, Nω = size(χ_sp)
-    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    #TODO: implement real fft and make _pre real
-    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
-                              1:Nq, 0:νmax-1, ωrange)
-    
-    @assert length(λki) == size(λ₀, 1)
-    λki_λ₀ = λki .* λ₀
-    @timeit to "Σ_ω" calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λki_λ₀, mP.U, kG, sP)
-    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
-    return  res
-end
 function calc_Σ_parts(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; pre_expand=true)

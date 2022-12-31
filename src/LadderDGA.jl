@@ -16,7 +16,7 @@ module LadderDGA
     export addprocs
 
     # LadderDGA main functions
-    export calc_bubble_par, calc_χγ_par, calc_Σ_par, collect_χ₀
+    export calc_bubble_par, calc_χγ_par, calc_Σ_par, collect_χ₀, collect_χγ
     export λ_from_γ, F_from_χ, G_from_Σ, G_from_Σladder
 
     # Thermodynamics
