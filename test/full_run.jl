@@ -26,3 +26,14 @@ calc_bubble_par(kG, mP, sP, collect_data=false);
 @test all(χ_ch.usable_ω .≈ χ_ch_par.usable_ω)
 @test all(γ_sp.data .≈ γ_sp_par.data)
 @test all(γ_ch.data .≈ γ_ch_par.data)
+
+
+Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
+λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
+Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν);
+
+initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-1, kG, mP, sP, 
+                χsp = χ_sp, γsp = γ_sp,
+                χch = χ_ch, γch = γ_ch)
+Σ_ladder_par = calc_Σ_par(kG, mP, sP, νrange=0:sP.n_iν-1);
+@test all(Σ_ladder.parent .≈ Σ_ladder_par.parent)

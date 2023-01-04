@@ -12,7 +12,7 @@ end
     @test sP_1.n_iω == 1
     @test sP_1.n_iν == 2
     @test sP_1.n_iν_shell == 3
-    @test sP_1.shift == false
+    @test sP_1.shift == true
     @test sP_1.χ_helper === nothing
     @test sP_1.fft_range == 1:3
     @test sP_1.usable_prct_reduction == 0.1

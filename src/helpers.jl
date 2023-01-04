@@ -138,8 +138,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     workerpool = get_workerpool()
     @sync begin
     for w in workers(workerpool)
-        @async remotecall_fetch(LadderDGA.update_wcache!,w,:GLoc_fft, gLoc_fft; override=true)
-        @async remotecall_fetch(LadderDGA.update_wcache!,w,:GLoc_fft_reverse, gLoc_rfft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:G_fft, gLoc_fft; override=true)
+        @async remotecall_fetch(LadderDGA.update_wcache!,w,:G_fft_reverse, gLoc_rfft; override=true)
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:kG, kGridStr; override=true)
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:mP, mP; override=true)
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:sP, sP; override=true)
@@ -166,8 +166,7 @@ q0_index(kG::KGrid) = findfirst(x -> all(x .≈ zeros(length(gridshape(kG)))), k
 
 """
     ω0_index(sP::SimulationParameters)
-    ω0_index(χ::χT)
-    ω0_index(χ::AbstractMatrix)
+    ω0_index(χ::[χT or AbstractMatrix])
 
 Index of ω₀ frequency. 
 """
@@ -176,74 +175,42 @@ Index of ω₀ frequency.
 ω0_index(χ::AbstractMatrix) = ceil(Int64, size(χ,2)/2)
 
 """
-    OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters [, Nν_shell])
+    OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
 
 Converts `(1:N,1:N)` index tuple for bosonic (`ωi`) and fermionic (`νi`) frequency to
 Matsubara frequency number. If the array has a `ν` shell (for example for tail
 improvements) this will also be taken into account by providing `Nν_shell`.
 """
-@inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters, Nν_shell)
-    ωn = ωi-sP.n_iω-1
-    νn = (νi-sP.n_iν-Nν_shell-1) - sP.shift*trunc(Int,ωn/2)
-    return ωn, νn
-end
-
-@inline function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
+function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
     ωn = ωi-sP.n_iω-1
     νn = (νi-sP.n_iν-1) - sP.shift*trunc(Int,ωn/2)
     return ωn, νn
 end
 
-@inline ν0Index_of_ωIndex(ωi::Int, sP)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
+"""
+    ν0Index_of_ωIndex(ωi::Int[, sP])::Int
+
+Calculates index of zero fermionic Matsubara frequency (which may depend on the bosonic frequency). 
+`ωi` is the index (i.e. starting with 1) of the bosonic Matsubara frequency.
+"""
+ν0Index_of_ωIndex(ωi::Int, sP::SimulationParameters)::Int = sP.n_iν + sP.shift*(trunc(Int, (ωi - sP.n_iω - 1)/2)) + 1
 
 """
-    to_m_index(arr::AbstractArray{T,2/3}, sP::SimulationParameters)
+    νi_νngrid_pos(ωi::Int, νmax::Int, sP::SimulationParameters)
 
-Converts array with simpel `1:N` index to larger array, where the index matches the Matsubara
-Frequency number. This function is not optimized!
+Indices for positive fermionic Matsubara frequencies, depinding on `ωi`, the index of the bosonic Matsubara frequency.
 """
-function to_m_index(arr::AbstractArray{T,3}, sP::SimulationParameters) where T
-    ωrange = -sP.n_iω:sP.n_iω
-    νrange = -2*sP.n_iν:2*sP.n_iν
-    length(ωrange) != size(arr,3) && @error "Assumption -n_iω:n_iω for ω grid not fulfilled."
-    ωl = length(ωrange)
-    νl = length(νrange)
-    res = OffsetArray(zeros(ComplexF64, size(arr,1), νl, ωl), 1:size(arr,1) ,νrange, ωrange)
-    for qi in 1:size(arr,1)
-        to_m_index!(view(res,qi,:,:),view(arr,qi,:,:), sP)
-    end
-    return res
+function νi_νngrid_pos(ωi::Int, νmax::Int, sP::SimulationParameters)
+    ν0Index_of_ωIndex(ωi, sP):νmax
 end
-
-function to_m_index(arr::AbstractArray{T,2}, sP::SimulationParameters) where T
-    ωrange = -sP.n_iω:sP.n_iω
-    νrange = -2*sP.n_iν:2*sP.n_iν
-    length(ωrange) != size(arr,2) && @error "Assumption -n_iω:n_iω for ω grid not fulfilled."
-    ωl = length(ωrange)
-    νl = length(νrange)
-    res = OffsetArray(zeros(ComplexF64, νl,ωl), νrange, ωrange)
-    to_m_index!(res, arr, sP)
-    return res
-end
-
-function to_m_index!(res::AbstractArray{T,2}, arr::AbstractArray{T,2}, sP::SimulationParameters) where T
-    for ωi in 1:size(arr,2)
-        for νi in 1:size(arr,1)
-            ωn,νn = OneToIndex_to_Freq(ωi, νi, sP)
-            @inbounds res[νn, ωn] = arr[νi,ωi]
-        end
-    end
-    return res
-end
-
-function ωindex_range(sP::SimulationParameters)
-    return 1:(2*sP.n_iω+1)
-    # TODO: placeholder for reduced omega-range computations
-end
-
 
 # =========================================== Noise Filter ===========================================
+"""
+    filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
+    filter_MA!(res::AbstractArray{T,1}, m::Int, X::AbstractArray{T,1}) where T <: Number
 
+Iterated moving average noise filter for inut data. See also [`filter_KZ`](@ref filter_KZ).
+"""
 function filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
     res = deepcopy(X)
     offset = trunc(Int,m/2)
@@ -263,6 +230,11 @@ function filter_MA!(res::AbstractArray{T,1}, m::Int, X::AbstractArray{T,1}) wher
     return res
 end
 
+"""
+    filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
+
+Iterated moving average noise filter for inut data. See also [`filter_MA`](@ref filter_MA).
+"""
 function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
     res = filter_MA(m, X)
     for ki in 2:k
@@ -272,7 +244,6 @@ function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where T <: Number
 end
 
 # ======================================== Consistency Checks ========================================
-
 """
     log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
 
@@ -287,6 +258,17 @@ function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{
     end
 end
 
+"""
+    νi_health(νGrid::AbstractArray{Int}, sP::SimulationParameters)
+
+Returns a list of available bosonic frequencies for each fermionic frequency, given in `νGrid`.
+This can be used to estimate the maximum number of usefull frequencies for the equation of motion.
+"""
+function νi_health(νGrid::AbstractArray{Int}, sP::SimulationParameters)
+
+    t = gen_ν_part(νGrid, sP, 1)[1]
+    return [length(filter(x->x[4] == i, t)) for i in unique(getindex.(t,4))]
+end
 # ============================================== Misc. ===============================================
 
 """

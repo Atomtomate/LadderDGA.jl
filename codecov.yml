@@ -9,4 +9,5 @@ ignore:
   - "src/backup/"
   - "src/IO_legacy.jl"
   - "src/IO.jl"
+  - "src/legacy_code.jl"
   - "notebooks/"
