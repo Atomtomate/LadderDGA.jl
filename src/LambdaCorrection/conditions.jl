@@ -1,3 +1,5 @@
+#TODO: REFACTOR!!!!!
+#TODO: refactor c2 curves first, code duplication
 """
     lhs_int(χ_sp::Matrix, χ_ch::Matrix, χ_tail::Vector{ComplexF64}, kMult::Vector{Float64}, k_norm::Int, Ekin::Float64, β::Float64)
 
@@ -63,50 +65,6 @@ function df_c1(χ::Matrix{Float64}, λ::Float64, kMult::Vector{Float64},
     return res
 end
 
-
-function cond_both_int(λch_i::Float64, 
-            χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
-            Σ_loc,gLoc_rfft::GνqT,
-            λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-
-    k_norm::Int = Nk(kG)
-    ωindices = usable_ωindices(sP, χ_sp, χ_ch)
-    νmax::Int = minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)])
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{ComplexF64} = χ_ch.tail_c[3] ./ (iωn.^2)
-
-
-    χ_λ!(χ_ch, χ_ch, λch_i)
-    rhs_c1 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp1 = 0.0
-        for (qi,km) in enumerate(kG.kMult)
-            χch_i_λ = χ_ch[qi,ωi]
-            tmp1 += χch_i_λ * km
-        end
-        rhs_c1 -= real(tmp1/k_norm - t)
-    end
-    rhs_c1 = rhs_c1/mP.β + χ_ch.tail_c[3]*mP.β/12 + mP.n * (1 - mP.n/2)
-    λsp_i = λsp_correction(χ_sp, real(rhs_c1), kG, mP, sP)
-    χ_λ!(χ_sp, χ_sp, λsp_i)
-
-    #TODO: use parallel version! 
-    Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-
-    lhs_c1, lhs_c2 = lhs_int(χ_sp.data, χ_ch.data, λsp_i, λch_i, 
-                            χ_tail, kG.kMult, k_norm, χ_sp.tail_c[3], mP.β)
-
-    #TODO: the next line is expensive: Optimize G_from_Σ
-    μnew, GLoc_new, _, _ = G_from_Σladder(Σ_ladder[:,0:νmax], Σ_loc, kG, mP, sP)
-    E_kin, E_pot = calc_E(GLoc_new[:,0:νmax-1].parent, Σ_ladder.parent, kG, mP, νmax = νmax)
-    rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-    χ_λ!(χ_sp, χ_sp, -λsp_i)
-    χ_λ!(χ_ch, χ_ch, -λch_i)
-    return λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μnew, true
-end
-
 function cond_both_sc_int(λch_i::Float64, 
             χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
             Σ_loc::Vector{ComplexF64},gLoc_rfft::GνqT,
@@ -166,11 +124,9 @@ function cond_both_sc_int(λch_i::Float64,
             # update_tail!(χ_sp, [0, 0, E_kin], iωn_f)
             # update_tail!(χ_ch, [0, 0, E_kin], iωn_f)
         end
-
-        println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
-
-        ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
-            println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
+        #println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
+        #ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
+        #println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
 
         if sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/kG.Nk < conv_abs 
             converged = true

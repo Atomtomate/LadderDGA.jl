@@ -275,16 +275,7 @@ function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
 
     w_list = workers(workerpool)
     if @fetchfrom w_list[1] LadderDGA.wcache[].Σ_initialized
-        for w in w_list
-            @async begin
-                indl = @fetchfrom w getfield(LadderDGA.wcache[], :νn_indices)
-                indl = indl .+ sP.n_iν + 1 # νn -> νi
-                data = @fetchfrom w getfield(LadderDGA.wcache[], γfield)
-                for (i,il) in enumerate(indl)
-                    γ_data[:,:,il] = data[:,:,i] 
-                end
-            end
-        end
+        error("Cannot collect γ after initialize_EoM has been called!")
     else
         @sync begin
             for w in w_list

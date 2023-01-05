@@ -206,7 +206,7 @@ function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::Mod
     χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
     χch_sum = real(sum(subtract_tail(χch_ω, χch.tail_c[3], iωn, 2)))/mP.β - χch.tail_c[3] * mP.β/12
 
-    @info "λsp correction infos:"
+    verbose && @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
         mP.n * (1 - mP.n/2) - χch_sum
