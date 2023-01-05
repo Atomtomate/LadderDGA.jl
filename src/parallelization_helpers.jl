@@ -1,3 +1,20 @@
+# ==================================================================================================== #
+#                                    parallelization_helpers.jl                                        #
+# ---------------------------------------------------------------------------------------------------- #
+#   Author          : Julian Stobbe                                                                    #
+# ----------------------------------------- Description ---------------------------------------------- #
+#   Functionality for parallel computation.                                                            #
+# -------------------------------------------- TODO -------------------------------------------------- #
+#   collect* functions need to be refactored                                                           #
+# ==================================================================================================== #
+
+
+# ============================================== Helpers =============================================
+
+function get_workerpool()
+    default_worker_pool()
+end
+
 @inline _parallel_decision(Niω::Int, Nk::Int)::Bool = false# (Niω < 10 || Nk < 100) ? false : true
 
 """
@@ -83,6 +100,8 @@ function gen_ν_part_slices(data::Array{ComplexF64,3}, index_list::Vector{NTuple
 end
 
 
+# ============================================ Worker Cache ==========================================
+# ----------------------------------------------- Main -----------------------------------------------
 mutable struct WorkerCache
     initialized::Dict{Symbol,Bool}
     G_fft::GνqT
@@ -126,6 +145,7 @@ mutable struct WorkerCache
     end
 end
 
+# ----------------------------------------- Updates and Inits ----------------------------------------
 """
     update_wcache!(name::Symbol, val; override=true)
 
@@ -143,6 +163,15 @@ function update_wcache!(name::Symbol, val; override=true)
     end
 end
 
+function update_wcaches_G_rfft!(G::GνqT)
+    wp = workers(get_workerpool())
+    @sync begin
+    for wi in wp
+        @async remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G)
+    end
+    end
+end
+
 """
     initialize_EoM_cache!()
 
@@ -157,6 +186,118 @@ function initialize_EoM_cache!(Nν::Int)
     update_wcache!(:Σ_initialized, true)
 end
 
-function get_workerpool()
-    default_worker_pool()
+
+"""
+function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, 
+                        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                        force_reinit = false,
+                        χsp::χT = collect_χ(:sp, kG, mP, sP),
+                        γsp::γT = collect_γ(:sp, kG, mP, sP),
+                        χch::χT = collect_χ(:ch, kG, mP, sP),
+                        γch::γT = collect_γ(:ch, kG, mP, sP))
+
+Worker cache initialization. Must be called before [`calc_Σ_par`](@ref calc_Σ_par).
+"""
+function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                        force_reinit = false,
+                        χsp::χT = collect_χ(:sp, kG, mP, sP),
+                        γsp::γT = collect_γ(:sp, kG, mP, sP),
+                        χch::χT = collect_χ(:ch, kG, mP, sP),
+                        γch::γT = collect_γ(:ch, kG, mP, sP))
+    #TODO: calculate and distribute lambda0 directly here
+    workerpool = get_workerpool()
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+
+    indices = gen_ν_part(νGrid, sP, length(workerpool))
+
+    @sync begin
+        for (i,wi) in enumerate(workers(workerpool))
+            @async begin
+            remotecall_fetch(update_wcache!, wi, :χsp, χsp.data)
+            remotecall_fetch(update_wcache!, wi, :χch, χch.data)
+            data_sl, νn_indices, ωn_ranges = gen_ν_part_slices(γsp.data, indices[i])
+            remotecall_fetch(update_wcache!, wi, :γsp, data_sl)
+            remotecall_fetch(update_wcache!, wi, :ωn_ranges,  ωn_ranges)
+            remotecall_fetch(update_wcache!, wi, :νn_indices, νn_indices)
+            data_sl, _, _ = gen_ν_part_slices(γch.data, indices[i])
+            remotecall_fetch(update_wcache!, wi, :γch, data_sl)
+            data_sl, _, _ = gen_ν_part_slices(λ₀, indices[i])
+            remotecall_fetch(update_wcache!, wi, :λ₀, data_sl)
+            remotecall_fetch(initialize_EoM_cache!, wi, length(νn_indices))
+            remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G_fft_reverse)
+            end
+        end
+    end
+end
+
+
+# --------------------------------------- Collect from workers ---------------------------------------
+"""
+    collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
+"""
+function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    workerpool = get_workerpool()
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    χ_data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
+    χfield = Symbol(string("χ",type))
+
+    #TODO: check if Σ_initialization is set. if true, use different indices (also for γ, remove error after implementation)
+    #
+    w_list = workers(workerpool)
+    if @fetchfrom w_list[1] LadderDGA.wcache[].Σ_initialized
+        χ_data[:,:] = @fetchfrom w_list[1] getfield(LadderDGA.wcache[], χfield)
+    else
+        @sync begin
+        for w in w_list
+            @async begin
+                indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
+                χdata   = @fetchfrom w getfield(LadderDGA.wcache[], χfield)
+                for i in 1:length(indices)
+                    ωi,_ = indices[i]
+                    χ_data[:,ωi] = χdata[:,i]
+                end
+            end
+        end
+        end
+    end
+    log_q0_χ_check(kG, sP, χ_data, type)
+    χT(χ_data, tail_c=[0,0,mP.Ekin_DMFT])
+end
+
+function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    workerpool = get_workerpool()
+    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
+    γfield = Symbol(string("γ",type))
+
+    w_list = workers(workerpool)
+    if @fetchfrom w_list[1] LadderDGA.wcache[].Σ_initialized
+        for w in w_list
+            @async begin
+                indl = @fetchfrom w getfield(LadderDGA.wcache[], :νn_indices)
+                indl = indl .+ sP.n_iν + 1 # νn -> νi
+                data = @fetchfrom w getfield(LadderDGA.wcache[], γfield)
+                for (i,il) in enumerate(indl)
+                    γ_data[:,:,il] = data[:,:,i] 
+                end
+            end
+        end
+    else
+        @sync begin
+            for w in w_list
+                @async begin
+                    indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
+                    γdata   = @fetchfrom w getfield(LadderDGA.wcache[], γfield)
+                    for i in 1:length(indices)
+                        ωi,_ = indices[i]
+                        γ_data[:,:,ωi] = γdata[:,:,i]
+                    end
+                end
+            end
+        end
+    end
+    γT(γ_data)
 end

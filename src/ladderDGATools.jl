@@ -137,125 +137,19 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, s
     return collect_data ? (collect_χ(type, kG, mP, sP), collect_γ(type, kG, mP, sP)) : nothing
 end
 
-"""
-    collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-
-Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
-"""
-function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
-    χ_data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
-    χfield = Symbol(string("χ",type))
-
-    @sync begin
-    for w in workers(workerpool)
-        @async begin
-            indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
-            χdata   = @fetchfrom w getfield(LadderDGA.wcache[], χfield)
-            for i in 1:length(indices)
-                ωi,_ = indices[i]
-                χ_data[:,ωi] = χdata[:,i]
-            end
-        end
-    end
-    end
-    log_q0_χ_check(kG, sP, χ_data, type)
-    χT(χ_data, tail_c=[0,0,mP.Ekin_DMFT])
-end
-
-function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
-    γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
-    γfield = Symbol(string("γ",type))
-
-    @sync begin
-    for w in workers(workerpool)
-        @async begin
-            indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
-            γdata   = @fetchfrom w getfield(LadderDGA.wcache[], γfield)
-            for i in 1:length(indices)
-                ωi,_ = indices[i]
-                γ_data[:,:,ωi] = γdata[:,:,i]
-            end
-        end
-    end
-    end
-    γT(γ_data)
-end
-
-# -------------------------------------------- EoM: Defs ---------------------------------------------
-@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
-@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
-
-@inline eom_χsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (U * χsp) )
-@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * ( - U * χch))
-@inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
-@inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
-@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
-
-@inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
-@inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)
-@inline eom_sp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - 1.5)
-@inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) - 0.5)
-@inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
-
 # -------------------------------------------- EoM: Main ---------------------------------------------
-"""
-function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, 
-                        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                        force_reinit = false,
-                        χsp::χT = collect_χ(:sp, kG, mP, sP),
-                        γsp::γT = collect_γ(:sp, kG, mP, sP),
-                        χch::χT = collect_χ(:ch, kG, mP, sP),
-                        γch::γT = collect_γ(:ch, kG, mP, sP))
-
-Worker cache initialization. Must be called before [`calc_Σ_par`](@ref calc_Σ_par).
-"""
-function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                        force_reinit = false,
-                        χsp::χT = collect_χ(:sp, kG, mP, sP),
-                        γsp::γT = collect_γ(:sp, kG, mP, sP),
-                        χch::χT = collect_χ(:ch, kG, mP, sP),
-                        γch::γT = collect_γ(:ch, kG, mP, sP))
-    #TODO: calculate and distribute lambda0 directly here
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
-
-    indices = gen_ν_part(νGrid, sP, length(workerpool))
-
-    @sync begin
-        for (i,wi) in enumerate(workers(workerpool))
-            @async begin
-            remotecall_fetch(update_wcache!, wi, :χsp, χsp.data)
-            remotecall_fetch(update_wcache!, wi, :χch, χch.data)
-            data_sl, νn_indices, ωn_ranges = gen_ν_part_slices(γsp.data, indices[i])
-            remotecall_fetch(update_wcache!, wi, :γsp, data_sl)
-            remotecall_fetch(update_wcache!, wi, :ωn_ranges,  ωn_ranges)
-            remotecall_fetch(update_wcache!, wi, :νn_indices, νn_indices)
-            data_sl, _, _ = gen_ν_part_slices(γch.data, indices[i])
-            remotecall_fetch(update_wcache!, wi, :γch, data_sl)
-            data_sl, _, _ = gen_ν_part_slices(λ₀, indices[i])
-            remotecall_fetch(update_wcache!, wi, :λ₀, data_sl)
-            remotecall_fetch(initialize_EoM_cache!, wi, length(νn_indices))
-            remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G_fft_reverse)
-            end
-        end
-    end
-end
-
-
 """
     calc_Σ_eom_par(νmax::Int) 
 
 Equation of motion for self energy. See [`calc_Σ_par`](@ref calc_Σ_par).
 """
-function calc_Σ_eom_par() 
+function calc_Σ_eom_par(λsp::Float64, λch::Float64) 
     if !wcache[].Σ_initialized 
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
+    λsp != 0 && χ_λ!(wcache[].χsp, λsp) 
+    λch != 0 && χ_λ!(wcache[].χch, λch) 
+
     Nq::Int = size(wcache[].χsp,1)
     U = wcache[].mP.U
     fill!(wcache[].Σ_ladder, 0)
@@ -270,6 +164,8 @@ function calc_Σ_eom_par()
             wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post
         end
     end
+    λsp != 0 && χ_λ!(wcache[].χsp, -λsp) 
+    λch != 0 && χ_λ!(wcache[].χch, -λch) 
 end
 
 """
@@ -297,14 +193,16 @@ end
     calc_Σ_par(mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν; collect_data=true)
 
 Calculates self-energy on worker pool. Workers must first be initialized using [`initialize_EoM`](@ref initialize_EoM).
+#TODO: νrange must be equal to the one used during initialization. remove one.
 """
-function calc_Σ_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νrange=0:sP.n_iν-1, collect_data=true)
+function calc_Σ_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                    λsp::Float64=0.0, λch::Float64=0.0, νrange=0:sP.n_iν-1, collect_data=true)
     workerpool = get_workerpool()
     !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     Nk::Int = length(kG.kMult)
     @sync begin
     for wi in workers(workerpool)
-        @async remotecall_fetch(calc_Σ_eom_par, wi)
+        @async remotecall_fetch(calc_Σ_eom_par, wi, λsp, λch)
     end
     end
 
@@ -322,3 +220,19 @@ function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::Abstra
     end
     return res
 end
+
+# -------------------------------------------- EoM: Defs ---------------------------------------------
+@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+
+@inline eom_χsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (U * χsp) )
+@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * ( - U * χch))
+@inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
+@inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
+@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
+
+@inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
+@inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)
+@inline eom_sp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - 1.5)
+@inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) - 0.5)
+@inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀

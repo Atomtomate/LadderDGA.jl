@@ -37,3 +37,21 @@ initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-1, kG, mP, sP,
                 χch = χ_ch, γch = γ_ch)
 Σ_ladder_par = calc_Σ_par(kG, mP, sP, νrange=0:sP.n_iν-1);
 @test all(Σ_ladder.parent .≈ Σ_ladder_par.parent)
+
+initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP, 
+                χsp = χ_sp, γsp = γ_sp,
+                χch = χ_ch, γch = γ_ch)
+Σ_ladder_par = calc_Σ_par(kG, mP, sP, νrange=0:sP.n_iν-5);
+@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_par.parent)
+
+χ_sp2 = collect_χ(:sp, kG, mP, sP)
+γ_sp2 = collect_γ(:sp, kG, mP, sP)
+χ_ch2 = collect_χ(:ch, kG, mP, sP)
+γ_ch2 = collect_γ(:ch, kG, mP, sP)
+@test all(χ_sp.data .≈ χ_sp2.data)
+@test all(χ_ch.data .≈ χ_ch2.data)
+@test all(γ_sp.data .≈ γ_sp2.data)
+@test all(γ_ch.data .≈ γ_ch2.data)
+#c2_res_sc = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, maxit=10)
+
+

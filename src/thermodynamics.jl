@@ -32,7 +32,7 @@ Arguments:
 - **`n`**     : number density
 - **`μ`**     : chemical potential
 - **`β`**     : inverse temperature
-- **`mP`**    : Alternative call with model parameters as `Float64`. See also [`ModelParameters`](ModelParameters).
+- **`mP`**    : Alternative call with model parameters as `Float64`. See also [`ModelParameters`](@ref ModelParameters).
 """
 function calc_E_ED(fname::String)
     E_kin, E_pot = jldopen(fname,"r") do f
