@@ -124,9 +124,9 @@ function cond_both_sc_int(λch_i::Float64,
             # update_tail!(χ_sp, [0, 0, E_kin], iωn_f)
             # update_tail!(χ_ch, [0, 0, E_kin], iωn_f)
         end
-        #println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
-        #ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
-        #println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
+        println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
+        ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
+        println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
 
         if sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/kG.Nk < conv_abs 
             converged = true

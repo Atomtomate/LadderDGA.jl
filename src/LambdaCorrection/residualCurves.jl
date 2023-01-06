@@ -76,7 +76,7 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
             χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, Σ_loc::Vector{ComplexF64},
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-            νmax::Int = -1, maxit::Int = 50, update_χ_tail=false, mixing=0.2)
+            νmax::Int = -1, maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6)
 
     # general definitions
 
@@ -103,7 +103,7 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
             λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = if maxit == 0
             cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP, maxit=0, conv_abs=Inf)
         else
-            cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP, mixing=mixing, maxit=maxit, update_χ_tail=update_χ_tail)
+            cond_both_sc_int(λch_i, χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, Gνω, λ₀, kG, mP, sP, mixing=mixing, maxit=maxit, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
         end
 
         residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
