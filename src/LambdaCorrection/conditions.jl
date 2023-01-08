@@ -87,6 +87,7 @@ function cond_both_sc_int(λch_i::Float64,
     # @warn "init"
     # @warn size(gLoc_rfft)
     Σ_ladder = calc_Σ_par(kG, mP, sP, νrange=νrange);
+    Σ_ladder_old = deepcopy(Σ_ladder)
 
 
     μnew, GLoc_old, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP)
@@ -112,18 +113,13 @@ function cond_both_sc_int(λch_i::Float64,
         end
         lhs_c1, lhs_c2 = lhs_int(χ_sp.data, χ_ch.data, λsp_i, λch_i, 
                                 χ_tail, kG.kMult, k_norm, χ_sp.tail_c[3], mP.β)
-        #Σ_ladder_old = Σ_ladder
-
-        # println("before: ", sum(gLoc_rfft))
-        
         update_wcaches_G_rfft!(gLoc_rfft)
-        Σ_ladder = calc_Σ_par(kG, mP, sP, λsp=λsp_i, λch=λch_i, νrange=νrange);
-        #Σ_ladder = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old
-
+        Σ_ladder_old[:,:] = Σ_ladder
+        Σ_ladder[:,:] = calc_Σ_par(kG, mP, sP, λsp=λsp_i, λch=λch_i, νrange=νrange);
+        Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old
         GLoc_old[:,:] = deepcopy(GLoc_new)
 
         μnew, GLoc_new, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
-        # println("after:  ", sum(gLoc_rfft))
         if isnan(μnew)
             break
         end
