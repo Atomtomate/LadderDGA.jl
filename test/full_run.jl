@@ -49,6 +49,6 @@ initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP,
 @test all(χ_sp.data .≈ χ_sp2.data)
 @test all(χ_ch.data .≈ χ_ch2.data)
 
-c2_res_sc = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-10, maxit=10)
-c2_res = residuals(10, 10, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
+c2_res_sc = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-10, maxit=10)
+c2_res = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
 r1 = find_root(c2_res_sc)

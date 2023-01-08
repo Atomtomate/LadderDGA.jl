@@ -152,7 +152,7 @@ function G_from_Σladder(Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::Vector{Comp
     end
     gLoc_fft = nothing
     gLoc_rfft = nothing
-    if fix_n && !isnan(μ)
+    if (fix_n && !isnan(μ)) || !fix_n
         gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         mP.μ = μ
