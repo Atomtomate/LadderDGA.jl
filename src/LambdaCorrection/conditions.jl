@@ -83,10 +83,15 @@ function cond_both_sc_int(λch_i::Float64,
     initialize_EoM(gLoc_rfft, λ₀, νrange, kG, mP, sP, 
                 χsp = χ_sp, γsp = γ_sp,
                 χch = χ_ch, γch = γ_ch)
+
+    # @warn "init"
+    # @warn size(gLoc_rfft)
     Σ_ladder = calc_Σ_par(kG, mP, sP, νrange=νrange);
 
 
-    μnew, GLoc_old, _, _ = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP)
+    μnew, GLoc_old, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP)
+    # @warn "init 2"
+    # @warn size(gLoc_rfft)
     GLoc_new = deepcopy(GLoc_old)
     converged = false
     it     = 1
@@ -100,36 +105,38 @@ function cond_both_sc_int(λch_i::Float64,
         χ_λ!(χ_ch, χ_ch, λch_i)
         rhs_λsp = λsp_rhs(NaN, χ_sp, χ_ch, kG, mP, sP)
         λsp_i = λsp_correction(χ_sp, real(rhs_λsp), kG, mP, sP)
+        reset!(χ_ch)
         if !isfinite(λsp_i)
             @warn "no finite λsp found!"
-            reset!(χ_ch)
             break
         end
-        reset!(χ_ch)
         lhs_c1, lhs_c2 = lhs_int(χ_sp.data, χ_ch.data, λsp_i, λch_i, 
                                 χ_tail, kG.kMult, k_norm, χ_sp.tail_c[3], mP.β)
         #Σ_ladder_old = Σ_ladder
 
-        Σ_ladder = calc_Σ_par(kG, mP, sP, νrange=νrange);
+        # println("before: ", sum(gLoc_rfft))
+        
+        update_wcaches_G_rfft!(gLoc_rfft)
+        Σ_ladder = calc_Σ_par(kG, mP, sP, λsp=λsp_i, λch=λch_i, νrange=νrange);
         #Σ_ladder = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old
 
         GLoc_old[:,:] = deepcopy(GLoc_new)
 
         μnew, GLoc_new, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        # println("after:  ", sum(gLoc_rfft))
         if isnan(μnew)
             break
         end
         mP.μ = μnew
-        update_wcaches_G_rfft!(gLoc_rfft)
         E_kin, E_pot = calc_E(GLoc_new[:,0:νmax-1].parent, Σ_ladder.parent, kG, mP, νmax = νmax)
         if update_χ_tail
             error("Update for χ tail not implemented yet (parallel update not done)")
             # update_tail!(χ_sp, [0, 0, E_kin], iωn_f)
             # update_tail!(χ_ch, [0, 0, E_kin], iωn_f)
         end
-        # println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
-        # ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
-        # println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
+        println("SC it=$it, convergence: $(sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk)) with μ = $μnew")
+        ndens = filling_pos(GLoc_new.parent, kG, mP.U, μnew, mP.β)
+        println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp_i,digits=4)), λch = $(round(λch_i,digits=4))")
 
         if sum(abs.(GLoc_new[:,0:10] .- GLoc_old[:,0:10]))/(10*kG.Nk) < conv_abs 
             converged = true

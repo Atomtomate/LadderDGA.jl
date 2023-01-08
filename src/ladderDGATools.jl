@@ -146,8 +146,9 @@ function calc_Σ_eom_par(λsp::Float64, λch::Float64)
     if !wcache[].Σ_initialized 
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
-    λsp != 0 && χ_λ!(wcache[].χsp, λsp) 
-    λch != 0 && χ_λ!(wcache[].χch, λch) 
+    #TODO: this is unsave, λ values is not stored in χT
+    λsp != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, λsp) 
+    λch != 0 && χ_λ!(wcache[].χch, wcache[].χch, λch) 
 
     Nq::Int = size(wcache[].χsp,1)
     U = wcache[].mP.U
@@ -163,8 +164,8 @@ function calc_Σ_eom_par(λsp::Float64, λch::Float64)
             wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post
         end
     end
-    λsp != 0 && χ_λ!(wcache[].χsp, -λsp) 
-    λch != 0 && χ_λ!(wcache[].χch, -λch) 
+    λsp != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, -λsp) 
+    λch != 0 && χ_λ!(wcache[].χch, wcache[].χch, -λch) 
 end
 
 """
