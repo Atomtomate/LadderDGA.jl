@@ -33,12 +33,12 @@ end
 @info "λsp"
 @timeit LadderDGA.to "λsp" λsp_old = LadderDGA.λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 @info "c2 curve sc"
-@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, maxit=10)
+@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-7, maxit=100)
 @info "c2 curve"
-@timeit LadderDGA.to "c2" c2_res = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
+@timeit LadderDGA.to "c2" c2_res = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
 
 λspch_sc = find_root(c2_res_sc)
-λspch = find_root(c2_res_sc)
+λspch = find_root(c2_res)
 
 @info "Output"
 @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
