@@ -9,10 +9,7 @@
 #   use full version of bisection: `https://arxiv.org/pdf/1702.05542.pdf`                              #
 # ==================================================================================================== #
 
-
-
 # ========================================== χ-λ-transform ===========================================
-
 """
     χ_λ(χ::[Float64,ComplexF64,AbstractArray,χT], λ::Float64)
 
@@ -181,7 +178,6 @@ function newton_right(f::Function, start::Vector{Float64}; nsteps=500, atol=1e-6
 end
 
 # ============================================== misc. ===============================================
-
 """
     get_λ_min(χr::AbstractArray{Float64,2})::Float64
 
@@ -241,4 +237,20 @@ function λ_seach_range(χ::Matrix{Float64}; λ_max_default = 50)
         @warn "found very large λ_min ( = $λ_min). This indicates problems with the susceptibility."
     end
     return λ_min, λ_max
+end
+
+"""
+    gen_νω_indices(χsp::χT, χch::χT, sP::SimulationParameters)
+
+Internal helper to generate usable bosonic and fermionic ranges. Also returns the ``c_1/x^2`` tail. 
+"""
+function gen_νω_indices(χsp::χT, χch::χT, mP::ModelParameters, sP::SimulationParameters)
+    ωindices = usable_ωindices(sP, χsp, χch)
+    νmax::Int = minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)])
+    νGrid    = 0:νmax-1
+    iωn_f = collect(2im .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β)
+    iωn = iωn_f[ωindices]
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    χ_tail::Vector{ComplexF64} = χch.tail_c[3] ./ (iωn.^2)
+    return ωindices, νGrid, χ_tail
 end

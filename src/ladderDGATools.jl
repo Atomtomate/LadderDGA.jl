@@ -40,13 +40,13 @@ end
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
 function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
-    ωi_range, ωi_part = gen_ω_part(sP, workerpool)
+    worker_list = workers()
+    !(length(worker_list) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    ωi_range, ωi_part = gen_ω_part(sP, length(worker_list))
 
     @sync begin
-        for ind in ωi_part
-            @async remotecall_fetch(χ₀_conv, workerpool, ωi_range[ind])
+        for (i,ind) in enumerate(ωi_part)
+            @async remotecall_fetch(χ₀_conv, worker_list[i], ωi_range[ind])
         end
     end
 
@@ -59,12 +59,11 @@ end
 Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref `calc_bubble_par`).
 """
 function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
     @sync begin
-    for w in workers(workerpool)
+    for w in workers()
         @async begin
             indices = @fetchfrom w LadderDGA.wcache[].χ₀Indices
             χdata   = @fetchfrom w LadderDGA.wcache[].χ₀
@@ -125,10 +124,9 @@ Set `collect_data` to return both quantities, or call [`collect_χγ`](@ref coll
 
 """
 function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
-    workerpool = get_workerpool()
 
     @sync begin
-    for w in workers(workerpool)
+    for w in workers()
         @async remotecall_fetch(bse_inv, w, type, Γr)
     end
     end
@@ -172,13 +170,12 @@ end
 collect_Σ(Nk::Int, νrange::AbstractVector{Int}, mP::ModelParameters, sP::SimulationParameters)
 """
 function collect_Σ(Nk::Int, νrange::AbstractVector{Int}, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     Σ_hartree = mP.n * mP.U/2.0;
     Σ_ladder = OffsetArray(zeros(ComplexF64, Nk, length(νrange)), 1:Nk, νrange)
 
     @sync begin
-    for w in workers(workerpool)
+    for w in workers()
         @async begin
             indices = @fetchfrom w getfield(LadderDGA.wcache[], :νn_indices)
             Σ_ladder[:,indices] = @fetchfrom w getfield(LadderDGA.wcache[], :Σ_ladder)
@@ -197,11 +194,10 @@ Calculates self-energy on worker pool. Workers must first be initialized using [
 """
 function calc_Σ_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                     λsp::Float64=0.0, λch::Float64=0.0, νrange=0:sP.n_iν-1, collect_data=true)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     Nk::Int = length(kG.kMult)
     @sync begin
-    for wi in workers(workerpool)
+    for wi in workers()
         @async remotecall_fetch(calc_Σ_eom_par, wi, λsp, λch)
     end
     end

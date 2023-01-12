@@ -30,25 +30,25 @@ function par_partition(set::AbstractVector, N::Int)
 end
 
 """
-    gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+    gen_νω_part(sP::SimulationParameters, N::Int)
 
-Returns partition of frequency grid, according to the number of workers in `wp`.
+Returns partition of frequency grid, according to the number of workers `N`.
 """
-function gen_νω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+function gen_νω_part(sP::SimulationParameters, N::Int)
     ωνi_range::Vector{NTuple{4, Int64}} = [(ωn,νn,ωi,νi) for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω) 
                  for (νi,νn) in enumerate(((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2))]
-    ωνi_part = par_partition(ωνi_range, length(workerpool))
+    ωνi_part = par_partition(ωνi_range, N)
     return ωνi_range, ωνi_part
 end
 
 """
-    gen_ω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+    gen_ω_part(sP::SimulationParameters, N::Int)
 
-Returns partition of bosonic frequencies grid, according to the number of workers in `wp`.
+Returns partition of bosonic frequencies grid, according to the number of workers `N`.
 """
-function gen_ω_part(sP::SimulationParameters, workerpool::AbstractWorkerPool)
+function gen_ω_part(sP::SimulationParameters, N::Int)
     ωi_range::Vector{NTuple{2, Int64}} = [el for el in enumerate(-sP.n_iω:sP.n_iω)]
-    ωi_part = par_partition(ωi_range, length(workerpool))
+    ωi_part = par_partition(ωi_range, N)
     return ωi_range, ωi_part
 end
 
@@ -164,7 +164,7 @@ function update_wcache!(name::Symbol, val; override=true)
 end
 
 function update_wcaches_G_rfft!(G::GνqT)
-    wp = workers(get_workerpool())
+    wp = workers()
     @sync begin
     for wi in wp
         @async remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G)
@@ -205,13 +205,12 @@ function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::Abstr
                         χch::χT = collect_χ(:ch, kG, mP, sP),
                         γch::γT = collect_γ(:ch, kG, mP, sP))
     #TODO: calculate and distribute lambda0 directly here
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
 
-    indices = gen_ν_part(νGrid, sP, length(workerpool))
+    indices = gen_ν_part(νGrid, sP, length(workers()))
 
     @sync begin
-        for (i,wi) in enumerate(workers(workerpool))
+        for (i,wi) in enumerate(workers())
             @async begin
             remotecall_fetch(update_wcache!, wi, :χsp, χsp.data)
             remotecall_fetch(update_wcache!, wi, :χch, χch.data)
@@ -239,14 +238,13 @@ end
 Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
 """
 function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     χ_data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
     χfield = Symbol(string("χ",type))
 
     #TODO: check if Σ_initialization is set. if true, use different indices (also for γ, remove error after implementation)
     #
-    w_list = workers(workerpool)
+    w_list = workers()
     if @fetchfrom w_list[1] LadderDGA.wcache[].Σ_initialized
         χ_data[:,:] = @fetchfrom w_list[1] getfield(LadderDGA.wcache[], χfield)
     else
@@ -268,12 +266,11 @@ function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
 end
 
 function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    workerpool = get_workerpool()
-    !(length(workerpool) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
     γfield = Symbol(string("γ",type))
 
-    w_list = workers(workerpool)
+    w_list = workers()
     if @fetchfrom w_list[1] LadderDGA.wcache[].Σ_initialized
         error("Cannot collect γ after initialize_EoM has been called!")
     else

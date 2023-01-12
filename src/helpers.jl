@@ -135,9 +135,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           """
     end
 
-    workerpool = get_workerpool()
     @sync begin
-    for w in workers(workerpool)
+    for w in workers()
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:G_fft, gLoc_fft; override=true)
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:G_fft_reverse, gLoc_rfft; override=true)
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:kG, kGridStr; override=true)

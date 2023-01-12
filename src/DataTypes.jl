@@ -127,7 +127,6 @@ mutable struct χT <: MatsubaraFunction{_eltype, 2}
     usable_ω::AbstractArray{Int}
 
     function χT(data::Array{T, 2}; tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0) where T <: Union{ComplexF64, Float64}
-        @warn "DBG: currently forcing omega FULL range!!"
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
         new(data, Dict(:q => 1, :ω => 2), tail_c, 0.0, range)
     end

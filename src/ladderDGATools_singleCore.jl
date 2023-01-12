@@ -58,7 +58,6 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
-    @warn "Forcing naiive computation of λ₀"
     if typeof(sP.χ_helper) <: BSE_Asym_Helpers
        λ0[:] = calc_λ0_impr(:sp, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
                             mP.U, mP.β, sP.χ_helper)
@@ -204,17 +203,21 @@ function calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::Abstract
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; 
                 νmax::Int = sP.n_iν,
-                pre_expand=true)
+                λsp::Float64=0.0, λch::Float64=0.0)
     Σ_hartree = mP.n * mP.U/2.0;
     Nq, Nω = size(χ_sp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    #TODO: implement real fft and make _pre real
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
-    @timeit to "Σ_ω" calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    λsp != 0.0 && χ_λ!(χ_sp, λsp)
+    λch != 0.0 && χ_λ!(χ_ch, λch)
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    reset!(χ_sp)
+    reset!(χ_ch)
+
     res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end

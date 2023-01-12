@@ -1,6 +1,7 @@
 using Distributed
 
-nprocs() == 1 && addprocs(2, exeflags="--project=$(Base.active_project())")
+rmprocs(workers(default_worker_pool()))
+addprocs(2, exeflags="--project=$(Base.active_project())")
 @everywhere using LadderDGA
 
 dir = dirname(@__FILE__)
@@ -49,6 +50,9 @@ initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP,
 @test all(χ_sp.data .≈ χ_sp2.data)
 @test all(χ_ch.data .≈ χ_ch2.data)
 
-c2_res_sc = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=10)
-c2_res = residuals(4, 4, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
+c2_res_sc = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=10, par=false)
+c2_res_sc_par = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=10, par=true)
+ind = isfinite.(c2_res_sc) .&& isfinite.(c2_res_sc_par)
+@test all(isapprox.(c2_res_sc[ind], c2_res_sc_par[ind], atol=1e-4))
+c2_res = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 r1 = find_root(c2_res_sc)
