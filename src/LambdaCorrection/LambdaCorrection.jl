@@ -16,7 +16,7 @@ export get_λ_min
 
 export λsp_correction
 export bisect, correct_margins, newton_right
-export residuals, find_root
+export run_sc, residuals, find_root
 
 include("helpers.jl")
 include("conditions.jl")

@@ -33,12 +33,32 @@ end
 @info "λsp"
 @timeit LadderDGA.to "λsp" λsp_old = LadderDGA.λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 @info "c2 curve sc"
-@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-7, maxit=100)
+@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true)
 @info "c2 curve"
-@timeit LadderDGA.to "c2" c2_res = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0)
+@timeit LadderDGA.to "c2" c2_res = residuals(6, 6, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 
+@info "calc Σ"
 λspch_sc = find_root(c2_res_sc)
 λspch = find_root(c2_res)
+Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
+Σ_ladder_m = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λsp_old);
+Σ_ladder_dm = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λspch[1], λch = λspch[2]);
+Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
+
+function lin_fit(ν, Σ)
+    m = (Σ[2] - Σ[1])/(ν[2] - ν[1])
+    return Σ[1] - m * ν[1]
+end
+
+function get_ef(Σ_ladder)
+    νGrid = [1im * (2*n+1)*π/mP.β for n in 0:1];
+    s_r0 = [lin_fit(imag(νGrid), real.(Σ_ladder[i,0:2])) for i in 1:size(Σ_ladder,1)];
+    Σ0_full = LadderDGA.expandKArr(kG, s_r0);
+    ekf = LadderDGA.expandKArr(kG,mP.μ .- kG.ϵkGrid)
+    ek_diff = ekf .- Σ0_full
+    min_diff = minimum(abs.(ekf .- Σ0_full))
+    return ef_ind = abs.(ek_diff) .< 2*min_diff
+end
 
 @info "Output"
 @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
@@ -51,6 +71,18 @@ end
     f["λsp_old"] = λsp_old
     f["λspch"] = λspch
     f["λspch_sc"] = λspch_sc
+    f["Σ_ladder"] = Σ_ladder
+    f["Σ_ladder_m"] = Σ_ladder_m
+    f["Σ_ladder_dm"] = Σ_ladder_dm
+    f["Σ_ladder_dm_sc"] = Σ_ladder_dm_sc
+    f["gLoc_sc"] = gLoc_sc
+    f["E_pot_sc"] = E_pot_sc
+    f["μsc"] = μsc
+    f["sc_converged"] = converged
+    f["ef_dmft"] = get_ef(Σ_ladder)
+    f["ef_m"] = get_ef(Σ_ladder_m)
+    f["ef_dm"] = get_ef(Σ_ladder_dm)
+    f["ef_dm_sc"] = get_ef(Σ_ladder_dm_sc)
 end
 
 println(LadderDGA.to)
