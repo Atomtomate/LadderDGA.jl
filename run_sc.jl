@@ -13,9 +13,7 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 @everywhere using LadderDGA
 
 
-@info "Reading Input"
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-@info "Setup"
 @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 @info "Bubble"
 @timeit LadderDGA.to "bubble" bubble = calc_bubble_par(kG, mP, sP, collect_data=true);
@@ -43,7 +41,11 @@ end
 Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
 Σ_ladder_m = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λsp_old);
 Σ_ladder_dm = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λspch[1], λch = λspch[2]);
+
+@info "Bubble after sc"
 Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
+gLoc_sc_fft, gLoc_sc_rfft = G_fft(gLoc_sc, kG, mP, sP)
+bubble_sc = calc_bubble(gLoc_sc_fft, gLoc_sc_rfft, kG, mP, sP)
 
 function lin_fit(ν, Σ)
     m = (Σ[2] - Σ[1])/(ν[2] - ν[1])
@@ -57,8 +59,16 @@ function get_ef(Σ_ladder)
     ekf = LadderDGA.expandKArr(kG,mP.μ .- kG.ϵkGrid)
     ek_diff = ekf .- Σ0_full
     min_diff = minimum(abs.(ekf .- Σ0_full))
-    return ef_ind = abs.(ek_diff) .< 2*min_diff
+    return ef_ind = abs.(ek_diff) .< kG.Ns*min_diff
 end
+
+f_d(q) = cos(q[1]) - cos(q[2])
+ff = (f_d.(kG.kGrid)).^2
+χ0_i_ff = LadderDGA.kintegrate(kG, ff .* sum(1 ./ bubble.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
+χ0_i = LadderDGA.kintegrate(kG, sum(1 ./ bubble.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
+
+χ0_i_ff_sc = LadderDGA.kintegrate(kG, ff .* sum(1 ./ bubble_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
+χ0_i_sc = LadderDGA.kintegrate(kG, sum(1 ./ bubble_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
 
 @info "Output"
 @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
@@ -83,6 +93,8 @@ end
     f["ef_m"] = get_ef(Σ_ladder_m)
     f["ef_dm"] = get_ef(Σ_ladder_dm)
     f["ef_dm_sc"] = get_ef(Σ_ladder_dm_sc)
+    f["χ0_i_ff_DMFT"] = χ0_i_ff
+    f["χ0_i_DMFT"] = χ0_i
 end
 
 println(LadderDGA.to)

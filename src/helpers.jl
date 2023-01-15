@@ -135,6 +135,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
           """
     end
 
+    workerpool = get_workerpool()
     @sync begin
     for w in workers()
         @async remotecall_fetch(LadderDGA.update_wcache!,w,:G_fft, gLoc_fft; override=true)
@@ -281,4 +282,21 @@ function reduce_range(range::AbstractArray, red_prct::Float64)
     lst = maximum([last(range)-sub, ceil(Int,length(range)/2 + iseven(length(range)))])
     fst = minimum([first(range)+sub, ceil(Int,length(range)/2)])
     return fst:lst
+end
+
+"""
+    G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
+"""
+function G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    g_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    g_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    G_νn = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...) 
+    for νn in axes(G, 2)
+        G_νn  = expandKArr(kG, G[:,νn].parent)
+        g_fft[:,νn] .= fft(G_νn)[:]
+        g_rfft[:,νn] .= fft(reverse(G_νn))[:]
+    end
+    return g_fft, g_rfft
 end

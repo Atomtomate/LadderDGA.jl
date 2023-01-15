@@ -10,7 +10,7 @@ module LadderDGA
     export ΓT, FT, χ₀T, χT, γT, GνqT
     
     # Setup and auxilliary functions
-    export filling, filling_pos
+    export filling, filling_pos, G_fft
     export find_usable_χ_interval, usable_ωindices, subtract_tail, subtract_tail!
     export addprocs
 
