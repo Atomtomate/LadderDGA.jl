@@ -70,14 +70,17 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         rm = maximum(abs.(sP.fft_range))
         t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
         gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
+        gLoc = OffsetArray(Array{ComplexF64,2}(undef, length(kG.kMult), length(sP.fft_range)), 1:length(kG.kMult), sP.fft_range)
+        gLoc_i = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
         gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νi in sP.fft_range
             Σ_loc_i = (νi < 0) ? conj(Σ_loc[-νi]) : Σ_loc[νi + 1]
-            GLoc_νi  = reshape(map(ϵk -> G_from_Σ(νi, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
-            gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
-            gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
+            gLoc_i  = reshape(map(ϵk -> G_from_Σ(νi, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
+            gLoc[:,νi] = reduceKArr(kG, gLoc_i)
+            gLoc_fft[:,νi] .= fft(gLoc_i)[:]
+            gLoc_rfft[:,νi] .= fft(reverse(gLoc_i))[:]
         end
     end
 
@@ -146,7 +149,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
     end
 
-    return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γ_sp, Γ_ch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp
+    return Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γ_sp, Γ_ch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp
 end
 
 # ========================================== Index Functions =========================================

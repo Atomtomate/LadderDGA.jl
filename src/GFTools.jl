@@ -150,20 +150,11 @@ function G_from_Σladder(Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::Vector{Comp
     else
         μ_new_nls.zero[1]
     end
-    gLoc_fft = nothing
-    gLoc_rfft = nothing
     if (fix_n && !isnan(μ)) || !fix_n
-        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
         mP.μ = μ
         G_from_Σ!(GLoc_new, Σ_ladder.parent, kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc_part)
-        for νi in sP.fft_range
-            GLoc_νi  = νi < 0 ? expandKArr(kG, conj(GLoc_new[:,-νi])) : expandKArr(kG, GLoc_new[:,νi+1])
-            gLoc_fft[:,νi] .= fft(GLoc_νi)[:]
-            gLoc_rfft[:,νi] .= fft(reverse(GLoc_νi))[:]
-        end
     end
-    return μ, OffsetArray(GLoc_new, 1:size(GLoc_new,1), νRange), gLoc_fft, gLoc_rfft
+    return μ, OffsetArray(GLoc_new, 1:size(GLoc_new,1), νRange)
 end
 
 

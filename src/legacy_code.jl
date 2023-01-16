@@ -80,7 +80,7 @@ function cond_both_int(λch_i::Float64,
                             χ_tail, kG.kMult, k_norm, χ_sp.tail_c[3], mP.β)
 
     #TODO: the next line is expensive: Optimize G_from_Σ
-    μnew, GLoc_new, _, _ = G_from_Σladder(Σ_ladder[:,0:νmax-1], Σ_loc, kG, mP, sP)
+    μnew, GLoc_new = G_from_Σladder(Σ_ladder[:,0:νmax-1], Σ_loc, kG, mP, sP)
     E_kin, E_pot = calc_E(GLoc_new[:,0:νmax-1].parent, Σ_ladder.parent, kG, mP, νmax = νmax)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)

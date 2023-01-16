@@ -14,7 +14,7 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 
 
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 @info "Bubble"
 @timeit LadderDGA.to "bubble" bubble = calc_bubble_par(kG, mP, sP, collect_data=true);
 @info "BSE sp"
@@ -43,9 +43,6 @@ end
 Σ_ladder_dm = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λspch[1], λch = λspch[2]);
 
 @info "Bubble after sc"
-Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
-gLoc_sc_fft, gLoc_sc_rfft = G_fft(gLoc_sc, kG, mP, sP)
-bubble_sc = calc_bubble(gLoc_sc_fft, gLoc_sc_rfft, kG, mP, sP)
 
 function lin_fit(ν, Σ)
     m = (Σ[2] - Σ[1])/(ν[2] - ν[1])
@@ -62,13 +59,23 @@ function get_ef(Σ_ladder)
     return ef_ind = abs.(ek_diff) .< kG.Ns*min_diff
 end
 
-f_d(q) = cos(q[1]) - cos(q[2])
-ff = (f_d.(kG.kGrid)).^2
-χ0_i_ff = LadderDGA.kintegrate(kG, ff .* sum(1 ./ bubble.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
-χ0_i = LadderDGA.kintegrate(kG, sum(1 ./ bubble.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
 
-χ0_i_ff_sc = LadderDGA.kintegrate(kG, ff .* sum(1 ./ bubble_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
-χ0_i_sc = LadderDGA.kintegrate(kG, sum(1 ./ bubble_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=(2,3))/mP.β^2, 1)[1,1,1]
+@info "bubble with form factor"
+f_d(q) = cos(q[1]) - cos(q[2])
+ff = gLoc .* (f_d.(kG.kGrid)).^2
+gLoc_ff_fft, gLoc_ff_rfft = G_fft(ff, kG, mP, sP)
+bubble_ff = calc_bubble(gLoc_ff_fft, gLoc_ff_rfft, kG, mP, sP)
+χ0_i_ff = sum(1 ./ bubble_ff.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:]) / mP.β # TODO: select ω and q
+
+Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
+ff_sc = gLoc_sc .* (f_d.(kG.kGrid)).^2
+gLoc_ff_fft_sc, gLoc_ff_rfft_sc = G_fft(ff_sc, kG, mP, sP)
+bubble_ff_sc = calc_bubble(gLoc_ff_fft_sc, gLoc_ff_rfft_sc, kG, mP, sP)
+χ0_i_ff_sc = sum(1 ./ bubble_ff_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:]) / mP.β # TODO: select ω and q
+
+qi_0 = 1
+qi_π = length(kG.kMult)
+ωi = sP.n_iω+1
 
 @info "Output"
 @timeit LadderDGA.to "write" jldopen(fname_out, "w") do f
@@ -93,8 +100,10 @@ ff = (f_d.(kG.kGrid)).^2
     f["ef_m"] = get_ef(Σ_ladder_m)
     f["ef_dm"] = get_ef(Σ_ladder_dm)
     f["ef_dm_sc"] = get_ef(Σ_ladder_dm_sc)
-    f["χ0_i_ff_DMFT"] = χ0_i_ff
-    f["χ0_i_DMFT"] = χ0_i
+    f["χ0_i_0_DMFT"] = χ0_i_ff[qi_0,ωi]
+    f["χ0_i_π_DMFT"] = χ0_i_ff[qi_π,ωi]
+    f["χ0_i_0"] = χ0_i_ff[qi_0,ωi]
+    f["χ0_i_π"] = χ0_i_ff[qi_π,ωi]
 end
 
 println(LadderDGA.to)

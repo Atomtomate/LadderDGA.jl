@@ -77,7 +77,7 @@ open(logfile_path,"w") do io
 
     while !conv && !(conv_dm_error && conv_m_error)
         @info "Running k-grid convergence calculation for Nk = $Nk"
-        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+        @timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
         @timeit LadderDGA.to "nl bblt par" bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
         @timeit LadderDGA.to "nl xsp par" χ_sp, γ_sp = LadderDGA.calc_χγ(:sp, Γsp, bubble, kG, mP, sP);

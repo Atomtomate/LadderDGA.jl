@@ -52,7 +52,7 @@ initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP,
 
 c2_res_sc = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=10, par=false)
 c2_res_sc_par = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=10, par=true)
-ind = isfinite.(c2_res_sc) .&& isfinite.(c2_res_sc_par)
-@test all(isapprox.(c2_res_sc[ind], c2_res_sc_par[ind], atol=1e-4))
+ind =  mapslices(x->all(isfinite.(x)), c2_res_sc, dims=1) .& mapslices(x->all(isfinite.(x)), c2_res_sc_par, dims=1)
+@test all(isapprox.(c2_res_sc[ind,:], c2_res_sc_par[ind,:], atol=1e-6))
 c2_res = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 r1 = find_root(c2_res_sc)

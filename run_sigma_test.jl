@@ -9,7 +9,7 @@ wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 # Σ_ladder_λm_list = []
 # Σ_ladder_λdm_list = []
 
-Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 
 bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
 

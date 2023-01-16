@@ -41,7 +41,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     _, νGrid, χ_tail = gen_νω_indices(χsp, χch, mP, sP)
     lhs_c1, lhs_c2 = lhs_int(χsp, χch, λi[1], λi[2], χ_tail, kG.kMult, k_norm, χsp.tail_c[3], mP.β)
     Σ_ladder = calc_Σ(χsp, γsp, χch, γch, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν, λsp=λi[1],λch=λi[2]);
-    _, GLoc_new, _, _ = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
+    _, GLoc_new = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
     _, E_pot = calc_E(GLoc_new[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
@@ -69,7 +69,8 @@ function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray
         Σ_ladder_old = deepcopy(Σ_ladder)
         Σ_ladder = calc_Σ(χsp, γsp, χch, γch, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λsp=λsp,λch=λch);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
-        μnew, gLoc_new, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        μnew, gLoc_new = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        _, gLoc_rfft = G_fft(gLoc_new, kG, mP, sP)
         isnan(μnew) && break
         mP.μ = μnew
         _, E_pot = calc_E(gLoc_new[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
@@ -107,7 +108,8 @@ function run_sc_par(gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64}, νGrid::A
         Σ_ladder_old[:,:] = deepcopy(Σ_ladder)
         Σ_ladder[:,:] = calc_Σ_par(kG, mP, sP, λsp=λsp, λch=λch, νrange=νGrid);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
-        μnew, gLoc_new, _, gLoc_rfft = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        μnew, gLoc_new = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        _, gLoc_rfft = G_fft(gLoc_new, kG, mP, sP)
         mP.μ = μnew
         isnan(μnew) && break
         _, E_pot = calc_E(gLoc_new[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
