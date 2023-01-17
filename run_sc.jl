@@ -62,16 +62,16 @@ end
 
 @info "bubble with form factor"
 f_d(q) = cos(q[1]) - cos(q[2])
-ff = gLoc .* (f_d.(kG.kGrid)).^2
+ff = gLoc .* (f_d.(kG.kGrid))
 gLoc_ff_fft, gLoc_ff_rfft = G_fft(ff, kG, mP, sP)
 bubble_ff = calc_bubble(gLoc_ff_fft, gLoc_ff_rfft, kG, mP, sP)
-χ0_i_ff = sum(1 ./ bubble_ff.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:]) / mP.β # TODO: select ω and q
+χ0_i_ff = sum(1 ./ bubble_ff.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=2)[:,1,:] / mP.β # TODO: select ω and q
 
 Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
-ff_sc = gLoc_sc .* (f_d.(kG.kGrid)).^2
+ff_sc = gLoc_sc .* (f_d.(kG.kGrid))
 gLoc_ff_fft_sc, gLoc_ff_rfft_sc = G_fft(ff_sc, kG, mP, sP)
 bubble_ff_sc = calc_bubble(gLoc_ff_fft_sc, gLoc_ff_rfft_sc, kG, mP, sP)
-χ0_i_ff_sc = sum(1 ./ bubble_ff_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:]) / mP.β # TODO: select ω and q
+χ0_i_ff_sc = sum(1 ./ bubble_ff_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=2)[:,1,:] / mP.β # TODO: select ω and q
 
 qi_0 = 1
 qi_π = length(kG.kMult)
