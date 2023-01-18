@@ -5,7 +5,6 @@ on:
     branches:
       - master
       - dev
-      - dev_cleanup
     tags: '*'
   pull_request:
 

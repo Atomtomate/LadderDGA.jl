@@ -109,9 +109,9 @@ function run_sc_par(gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64}, νGrid::A
         Σ_ladder[:,:] = calc_Σ_par(kG, mP, sP, λsp=λsp, λch=λch, νrange=νGrid);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, gLoc_new = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        isnan(μnew) && break
         _, gLoc_rfft = G_fft(gLoc_new, kG, mP, sP)
         mP.μ = μnew
-        isnan(μnew) && break
         _, E_pot = calc_E(gLoc_new[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
         if Σ_ladder_old !== nothing
             # println("SC it = $it, conv = $(sum(abs.(Σ_ladder .- Σ_ladder_old))/(size(Σ_ladder_old,2)*kG.Nk)), μ = $μnew")
