@@ -70,11 +70,11 @@ function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray
         Σ_ladder = calc_Σ(χsp, γsp, χch, γch, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λsp=λsp,λch=λch);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, gLoc_new = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
-        _, gLoc_rfft = G_fft(gLoc_new, kG, mP, sP)
         isnan(μnew) && break
+        _, gLoc_rfft = G_fft(gLoc_new, kG, mP, sP)
         mP.μ = μnew
         _, E_pot = calc_E(gLoc_new[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
-        if Σ_ladder_old !== nothing
+        if it != 1
             # println("SC it = $it, conv = $(sum(abs.(Σ_ladder .- Σ_ladder_old))/(size(Σ_ladder_old,2)*kG.Nk)), μ = $μnew")
             # ndens = filling_pos(gLoc_new.parent, kG, mP.U, μnew, mP.β)
             # println("  -> check filling: $(round(ndens,digits=4)) =?= $(round(mP.n,digits=4)), λsp = $(round(λsp,digits=4)), λch = $(round(λch,digits=4))")

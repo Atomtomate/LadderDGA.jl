@@ -61,7 +61,7 @@ end
 
 
 @info "bubble with form factor"
-f_d(q) = cos(q[1]) - cos(q[2])
+f_d(k) = cos(k[1]) - cos(k[2])
 ff = gLoc .* (f_d.(kG.kGrid))
 gLoc_ff_fft, gLoc_ff_rfft = G_fft(ff, kG, mP, sP)
 bubble_ff = calc_bubble(gLoc_ff_fft, gLoc_ff_rfft, kG, mP, sP)

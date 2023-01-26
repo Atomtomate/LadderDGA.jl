@@ -129,7 +129,7 @@ end
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
 function G_from_Σladder(Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                         fix_n::Bool=false)
-    νRange = 0:last(sP.fft_range)
+    νRange = 0:last(sP.fft_range)+1
     Σloc_part = Σloc[1:last(νRange)+1]
     GLoc_new = Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange))
 

@@ -296,8 +296,8 @@ function G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameter
     g_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
     g_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
     G_νn = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...) 
-    for νn in axes(G, 2)
-        G_νn  = expandKArr(kG, G[:,νn].parent)
+    for νn in sP.fft_range
+        G_νn  = νn < 0 ? expandKArr(kG, conj(G[:,-νn-1].parent)) : expandKArr(kG, G[:,νn].parent)
         g_fft[:,νn] .= fft(G_νn)[:]
         g_rfft[:,νn] .= fft(reverse(G_νn))[:]
     end
