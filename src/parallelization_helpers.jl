@@ -114,6 +114,7 @@ mutable struct WorkerCache
     χ₀Indices::Vector{NTuple{2,Int}}
     χsp::Array{ComplexF64,2}
     χch::Array{ComplexF64,2}
+    χ_coeffs::Vector{Float64}
     γsp::Array{ComplexF64,3}
     γch::Array{ComplexF64,3}
     # EoM related:
@@ -132,6 +133,7 @@ mutable struct WorkerCache
             Array{_eltype,3}(undef,0,0,0), Array{_eltype,2}(undef,0,0), 
             Vector{NTuple{3,Int}}(undef, 0),
             Array{ComplexF64,2}(undef, 0,0),Array{ComplexF64,2}(undef, 0,0),
+            Vector{Float64}(undef, 0),
             Array{ComplexF64,3}(undef, 0,0,0),Array{ComplexF64,3}(undef, 0,0,0),
             # EoM
             Vector{UnitRange{Int}}(undef, 0),
@@ -214,6 +216,7 @@ function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::Abstr
             @async begin
             remotecall_fetch(update_wcache!, wi, :χsp, χsp.data)
             remotecall_fetch(update_wcache!, wi, :χch, χch.data)
+            remotecall_fetch(update_wcache!, wi, :χ_coeffs, χsp.tail_c)
             data_sl, νn_indices, ωn_ranges = gen_ν_part_slices(γsp.data, indices[i])
             remotecall_fetch(update_wcache!, wi, :γsp, data_sl)
             remotecall_fetch(update_wcache!, wi, :ωn_ranges,  ωn_ranges)
@@ -225,6 +228,43 @@ function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::Abstr
             remotecall_fetch(initialize_EoM_cache!, wi, length(νn_indices))
             remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G_fft_reverse)
             end
+        end
+    end
+end
+
+"""
+    _update_tail!(coeffs::Vector{Float64})
+
+Updates the Ekin/ω^2 tail of physical susceptibilities on worker. Used by [`update_tail!`](@ref update_tail).
+"""
+function _update_tail!(coeffs::Vector{Float64})
+    #TODO: check if Σ_initialized
+    #TODO: code replication from single core variant
+    #TODO: checks from single core
+    ωnGrid = collect(2im .* (-wcache[].sP.n_iω:wcache[].sP.n_iω) .* π ./ wcache[].mP.β)
+    zero_ind = findall(x->x==0, ωnGrid) 
+    for ci in 2:length(coeffs)
+        if !(coeffs[ci] ≈ wcache[].χ_coeffs[ci])
+            tmp = (coeffs[ci] - wcache[].χ_coeffs[ci]) ./ (ωnGrid .^ (ci-1))  
+            tmp[zero_ind] .= 0
+            for qi in 1:size(wcache[].χsp,1)
+                wcache[].χsp[qi,:] = wcache[].χsp[qi,:] .+ tmp
+                wcache[].χch[qi,:] = wcache[].χch[qi,:] .+ tmp
+            end
+            wcache[].χ_coeffs[ci] = coeffs[ci]
+        end
+    end
+end
+
+"""
+    update_tail!(coeffs::Vector{Float64})
+
+Updates the Ekin/ω^2 tail of physical susceptibilities on all workers.
+"""
+function update_tail!(coeff::Vector{Float64})
+    @sync begin
+        for wi in workers()
+            remotecall_fetch(_update_tail!, wi, coeff)
         end
     end
 end

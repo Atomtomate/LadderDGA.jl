@@ -102,7 +102,8 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
             λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = if maxit == 0
             res_curve_int(λch_i, χsp, γsp, χch, γch, Σ_loc, Gνω, λ₀, kG, mP, sP, maxit=0, conv_abs=Inf, par=par)
         else
-            res_curve_int(λch_i, χsp, γsp, χch, γch, Σ_loc, Gνω, λ₀, kG, mP, sP, mixing=mixing, maxit=maxit, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
+            res_curve_int(λch_i, χsp, γsp, χch, γch, Σ_loc, Gνω, λ₀, kG, mP, sP, 
+                            mixing=mixing, maxit=maxit, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
         end
 
         residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
@@ -119,25 +120,13 @@ function res_curve_int(λch_i::Float64,
             λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
             maxit=50, mixing=0.2, conv_abs=1e-6, update_χ_tail=false, par=false)
 
-    k_norm::Int = Nk(kG)
-    _, νGrid, χ_tail = gen_νω_indices(χsp, χch, mP, sP)
-    χ_λ!(χch, χch, λch_i)
-    rhs_λsp = λsp_rhs(NaN, χsp, χch, kG, mP, sP)
-    λsp_i = λsp_correction(χsp, real(rhs_λsp), kG, mP, sP)
-    reset!(χch)
-    if !isfinite(λsp_i)
-        @warn "no finite λsp found!"
-    end
-    lhs_c1, lhs_c2 = lhs_int(χsp.data, χch.data, λsp_i, λch_i, 
-                            χ_tail, kG.kMult, k_norm, χsp.tail_c[3], mP.β)
 
-    Σ_ladder, gLoc_new, E_pot, μnew, converged = if par 
-        initialize_EoM(gLoc_rfft_init, λ₀, νGrid, kG, mP, sP, 
-                    χsp = χsp, γsp = γsp,
-                    χch = χch, γch = γch)
-        run_sc_par(gLoc_rfft_init, Σ_loc, νGrid, λsp_i, λch_i, kG, mP, sP, maxit=maxit, mixing=mixing, conv_abs=conv_abs)
+    Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λsp_i, lhs_c1, lhs_c2, converged = if par 
+        run_sc_par(χsp, γsp, χch, γch, λ₀, gLoc_rfft_init, Σ_loc, λch_i, kG, mP, sP, 
+               maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
     else
-        run_sc(χsp, γsp, χch, γch, λ₀, gLoc_rfft_init, Σ_loc, λsp_i, λch_i, kG, mP, sP, maxit=maxit, mixing=mixing, conv_abs=conv_abs)
+        run_sc(χsp, γsp, χch, γch, λ₀, gLoc_rfft_init, Σ_loc, λch_i, kG, mP, sP, 
+               maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
     end
                 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)

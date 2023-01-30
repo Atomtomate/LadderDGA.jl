@@ -249,8 +249,8 @@ function gen_νω_indices(χsp::χT, χch::χT, mP::ModelParameters, sP::Simulat
     νmax::Int = minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)])
     νGrid    = 0:νmax-1
     iωn_f = collect(2im .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β)
-    iωn = iωn_f[ωindices]
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{ComplexF64} = χch.tail_c[3] ./ (iωn.^2)
-    return ωindices, νGrid, χ_tail
+    # iωn = iωn_f[ωindices]
+    # iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    # χ_tail::Vector{ComplexF64} = χch.tail_c[3] ./ (iωn.^2)
+    return ωindices, νGrid, iωn_f #χ_tail
 end
