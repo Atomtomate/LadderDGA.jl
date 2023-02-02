@@ -125,6 +125,7 @@ function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray
     update_tail!(χch, [0, 0, mP.Ekin_DMFT], iωn_f)
     μnew = mP.μ
     mP.μ = μbak
+    converged = converged && all(isfinite.([lhs_c2, lhs_c2]))
     return Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λsp, lhs_c1, lhs_c2, converged
 end
 
