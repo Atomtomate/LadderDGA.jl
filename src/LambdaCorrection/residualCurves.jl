@@ -88,7 +88,6 @@ function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{F
     λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+0.9),length=NPoints_negative+2)) .+ λch_min .- 1
     λch_range_coarse = range(0,stop=λch_max,length=NPoints_coarse)
     λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=6)) .+ 2*λch_max .- 1
-    #last_λch_range = isfinite(last_λ[2]) ? range(last_λ[2] - abs(last_λ[2]*0.1), stop = last_λ[2] + abs(last_λ[2]*0.1), length=8) : []
     λch_range = Float64.(sort(unique(union([0.0], λch_range_negative, λch_range_coarse, λch_range_large))))
 
     # EoM optimization related definitions

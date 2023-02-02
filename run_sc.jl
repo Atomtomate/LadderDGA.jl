@@ -15,39 +15,44 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 
 
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 @info "Bubble"
 @timeit LadderDGA.to "bubble" bubble = calc_bubble_par(kG, mP, sP, collect_data=true);
 @info "BSE sp"
-@timeit LadderDGA.to "BSE sp" χ_sp, γ_sp = calc_χγ_par(:sp, Γsp, kG, mP, sP, collect_data=true);
+@timeit LadderDGA.to "BSE sp" χ_m, γ_m = calc_χγ_par(:sp, Γsp, kG, mP, sP, collect_data=true);
 @info "BSE ch"
-@timeit LadderDGA.to "BSE ch" χ_ch, γ_ch = calc_χγ_par(:ch, Γch, kG, mP, sP, collect_data=true);
+@timeit LadderDGA.to "BSE ch" χ_d, γ_d = calc_χγ_par(:ch, Γch, kG, mP, sP, collect_data=true);
 
 @info "EoM Correction"
 @timeit LadderDGA.to "EoM Correction" begin
     Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-    λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
+    λ₀ = calc_λ0(bubble, Fsp, χ_m_loc, γ_m_loc, mP, sP)
 end
 
 @info "λsp"
-@timeit LadderDGA.to "λsp" λm = LadderDGA.λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+@timeit LadderDGA.to "λsp" λm = LadderDGA.λ_correction(:sp, imp_density, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP)
 @info "c2 curve sc"
-@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true)
+@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true)
 # @info "c2 curve sc"
-# @timeit LadderDGA.to "c2 sc" c2_res_sc_seq = residuals(3, 3, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=false)
+# @timeit LadderDGA.to "c2 sc" c2_res_sc_seq = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=false)
 @info "c2 curve sc tail"
-@timeit LadderDGA.to "c2 sc" c2_res_tsc = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true, update_χ_tail=true)
+@timeit LadderDGA.to "c2 sc" c2_res_tsc = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true, update_χ_tail=true)
 @info "c2 curve"
-@timeit LadderDGA.to "c2" c2_res = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+@timeit LadderDGA.to "c2" c2_res = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 
 @info "calc Σ"
-λdm_tsc = find_root(c2_res_tsc)
-λdm_sc = find_root(c2_res_sc)
+ind_tsc = findall(x->x≈0, c2_res_tsc[2,:])
+ind_sc = findall(x->x≈0, c2_res_sc[2,:])
 λdm = find_root(c2_res)
-Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-Σ_ladder_m = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
+λdm_sc = find_root(c2_res_sc)
+λdm_tsc = find_root(c2_res_tsc)
+λm_sc = c2_res_sc[1,ind_sc][1]
+λm_tsc = c2_res_tsc[1,ind_tsc][1]
+
+Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP);
+Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
 Σ_ladder_dm = if all(isfinite.(λdm))
-    calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
+    calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
 else
     @warn "No finite λdm found!"
     Σ_ladder
@@ -55,7 +60,7 @@ end
 
 @info "bubble with form factor"
 include(joinpath(@__DIR__,"scripts/chi0t.jl"))
-_, νGrid, _ = LadderDGA.LambdaCorrection.gen_νω_indices(χ_sp, χ_ch, mP, sP)
+_, νGrid, _ = LadderDGA.LambdaCorrection.gen_νω_indices(χ_m, χ_d, mP, sP)
 # ========================================== DMFT ==========================================
 χ0_inv_dmft = χ0_inv(gLoc, kG, mP, sP)
 χ0_inv_dmft_0 = χ0_inv_dmft[qi_0, ωi]
@@ -84,9 +89,9 @@ end
 
 # ======================================= lDΓA_m_sc ========================================
 Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc = if isfinite(λm)
-    Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
+    Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, _, _, _, converged_m_sc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
     χ0_inv_m_sc = χ0_inv(gLoc_m_sc, kG, mP, sP)
-    Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m
+    Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc
 else
     @warn "No finite λdm_sc found!"
     nothing, NaN, NaN, NaN, NaN, NaN, false 
@@ -94,19 +99,31 @@ end
 
 # ===================================== lDΓA_dm_sc =========================================
 Σ_ladder_dm_sc, χ0_inv_dm_sc_0, χ0_inv_dm_sc_π, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm_sc = if all(isfinite.(λdm_sc))
-    Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λdm_sc[2], kG, mP, sP)
+    Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, _, _, _, converged_dm_sc = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λdm_sc[2], kG, mP, sP)
     χ0_inv_dm_sc = χ0_inv(gLoc_dm_sc, kG, mP, sP)
-    Σ_ladder_dm_sc, χ0_inv_dm_sc[qi_0, ωi], χ0_inv_dm_sc[qi_π, ωi], E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm
+    Σ_ladder_dm_sc, χ0_inv_dm_sc[qi_0, ωi], χ0_inv_dm_sc[qi_π, ωi], E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm_sc
 else
     @warn "No finite λdm_sc found!"
     nothing, NaN, NaN, NaN, NaN, NaN, false 
 end
 
+# ======================================= lDΓA_m_tsc ========================================
+Σ_ladder_m_tsc, χ0_inv_m_tsc_0, χ0_inv_m_tsc_π, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, converged_m_tsc = if isfinite(λm)
+
+    Σ_ladder_m_tsc, gLoc_m_tsc, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, _, _, _, converged_m_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP, update_χ_tail=true)
+    χ0_inv_m_tsc = χ0_inv(gLoc_m_tsc, kG, mP, sP)
+    Σ_ladder_m_tsc, χ0_inv_m_tsc[qi_0, ωi], χ0_inv_m_tsc[qi_π, ωi], E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, converged_m_tsc
+else
+    @warn "No finite λdm_tsc found!"
+    nothing, NaN, NaN, NaN, NaN, NaN, false 
+end
+
+
 # ===================================== lDΓA_dm_tsc ========================================
 Σ_ladder_dm_tsc, χ0_inv_dm_tsc_0, χ0_inv_dm_tsc_π, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm_tsc = if all(isfinite.(λdm_tsc))
-    Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λdm_tsc[2], kG, mP, sP, update_χ_tail=true)
+    Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, _, _, _, converged_dm_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λdm_tsc[2], kG, mP, sP, update_χ_tail=true)
     χ0_inv_dm_tsc = χ0_inv(gLoc_dm_tsc, kG, mP, sP)
-    Σ_ladder_dm_tsc, χ0_inv_dm_tsc[qi_0, ωi], χ0_inv_dm_tsc[qi_π, ωi], E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm
+    Σ_ladder_dm_tsc, χ0_inv_dm_tsc[qi_0, ωi], χ0_inv_dm_tsc[qi_π, ωi], E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm_tsc
 else
     @warn "No finite λdm_tsc found!"
     nothing, NaN, NaN, NaN, NaN, NaN, false 
@@ -135,12 +152,15 @@ end
     f["config"] =  cfg_string
     f["sP"] = sP
     f["mP"] = mP
-    f["χsp"] = χ_sp
-    f["χch"] = χ_ch
+    f["χsp"] = χ_m
+    f["χch"] = χ_d
+
     f["λm"] = λm
-    f["λm_sc"] = λsp_old
     f["λdm"] = λdm
-    f["λdm_sc"] = λspch_sc
+    f["λm_sc"] = λm_sc
+    f["λdm_sc"] = λdm_sc
+    f["λm_tsc"] = λm_tsc
+    f["λdm_tsc"] = λdm_tsc
 
     f["Σ_loc"] = Σ_loc
     f["Σ_ladder"] = Σ_ladder
@@ -148,12 +168,15 @@ end
     f["Σ_ladder_dm"] = Σ_ladder_dm
     f["Σ_ladder_m_sc"] = Σ_ladder_m_sc
     f["Σ_ladder_dm_sc"] = Σ_ladder_dm_sc
+    f["Σ_ladder_m_tsc"] = Σ_ladder_m_tsc
+    f["Σ_ladder_dm_tsc"] = Σ_ladder_dm_tsc
 
     f["μ_dmft"] = mP.μ
     f["μ_m"] = μ_m
     f["μ_m_sc"] = μ_m_sc
     f["μ_dm"] = μ_dm
     f["μ_dm_sc"] = μ_dm_sc
+    f["μ_m_tsc"] = μ_m_tsc
     f["μ_dm_tsc"] = μ_dm_tsc
 
     f["E_kin_DMFT"] = mP.Ekin_DMFT
@@ -161,6 +184,7 @@ end
     f["E_kin_m_sc"] = E_kin_m_sc
     f["E_kin_dm"] = E_kin_dm
     f["E_kin_dm_sc"] = E_kin_dm_sc
+    f["E_kin_m_tsc"] = E_kin_m_tsc
     f["E_kin_dm_tsc"] = E_kin_dm_tsc
 
     f["E_pot_DMFT"] = mP.Epot_DMFT
@@ -168,6 +192,7 @@ end
     f["E_pot_m_sc"] = E_pot_m_sc
     f["E_pot_dm"] = E_pot_dm
     f["E_pot_dm_sc"] = E_pot_dm_sc
+    f["E_pot_m_tsc"] = E_pot_m_tsc
     f["E_pot_dm_tsc"] = E_pot_dm_tsc
 
     f["χ0_inv_DMFT_0"] = χ0_inv_dmft_0
@@ -175,6 +200,7 @@ end
     f["χ0_inv_m_sc_0"] = χ0_inv_m_sc_0
     f["χ0_inv_dm_0"] = χ0_inv_dm_0
     f["χ0_inv_dm_sc_0"] = χ0_inv_dm_sc_0
+    f["χ0_inv_m_tsc_0"] = χ0_inv_m_tsc_0
     f["χ0_inv_dm_tsc_0"] = χ0_inv_dm_tsc_0
 
     f["χ0_inv_DMFT_π"] = χ0_inv_dmft_π
@@ -182,12 +208,14 @@ end
     f["χ0_inv_m_sc_π"] = χ0_inv_m_sc_π
     f["χ0_inv_dm_π"] = χ0_inv_dm_π
     f["χ0_inv_dm_sc_π"] = χ0_inv_dm_sc_π
+    f["χ0_inv_m_tsc_π"] = χ0_inv_m_tsc_π
     f["χ0_inv_dm_tsc_π"] = χ0_inv_dm_tsc_π
 
     f["converged_m"] = converged_m
     f["converged_m_sc"] = converged_m_sc
     f["converged_dm"] = converged_dm
     f["converged_dm_sc"] = converged_dm_sc
+    f["converged_m_tsc"] = converged_m_tsc
     f["converged_dm_tsc"] = converged_dm_tsc
 
     f["ef_m"] = Σ_ladder_m !== nothing ? get_ef(Σ_ladder_m) : nothing
