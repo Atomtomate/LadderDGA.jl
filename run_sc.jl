@@ -30,24 +30,24 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 end
 
 @info "λsp"
-@timeit LadderDGA.to "λsp" λsp_old = LadderDGA.λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
+@timeit LadderDGA.to "λsp" λm = LadderDGA.λ_correction(:sp, imp_density, χ_sp, γ_sp, χ_ch, γ_ch, gLoc_rfft, λ₀, kG, mP, sP)
 @info "c2 curve sc"
-@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(3, 3, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true)
+@timeit LadderDGA.to "c2 sc" c2_res_sc = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true)
 # @info "c2 curve sc"
 # @timeit LadderDGA.to "c2 sc" c2_res_sc_seq = residuals(3, 3, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=false)
 @info "c2 curve sc tail"
-@timeit LadderDGA.to "c2 sc" c2_res_tsc = residuals(3, 3, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true, update_χ_tail=true)
+@timeit LadderDGA.to "c2 sc" c2_res_tsc = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true, update_χ_tail=true)
 @info "c2 curve"
-@timeit LadderDGA.to "c2" c2_res = residuals(3, 3, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+@timeit LadderDGA.to "c2" c2_res = residuals(8, 8, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 
 @info "calc Σ"
-λspch_tsc = find_root(c2_res_tsc)
-λspch_sc = find_root(c2_res_sc)
-λspch = find_root(c2_res)
+λdm_tsc = find_root(c2_res_tsc)
+λdm_sc = find_root(c2_res_sc)
+λdm = find_root(c2_res)
 Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP);
-Σ_ladder_m = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λsp_old);
-Σ_ladder_dm = if all(isfinite.(λspch))
-    calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λspch[1], λch = λspch[2]);
+Σ_ladder_m = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
+Σ_ladder_dm = if all(isfinite.(λdm))
+    calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
 else
     @warn "No finite λdm found!"
     Σ_ladder
@@ -61,7 +61,7 @@ _, νGrid, _ = LadderDGA.LambdaCorrection.gen_νω_indices(χ_sp, χ_ch, mP, sP)
 χ0_inv_dmft_0 = χ0_inv_dmft[qi_0, ωi]
 χ0_inv_dmft_π = χ0_inv_dmft[qi_π, ωi]
 # ========================================= lDΓA_m =========================================
-Σ_ladder_m, χ0_inv_m_0, χ0_inv_m_π, E_kin_m, E_pot_m, μ_m, converged_m = if isfinite(λsp_old)
+Σ_ladder_m, χ0_inv_m_0, χ0_inv_m_π, E_kin_m, E_pot_m, μ_m, converged_m = if isfinite(λm)
     μnew, gLoc_m = G_from_Σladder(Σ_ladder_m, Σ_loc, kG, mP, sP; fix_n=true)
     χ0_inv_m = χ0_inv(gLoc_m, kG, mP, sP)
     E_kin_m, E_pot_m = calc_E(gLoc_m[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
@@ -72,7 +72,7 @@ else
 end
 
 # ======================================= lDΓA_dm ==========================================
-Σ_ladder_dm, χ0_inv_dm_0, χ0_inv_dm_π, E_kin_dm, E_pot_dm, μ_dm, converged_dm = if all(isfinite.(λspch))
+Σ_ladder_dm, χ0_inv_dm_0, χ0_inv_dm_π, E_kin_dm, E_pot_dm, μ_dm, converged_dm = if all(isfinite.(λdm))
     μnew, gLoc_dm = G_from_Σladder(Σ_ladder_dm, Σ_loc, kG, mP, sP; fix_n=true)
     χ0_inv_dm = χ0_inv(gLoc_dm, kG, mP, sP)
     E_kin_dm, E_pot_dm = calc_E(gLoc_dm[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
@@ -83,7 +83,7 @@ else
 end
 
 # ======================================= lDΓA_m_sc ========================================
-Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc = if isfinite(λsp_old)
+Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc = if isfinite(λm)
     Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
     χ0_inv_m_sc = χ0_inv(gLoc_m_sc, kG, mP, sP)
     Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m
@@ -93,8 +93,8 @@ else
 end
 
 # ===================================== lDΓA_dm_sc =========================================
-Σ_ladder_dm_sc, χ0_inv_dm_sc_0, χ0_inv_dm_sc_π, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm_sc = if all(isfinite.(λspch_sc))
-    Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[2], kG, mP, sP)
+Σ_ladder_dm_sc, χ0_inv_dm_sc_0, χ0_inv_dm_sc_π, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm_sc = if all(isfinite.(λdm_sc))
+    Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λdm_sc[2], kG, mP, sP)
     χ0_inv_dm_sc = χ0_inv(gLoc_dm_sc, kG, mP, sP)
     Σ_ladder_dm_sc, χ0_inv_dm_sc[qi_0, ωi], χ0_inv_dm_sc[qi_π, ωi], E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, converged_dm
 else
@@ -103,8 +103,8 @@ else
 end
 
 # ===================================== lDΓA_dm_tsc ========================================
-Σ_ladder_dm_tsc, χ0_inv_dm_tsc_0, χ0_inv_dm_tsc_π, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm_tsc = if all(isfinite.(λspch_tsc))
-    Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_tsc[2], kG, mP, sP, update_χ_tail=true)
+Σ_ladder_dm_tsc, χ0_inv_dm_tsc_0, χ0_inv_dm_tsc_π, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm_tsc = if all(isfinite.(λdm_tsc))
+    Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm  = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λdm_tsc[2], kG, mP, sP, update_χ_tail=true)
     χ0_inv_dm_tsc = χ0_inv(gLoc_dm_tsc, kG, mP, sP)
     Σ_ladder_dm_tsc, χ0_inv_dm_tsc[qi_0, ωi], χ0_inv_dm_tsc[qi_π, ωi], E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, converged_dm
 else
@@ -137,9 +137,9 @@ end
     f["mP"] = mP
     f["χsp"] = χ_sp
     f["χch"] = χ_ch
-    f["λm"] = λsp_old
+    f["λm"] = λm
     f["λm_sc"] = λsp_old
-    f["λdm"] = λspch
+    f["λdm"] = λdm
     f["λdm_sc"] = λspch_sc
 
     f["Σ_loc"] = Σ_loc
