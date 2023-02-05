@@ -19,7 +19,7 @@ The susceptibility ``\\chi`` can be either given element wise, or as χT See als
 χ_λ(χ::T, λ::Float64) where T <: Union{ComplexF64, Float64} = χ/(λ*χ + 1)
 
 function χ_λ(χ::χT, λ::Float64)::χT 
-    χ_new = χT(χ.data, tail_c=χ.tail_c)
+    χ_new = χT(deepcopy(χ.data), tail_c=χ.tail_c)
     χ_λ!(χ_new, χ, λ)
     return χ_new 
 end
@@ -45,7 +45,9 @@ end
 
 function χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) 
     !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
-    χ_λ[:] = χ ./ ((λ .* χ) .+ 1)
+    for i in length(χ)
+        χ_λ[i] = χ[i] ./ ((λ .* χ[i]) .+ 1)
+    end
 end
 
 χ_λ!(χ::χT, λ::Float64) = χ_λ!(χ, χ, λ)
