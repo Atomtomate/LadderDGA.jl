@@ -37,7 +37,6 @@ Inplace version of [`χ_λ`](@ref χ_λ). If the second argument is omitted, res
 in the input `χ`.
 """
 function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
-    !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
     χ_λ!(χ_new.data, χ.data, λ)
     χ_new.λ = χ.λ + λ
     return nothing 
@@ -45,7 +44,7 @@ end
 
 function χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) 
     !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
-    for i in length(χ)
+    for i in eachindex(χ_λ)
         χ_λ[i] = χ[i] ./ ((λ .* χ[i]) .+ 1)
     end
 end

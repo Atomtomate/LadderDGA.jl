@@ -166,27 +166,27 @@ end
 
 function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
             ωindices::AbstractArray{Int,1},
-            χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
+            χsp::χT, γsp::γT, χch::χT, γch::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
-    dbg = zeros(ComplexF64, size(χ_sp,1), size(χ_sp,2))
+    dbg = zeros(ComplexF64, size(χsp,1), size(χsp,2))
     νmax = size(Σ, 2)
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
         ωn = (ωi - sP.n_iω) - 1
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([size(γ_ch,ν_axis), νZero + size(Σ, 2) - 1])
+        maxn = minimum([size(γch,ν_axis), νZero + size(Σ, 2) - 1])
         # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
         νlist = νZero:maxn
         length(νlist) > size(Σ,2) && (νlist = νlist[1:size(Σ,2)])
         for (νii,νi) in enumerate(νlist)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ,q_axis)
-                Kνωq_pre[qi] = eomf(U, γ_sp[qi,νi,ωi], γ_ch[qi,νi,ωi],
-                                   χ_sp[qi,ωi], χ_ch[qi,ωi], λ₀[qi,νi,ωi])
+                Kνωq_pre[qi] = eomf(U, γsp[qi,νi,ωi], γch[qi,νi,ωi],
+                                   χsp[qi,ωi], χch[qi,ωi], λ₀[qi,νi,ωi])
     if νii-1 == 0
-    dbg[qi,ωi] = γ_sp[qi,νi,ωi]
+    dbg[qi,ωi] = γsp[qi,νi,ωi]
     end
             end
             if nprocs() == 1
@@ -199,36 +199,43 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
         return dbg
 end
 
-function calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
+function calc_Σ(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; 
                 νmax::Int = sP.n_iν,
                 λsp::Float64=0.0, λch::Float64=0.0)
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq, Nω = size(χ_sp)
+    Nq, Nω = size(χsp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χsp.usable_ω, χch.usable_ω)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
-    λsp != 0.0 && χ_λ!(χ_sp, λsp)
-    λch != 0.0 && χ_λ!(χ_ch, λch)
-    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
-    reset!(χ_sp)
-    reset!(χ_ch)
+
+    println("DBG checksum $(sum(χsp))")
+    λsp != 0.0 && χ_λ!(χsp, λsp)
+    λch != 0.0 && χ_λ!(χch, λch)
+    println("DBG checksum after λ $(sum(χsp))")
+
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
+    println("DBG checksum after eom $(sum(χsp))")
+    reset!(χsp)
+    reset!(χch)
+    println("DBG checksum after reset $(sum(χsp))")
 
     res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
 end
 
-function calc_Σ_parts(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::AbstractArray{_eltype,3},
-                Gνω::GνqT, kG::KGrid,
-                mP::ModelParameters, sP::SimulationParameters; pre_expand=true)
+function calc_Σ_parts(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray{_eltype,3},
+                      Gνω::GνqT, kG::KGrid,
+                      mP::ModelParameters, sP::SimulationParameters;
+                      λsp::Float64=0.0, λch::Float64=0.0)
     Σ_hartree = mP.n * mP.U/2.0;
-    Nq, Nω = size(χ_sp)
+    Nq, Nω = size(χsp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χsp.usable_ω, χch.usable_ω)
     νmax::Int = floor(Int,length(ωindices)/3)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
@@ -236,18 +243,28 @@ function calc_Σ_parts(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀::Ab
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, sP.n_iν, length(ωrange)),
                               1:Nq, 0:sP.n_iν-1, ωrange)
     Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 6)
-    calc_Σ_ω!(eom_χsp, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+
+    println("DBG checksum $(sum(χsp))")
+    λsp != 0.0 && χ_λ!(χsp, λsp)
+    λch != 0.0 && χ_λ!(χch, λch)
+    println("DBG checksum after λ $(sum(χsp))")
+
+    calc_Σ_ω!(eom_χsp, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_γsp, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_γsp, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,2] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_χch, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_χch, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,3] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
-    calc_Σ_ω!(eom_γch, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_γch, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,4] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
-    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,5] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, χ_sp, γ_sp, χ_ch, γ_ch, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    println("DBG checksum after eom $(sum(χsp))")
+    reset!(χsp)
+    reset!(χch)
+    println("DBG checksum after reset $(sum(χsp))")
 
     return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:6)
 end

@@ -31,7 +31,9 @@ Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 # λm_tsc = c2_res_tsc[1,ind_tsc][1]
 
 Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP);
+Σ_ladder_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP);
 Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
+Σ_ladder_m_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
 # Σ_ladder_dm = if all(isfinite.(λdm))
 #     calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
 # else
