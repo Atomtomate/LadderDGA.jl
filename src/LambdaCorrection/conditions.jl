@@ -19,7 +19,6 @@ function λsp_correction(χsp::χT, rhs::Float64, kG::KGrid,
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χsp.usable_ω] .* π ./ mP.β)
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
     χ_tail::Vector{Float64} = real.(χsp.tail_c[3] ./ (iωn.^2))
-
     f_c1_int(λint::Float64)::Float64 = f_c1(χr, λint, kG.kMult, χ_tail)/mP.β - χsp.tail_c[3]*mP.β/12 - rhs
     df_c1_int(λint::Float64)::Float64 = df_c1(χr, λint, kG.kMult, χ_tail)/mP.β - χsp.tail_c[3]*mP.β/12 - rhs
 
@@ -60,6 +59,7 @@ TODO: refactor (especially _par version)
 function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
                 λch::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-6, update_χ_tail::Bool=false)
+    println("WARNING! THIS FUNCTION CHANGES χ!!! FIX THIS")
     ωindices, νGrid, iωn_f = gen_νω_indices(χsp, χch, mP, sP)
     iωn = iωn_f[ωindices]
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf

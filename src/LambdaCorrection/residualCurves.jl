@@ -72,63 +72,103 @@ function find_root(c2_data::Matrix{Float64})
     λsp, λch, check
 end
 
-function residuals(NPoints_coarse::Int, NPoints_negative::Int, last_λ::Vector{Float64}, 
-            χsp::χT, γsp::γT, χch::χT, γch::γT, Σ_loc::Vector{ComplexF64},
+"""
+    residuals(N_subdivisions::Int, 
+            χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
             Gνω::GνqT, λ₀::Array{ComplexF64,3},
             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-            νmax::Int = -1, maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
+            method = :newton, 
+            νmax::Int = -1, λd_min_δ = 0.1, λd_max = 500,
+            maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
+
+Arguments:
+-------------
+- **`method`**: Options are `:newton`, `:bisection`, `:lingrid`. The first two try and esstimate the position of the `0`, while lingrid yields a linear grid of residuals.
+"""
+function residuals(N_Evals::Int, 
+            χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
+            Gνω::GνqT, λ₀::Array{ComplexF64,3},
+            kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+            method = :newton,
+            νmax::Int = -1, λd_min_δ = 0.1, λd_max = 500,
+            maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
 
     # general definitions
-
-
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    λch_min, λch_max = [get_λ_min(real(χch.data)), 10]
-    λch_max2 = 200
+    λd_min_tmp = get_λ_min(real(χ_d.data)) 
+    λd_range = if method != :lingrid 
+        [λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max]
+    else
+        sort(union([0.0], LinRange(λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max, N_Evals-1)))
+    end
+    χ_m_tmp::χT = deepcopy(χ_m)
+    χ_d_tmp::χT = deepcopy(χ_d)
 
-    λch_range_negative = 10.0.^(range(0,stop=log10(abs(λch_min)+0.9),length=NPoints_negative+2)) .+ λch_min .- 1
-    λch_range_coarse = range(0,stop=λch_max,length=NPoints_coarse)
-    λch_range_large = 10.0.^(range(0,stop=log10(λch_max2-2*λch_max+1),length=6)) .+ 2*λch_max .- 1
-    λch_range = Float64.(sort(unique(union([0.0], λch_range_negative, λch_range_coarse, λch_range_large))))
+    residuals = zeros(8, length(λd_range))
+    si = [1,2]  # index for search bracket
+    last_λd = NaN
 
-    # EoM optimization related definitions
-
-    # preallications
-    χsp_tmp::χT = deepcopy(χsp)
-    χch_tmp::χT = deepcopy(χch)
-
-    residuals = zeros(8, length(λch_range))
-    for (i,λch_i) in enumerate(λch_range)
-            λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = if maxit == 0
-            res_curve_int(λch_i, χsp, γsp, χch, γch, Σ_loc, Gνω, λ₀, kG, mP, sP, maxit=0, conv_abs=Inf, par=par)
-        else
-            res_curve_int(λch_i, χsp, γsp, χch, γch, Σ_loc, Gνω, λ₀, kG, mP, sP, 
-                            mixing=mixing, maxit=maxit, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
+    for i in 1:N_Evals
+        
+        if i > length(λd_range)
+            if method == :newton
+            elseif method == :bisection
+                λd_new = abs(residuals[2,si[1]] - residuals[2,si[2]])/2 + residuals[2,si[1]]
+                push!(λd_range, λd_new)
+            else
+                error("Unkown root finding method!")
+            end
         end
+        println(λd_range, " // [", λd_range[si[1]] , " , ",λd_range[si[2]]  , "]")
 
-        residuals[:,i] = [λsp_i, λch_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
-        χsp = deepcopy(χsp_tmp)
-        χch = deepcopy(χch_tmp)
+        last_λd = λd_i = λd_range[i]
+        λm_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv = res_curve_int(
+                        λd_i, χ_m, γ_m, χ_d, γ_d, Σ_loc, Gνω, λ₀, kG, mP, sP, 
+                        mixing=mixing, maxit=maxit, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
+        if i > 2
+            residuals = cat(residuals, [λm_i, λd_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv], dims=2)
+        else
+            residuals[:,i] = [λm_i, λd_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μ, conv]
+        end
+        χ_m = deepcopy(χ_m_tmp)
+        χ_d = deepcopy(χ_d_tmp)
+
+        if i > 2 && method != :lingrid
+            res_l = (residuals[5,si[1]] - residuals[6,si[1]])
+            res_m = lhs_c2 - rhs_c2
+            res_r = (residuals[5,si[2]] - residuals[6,si[2]])
+            println("RES: $res_l , $res_m , $res_r")
+            if sign(res_l) != sign(res_m)
+                si[2] = i
+            elseif sign(res_r) != sign(res_m)
+                si[1] = i
+            else
+                println("ERROR: Bisection failed to determine interval!")
+                break
+            end
+        end
     end
 
     return residuals
 end
 
-function res_curve_int(λch_i::Float64, 
-            χsp::χT, γsp::γT, χch::χT, γch::γT,
+function res_curve_int(λd_i::Float64, 
+            χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
             Σ_loc::Vector{ComplexF64},gLoc_rfft_init::GνqT,
             λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
             maxit=50, mixing=0.2, conv_abs=1e-6, update_χ_tail=false, par=false)
 
+    conv_abs = maxit != 0 ? conv_abs : Inf
 
-    Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λsp_i, lhs_c1, lhs_c2, converged = if par 
-        run_sc_par(χsp, γsp, χch, γch, λ₀, gLoc_rfft_init, Σ_loc, λch_i, kG, mP, sP, 
+    Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λm_i, lhs_c1, lhs_c2, converged = if par 
+        run_sc_par(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, λd_i, kG, mP, sP, 
                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
     else
-        run_sc(χsp, γsp, χch, γch, λ₀, gLoc_rfft_init, Σ_loc, λch_i, kG, mP, sP, 
+        run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, λd_i, kG, mP, sP, 
                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
     end
                 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-    return λsp_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μnew, converged
+    return λm_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μnew, converged
 end

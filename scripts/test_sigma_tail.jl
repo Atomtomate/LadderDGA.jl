@@ -20,11 +20,12 @@ Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 # @info "c2 curve sc"
 # @timeit LadderDGA.to "c2 sc" c2_res_sc_seq = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=false)
 # c2_res_tsc = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP, conv_abs=1e-6, maxit=100, par=true, update_χ_tail=true)
-# c2_res = residuals(3, 3, Float64[], χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+c2_res = residuals(8, χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false, method=:lingrid)
+
 
 # ind_tsc = findall(x->x≈0, c2_res_tsc[2,:])
 # ind_sc = findall(x->x≈0, c2_res_sc[2,:])
-# λdm = find_root(c2_res)
+λdm = find_root(c2_res)
 # λdm_sc = find_root(c2_res_sc)
 # λdm_tsc = find_root(c2_res_tsc)
 # λm_sc = c2_res_sc[1,ind_sc][1]
@@ -34,12 +35,12 @@ Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 Σ_ladder_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP);
 Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
 Σ_ladder_m_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
-# Σ_ladder_dm = if all(isfinite.(λdm))
-#     calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
-# else
-#     @warn "No finite λdm found!"
-#     Σ_ladder
-# end
+Σ_ladder_dm = if all(isfinite.(λdm))
+    calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λdm[1], λch = λdm[2]);
+else
+    @warn "No finite λdm found!"
+    Σ_ladder
+end
 
 # @info "bubble with form factor"
 # include(joinpath(@__DIR__,"scripts/chi0t.jl"))
