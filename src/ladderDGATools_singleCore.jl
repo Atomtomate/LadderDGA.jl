@@ -203,7 +203,7 @@ function calc_Σ(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArra
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; 
                 νmax::Int = sP.n_iν,
-                λsp::Float64=0.0, λch::Float64=0.0)
+                λm::Float64=0.0, λd::Float64=0.0)
     Σ_hartree = mP.n * mP.U/2.0;
     Nq, Nω = size(χsp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
@@ -213,16 +213,12 @@ function calc_Σ(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArra
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
 
-    println("DBG checksum $(sum(χsp))")
-    λsp != 0.0 && χ_λ!(χsp, λsp)
-    λch != 0.0 && χ_λ!(χch, λch)
-    println("DBG checksum after λ $(sum(χsp))")
+    λm != 0.0 && χ_λ!(χsp, λm)
+    λd != 0.0 && χ_λ!(χch, λd)
 
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
-    println("DBG checksum after eom $(sum(χsp))")
     reset!(χsp)
     reset!(χch)
-    println("DBG checksum after reset $(sum(χsp))")
 
     res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     return  res
@@ -231,7 +227,7 @@ end
 function calc_Σ_parts(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray{_eltype,3},
                       Gνω::GνqT, kG::KGrid,
                       mP::ModelParameters, sP::SimulationParameters;
-                      λsp::Float64=0.0, λch::Float64=0.0)
+                      λm::Float64=0.0, λd::Float64=0.0)
     Σ_hartree = mP.n * mP.U/2.0;
     Nq, Nω = size(χsp)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
@@ -244,10 +240,8 @@ function calc_Σ_parts(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::Abstra
                               1:Nq, 0:sP.n_iν-1, ωrange)
     Σ_ladder = Array{Complex{Float64},3}(undef,Nq, sP.n_iν, 6)
 
-    println("DBG checksum $(sum(χsp))")
-    λsp != 0.0 && χ_λ!(χsp, λsp)
-    λch != 0.0 && χ_λ!(χch, λch)
-    println("DBG checksum after λ $(sum(χsp))")
+    λm != 0.0 && χ_λ!(χsp, λm)
+    λd != 0.0 && χ_λ!(χch, λd)
 
     calc_Σ_ω!(eom_χsp, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
@@ -261,10 +255,8 @@ function calc_Σ_parts(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::Abstra
     Σ_ladder[:,:,5] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
     calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, χsp, γsp, χch, γch, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
-    println("DBG checksum after eom $(sum(χsp))")
     reset!(χsp)
     reset!(χch)
-    println("DBG checksum after reset $(sum(χsp))")
 
     return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:6)
 end

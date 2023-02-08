@@ -1,0 +1,117 @@
+# This file is machine-generated - editing it directly is not advised
+
+julia_version = "1.8.5"
+manifest_format = "2.0"
+project_hash = "dcbe3d35c90a7f7537857d4ac562227303644e36"
+
+[[deps.Artifacts]]
+uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
+
+[[deps.Base64]]
+uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
+
+[[deps.ChainRulesCore]]
+deps = ["Compat", "LinearAlgebra", "SparseArrays"]
+git-tree-sha1 = "c6d890a52d2c4d55d326439580c3b8d0875a77d9"
+uuid = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+version = "1.15.7"
+
+[[deps.CommonSolve]]
+git-tree-sha1 = "9441451ee712d1aec22edad62db1a9af3dc8d852"
+uuid = "38540f10-b2f7-11e9-35d8-d573e4eb0ff2"
+version = "0.2.3"
+
+[[deps.Compat]]
+deps = ["Dates", "LinearAlgebra", "UUIDs"]
+git-tree-sha1 = "61fdd77467a5c3ad071ef8277ac6bd6af7dd4c04"
+uuid = "34da2185-b29b-5c13-b0c7-acf172513d20"
+version = "4.6.0"
+
+[[deps.CompilerSupportLibraries_jll]]
+deps = ["Artifacts", "Libdl"]
+uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "1.0.1+0"
+
+[[deps.ConstructionBase]]
+deps = ["LinearAlgebra"]
+git-tree-sha1 = "fb21ddd70a051d882a1686a5a550990bbe371a95"
+uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
+version = "1.4.1"
+
+[[deps.Dates]]
+deps = ["Printf"]
+uuid = "ade2ca70-3891-5945-98fb-dc099432e06a"
+
+[[deps.Future]]
+deps = ["Random"]
+uuid = "9fa8497b-333b-5362-9e8d-4d0656e87820"
+
+[[deps.Libdl]]
+uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
+
+[[deps.LinearAlgebra]]
+deps = ["Libdl", "libblastrampoline_jll"]
+uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[[deps.MacroTools]]
+deps = ["Markdown", "Random"]
+git-tree-sha1 = "42324d08725e200c23d4dfb549e0d5d89dede2d2"
+uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
+version = "0.5.10"
+
+[[deps.Markdown]]
+deps = ["Base64"]
+uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
+
+[[deps.OpenBLAS_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
+uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.20+0"
+
+[[deps.Printf]]
+deps = ["Unicode"]
+uuid = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+
+[[deps.Random]]
+deps = ["SHA", "Serialization"]
+uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+
+[[deps.Roots]]
+deps = ["ChainRulesCore", "CommonSolve", "Printf", "Setfield"]
+git-tree-sha1 = "a3db467ce768343235032a1ca0830fc64158dadf"
+uuid = "f2b01f46-fcfa-551c-844a-d8ac1e96c665"
+version = "2.0.8"
+
+[[deps.SHA]]
+uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"
+
+[[deps.Serialization]]
+uuid = "9e88b42a-f829-5b0c-bbe9-9e923198166b"
+
+[[deps.Setfield]]
+deps = ["ConstructionBase", "Future", "MacroTools", "StaticArraysCore"]
+git-tree-sha1 = "e2cc6d8c88613c05e1defb55170bf5ff211fbeac"
+uuid = "efcf1570-3423-57d1-acb7-fd33fddbac46"
+version = "1.1.1"
+
+[[deps.SparseArrays]]
+deps = ["LinearAlgebra", "Random"]
+uuid = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+
+[[deps.StaticArraysCore]]
+git-tree-sha1 = "6b7ba252635a5eff6a0b0664a41ee140a1c9e72a"
+uuid = "1e83bf80-4336-4d27-bf5d-d5a4f845583c"
+version = "1.4.0"
+
+[[deps.UUIDs]]
+deps = ["Random", "SHA"]
+uuid = "cf7118a7-6976-5b1a-9a39-7adc72f591a4"
+
+[[deps.Unicode]]
+uuid = "4ec0a83e-493e-50e2-b9ac-8f72acf5a8f5"
+
+[[deps.libblastrampoline_jll]]
+deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
+uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.1.1+0"

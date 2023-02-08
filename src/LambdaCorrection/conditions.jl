@@ -9,11 +9,11 @@
 # ==================================================================================================== #
 
 """
-    λsp_correction(χsp::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    λm_correction(χsp::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
                         
 Calculates ``\\lambda_\\mathrm{m}`` value, by fixing ``\\sum_{q,\\omega} \\chi^{\\lambda_\\mathrm{m}}_{\\uparrow\\downarrow}(q,i\\omega) = \\frac{n}{2}(1-\\frac{n}{2})``.
 """
-function λsp_correction(χsp::χT, rhs::Float64, kG::KGrid, 
+function λm_correction(χsp::χT, rhs::Float64, kG::KGrid, 
                         mP::ModelParameters, sP::SimulationParameters)
     χr::Matrix{Float64}    = real.(χsp[:,χsp.usable_ω])
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χsp.usable_ω] .* π ./ mP.β)
@@ -24,6 +24,46 @@ function λsp_correction(χsp::χT, rhs::Float64, kG::KGrid,
 
     λsp = newton_right(f_c1_int, df_c1_int, get_λ_min(χr))
     return λsp
+end
+
+"""
+    λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; 
+        maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
+        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
+
+Calculates ``\\lambda_\\mathrm{dm}`` and associated quantities like the self-energy.
+
+TODO: full documentation
+"""
+function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
+                        gLoc_rfft::GνqT, λ₀::Array{ComplexF64,3},
+                        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                        maxit_root = 100, atol_root = 1e-8,
+                        νmax::Int = -1, λd_min_δ = 0.1, λd_max = 500,
+                        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
+    run_f = par ? run_sc_par : run_sc
+    function ff(λd_i::Float64)
+        _, _, _, E_pot, _, _, _, lhs_c2, _ = run_f(
+                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
+                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
+        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+        return rhs_c2 - lhs_c2
+    end
+    λd_min_tmp = get_λ_min(real(χ_d.data)) 
+    track = Roots.Tracks()
+    root = try
+        find_zero(ff, (λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max), Roots.A42(), maxiters=maxit_root, atol=atol_root, tracks=track)
+    catch e
+        NaN
+    end
+
+    if isnan(root) || track.convergence_flag == :not_converged
+        println("WARNING: No λd root was found!")
+        nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
+    else
+         run_f(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, root, kG, mP, sP, 
+               maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)..., root
+    end
 end
 
 
@@ -59,7 +99,6 @@ TODO: refactor (especially _par version)
 function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
                 λch::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-6, update_χ_tail::Bool=false)
-    println("WARNING! THIS FUNCTION CHANGES χ!!! FIX THIS")
     ωindices, νGrid, iωn_f = gen_νω_indices(χsp, χch, mP, sP)
     iωn = iωn_f[ωindices]
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
@@ -74,7 +113,7 @@ function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray
 
     χ_λ!(χch, χch, λch)
     rhs_λsp = λsp_rhs(NaN, χsp, χch, kG, mP, sP)
-    λsp = λsp_correction(χsp, real(rhs_λsp), kG, mP, sP)
+    λsp = λm_correction(χsp, real(rhs_λsp), kG, mP, sP)
     reset!(χch)
     if !isfinite(λsp)
         @warn "no finite λsp found!"
@@ -97,7 +136,7 @@ function run_sc(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractArray
             update_tail!(χch, [0, 0, E_kin], iωn_f)
             χ_λ!(χch, χch, λch)
             rhs_λsp = λsp_rhs(NaN, χsp, χch, kG, mP, sP)
-            λsp = λsp_correction(χsp, real(rhs_λsp), kG, mP, sP)
+            λsp = λm_correction(χsp, real(rhs_λsp), kG, mP, sP)
             reset!(χch)
         end
         if it != 1
@@ -151,7 +190,7 @@ function run_sc_par(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractA
 
     χ_λ!(χch, χch, λch)
     rhs_λsp = λsp_rhs(NaN, χsp, χch, kG, mP, sP)
-    λsp = λsp_correction(χsp, real(rhs_λsp), kG, mP, sP)
+    λsp = λm_correction(χsp, real(rhs_λsp), kG, mP, sP)
     reset!(χch)
     if !isfinite(λsp)
         @warn "no finite λsp found!"
@@ -175,7 +214,7 @@ function run_sc_par(χsp::χT, γsp::γT, χch::χT, γch::γT, λ₀::AbstractA
             update_tail!(χch, [0, 0, E_kin], iωn_f)
             χ_λ!(χch, χch, λch)
             rhs_λsp = λsp_rhs(NaN, χsp, χch, kG, mP, sP)
-            λsp = λsp_correction(χsp, real(rhs_λsp), kG, mP, sP)
+            λsp = λm_correction(χsp, real(rhs_λsp), kG, mP, sP)
             reset!(χch)
         end
         if Σ_ladder_old !== nothing
@@ -277,3 +316,4 @@ function df_c1(χ::Matrix{Float64}, λ::Float64, kMult::Vector{Float64},
     end
     return res
 end
+

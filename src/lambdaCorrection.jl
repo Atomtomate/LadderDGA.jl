@@ -7,7 +7,7 @@ function λ_correction(type::Symbol, imp_density::Float64,
             workerpool::AbstractWorkerPool=default_worker_pool(),init_sp=nothing, init_spch=nothing, parallel=false, x₀::Vector{Float64}=[0.0,0.0])
     res = if type == :sp
         rhs = LambdaCorrection.λsp_rhs(imp_density, χsp, χch, kG, mP, sP)
-        λsp_correction(χsp, rhs, kG, mP, sP)
+        λm_correction(χsp, rhs, kG, mP, sP)
     elseif type == :sp_ch
         λspch, dbg_string = if parallel
                 extended_λ_par(χsp, γsp, χch, γch, Gνω, λ₀, x₀, kG, mP, sP, workerpool)

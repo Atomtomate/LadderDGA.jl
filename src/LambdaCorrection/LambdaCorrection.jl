@@ -4,6 +4,7 @@ using LinearAlgebra, GenericLinearAlgebra
 using OffsetArrays
 using FiniteDiff
 using Dispersions
+using Roots
 
 import ..χT, ..γT, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters 
 import ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array
@@ -14,7 +15,7 @@ import ..update_wcaches_G_rfft!
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
-export λsp_correction
+export λm_correction, λdm_correction
 export bisect, correct_margins, newton_right
 export run_sc, residuals, find_root
 
