@@ -6,6 +6,7 @@
 #   lambda-correction conditions for several methods, fixing different physical properties.            #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #  REFACTOR!!!!!                                                                                       #
+#  Pack results of lambda-correction into result struct                                                #
 # ==================================================================================================== #
 
 """
@@ -43,7 +44,7 @@ Returns:
     E_pot    : one-particle potential energy, obtained through galitskii-migdal formula
     μnew:    : chemical potential of `G_ladder`
     λm       : λ-correction for the magnetic channel
-    lhs_c1   : check-sum for the Pauli-principle value obtained from the susceptibilities (`λm` fixes this to ``n/2 \cdot (1-n/2)``) 
+    lhs_c1   : check-sum for the Pauli-principle value obtained from the susceptibilities (`λm` fixes this to ``n/2 \\cdot (1-n/2)``) 
     E_pot_2  : Potential energy obtained from susceptibilities. `λd` fixes this to `E_pot`
     converged: error flag. False if no `λd` was found. 
     λd       : λ-correction for the density channel.
