@@ -64,13 +64,13 @@ else
 end
 
 # ======================================= lDΓA_m_sc ========================================
-Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc = if isfinite(λm)
-    Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, _, _, _, converged_m_sc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
+Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, converged_m_sc = if isfinite(λm)
+    Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, _, _, converged_m_sc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
     χ0_inv_m_sc = χ0_inv(gLoc_m_sc, kG, mP, sP)
-    Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, converged_m_sc
+    Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, converged_m_sc
 else
     @warn "No finite λdm_sc found!"
-    nothing, NaN, NaN, NaN, NaN, NaN, false 
+    nothing, NaN, NaN, NaN, NaN, NaN, NaN, false 
 end
 
 # ===================================== lDΓA_dm_sc =========================================
@@ -84,14 +84,14 @@ else
     NaN, NaN
 end
 
-# ======================================= lDΓA_m_sc ========================================
-Σ_ladder_m_tsc, χ0_inv_m_tsc_0, χ0_inv_m_tsc_π, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, converged_m_tsc = if isfinite(λm)
-    Σ_ladder_m_tsc, gLoc_m_tsc, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, _, _, _, converged_m_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP, update_χ_tail=true)
+# ======================================= lDΓA_m_tsc ========================================
+Σ_ladder_m_tsc, χ0_inv_m_tsc_0, χ0_inv_m_tsc_π, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, converged_m_tsc = if isfinite(λm)
+    Σ_ladder_m_tsc, gLoc_m_tsc, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, _, _, converged_m_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP, update_χ_tail=true)
     χ0_inv_m_tsc = χ0_inv(gLoc_m_tsc, kG, mP, sP)
-    Σ_ladder_m_tsc, χ0_inv_m_tsc[qi_0, ωi], χ0_inv_m_tsc[qi_π, ωi], E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, converged_m_tsc
+    Σ_ladder_m_tsc, χ0_inv_m_tsc[qi_0, ωi], χ0_inv_m_tsc[qi_π, ωi], E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, converged_m_tsc
 else
     @warn "No finite λdm_sc found!"
-    nothing, NaN, NaN, NaN, NaN, NaN, false 
+    nothing, NaN, NaN, NaN, NaN, NaN, NaN, false 
 end
 
 
@@ -103,7 +103,7 @@ end
     χ0_inv_dm_tsc[qi_0, ωi], χ0_inv_dm_tsc[qi_π, ωi]
 else
     @warn "No finite λdm_tsc found!"
-    nothing, NaN, NaN
+    NaN, NaN
 end
 
 @info "Bubble after sc"
@@ -136,7 +136,7 @@ end
     f["λdm"] = λdm
     f["λm_sc"] = λm
     f["λdm_sc"] = λdm_sc
-    #f["λm_tsc"] = λm_tsc
+    f["λm_tsc"] = λm_tsc
     f["λdm_tsc"] = λdm_tsc
 
     f["Σ_loc"] = Σ_loc

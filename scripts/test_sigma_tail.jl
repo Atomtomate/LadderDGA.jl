@@ -40,9 +40,9 @@ println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
 Σ_ladder_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP);
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
-Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
+Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λm = λm);
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
-Σ_ladder_m_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λsp = λm);
+Σ_ladder_m_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λm = λm);
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
 
 # @info "bubble with form factor"

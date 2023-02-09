@@ -50,15 +50,14 @@ initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP,
 @test all(χ_sp.data .≈ χ_sp2.data)
 @test all(χ_ch.data .≈ χ_ch2.data)
 
-c2_res = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
-c2_res_sc = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP,
-    conv_abs=1e-6, maxit=10, par=false)
+# c2_res = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+# c2_res_sc = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP,
+#     conv_abs=1e-6, maxit=10, par=false)
 # c2_res_sc_par = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP,
 #     conv_abs=1e-6, maxit=10, par=true)
 # ind =  mapslices(x->all(isfinite.(x)), c2_res_sc, dims=1) .& mapslices(x->all(isfinite.(x)), c2_res_sc_par, dims=1)
 # @test all(mapslices(x->all(isfinite.(x)), c2_res_sc, dims=1) .== mapslices(x->all(isfinite.(x)), c2_res_sc_par, dims=1))
 # @test all(isapprox.(c2_res_sc[ind,:], c2_res_sc_par[ind,:], atol=1e-6))
-λspch_sc = find_root(c2_res_sc)
 
 # f_d(q) = cos(k[1]) - cos(k[2])
 # Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
