@@ -8,7 +8,7 @@ Pkg.activate(@__DIR__)
 cfg_file = ARGS[1]
 out_path = ARGS[2]
 nprocs_in   = parse(Int,ARGS[3]) # TODO: use slurm
-fname_out =  out_path*"/lDGA_c2.jld2" 
+fname_out =  out_path*"/lDGA_c2_new.jld2" 
 
 nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project())")
 @everywhere using LadderDGA
@@ -134,9 +134,9 @@ end
 
     f["λm"] = λm
     f["λdm"] = λdm
-    f["λm_sc"] = λm_sc
+    f["λm_sc"] = λm
     f["λdm_sc"] = λdm_sc
-    f["λm_tsc"] = λm_tsc
+    #f["λm_tsc"] = λm_tsc
     f["λdm_tsc"] = λdm_tsc
 
     f["Σ_loc"] = Σ_loc
