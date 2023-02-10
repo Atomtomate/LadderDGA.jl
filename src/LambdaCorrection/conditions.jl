@@ -81,6 +81,8 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
             println("Track: $track")
             NaN
         end
+    else
+        root
     end
 
     if isnan(root) || track.convergence_flag == :not_converged
