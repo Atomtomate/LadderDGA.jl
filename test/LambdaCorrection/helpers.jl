@@ -6,6 +6,13 @@
     @test χ_λ(χ_2[1], 0.0) == χ_2[1]
     @test χ_λ(χ_1[1], 1.0) == χ_1[1]/2
     @test χ_λ(χ_2[1], 1.0) == χ_2[1]/2
+    tt = χ_λ(χ_3, 1.1)
+    χ_λ!(χ_3, 1.1)
+    @test all(χ_3.data .≈ tt.data)
+    LadderDGA.reset!(χ_3)
+    χ_λ!(χ_3, χ_3, 1.1)
+    @test all(χ_3.data .≈ tt.data)
+    LadderDGA.reset!(χ_3)
 end
 
 @testset "Specialized Root Finding" begin

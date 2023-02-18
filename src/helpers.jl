@@ -268,7 +268,6 @@ Returns a list of available bosonic frequencies for each fermionic frequency, gi
 This can be used to estimate the maximum number of usefull frequencies for the equation of motion.
 """
 function νi_health(νGrid::AbstractArray{Int}, sP::SimulationParameters)
-
     t = gen_ν_part(νGrid, sP, 1)[1]
     return [length(filter(x->x[4] == i, t)) for i in unique(getindex.(t,4))]
 end
@@ -292,14 +291,26 @@ end
 
 Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
 """
-function G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    g_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    g_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    G_νn = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...) 
-    for νn in sP.fft_range
-        G_νn  = νn < 0 ? expandKArr(kG, conj(G[:,-νn-1].parent)) : expandKArr(kG, G[:,νn].parent)
-        g_fft[:,νn] .= fft(G_νn)[:]
-        g_rfft[:,νn] .= fft(reverse(G_νn))[:]
+function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
+    G_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    G_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+    G_fft!(G_fft, G, kG, sP.fft_range)
+    G_rfft!(G_rfft, G, kG, sP.fft_range)
+    return G_fft, G_rfft
+end
+
+function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+    for νn in fft_range
+        νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
+        G_rfft[:,νn] .= fft(reverse(kG.cache1))[:]
     end
-    return g_fft, g_rfft
+    return G_rfft
+end
+
+function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+    for νn in fft_range
+        νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
+        G_fft[:,νn] .= fft(kG.cache1)[:]
+    end
+    return G_fft
 end

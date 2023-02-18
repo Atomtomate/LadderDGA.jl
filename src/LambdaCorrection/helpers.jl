@@ -43,6 +43,7 @@ function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
 end
 
 function χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) 
+    λ == 0.0 && return nothing
     !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
     for i in eachindex(χ_λ)
         χ_λ[i] = χ[i] ./ ((λ .* χ[i]) .+ 1)
@@ -191,33 +192,36 @@ function get_λ_min(χr::AbstractArray{Float64,2})::Float64
 end
 
 """
-    λsp_rhs([imp_density::Float64, ]χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+λsp_rhs([imp_density::Float64, ]χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
 
 Helper function for the right hand side of the Pauli principle conditions (old λ correction).
 TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λsp_rhs(imp_density::Float64, χsp::χT, χch::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
-    usable_ω = intersect(χsp.usable_ω, χch.usable_ω)
-    #!(χch.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
+function λsp_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
+    χ_d.λ != 0 && λd != 0 && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ)")
+    usable_ω = intersect(χ_m.usable_ω, χ_d.usable_ω)
+    #!(χ_d.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
-    χch_ω = kintegrate(kG, χch[:,usable_ω], 1)[1,:]
-    χch_sum = real(sum(subtract_tail(χch_ω, χch.tail_c[3], iωn, 2)))/mP.β - χch.tail_c[3] * mP.β/12
+    χ_λ!(χ_d, λd)
+    χ_d_ω = kintegrate(kG, χ_d[:,usable_ω], 1)[1,:]
+    λd != 0 && reset!(χ_d)
+    χ_d_sum = real(sum(subtract_tail(χ_d_ω, χ_d.tail_c[3], iωn, 2)))/mP.β - χ_d.tail_c[3] * mP.β/12
 
     verbose && @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
-        verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χch as rhs"
-        mP.n * (1 - mP.n/2) - χch_sum
+        verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χ_d as rhs"
+        mP.n * (1 - mP.n/2) - χ_d_sum
     else
-        verbose && @info "  ↳ using χupup_DMFT - Σ χch as rhs"
-        2*imp_density - χch_sum
+        verbose && @info "  ↳ using χupup_DMFT - Σ χ_d as rhs"
+        2*imp_density - χ_d_sum
     end
 
     if verbose
     @info """  ↳ Found usable intervals for non-local susceptibility of length 
-                 ↳ sp: $(χsp.usable_ω), length: $(length(χsp.usable_ω))
-                 ↳ ch: $(χch.usable_ω), length: $(length(χch.usable_ω))
+                 ↳ sp: $(χ_m.usable_ω), length: $(length(χ_m.usable_ω))
+                 ↳ ch: $(χ_d.usable_ω), length: $(length(χ_d.usable_ω))
                  ↳ total: $(usable_ω), length: $(length(usable_ω))
-               ↳ χch sum = $(χch_sum), rhs = $(rhs)"""
+               ↳ χ_d sum = $(χ_d_sum), rhs = $(rhs)"""
     end
     return rhs
 end
@@ -241,17 +245,17 @@ function λ_seach_range(χ::Matrix{Float64}; λ_max_default = 50)
 end
 
 """
-    gen_νω_indices(χsp::χT, χch::χT, sP::SimulationParameters)
+    gen_νω_indices(χ_m::χT, χ_d::χT, sP::SimulationParameters)
 
 Internal helper to generate usable bosonic and fermionic ranges. Also returns the ``c_1/x^2`` tail. 
 """
-function gen_νω_indices(χsp::χT, χch::χT, mP::ModelParameters, sP::SimulationParameters)
-    ωindices = usable_ωindices(sP, χsp, χch)
+function gen_νω_indices(χ_m::χT, χ_d::χT, mP::ModelParameters, sP::SimulationParameters)
+    ωindices = usable_ωindices(sP, χ_m, χ_d)
     νmax::Int = minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)])
     νGrid    = 0:νmax-1
     iωn_f = collect(2im .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β)
     # iωn = iωn_f[ωindices]
     # iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    # χ_tail::Vector{ComplexF64} = χch.tail_c[3] ./ (iωn.^2)
+    # χ_tail::Vector{ComplexF64} = χ_d.tail_c[3] ./ (iωn.^2)
     return ωindices, νGrid, iωn_f #χ_tail
 end

@@ -1,4 +1,5 @@
 using Distributed
+using OffsetArrays
 
 rmprocs(workers(default_worker_pool()))
 addprocs(2, exeflags="--project=$(Base.active_project())")
@@ -7,62 +8,106 @@ addprocs(2, exeflags="--project=$(Base.active_project())")
 dir = dirname(@__FILE__)
 dir = joinpath(dir, "test_data/config_b1u2.toml")
 cfg_file = joinpath(dir)
+
+LadderDGA.clear_wcache!()
 wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_sp_loc, γ_sp_loc, χ_ch_loc, γ_ch_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 bubble = calc_bubble(gLoc_fft, gLoc_rfft, kG, mP, sP);
 bubble_par = calc_bubble_par(kG, mP, sP, collect_data=true);
 calc_bubble_par(kG, mP, sP, collect_data=false);
 @test all(bubble.data .≈ bubble_par.data)
 @test all(bubble.asym .≈ bubble_par.asym)
 
-χ_sp, γ_sp = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
-χ_ch, γ_ch = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
-χ_sp_par, γ_sp_par = calc_χγ_par(:sp, Γsp, kG, mP, sP);
-χ_ch_par, γ_ch_par = calc_χγ_par(:ch, Γch, kG, mP, sP);
-@test all(χ_sp.data .≈ χ_sp_par.data)
-@test all(χ_ch.data .≈ χ_ch_par.data)
-@test all(χ_sp.tail_c .≈ χ_sp_par.tail_c)
-@test all(χ_ch.tail_c .≈ χ_ch_par.tail_c)
-@test all(χ_sp.usable_ω .≈ χ_sp_par.usable_ω)
-@test all(χ_ch.usable_ω .≈ χ_ch_par.usable_ω)
-@test all(γ_sp.data .≈ γ_sp_par.data)
-@test all(γ_ch.data .≈ γ_ch_par.data)
+χ_m, γ_m = calc_χγ(:sp, Γsp, bubble, kG, mP, sP);
+χ_d, γ_d = calc_χγ(:ch, Γch, bubble, kG, mP, sP);
+cs_χm = abs(sum(χ_m))
+cs_χd = abs(sum(χ_d))
+cs_γm = abs(sum(γ_m))
+cs_γd = abs(sum(γ_d))
+
+χ_m_par, γ_m_par = calc_χγ_par(:sp, Γsp, kG, mP, sP);
+χ_d_par, γ_d_par = calc_χγ_par(:ch, Γch, kG, mP, sP);
+@test all(χ_m.data .≈ χ_m_par.data)
+@test all(χ_d.data .≈ χ_d_par.data)
+@test all(χ_m.tail_c .≈ χ_m_par.tail_c)
+@test all(χ_d.tail_c .≈ χ_d_par.tail_c)
+@test all(χ_m.usable_ω .≈ χ_m_par.usable_ω)
+@test all(χ_d.usable_ω .≈ χ_d_par.usable_ω)
+@test all(γ_m.data .≈ γ_m_par.data)
+@test all(γ_d.data .≈ γ_d_par.data)
 
 
 Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
-λ₀ = calc_λ0(bubble, Fsp, χ_sp_loc, γ_sp_loc, mP, sP)
-Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν);
+λ₀ = calc_λ0(bubble, Fsp, χ_m_loc, γ_m_loc, mP, sP)
+Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν);
+initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP, χ_m = χ_m, γ_m = γ_m,
+                χ_d = χ_d, γ_d = γ_d, force_reinit=true)
+Σ_ladder_par_2 = calc_Σ_par(kG, mP);
+@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_par_2.parent)
+Σ_ladder_inplace = similar(Σ_ladder_par_2)
+LadderDGA.calc_Σ_par!(Σ_ladder_inplace, mP)
+@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_inplace.parent)
 
 initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-1, kG, mP, sP, 
-                χsp = χ_sp, γsp = γ_sp,
-                χch = χ_ch, γch = γ_ch)
-Σ_ladder_par = calc_Σ_par(kG, mP, sP, νrange=0:sP.n_iν-1);
+                χ_m = χ_m, γ_m = γ_m,
+                χ_d = χ_d, γ_d = γ_d, force_reinit=true)
+Σ_ladder_par = calc_Σ_par(kG, mP);
 @test all(Σ_ladder.parent .≈ Σ_ladder_par.parent)
+@test abs(sum(χ_d)) ≈ cs_χd
 
-initialize_EoM(gLoc_rfft, λ₀, 0:sP.n_iν-5, kG, mP, sP, 
-                χsp = χ_sp, γsp = γ_sp,
-                χch = χ_ch, γch = γ_ch)
-Σ_ladder_par = calc_Σ_par(kG, mP, sP, νrange=0:sP.n_iν-5);
-@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_par.parent)
 
-χ_sp2 = collect_χ(:sp, kG, mP, sP)
-χ_ch2 = collect_χ(:ch, kG, mP, sP)
-@test all(χ_sp.data .≈ χ_sp2.data)
-@test all(χ_ch.data .≈ χ_ch2.data)
+run_res = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@test abs(sum(χ_d)) ≈ cs_χd
+run_res_par = LadderDGA.LambdaCorrection.run_sc_par(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@test abs(sum(χ_d)) ≈ cs_χd
 
-# c2_res = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
-# c2_res_sc = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP,
-#     conv_abs=1e-6, maxit=10, par=false)
-# c2_res_sc_par = residuals(2, 2, Float64[], χ_sp, γ_sp, χ_ch, γ_ch, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP,
-#     conv_abs=1e-6, maxit=10, par=true)
-# ind =  mapslices(x->all(isfinite.(x)), c2_res_sc, dims=1) .& mapslices(x->all(isfinite.(x)), c2_res_sc_par, dims=1)
-# @test all(mapslices(x->all(isfinite.(x)), c2_res_sc, dims=1) .== mapslices(x->all(isfinite.(x)), c2_res_sc_par, dims=1))
-# @test all(isapprox.(c2_res_sc[ind,:], c2_res_sc_par[ind,:], atol=1e-6))
+@testset "run_sc" begin
+for el in zip(run_res[2:end], run_res_par[2:end])
+    @test all(isapprox.(el[1], el[2], rtol=1e-4))
+end
+end
 
-# f_d(q) = cos(k[1]) - cos(k[2])
-# Σ_ladder_dm_sc, gLoc_sc, E_pot_sc, μsc, converged = run_sc(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, gLoc_rfft, Σ_loc, λspch_sc[1], λspch_sc[2], kG, mP, sP)
-# ff_sc = gLoc_sc .* (f_d.(kG.kGrid))
-# gLoc_ff_fft_sc, gLoc_ff_rfft_sc = G_fft(ff_sc, kG, mP, sP)
-# bubble_ff_sc = calc_bubble(gLoc_ff_fft_sc, gLoc_ff_rfft_sc, kG, mP, sP)
-# χ0_i_ff_sc = sum(1 ./ bubble_ff_sc.data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=2)[:,1,:] / mP.β # TODO: select ω and q
+χ_m2 = collect_χ(:sp, kG, mP, sP)
+χ_d2 = collect_χ(:ch, kG, mP, sP)
+@test all(χ_m.data .≈ χ_m2.data)
+@test all(χ_d.data .≈ χ_d2.data)
+@test abs(sum(χ_d)) ≈ cs_χd
 
+res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false)
+@test abs(sum(χ_d)) ≈ cs_χd
+res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true)
+@test abs(sum(χ_d)) ≈ cs_χd
+@testset "λdm" begin
+for el in zip(res_λdm[2:end], res_λdm_par[2:end])
+    @test all(isapprox.(el[1], el[2], rtol=1.0))
+end
+end
+@test abs(sum(χ_d)) ≈ cs_χd
+
+tr = []
+res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false)
+@test abs(sum(χ_m)) ≈ cs_χm
+@test abs(sum(χ_d)) ≈ cs_χd
+#res_λdm_tsc = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.1, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=true)
+res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true)
+@test abs(sum(χ_m)) ≈ cs_χm
+@test abs(sum(χ_d)) ≈ cs_χd
+
+@testset "λdm_tsc" begin
+    for el in zip(res_λdm_tsc[2:end], res_λdm_tsc_par[2:end])
+        @test all(isapprox.(el[1], el[2], rtol=0.01))
+    end
+end
+# Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=false)
+@test abs(sum(χ_m)) ≈ cs_χm
+@test abs(sum(χ_d)) ≈ cs_χd
+@test abs(sum(γ_m)) ≈ cs_γm
+@test abs(sum(γ_d)) ≈ cs_γd
+# Σ_ladder_dm_tsc_par, gLoc_dm_tsc_par, E_kin_dm_tsc_par, E_pot_dm_tsc_par, μ_dm_tsc_par, λdm_tsc_m_par, _, _, converged_dm_tsc_par, λdm_tsc_d_par  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=true)
+# @test all(Σ_ladder_dm_tsc_par .≈ Σ_ladder_dm_tsc)
+# @test all(gLoc_dm_tsc_par .≈ gLoc_dm_tsc)
+# @test E_kin_dm_tsc_par ≈ E_kin_dm_tsc_par
+# @test E_pot_dm_tsc_par ≈ E_pot_dm_tsc_par
+# @test μ_dm_tsc_par ≈ μ_dm_tsc
+# @test λdm_tsc_m_par ≈ λdm_tsc_m
+# @test λdm_tsc_d_par ≈ λdm_tsc_d

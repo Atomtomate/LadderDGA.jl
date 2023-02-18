@@ -161,10 +161,10 @@ function res_curve_int(λd_i::Float64,
     conv_abs = maxit != 0 ? conv_abs : Inf
     run_f = par ? run_sc_par : run_sc
 
-    Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λm_i, lhs_c1, lhs_c2, converged = run_f(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, λd_i, kG, mP, sP, 
+    Σ_ladder, gLoc_new, E_kin, E_pot, μnew, λm_i, lhs_c1, lhs_c2, converged, trace = run_f(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, λd_i, kG, mP, sP, 
                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
                 
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-    return λm_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μnew, converged
+    return λm_i, lhs_c1, rhs_c1, lhs_c2, rhs_c2, μnew, converged, trace
 end

@@ -15,8 +15,8 @@ module LadderDGA
     export addprocs
 
     # LadderDGA main functions
-    export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction
-    export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, run_sc
+    export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
+    export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
     export collect_χ₀, collect_χ, collect_γ, collect_Σ
     export λ_from_γ, F_from_χ, G_from_Σ, G_from_Σladder
 
@@ -24,7 +24,7 @@ module LadderDGA
     export calc_E_ED, calc_E, calc_Epot2
 
     # LambdaCorrection
-    export χ_λ, χ_λ!
+    export χ_λ, χ_λ!, reset!
     export newton_right
     #TODO: check interface after refactoring
     export λdm_correction, λ_correction, λ_correction!, residuals, find_root

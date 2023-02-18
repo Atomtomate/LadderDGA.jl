@@ -161,18 +161,31 @@ function update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{Comple
     length(new_tail_c) != length(χ.tail_c) && throw(ArgumentError("length of new tail coefficient array ($(length(new_tail_c))) must be the same as the old one ($(length(χ.tail_c)))!"))
     length(ωnGrid) != size(χ.data,2) && throw(ArgumentError("length of ωnGrid ($(length(ωnGrid))) must be the same as for χ ($(size(χ.data,2)))!"))
     !all(isfinite.(new_tail_c)) && throw(ArgumentError("One or more tail coefficients are not finite!"))
-    zero_ind = findall(x->x==0, ωnGrid) 
+    λ_bak = χ.λ
+    λ_bak != 0 && reset!(χ)
+    update_tail!(χ.data, χ.tail_c, new_tail_c, ωnGrid)
+
     for ci in 2:length(new_tail_c)
-        if !(new_tail_c[ci] ≈ χ.tail_c[ci])
-            tmp = (new_tail_c[ci] - χ.tail_c[ci]) ./ (ωnGrid .^ (ci-1))  
-            tmp[zero_ind] .= 0
-            for qi in 1:size(χ.data,1)
-                χ.data[qi,:] = χ.data[qi,:] .+ tmp
-            end
+        if !(new_tail_c[ci] == χ.tail_c[ci])
             χ.tail_c[ci] = new_tail_c[ci]
         end
     end
+    χ_λ!(χ, λ_bak)
 end
+
+function update_tail!(χ::AbstractMatrix, old_tail_c::Vector{Float64}, new_tail_c::Vector{Float64}, ωnGrid::Vector{ComplexF64})
+    zero_ind = findall(x->x==0, ωnGrid) 
+    for ci in 2:length(new_tail_c)
+        if !(new_tail_c[ci] == old_tail_c[ci])
+            tmp = (new_tail_c[ci] - old_tail_c[ci]) ./ (ωnGrid .^ (ci-1))  
+            tmp[zero_ind] .= 0
+            for qi in 1:size(χ,1)
+                χ[qi,:] = χ[qi,:] .+ tmp
+            end
+        end
+    end
+end
+
 
 # ---------------------------------------------- Indexing --------------------------------------------
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)

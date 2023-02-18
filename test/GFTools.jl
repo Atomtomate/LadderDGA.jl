@@ -32,7 +32,6 @@ end
     @test G_shell_sum_naive(νnGrid, 11.1) ≈ LadderDGA.G_shell_sum(50, 11.1) rtol=0.01
     @test filling(G, kG_1, 1.1, 1.2, 1.3) ≈ 1.1706318843228878
     @test filling_pos(G, kG_1, 1.1, 1.2, 1.3) ≈ 1.3378494616162329
-
 end
 
 

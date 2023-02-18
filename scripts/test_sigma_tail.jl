@@ -24,7 +24,7 @@ Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
 #c2_res = residuals(8, χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false, method=:lingrid)
 println("checksums: m =$(sum(χ_m)) d =$(sum(χ_d))")
-Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, lhs_c1, lhs_c2, converged, λdm_d  = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+trace, Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, lhs_c1, lhs_c2, converged, λdm_d  = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
 
 
 # ind_tsc = findall(x->x≈0, c2_res_tsc[2,:])

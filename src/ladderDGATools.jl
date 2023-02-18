@@ -124,7 +124,6 @@ Set `collect_data` to return both quantities, or call [`collect_χγ`](@ref coll
 
 """
 function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
-
     @sync begin
     for w in workers()
         @async remotecall_fetch(bse_inv, w, type, Γr)
@@ -140,13 +139,14 @@ end
 
 Equation of motion for self energy. See [`calc_Σ_par`](@ref calc_Σ_par).
 """
-function calc_Σ_eom_par(λsp::Float64, λch::Float64) 
-    if !wcache[].Σ_initialized 
+function calc_Σ_eom_par(λm::Float64, λd::Float64) 
+    if !wcache[].EoMVars_initialized 
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
+
     #TODO: this is unsave, λ values is not stored in χT
-    λsp != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, λsp) 
-    λch != 0 && χ_λ!(wcache[].χch, wcache[].χch, λch) 
+    λm != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, λm) 
+    λd != 0 && χ_λ!(wcache[].χch, wcache[].χch, λd) 
 
     Nq::Int = size(wcache[].χsp,1)
     U = wcache[].mP.U
@@ -162,17 +162,18 @@ function calc_Σ_eom_par(λsp::Float64, λch::Float64)
             wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post
         end
     end
-    λsp != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, -λsp) 
-    λch != 0 && χ_λ!(wcache[].χch, wcache[].χch, -λch) 
+    λm != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, -λm) 
+    λd != 0 && χ_λ!(wcache[].χch, wcache[].χch, -λd) 
 end
 
 """
-collect_Σ(Nk::Int, νrange::AbstractVector{Int}, mP::ModelParameters, sP::SimulationParameters)
+    collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters)
+
+Collects self-energy from workers.
 """
-function collect_Σ(Nk::Int, νrange::AbstractVector{Int}, mP::ModelParameters, sP::SimulationParameters)
+function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     Σ_hartree = mP.n * mP.U/2.0;
-    Σ_ladder = OffsetArray(zeros(ComplexF64, Nk, length(νrange)), 1:Nk, νrange)
 
     @sync begin
     for w in workers()
@@ -182,8 +183,8 @@ function collect_Σ(Nk::Int, νrange::AbstractVector{Int}, mP::ModelParameters, 
         end
     end
     end
-    Σ_ladder = Σ_ladder ./ mP.β .+ Σ_hartree
-    return Σ_ladder
+    Σ_ladder[:,:] = Σ_ladder[:,:] ./ mP.β .+ Σ_hartree
+    return nothing
 end
 
 """
@@ -192,17 +193,29 @@ end
 Calculates self-energy on worker pool. Workers must first be initialized using [`initialize_EoM`](@ref initialize_EoM).
 #TODO: νrange must be equal to the one used during initialization. remove one.
 """
-function calc_Σ_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                    λsp::Float64=0.0, λch::Float64=0.0, νrange=0:sP.n_iν-1, collect_data=true)
+function calc_Σ_par(kG::KGrid, mP::ModelParameters; 
+                    λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
-    Nk::Int = length(kG.kMult)
+    Nk::Int = collect_data ? length(kG.kMult) : 1
+    νrange = wcache[].EoM_νGrid
+    νrange = collect_data ?  νrange : UnitRange(0,0)
+
+    Σ_ladder = collect_data ? OffsetArray(Matrix{ComplexF64}(undef, Nk, length(νrange)), 1:Nk, νrange) : OffsetArray(Matrix{ComplexF64}(undef, 0, 0), 1:1, 0:0)
+    return calc_Σ_par!(Σ_ladder, mP; λm=λm, λd=λd, collect_data=collect_data)
+end
+
+function calc_Σ_par!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, 
+                    mP::ModelParameters; 
+                    λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
     @sync begin
     for wi in workers()
-        @async remotecall_fetch(calc_Σ_eom_par, wi, λsp, λch)
+        @async remotecall_fetch(calc_Σ_eom_par, wi, λm, λd)
     end
     end
+    collect_data && collect_Σ!(Σ_ladder, mP) 
 
-    return collect_data ? collect_Σ(Nk, νrange, mP, sP) : nothing
+    return collect_data ? Σ_ladder : nothing
 end
 
 

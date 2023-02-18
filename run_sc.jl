@@ -53,7 +53,7 @@ end
 
 # ======================================= lDΓA_dm ==========================================
 
-@timeit LadderDGA.to "λdm" Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, _, _, converged_dm, λdm_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=false)
+@timeit LadderDGA.to "λdm" Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, _, _, converged_dm, λdm_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=true)
 λdm = [λdm_m, λdm_d]
 χ0_inv_dm_0, χ0_inv_dm_π = if all(isfinite.(λdm))
     χ0_inv_dm = χ0_inv(gLoc_dm, kG, mP, sP)
@@ -74,7 +74,7 @@ else
 end
 
 # ===================================== lDΓA_dm_sc =========================================
-@timeit LadderDGA.to "λdm sc" Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, λdm_sc_m, _, _, converged_dm_sc, λdm_sc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=100, par=false)
+@timeit LadderDGA.to "λdm sc" Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, λdm_sc_m, _, _, converged_dm_sc, λdm_sc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=100, par=true)
 λdm_sc = [λdm_sc_m, λdm_sc_d]
 χ0_inv_dm_sc_0, χ0_inv_dm_sc_π = if all(isfinite.(λdm_sc))
     χ0_inv_dm_sc = χ0_inv(gLoc_dm_sc, kG, mP, sP)
@@ -96,7 +96,7 @@ end
 
 
 # ===================================== lDΓA_dm_tsc ========================================
-@timeit LadderDGA.to "λdm tsc" Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=100, par=false)
+@timeit LadderDGA.to "λdm tsc" Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=true)
 λdm_tsc = [λdm_tsc_m, λdm_tsc_d]
 χ0_inv_dm_tsc_0, χ0_inv_dm_tsc_π = if all(isfinite.(λdm_tsc))
     χ0_inv_dm_tsc = χ0_inv(gLoc_dm_tsc, kG, mP, sP)
