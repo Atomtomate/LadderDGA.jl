@@ -8,7 +8,7 @@ Pkg.activate(@__DIR__)
 cfg_file = ARGS[1]
 out_path = ARGS[2]
 nprocs_in   = parse(Int,ARGS[3]) # TODO: use slurm
-fname_out =  out_path*"/lDGA_c2_new.jld2" 
+fname_out =  out_path*"/lDGA_new.jld2" 
 
 nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project())")
 @everywhere using LadderDGA
@@ -53,7 +53,7 @@ end
 
 # ======================================= lDΓA_dm ==========================================
 
-@timeit LadderDGA.to "λdm" Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, _, _, converged_dm, λdm_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=true)
+@timeit LadderDGA.to "λdm" trace_dm, (Σ_ladder_dm, gLoc_dm, E_kin_dm, E_pot_dm, μ_dm, λdm_m, _, _, converged_dm, λdm_d)  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=0, par=true)
 λdm = [λdm_m, λdm_d]
 χ0_inv_dm_0, χ0_inv_dm_π = if all(isfinite.(λdm))
     χ0_inv_dm = χ0_inv(gLoc_dm, kG, mP, sP)
@@ -74,7 +74,7 @@ else
 end
 
 # ===================================== lDΓA_dm_sc =========================================
-@timeit LadderDGA.to "λdm sc" Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, λdm_sc_m, _, _, converged_dm_sc, λdm_sc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=100, par=true)
+@timeit LadderDGA.to "λdm sc" trace_dm_sc, (Σ_ladder_dm_sc, gLoc_dm_sc, E_kin_dm_sc, E_pot_dm_sc, μ_dm_sc, λdm_sc_m, _, _, converged_dm_sc, λdm_sc_d)  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; maxit=100, par=true)
 λdm_sc = [λdm_sc_m, λdm_sc_d]
 χ0_inv_dm_sc_0, χ0_inv_dm_sc_π = if all(isfinite.(λdm_sc))
     χ0_inv_dm_sc = χ0_inv(gLoc_dm_sc, kG, mP, sP)
@@ -96,7 +96,7 @@ end
 
 
 # ===================================== lDΓA_dm_tsc ========================================
-@timeit LadderDGA.to "λdm tsc" Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=true)
+@timeit LadderDGA.to "λdm tsc" trace_dm_tsc, (Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d)  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=true)
 λdm_tsc = [λdm_tsc_m, λdm_tsc_d]
 χ0_inv_dm_tsc_0, χ0_inv_dm_tsc_π = if all(isfinite.(λdm_tsc))
     χ0_inv_dm_tsc = χ0_inv(gLoc_dm_tsc, kG, mP, sP)
@@ -138,6 +138,10 @@ end
     f["λdm_sc"] = λdm_sc
     f["λm_tsc"] = λm_tsc
     f["λdm_tsc"] = λdm_tsc
+
+    f["trace_λdm"] = trace_dm
+    f["trace_λdm_sc"] = trace_dm_sc
+    f["trace_λdm_tsc"] = trace_dm_tsc
 
     f["Σ_loc"] = Σ_loc
     f["Σ_ladder_m"] = Σ_ladder_m
