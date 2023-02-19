@@ -65,7 +65,7 @@ end
 
 # ======================================= lDΓA_m_sc ========================================
 Σ_ladder_m_sc, χ0_inv_m_sc_0, χ0_inv_m_sc_π, E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, converged_m_sc = if isfinite(λm)
-    Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, _, _, converged_m_sc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
+    trace_m, Σ_ladder_m_sc, gLoc_m_sc, E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, _, _, converged_m_sc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP)
     χ0_inv_m_sc = χ0_inv(gLoc_m_sc, kG, mP, sP)
     Σ_ladder_m_sc, χ0_inv_m_sc[qi_0, ωi], χ0_inv_m_sc[qi_π, ωi], E_kin_m_sc, E_pot_m_sc, μ_m_sc, λm_sc, converged_m_sc
 else
@@ -86,7 +86,7 @@ end
 
 # ======================================= lDΓA_m_tsc ========================================
 Σ_ladder_m_tsc, χ0_inv_m_tsc_0, χ0_inv_m_tsc_π, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, converged_m_tsc = if isfinite(λm)
-    Σ_ladder_m_tsc, gLoc_m_tsc, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, _, _, converged_m_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP, update_χ_tail=true)
+    trace_m_tsc, Σ_ladder_m_tsc, gLoc_m_tsc, E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, _, _, converged_m_tsc  = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.0, kG, mP, sP, update_χ_tail=true)
     χ0_inv_m_tsc = χ0_inv(gLoc_m_tsc, kG, mP, sP)
     Σ_ladder_m_tsc, χ0_inv_m_tsc[qi_0, ωi], χ0_inv_m_tsc[qi_π, ωi], E_kin_m_tsc, E_pot_m_tsc, μ_m_tsc, λm_tsc, converged_m_tsc
 else
