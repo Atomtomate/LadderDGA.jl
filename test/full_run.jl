@@ -73,41 +73,32 @@ end
 @test all(χ_d.data .≈ χ_d2.data)
 @test abs(sum(χ_d)) ≈ cs_χd
 
-res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false)
+res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true)
+res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
-for el in zip(res_λdm[2:end], res_λdm_par[2:end])
-    @test all(isapprox.(el[1], el[2], rtol=1.0))
+for el in zip(res_λdm[2:end-1], res_λdm_par[2:end-1])
+    @test all(isapprox.(el[1], el[2], rtol=0.01))
 end
 end
 @test abs(sum(χ_d)) ≈ cs_χd
 
 tr = []
-res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false)
+res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false, with_trace=true)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
 #res_λdm_tsc = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.1, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=true)
-res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true)
+res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true, with_trace=true)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
 
 @testset "λdm_tsc" begin
-    for el in zip(res_λdm_tsc[2:end], res_λdm_tsc_par[2:end])
-        @test all(isapprox.(el[1], el[2], rtol=0.01))
+    for el in zip(res_λdm_tsc[2:end-1], res_λdm_tsc_par[2:end-1])
+        @test all(isapprox.(el[1], el[2], atol=1e-3))
     end
 end
-# Σ_ladder_dm_tsc, gLoc_dm_tsc, E_kin_dm_tsc, E_pot_dm_tsc, μ_dm_tsc, λdm_tsc_m, _, _, converged_dm_tsc, λdm_tsc_d  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=false)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
 @test abs(sum(γ_m)) ≈ cs_γm
 @test abs(sum(γ_d)) ≈ cs_γd
-# Σ_ladder_dm_tsc_par, gLoc_dm_tsc_par, E_kin_dm_tsc_par, E_pot_dm_tsc_par, μ_dm_tsc_par, λdm_tsc_m_par, _, _, converged_dm_tsc_par, λdm_tsc_d_par  = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=true, maxit=100, par=true)
-# @test all(Σ_ladder_dm_tsc_par .≈ Σ_ladder_dm_tsc)
-# @test all(gLoc_dm_tsc_par .≈ gLoc_dm_tsc)
-# @test E_kin_dm_tsc_par ≈ E_kin_dm_tsc_par
-# @test E_pot_dm_tsc_par ≈ E_pot_dm_tsc_par
-# @test μ_dm_tsc_par ≈ μ_dm_tsc
-# @test λdm_tsc_m_par ≈ λdm_tsc_m
-# @test λdm_tsc_d_par ≈ λdm_tsc_d

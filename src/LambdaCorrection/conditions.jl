@@ -55,22 +55,52 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                         maxit_root = 50, atol_root = 1e-7,
                         νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
-                        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
-    run_f = par ? run_sc_par : run_sc
+                        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false, with_trace=false)
+
+
+
+    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
+    iωn = iωn_f[ωindices]
+    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    iωn_m2 = 1 ./ iωn .^ 2
+    gLoc_rfft_init = deepcopy(gLoc_rfft)
+    par && initialize_EoM(gLoc_rfft_init, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
+    fft_νGrid= 0:last(sP.fft_range)
+    G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(fft_νGrid)), 1:length(kG.kMult), fft_νGrid) 
+    Σ_ladder_work::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
+    Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
+
+
     traces = DataFrame[]
-    function ff(λd_i::Float64)
-        tr, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_f(
+
+    trace_i = with_trace ? Ref(DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
+        lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])) : Ref(nothing)
+    function ff_seq(λd_i::Float64)
+        trace_i, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
                     χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-        push!(traces, tr)
+        push!(traces, trace_i)
         return rhs_c2 - E_pot_2
     end
+
+
+    function ff_par(λd_i::Float64)
+            _, E_pot, _, _, _, E_pot_2, _ = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, trace_i,
+                         νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
+                         maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true)
+        rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
+        with_trace && push!(traces, trace_i[])
+        return rhs_c2 - E_pot_2
+    end
+
+    residual_f = par ? ff_par : ff_seq
+
     λd_min_tmp = get_λ_min(real(χ_d.data)) 
     track = Roots.Tracks()
     println("Bracket for λdm: [",λd_min_tmp + λd_min_δ*abs(λd_min_tmp), ",", λd_max, "]")
     root = try
-        find_zero(ff, (λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max), Roots.A42(), maxiters=maxit_root, atol=atol_root, tracks=track)
+        find_zero(residual_f, (λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max), Roots.A42(), maxiters=maxit_root, atol=atol_root, tracks=track)
     catch e
         println("Error: $e")
         println("Track: $track")
@@ -79,7 +109,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
     end
     root = if isnan(root)
         try
-            find_zero(ff, 0.0, maxiters=maxit_root, atol=atol_root, tracks=track)
+            find_zero(residual_f, 0.0, maxiters=maxit_root, atol=atol_root, tracks=track)
         catch e
             println("Error: $e")
             println("Track: $track")
@@ -89,19 +119,26 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
         root
     end
 
-    res = if isnan(root) || track.convergence_flag == :not_converged
+    if isnan(root) || track.convergence_flag == :not_converged
         println("WARNING: No λd root was found! Track:")
         println(track)
-        nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
+        return nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
     elseif root < λd_min_tmp
         println("WARNING: λd = $root outside region ($λd_min_tmp)!")
-
-        nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
+        return nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
     else
-         run_f(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, root, kG, mP, sP, 
-               maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)..., root
+        if par
+            vars = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, Ref(nothing),
+                         νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, root, kG, mP, sP;
+                         maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true)
+            return traces, Σ_ladder, G_ladder, vars..., root
+        else
+            vars = run_sc(
+                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, root, kG, mP, sP, 
+                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
+            return traces, vars[2:end]..., root
+        end
     end
-    return traces, res[2:end]
 end
 
 
