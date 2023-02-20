@@ -41,7 +41,7 @@ Calculates the bubble, based on two fourier-transformed Greens functions where t
 """
 function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
     worker_list = workers()
-    !(length(worker_list) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(worker_list) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     ωi_range, ωi_part = gen_ω_part(sP, length(worker_list))
 
     @sync begin
@@ -59,7 +59,7 @@ end
 Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref `calc_bubble_par`).
 """
 function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
 
     @sync begin
@@ -172,7 +172,7 @@ end
 Collects self-energy from workers.
 """
 function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     Σ_hartree = mP.n * mP.U/2.0;
 
     @sync begin
@@ -195,7 +195,7 @@ Calculates self-energy on worker pool. Workers must first be initialized using [
 """
 function calc_Σ_par(kG::KGrid, mP::ModelParameters; 
                     λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     Nk::Int = collect_data ? length(kG.kMult) : 1
     νrange = wcache[].EoM_νGrid
     νrange = collect_data ?  νrange : UnitRange(0,0)
@@ -207,7 +207,7 @@ end
 function calc_Σ_par!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, 
                     mP::ModelParameters; 
                     λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     @sync begin
     for wi in workers()
         @async remotecall_fetch(calc_Σ_eom_par, wi, λm, λd)

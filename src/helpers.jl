@@ -314,3 +314,15 @@ function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
     end
     return G_fft
 end
+
+function GFull_from_min(G::OffsetMatrix, kG::KGrid)
+    G_full = OffsetMatrix{ComplexF64}(Matrix{ComplexF64}(undef, prod(gridshape(kG)), 2*size(G,2)-1), 
+                    1:prod(gridshape(kG)), -last(axes(G,2)):last(axes(G,2)))
+    for i in axes(G, 2)
+        G_full[:,i] = expandKArr(kG, G[:,i].parent)[:]
+        if i < last(axes(G, 2))
+            G_full[:,-i-1] = G_full[:,i]
+        end
+    end
+    return G_full
+end

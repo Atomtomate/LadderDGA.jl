@@ -209,7 +209,7 @@ function initialize_EoM(G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::Abstr
                         χ_d::Union{Nothing,χT} = nothing,
                         γ_d::Union{Nothing,γT} = nothing)
     #TODO: calculate and distribute lambda0 directly here
-    !(length(workers()) > 0) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 0) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
 
     indices = gen_ν_part(νGrid, sP, length(workers()))
     force_reinit = force_reinit || any(wcache[].EoM_νGrid != νGrid)
@@ -341,7 +341,7 @@ end
 Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
 """
 function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     χ_data::Array{ComplexF64,2} = Array{ComplexF64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
     χfield = Symbol(string("χ",type))
 
@@ -369,7 +369,7 @@ function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
 end
 
 function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and rund lDGA_setup before calling parallel functions!"))
+    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)
     γfield = Symbol(string("γ",type))
 

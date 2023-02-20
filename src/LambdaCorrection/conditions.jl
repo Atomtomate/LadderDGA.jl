@@ -10,6 +10,22 @@
 #  Optimize Calc_E and remainder of run_sc!                                                            #
 # ==================================================================================================== #
 
+mutable struct λ_result
+    λm::Float64
+    λd::Float64
+    type::Symbol
+    EKin::Float64
+    EPot::Float64
+    residual_EPot::Float64
+    residual_PP::Float64
+    trace::DataFrame
+    G_ladder::OffsetMatrix
+    Σ_ladder::OffsetMatrix
+    μ::Float64
+end
+
+# return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
+
 """
     λm_correction(χ_m::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
                         
@@ -76,6 +92,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
     trace_i = with_trace ? Ref(DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])) : Ref(nothing)
     function ff_seq(λd_i::Float64)
+        copyto!(gLoc_rfft_init, gLoc_rfft)
         trace_i, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
                     χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
@@ -86,6 +103,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
 
 
     function ff_par(λd_i::Float64)
+        copyto!(gLoc_rfft_init, gLoc_rfft)
             _, E_pot, _, _, _, E_pot_2, _ = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, trace_i,
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
                          maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true)
@@ -127,6 +145,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
         println("WARNING: λd = $root outside region ($λd_min_tmp)!")
         return nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
     else
+        copyto!(gLoc_rfft_init, gLoc_rfft)
         if par
             vars = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, Ref(nothing),
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, root, kG, mP, sP;
@@ -134,7 +153,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
             return traces, Σ_ladder, G_ladder, vars..., root
         else
             vars = run_sc(
-                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, root, kG, mP, sP, 
+                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, root, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
             return traces, vars[2:end]..., root
         end
@@ -160,7 +179,7 @@ function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64},
     lhs_c1, E_pot_2 = lhs_int(χ_m, χ_d, λi[1], λi[2], χ_tail, kG.kMult, k_norm, χ_m.tail_c[3], mP.β)
     Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν, λm=λi[1],λd=λi[2]);
     _, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
-    _, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
+    _, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, mP.μ, kG, mP, νmax = last(νGrid)+1)
     rhs_c1 = mP.n/2 * (1 - mP.n/2)
     rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
     F[1] = lhs_c1 - rhs_c1
@@ -208,7 +227,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray
         isnan(μnew) && break
         _, gLoc_rfft = G_fft(G_ladder, kG, sP)
         # println("SEQ CS: ", sum(abs.(G_ladder[:,νGrid].parent)), " // ",  sum(abs.(Σ_ladder.parent)),  last(νGrid)+1, axes(G_ladder), axes(Σ_ladder))
-        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
+        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
         if update_χ_tail
             if isfinite(E_kin)
             update_tail!(χ_m, [0, 0, E_kin], iωn_f)
@@ -306,7 +325,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         mP.μ = μnew
         # TODO: optimize calc_E (precompute tails) 
         # println("PAR CS: ", sum(abs.(G_ladder[:,νGrid].parent)), " // ",  sum(abs.(Σ_ladder.parent)),  last(νGrid)+1, axes(G_ladder), axes(Σ_ladder))
-        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, kG, mP, νmax = last(νGrid)+1)
+        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
         if update_χ_tail
             if isfinite(E_kin)
                 par && update_tail!([0, 0, E_kin])

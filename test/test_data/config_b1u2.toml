@@ -1,8 +1,4 @@
 [Model]
-U    = 2.0
-mu   = 1.0
-beta = 12.0
-nden = 1.0
 kGrid = "3Dsc-0.2041241452319315"
 
 [Simulation]

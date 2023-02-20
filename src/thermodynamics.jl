@@ -130,18 +130,19 @@ end
 function calc_E(Σ::AbstractArray{ComplexF64,2}, kG, mP; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
     G = G_from_Σ(Σ[:,1:νmax], kG.ϵkGrid, νGrid, mP);
-    return calc_E(G, Σ, kG, mP; νmax = νmax,  trace=trace)
+    return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax,  trace=trace)
 end
 
-function calc_E(G::AbstractArray{ComplexF64,2}, Σ::AbstractArray{ComplexF64,2}, kG, mP; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+function calc_E(G::Array{ComplexF64,2}, Σ::Array{ComplexF64,2}, μ::Float64 , kG::KGrid, mP::ModelParameters;
+                νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     #println("TODO: make frequency summation with sum_freq optional")
     νGrid = 0:(νmax-1)
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U/2
 
-	E_kin_tail_c = [zeros(size(kG.ϵkGrid)), (kG.ϵkGrid .+ Σ_hartree .- mP.μ)]
+	E_kin_tail_c = [zeros(size(kG.ϵkGrid)), (kG.ϵkGrid .+ Σ_hartree .- μ)]
 	E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
-					(mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- mP.μ))]
+					(mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))]
 	tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
 	E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
 	E_kin_tail = sum(E_kin_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))

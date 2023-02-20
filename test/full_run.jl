@@ -72,13 +72,26 @@ end
 @test all(χ_m.data .≈ χ_m2.data)
 @test all(χ_d.data .≈ χ_d2.data)
 @test abs(sum(χ_d)) ≈ cs_χd
-
-res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
+res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=0, par=false, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
+res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=0, par=true, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
 for el in zip(res_λdm[2:end-1], res_λdm_par[2:end-1])
+    @test all(isapprox.(el[1], el[2], rtol=0.01))
+end
+end
+Σ_ladder_dm_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(axes(res_λdm[2],2))+1, λm=res_λdm[7], λd=res_λdm[end]);
+@test all(Σ_ladder_dm_2 .≈ res_λdm[2])
+_, G_ladder_dm_2 = G_from_Σladder(Σ_ladder_dm_2, Σ_loc, kG, mP, sP; fix_n=false);
+@test all(G_ladder_dm_2 .≈ res_λdm[3])
+
+res_λdm_sc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
+@test abs(sum(χ_d)) ≈ cs_χd
+res_λdm_sc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
+@test abs(sum(χ_d)) ≈ cs_χd
+@testset "λdm" begin
+for el in zip(res_λdm_sc[2:end-1], res_λdm_sc_par[2:end-1])
     @test all(isapprox.(el[1], el[2], rtol=0.01))
 end
 end
