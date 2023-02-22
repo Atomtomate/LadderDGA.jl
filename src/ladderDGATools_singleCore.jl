@@ -54,7 +54,7 @@ Correction term, TODO: documentation
 function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
-    Nq  = size(χ₀.data, χ₀.axes[:q])
+    Nq  = size(χ₀.data, χ₀.axis_types[:q])
     ω_range = 1:size(χ₀.data,ω_axis)
     λ0 = Array{ComplexF64,3}(undef,size(χ₀.data,q_axis),Niν,length(ω_range))
 
@@ -161,7 +161,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     end
     log_q0_χ_check(kG, sP, χ, type)
 
-    return χT(χ, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
+    return χT(χ, mP.β, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
 function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
@@ -170,7 +170,6 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
     fill!(Σ, zero(ComplexF64))
-    dbg = zeros(ComplexF64, size(χ_m,1), size(χ_m,2))
     νmax = size(Σ, 2)
     for ωii in 1:length(ωindices)
         ωi = ωindices[ωii]
@@ -186,7 +185,6 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
                 Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi],
                                    χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
     if νii-1 == 0
-    dbg[qi,ωi] = γ_m[qi,νi,ωi]
     end
             end
             if nprocs() == 1
@@ -196,7 +194,6 @@ function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre
             end
         end
     end
-        return dbg
 end
 
 function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray{_eltype,3},

@@ -15,17 +15,17 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 
 
 @timeit LadderDGA.to "input" wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γsp, Γch, χDMFTsp, χDMFTch, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
+@timeit LadderDGA.to "setup" Σ_ladderLoc, Σ_loc, imp_density, kG, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp = setup_LDGA(kGridsStr[1], mP, sP, env);
 @info "Bubble"
 @timeit LadderDGA.to "bubble" bubble = calc_bubble_par(kG, mP, sP, collect_data=true);
 @info "BSE sp"
-@timeit LadderDGA.to "BSE sp" χ_m, γ_m = calc_χγ_par(:sp, Γsp, kG, mP, sP, collect_data=true);
+@timeit LadderDGA.to "BSE sp" χ_m, γ_m = calc_χγ_par(:sp, Γ_m, kG, mP, sP, collect_data=true);
 @info "BSE ch"
-@timeit LadderDGA.to "BSE ch" χ_d, γ_d = calc_χγ_par(:ch, Γch, kG, mP, sP, collect_data=true);
+@timeit LadderDGA.to "BSE ch" χ_d, γ_d = calc_χγ_par(:ch, Γ_d, kG, mP, sP, collect_data=true);
 
 @info "EoM Correction"
 @timeit LadderDGA.to "EoM Correction" begin
-    Fsp = F_from_χ(χDMFTsp, gImp[1,:], sP, mP.β);
+    Fsp = F_from_χ(χDMFT_m, gImp[1,:], sP, mP.β);
     λ₀ = calc_λ0(bubble, Fsp, χ_m_loc, γ_m_loc, mP, sP)
 end
 

@@ -6,8 +6,8 @@ sP_1 = SimulationParameters(1,2,3,true,nothing,1:3,0.1,false)
 kG_1 = gen_kGrid("2dsc-1.0",2)
 kG_2 = gen_kGrid("2dsc-0.25",100)
 
-χ_1 = χT([1.1 1.2 1.1; 2.1 2.3 2.1])
-χ_2 = χT([-1.1 1.2 1.1; 2.1 2.3 2.1], full_range=false, reduce_range_prct=0.0)
+χ_1 = χT([1.1 1.2 1.1; 2.1 2.3 2.1], 1.0)
+χ_2 = χT([-1.1 1.2 1.1; 2.1 2.3 2.1], 1.0, full_range=false, reduce_range_prct=0.0)
 sP_grid_s1 = SimulationParameters(4,5,2,true,nothing,1:3,0.1,false)
 sP_grid_s0 = SimulationParameters(4,5,2,false,nothing,1:3,0.1,false)
 ωνgrid_test_s1 = [(i,j - trunc(Int,1*i/2)) for i in -4:4, j in -5:5-1]
