@@ -127,20 +127,28 @@ end
 
 # =============================================== GLoc ===============================================
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
+"""
+    G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+    G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; fix_n::Bool=false)
+
+Computes Green's function from lDΓA self-energy.
+
+The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
+"""
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                         fix_n::Bool=false)
-    νRange = 0:last(sP.fft_range)
-    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)),1:size(Σ_ladder,1), νRange)
+    νRange = sP.fft_range
+    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)),1:size(Σ_ladder,1), sP.fft_range)
     μ = G_from_Σladder!(G_new, Σ_ladder, view(Σloc, 1:last(νRange)+1), kG, mP, fix_n=fix_n)
     return μ, G_new
 end
 
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
                         fix_n::Bool=false)
-    νRange = axes(G_new, 2)
+    νRange = 0:last(axes(G_new, 2))
     function fμ(μ::Vector{Float64})
-        G_from_Σ!(OffsetArrays.no_offset_view(G_new), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
-        filling_pos(OffsetArrays.no_offset_view(G_new), kG, mP.U, μ[1], mP.β) - mP.n
+        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
+        filling_pos(view(G_new, :, νRange), kG, mP.U, μ[1], mP.β) - mP.n
     end
     μ_new_nls = try 
         nlsolve(fμ, [mP.μ])
@@ -157,8 +165,9 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     end
     if (fix_n && !isnan(μ)) || !fix_n
         mP.μ = μ
-        G_from_Σ!(OffsetArrays.no_offset_view(G_new), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc)
+        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc)
     end
+    G_new[:,first(axes(G_new,2)):-1] = conj.(G_new[:, end-1:-1:0])
     return μ
 end
 
@@ -256,7 +265,7 @@ end
 
 subtract the ``\\frac{c}{(i\\omega)^\\text{power}}`` high frequency tail from input array `inp`.
 """
-function subtract_tail(inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
+function subtract_tail(inp::AbstractVector, c::Float64, iω::Vector{ComplexF64}, power::Int)
     res = Array{eltype(inp),1}(undef, length(inp))
     subtract_tail!(res, inp, c, iω, power)
     return res
@@ -267,7 +276,7 @@ end
 
 subtract the c/(iω)^power high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
 """
-function subtract_tail!(outp::AbstractArray{T,1}, inp::AbstractArray{T,1}, c::Float64, iω::Array{ComplexF64,1}, power::Int) where T <: Number
+function subtract_tail!(outp::AbstractVector, inp::AbstractVector, c::Float64, iω::Vector{ComplexF64}, power::Int)
     for n in 1:length(inp)
         if iω[n] != 0
             outp[n] = inp[n] - (c/(iω[n]^power))

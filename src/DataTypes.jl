@@ -117,11 +117,13 @@ Fields
 - **`data`**         : `Array{ComplexF64,3}`, data
 - **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
 - **`indices_ω`**    : `Vector{Int}`, 
+- **`tail_c`**       : `Vector{Float64}`, tail coefficients of ``1/\\omega^i`` tails. Index `1` corresponds to `i=0`.
 - **`λ`**            : `Float64`, λ correction parameter.
+- **`β`**            : `Float64`, inverse temperature.
 - **`usable_ω`**     : `AbstractArray{Int}`, usable indices for which data is assumed to be correct. See also [`find_usable_interval`](@ref find_usable_interval)
 """
-mutable struct χT <: MatsubaraFunction{_eltype, 2}
-    data::Matrix
+mutable struct χT <: MatsubaraFunction{Float64, 2}
+    data::Matrix{Float64}
     axis_types::Dict{Symbol, Int}
     indices_ω::AbstractVector{Int}
     tail_c::Vector{Float64}
@@ -129,9 +131,9 @@ mutable struct χT <: MatsubaraFunction{_eltype, 2}
     β::Float64
     usable_ω::AbstractArray{Int}
 
-    function χT(data::Array{T, 2}, β::Float64;
+    function χT(data::Array{Float64, 2}, β::Float64;
                 indices_ω::AbstractVector{Int}=axes(data,2) .- ceil(Int,size(data,2)/2), 
-                tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0) where T <: Union{ComplexF64, Float64}
+                tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0)
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
         new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range)
     end
@@ -167,44 +169,67 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 
 
 """
+    sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false)
+    sum_kω(kG::kGrid, χ::AbstractMatrix{Float64}, tail_c::Vector{Float64}, β::Float64, ωn_arr::Vector{ComplexF64})::Float64
+
+Returns ``\\int_\\mathrm{BZ} dk \\sum_\\omega \\chi^\\omega_k``. The bosonic Matsubara grid can be precomputed and given with `ωn_arr` to increase performance.
+"""
+function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, λ::Float64=0.0)::ComplexF64
+    ω_slice = 1:size(χ, χ.axis_types[:ω])
+    ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
+    λ != 0 && χ_λ!(χ, λ) 
+    res = sum_kω(kG, χ.data[:,ω_slice], χ.tail_c, χ.β, ωn_arr)
+    reset!(χ)
+    return res
+end
+
+function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, tail_c::Vector{Float64}, β::Float64, ωn_arr::Vector{ComplexF64})::Float64
+    res::Float64  = 0.0
+    for (qi,qm) in enumerate(kG.kMult)
+        res += real(qm*sum_ω(ωn_arr, view(χ,qi,:), tail_c, β))
+    end
+    return res/Nk(kG)
+end
+
+
+"""
     sum_ω(χ::χT)
-    sum_ω!(res::Vector{ComplexF64}, work::Vector{ComplexF64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
-    sum_ω!(work::Vector{T}, ωn_arr::Vector{T}, χ::AbstractVector{T}, tail_c::Vector{Float64}, β::Float64; force_full_range=false)::T where T <: Union{Float64,ComplexF64}
+    sum_ω!(res::Vector{ComplexF64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
+    sum_ω!(ωn_arr::Vector{T}, χ::AbstractVector{T}, tail_c::Vector{Float64}, β::Float64; force_full_range=false)::T where T <: Union{Float64,ComplexF64}
 
 Sums the physical susceptibility over all usable (if `force_full_range` is not set to `true`) bosonic frequencies, including improvd tail summation, if `χ.tail_c` is set.
 """
 function sum_ω(χ::χT; force_full_range=false)
-    work = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:ω]))
     res  = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:q]))
     ωn_arr = ωn_grid(χ)
-    sum_ω!(res, work, ωn_arr, χ; force_full_range=force_full_range)
+    sum_ω!(res, ωn_arr, χ; force_full_range=force_full_range)
     return res
 end
 
-function sum_ω!(res::Vector{ComplexF64}, work::Vector{ComplexF64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
+function sum_ω!(res::Vector{Float64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
     length(res)  != size(χ,χ.axis_types[:q]) && error("Result array for ω summation must be of :q axis length!")
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
-    #for (p,ci) in enumerate(χ.tail_c)
-    #    if ci != 0
-    #    end
-    #end
-    i = 3
     for qi in eachindex(res)
-        subtract_tail!(work, view(χ.data, qi,ω_slice), χ.tail_c[i], ωn_arr, i-1)
-        res[qi] = sum_ω!(work, ωn_arr, view(χ,qi,ω_slice), χ.tail_c, χ.β::Float64)
+        res[qi] = sum_ω(ωn_arr, view(χ,qi,ω_slice), χ.tail_c, χ.β::Float64)
     end
     return nothing
 end
 
-function sum_ω!(work::Vector{T}, ωn_arr::Vector{T}, χ::AbstractVector{T}, tail_c::Vector{Float64}, β::Float64)::T where T <: Union{Float64,ComplexF64}
-    length(work) != length(χ) && error("Work array for ω summation must be of :ω axis length!")
+function sum_ω(ωn_arr::Vector{ComplexF64}, χ::AbstractVector{Float64}, tail_c::Vector{Float64}, β::Float64)
     !(sum(tail_c) ≈ tail_c[3]) && error("sum_ω only implemented for 1/ω^2, but other tail coefficients are non-zero!")
     limits = [Inf, Inf, -β^2/12] # -i 1.202056903*β^3/(8*π^3), β^4/720
     
     i = 3
-    subtract_tail!(work, χ, tail_c[i], ωn_arr, i-1)
-    return (sum(work) - limits[i])/β
+    res::Float64 = 0.0
+    for n in 1:length(χ)
+        if ωn_arr[n] != 0
+            res += χ[n] - real(tail_c[i]/(ωn_arr[n]^(i-1)))
+        else
+            res += χ[n]
+        end
+    end
+    return (res + tail_c[i]*limits[i])/β
 end
 
 """
@@ -216,27 +241,29 @@ function update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{Comple
     length(new_tail_c) != length(χ.tail_c) && throw(ArgumentError("length of new tail coefficient array ($(length(new_tail_c))) must be the same as the old one ($(length(χ.tail_c)))!"))
     length(ωnGrid) != size(χ.data,2) && throw(ArgumentError("length of ωnGrid ($(length(ωnGrid))) must be the same as for χ ($(size(χ.data,2)))!"))
     !all(isfinite.(new_tail_c)) && throw(ArgumentError("One or more tail coefficients are not finite!"))
+    sum(new_tail_c) != new_tail_c[3] && throw(ArgumentError("update tail only implemented for c_2 coefficient!"))
+
     λ_bak = χ.λ
     λ_bak != 0 && reset!(χ)
     update_tail!(χ.data, χ.tail_c, new_tail_c, ωnGrid)
 
-    for ci in 2:length(new_tail_c)
-        if !(new_tail_c[ci] == χ.tail_c[ci])
-            χ.tail_c[ci] = new_tail_c[ci]
-        end
+    ci = 3
+    if !(new_tail_c[ci] == χ.tail_c[ci])
+        χ.tail_c[ci] = new_tail_c[ci]
     end
     χ_λ!(χ, λ_bak)
 end
 
-function update_tail!(χ::AbstractMatrix, old_tail_c::Vector{Float64}, new_tail_c::Vector{Float64}, ωnGrid::Vector{ComplexF64})
-    zero_ind = findall(x->x==0, ωnGrid) 
-    for ci in 2:length(new_tail_c)
-        if !(new_tail_c[ci] == old_tail_c[ci])
-            tmp = (new_tail_c[ci] - old_tail_c[ci]) ./ (ωnGrid .^ (ci-1))  
-            tmp[zero_ind] .= 0
-            for qi in 1:size(χ,1)
-                χ[qi,:] = χ[qi,:] .+ tmp
-            end
+function update_tail!(χ::AbstractMatrix{Float64}, old_tail_c::Vector{Float64}, new_tail_c::Vector{Float64}, ωnGrid::Vector{ComplexF64})
+    if old_tail_c[3] != new_tail_c[3]
+        length(new_tail_c) != length(old_tail_c) && throw(ArgumentError("length of new tail coefficient array ($(length(new_tail_c))) must be the same as the old one ($(length(χ.tail_c)))!"))
+        !all(isfinite.(new_tail_c)) && throw(ArgumentError("One or more tail coefficients are not finite!"))
+        sum(new_tail_c) != new_tail_c[3] && throw(ArgumentError("update tail only implemented for c_2 coefficient!"))
+        zero_ind = findfirst(x->x==0, ωnGrid) 
+        ci::Int = 3
+        for ωi in setdiff(axes(χ,2), zero_ind)
+            tmp = real((new_tail_c[ci] - old_tail_c[ci]) / (ωnGrid[ωi] .^ (ci-1)))
+            χ[:,ωi] = χ[:,ωi] .+ tmp
         end
     end
 end

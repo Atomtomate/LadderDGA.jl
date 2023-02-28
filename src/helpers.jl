@@ -24,16 +24,17 @@ NTuple{16, Any}[
     Σ_loc, 
     imp_density, 
     kGrid,
+    gLoc,
     gLoc_fft,
     gLoc_rfft, 
-    Γ_sp,
-    Γ_ch, 
-    χDMFTsp,
-    χDMFTch,
-    χ_sp_loc,
-    γ_sp_loc,
-    χ_ch_loc,
-    γ_ch_loc,
+    Γ_m,
+    Γ_d, 
+    χDMFTm,
+    χDMFTd,
+    χ_m_loc,
+    γ_m_loc,
+    χ_d_loc,
+    γ_d_loc,
     χ₀Loc,
     gImp
 ]
@@ -89,10 +90,10 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         kGridLoc = gen_kGrid(kGridStr[1], 1)
         F_m   = F_from_χ(χDMFT_m, gImp[1,:], sP, mP.β);
         χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true);
-        χ_m_loc, γ_m_loc = calc_χγ(:sp, Γ_m, χ₀Loc, kGridLoc, mP, sP);
-        χ_d_loc, γ_d_loc = calc_χγ(:ch, Γ_d, χ₀Loc, kGridLoc, mP, sP);
+        χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP);
+        χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP);
         λ₀Loc = calc_λ0(χ₀Loc, F_m, χ_m_loc, γ_m_loc, mP, sP)
-        Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, λ₀Loc, gImp, kGridLoc, mP, sP)
+        Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, 0.0, λ₀Loc, gImp, kGridLoc, mP, sP)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
         χLoc_m_ω = similar(χDMFT_m, size(χDMFT_m,3))
@@ -101,8 +102,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             if typeof(sP.χ_helper) === BSE_SC_Helper
                 @error "SC not fully implemented yet"
                 @info "Using asymptotics improvement for large ν, ν' of χ_DMFT with shell size of $(sP.n_iν_shell)"
-                improve_χ!(:sp, ωi, view(χDMFT_m,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
-                improve_χ!(:ch, ωi, view(χDMFT_d,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+                improve_χ!(:m, ωi, view(χDMFT_m,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
+                improve_χ!(:d, ωi, view(χDMFT_d,:,:,ωi), view(χ₀Loc,1,:,ωi), mP.U, mP.β, sP.χ_helper);
             end
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χLoc_m_ω[ωi] = χ_m_loc[ωi]
@@ -133,7 +134,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         #TODO: update output
         @info """Inputs Read. Starting Computation.
           Local susceptibilities with ranges are:
-          χLoc_m$(usable_loc_m)) = $(printr_s(χLoc_m)), χLoc_d($(usable_loc_d)) = $(printr_s(χLoc_d))
+          χLoc_m($(usable_loc_m)) = $(printr_s(χLoc_m)), χLoc_d($(usable_loc_d)) = $(printr_s(χLoc_d))
           sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLoc_m + χLoc_d)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
           """
     end
@@ -252,7 +253,7 @@ end
 
 TODO: documentation
 """
-function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol)
     q0_ind = q0_index(kG)
     if q0_ind != nothing
         #TODO: adapt for arbitrary ω indices
@@ -300,8 +301,9 @@ function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
 end
 
 function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+    expand_flag = all(collect(axes(G_rfft,2)) .== fft_range)
     for νn in fft_range
-        νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
+        expand_flag && νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
         G_rfft[:,νn] .= fft(reverse(kG.cache1))[:]
     end
     return G_rfft
@@ -313,16 +315,4 @@ function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
         G_fft[:,νn] .= fft(kG.cache1)[:]
     end
     return G_fft
-end
-
-function GFull_from_min(G::OffsetMatrix, kG::KGrid)
-    G_full = OffsetMatrix{ComplexF64}(Matrix{ComplexF64}(undef, prod(gridshape(kG)), 2*size(G,2)-1), 
-                    1:prod(gridshape(kG)), -last(axes(G,2)):last(axes(G,2)))
-    for i in axes(G, 2)
-        G_full[:,i] = expandKArr(kG, G[:,i].parent)[:]
-        if i < last(axes(G, 2))
-            G_full[:,-i-1] = G_full[:,i]
-        end
-    end
-    return G_full
 end

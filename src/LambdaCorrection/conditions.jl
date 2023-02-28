@@ -24,6 +24,19 @@ mutable struct λ_result
     μ::Float64
 end
 
+
+#TODO: fully implement
+function λ_correction(type::Symbol, imp_density, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP)
+    λm, λd = if type == :m
+        rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
+        λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
+        λm, 0.0
+    else
+        error("type $type not implemented!")
+    end
+    return λm, λd
+end
+
 # return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 
 """
@@ -67,7 +80,7 @@ Returns:
     λd       : λ-correction for the density channel.
 """
 function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
-                        gLoc_rfft::GνqT, λ₀::Array{ComplexF64,3},
+                        gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                         maxit_root = 50, atol_root = 1e-7,
                         νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
@@ -80,7 +93,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
     iωn_m2 = 1 ./ iωn .^ 2
     gLoc_rfft_init = deepcopy(gLoc_rfft)
-    par && initialize_EoM(gLoc_rfft_init, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
+    par && initialize_EoM(gLoc_rfft_init, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
     fft_νGrid= 0:last(sP.fft_range)
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(fft_νGrid)), 1:length(kG.kMult), fft_νGrid) 
     Σ_ladder_work::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
@@ -92,9 +105,9 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
     trace_i = with_trace ? Ref(DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])) : Ref(nothing)
     function ff_seq(λd_i::Float64)
-        copyto!(gLoc_rfft_init, gLoc_rfft)
+        copy!(gLoc_rfft_init, gLoc_rfft)
         trace_i, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
-                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
+                    χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
         rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
         push!(traces, trace_i)
@@ -103,7 +116,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
 
 
     function ff_par(λd_i::Float64)
-        copyto!(gLoc_rfft_init, gLoc_rfft)
+        copy!(gLoc_rfft_init, gLoc_rfft)
             _, E_pot, _, _, _, E_pot_2, _ = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, trace_i,
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
                          maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true)
@@ -145,7 +158,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
         println("WARNING: λd = $root outside region ($λd_min_tmp)!")
         return nothing, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
     else
-        copyto!(gLoc_rfft_init, gLoc_rfft)
+        copy!(gLoc_rfft_init, gLoc_rfft)
         if par
             vars = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, Ref(nothing),
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, root, kG, mP, sP;
@@ -153,7 +166,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
             return traces, Σ_ladder, G_ladder, vars..., root
         else
             vars = run_sc(
-                    χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft_init, Σ_loc, root, kG, mP, sP, 
+                    χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft_init, Σ_loc, root, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
             return traces, vars[2:end]..., root
         end
@@ -163,41 +176,16 @@ end
 
 # ============================================== Helpers =============================================
 # --------------------------------- clean versions (slow/single core) --------------------------------
-function cond_both_int!(F::Vector{Float64}, λ::Vector{Float64}, 
-        χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc,
-        gLoc_rfft::Matrix{ComplexF64},
-        λ₀::Array{ComplexF64,3}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, trafo::Function)::Nothing
-
-    λi = trafo(λ)
-    k_norm::Int = Nk(kG)
-
-    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
-    iωn = iωn_f[ωindices]
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{ComplexF64} = χ_d.tail_c[3] ./ (iωn.^2)
-
-    lhs_c1, E_pot_2 = lhs_int(χ_m, χ_d, λi[1], λi[2], χ_tail, kG.kMult, k_norm, χ_m.tail_c[3], mP.β)
-    Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, νmax=sP.n_iν, λm=λi[1],λd=λi[2]);
-    _, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
-    _, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, mP.μ, kG, mP, νmax = last(νGrid)+1)
-    rhs_c1 = mP.n/2 * (1 - mP.n/2)
-    rhs_c2 = E_pot/mP.U - (mP.n/2) * (mP.n/2)
-    F[1] = lhs_c1 - rhs_c1
-    F[2] = E_pot_2 - rhs_c2
-    return nothing
-end
-
 """
 TODO: refactor (especially _par version)
 """
-function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
+function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
+                λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
                 λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false)
-    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
-    iωn = iωn_f[ωindices]
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
+    _, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
     gLoc_rfft = deepcopy(gLoc_rfft_init)
-    G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid) 
+    G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}     = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid) 
     Σ_ladder_old::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
     E_pot    = NaN
@@ -221,7 +209,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray
     it = 1
     while cont
         copy!(Σ_ladder_old, Σ_ladder)
-        Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
+        Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
         isnan(μnew) && break
@@ -245,18 +233,21 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray
             end
         end
         (it >= maxit) && (cont = false)
-        χ_tail = χ_m.tail_c[3] ./ (iωn.^2)
-        lhs_c1, E_pot_2 = lhs_int(χ_m.data, χ_d.data, λm, λd, 
-                            χ_tail, kG.kMult, Nk(kG), χ_m.tail_c[3], mP.β)
-        row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(sum(χ_d)), abs(sum(χ_m)), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
+
+        χ_m_sum = sum_kω(kG, χ_m)
+        χ_d_sum = sum_kω(kG, χ_d)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2 = real(χ_d_sum - χ_m_sum)/2
+        row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(χ_d_sum), abs(χ_m_sum), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
         push!(trace, row)
         it += 1
     end
 
     if isfinite(E_kin)
-        χ_tail = χ_m.tail_c[3]./ (iωn.^2)
-        lhs_c1, E_pot_2 = lhs_int(χ_m.data, χ_d.data, λm, λd, 
-                            χ_tail, kG.kMult, Nk(kG), χ_m.tail_c[3], mP.β)
+        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
+        χ_d_sum = sum_kω(kG, χ_d, λ=λd)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2 = real(χ_d_sum - χ_m_sum)/2
     end
     update_tail!(χ_m, [0, 0, mP.Ekin_DMFT], iωn_f)
     update_tail!(χ_d, [0, 0, mP.Ekin_DMFT], iωn_f)
@@ -266,7 +257,8 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray
     return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end
 
-function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
+function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
+                    λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
                     λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true)
     ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
@@ -274,7 +266,7 @@ function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::AbstractA
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
     iωn_m2 = 1 ./ iωn .^ 2
     gLoc_rfft_init = deepcopy(gLoc_rfft_init)
-    par && initialize_EoM(gLoc_rfft_init, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
+    par && initialize_EoM(gLoc_rfft_init, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
     trace = DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])
     fft_νGrid= 0:last(sP.fft_range)
@@ -345,18 +337,20 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         end
         (it >= maxit) && (cont = false)
         if !isnothing(trace[])
-            χ_tail = χ_m.tail_c[3] .* iωn_m2
-            lhs_c1, E_pot_2 = lhs_int(χ_m.data, χ_d.data, λm, 0.0, 
-                                χ_tail, kG.kMult, Nk(kG), χ_m.tail_c[3], mP.β)
+            χ_m_sum = sum_kω(kG, χ_m, λ=λm)
+            χ_d_sum = sum_kω(kG, χ_d)
+            lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+            E_pot_2 = real(χ_d_sum - χ_m_sum)/2
             row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(sum(χ_d)), abs(sum(χ_m)), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
         it += 1
     end
     if isfinite(E_kin)
-        χ_tail = χ_m.tail_c[3] .* iωn_m2
-        lhs_c1, E_pot_2 = lhs_int(χ_m.data, χ_d.data, λm, 0.0, 
-                                 χ_tail, kG.kMult, Nk(kG), χ_m.tail_c[3], mP.β)
+        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
+        χ_d_sum = sum_kω(kG, χ_d)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2 = real(χ_d_sum - χ_m_sum)/2
         if update_χ_tail
             update_tail!(χ_m, [0, 0, mP.Ekin_DMFT], iωn_f)
             update_tail!(χ_d, [0, 0, mP.Ekin_DMFT], iωn_f)
@@ -372,41 +366,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
 end
 
 # ------------------------------------------ fast versions  ------------------------------------------
-"""
-    lhs_int(χ_m::Matrix, χ_d::Matrix, χ_tail::Vector{ComplexF64}, kMult::Vector{Float64}, k_norm::Int, Ekin::Float64, β::Float64)
-
-Internal function. This calculates the sum over up-up and up-down susceptibilities, used in [`cond_both_int`](@ref cond_both_int), avoiding allocations.
-
-Returns: 
--------------
-Tuple{ComplexF64/Float64}[
-    lhs_c1, # ``\\sum_{q,\\omega} \\chi_{\\uparrow,\\downarrow}``
-    lhs_c2  # ``\\sum_{q,\\omega} \\chi_{\\uparrow,\\uparrow}``
-]
-"""
-function lhs_int(χ_m::Matrix, χ_d::Matrix, λm::Float64, λd::Float64, 
-                 χ_tail::Vector{ComplexF64}, kMult::Vector{Float64}, k_norm::Int, 
-                 Ekin::Float64, β::Float64)
-    lhs_c1 = 0.0
-    lhs_c2 = 0.0
-    for (ωi,t) in enumerate(χ_tail)
-        tmp1 = 0.0
-        tmp2 = 0.0
-        for (qi,km) in enumerate(kMult)
-            χm_i_λ = real(χ_m[qi,ωi]) / (λm * real(χ_m[qi,ωi]) + 1)
-            χd_i_λ = real(χ_d[qi,ωi]) / (λd * real(χ_d[qi,ωi]) + 1)
-            tmp1 += (χd_i_λ + χm_i_λ) * km
-            tmp2 += (χd_i_λ - χm_i_λ) * km
-        end
-        lhs_c1 += 0.5*tmp1/k_norm - t
-        lhs_c2 += 0.5*tmp2/k_norm
-    end
-    lhs_c1 = lhs_c1/β - Ekin*β/12
-    lhs_c2 = lhs_c2/β
-    return lhs_c1, lhs_c2 
-end
-
-#TODO: these need to be refactored. many code replications
+#TODO: these need to be refactored. many code replications (use sum_kω instead)
 function f_c1(χ::Matrix, λ::Float64, kMult::Vector{Float64}, 
                  tail::Vector{Float64})::Float64
     res = 0.0

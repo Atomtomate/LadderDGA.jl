@@ -1,5 +1,5 @@
 @testset "MatsubaraFunction" begin
-    td = ComplexF64.(reshape(1:12,3,4))
+    td = Float64.(reshape(1:12,3,4))
     t = LadderDGA.χT(td, 1.0);
     @test all(size(t) .== (3,4))
     @test t[1] ≈ 1
@@ -23,8 +23,8 @@ end
 end
 
 @testset "χT" begin
-    t = LadderDGA.χT(randn(ComplexF64, 3,4), 1.0);
-    t2 = LadderDGA.χT(randn(ComplexF64, 3,5), 1.2, tail_c=[0,0,1.0]);
+    t = LadderDGA.χT(randn(3,4), 1.0);
+    t2 = LadderDGA.χT(randn(3,5), 1.2, tail_c=[0,0,1.0]);
     ωn = collect(2im .* (-100:100) .* π ./ 11.1)
     t3 = zeros(ComplexF64, 3,length(ωn))
     t3[1,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
@@ -37,13 +37,14 @@ end
     @test all(t2.tail_c .== [0,0,1.0])
     @test all(t2.indices_ω .== -2:2)
 
-    χ_test = χT(t3, 1.0, tail_c = [0.0, 1.2, 2.3])
-    @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 1.2
+    χ_test = χT(real.(t3), 1.0, tail_c = [0.0, 0.0, 2.3])
+    @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 0.0
     @test real(χ_test.data[1,:] .* ωn .^ 2)[end] ≈ 2.3
-    LadderDGA.update_tail!(χ_test, [0, 1.2, 4.0], ωn)
-    @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 1.2
+    @test_throws ArgumentError LadderDGA.update_tail!(χ_test, [0, 1.0, 4.0], ωn)
+    LadderDGA.update_tail!(χ_test, [0, 0.0, 4.0], ωn)
+    @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 0.0
     @test real(χ_test.data[1,:] .* ωn .^ 2)[end] ≈ 4.0
-    @test all(χ_test.tail_c .== [0,1.2,4.0])
+    @test all(χ_test.tail_c .== [0,0.0,4.0])
     @test all(isfinite.(χ_test.data))
 
     @test all(ωn_grid(t2) .≈ 2 .* π .* 1im .* (-2:2) ./ 1.2)

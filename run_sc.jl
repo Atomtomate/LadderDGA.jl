@@ -27,6 +27,7 @@ nprocs() == 1 && addprocs(nprocs_in, exeflags="--project=$(Base.active_project()
 @timeit LadderDGA.to "EoM Correction" begin
     Fsp = F_from_χ(χDMFT_m, gImp[1,:], sP, mP.β);
     λ₀ = calc_λ0(bubble, Fsp, χ_m_loc, γ_m_loc, mP, sP)
+    χloc_m_sum = LadderDGA.sum_ω(χ_m_loc)[1]
 end
 
 @info "λsp"
@@ -40,7 +41,7 @@ _, νGrid, _ = LadderDGA.LambdaCorrection.gen_νω_indices(χ_m, χ_d, mP, sP)
 χ0_inv_dmft_0 = χ0_inv_dmft[qi_0, ωi]
 χ0_inv_dmft_π = χ0_inv_dmft[qi_π, ωi]
 # ========================================= lDΓA_m =========================================
-Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, kG, mP, sP, λm = λm);
+Σ_ladder_m = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP, λm = λm);
 χ0_inv_m_0, χ0_inv_m_π, E_kin_m, E_pot_m, μ_m, converged_m = if isfinite(λm)
     μnew, gLoc_m = G_from_Σladder(Σ_ladder_m, Σ_loc, kG, mP, sP; fix_n=true)
     χ0_inv_m = χ0_inv(gLoc_m, kG, mP, sP)

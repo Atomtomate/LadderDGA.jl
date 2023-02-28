@@ -85,11 +85,11 @@ Kernel for calculation of susceptibility and triangular vertex. Used by [`calc_�
 """
 function bse_inv(type::Symbol, Γr::Array{ComplexF64,3}) 
     !(typeof(wcache[].sP.χ_helper) <: BSE_Asym_Helpers) && throw("Current version ONLY supports BSE_Asym_Helper!")
-    s = type === :ch ? -1 : 1
+    s = type === :d ? -1 : 1
     Nν = size(Γr,1)
     Nq = size(wcache[].χ₀, 1)
     Nω = length(wcache[].χ₀Indices) 
-    χ_data = Array{eltype(Γr),2}(undef, Nq, Nω)
+    χ_data = Array{Float64,2}(undef, Nq, Nω)
     γ_data = Array{eltype(Γr),3}(undef, Nq, Nν, Nω)
 
     χννpω = Matrix{eltype(Γr)}(undef, Nν, Nν)
@@ -105,11 +105,12 @@ function bse_inv(type::Symbol, Γr::Array{ComplexF64,3})
                 χννpω[l,l] += 1.0/wcache[].χ₀[qi, wcache[].sP.n_iν_shell+l, i]
             end
             inv!(χννpω, ipiv, work)
-            χ_data[qi, i] = calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(wcache[].χ₀,qi,:,i), 
-                    wcache[].mP.U, wcache[].mP.β, wcache[].χ₀Asym[qi,i], wcache[].sP.χ_helper);
+            χ_data[qi, i] = real(calc_χλ_impr!(λ_cache, type, ωn, χννpω, view(wcache[].χ₀,qi,:,i), 
+                                 wcache[].mP.U, wcache[].mP.β, wcache[].χ₀Asym[qi,i], wcache[].sP.χ_helper));
             γ_data[qi, :, i] = (1 .- s*λ_cache) ./ (1 .+ s* wcache[].mP.U .* χ_data[qi,i])
         end
     end
+    # TODO: unify naming ch/_d
     update_wcache!(Symbol(string("χ", type)), χ_data)
     update_wcache!(Symbol(string("γ", type)), γ_data)
 end
@@ -145,29 +146,33 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
     end
 
     #TODO: this is unsave, λ values is not stored in χT
-    λm != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, λm) 
-    λd != 0 && χ_λ!(wcache[].χch, wcache[].χch, λd) 
+    λm != 0 && χ_λ!(wcache[].χm, wcache[].χm, λm) 
+    λd != 0 && χ_λ!(wcache[].χd, wcache[].χd, λd) 
 
-    Nq::Int = size(wcache[].χsp,1)
+    #TODO: this is inefficient and should only be done on one processor
+    ωn_arr =   2im .* π .* (-wcache[].sP.n_iω:wcache[].sP.n_iω) ./ wcache[].mP.β
+    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(wcache[].kG, wcache[].χm, wcache[].χ_coeffs, wcache[].mP.β, ωn_arr) - wcache[].χloc_m_sum
+
+    Nq::Int = size(wcache[].χm,1)
     U = wcache[].mP.U
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)
         for (ωi,ωn) in enumerate(wcache[].ωn_ranges[νi])
             v = reshape(view(wcache[].G_fft_reverse,:,νn + ωn), gridshape(wcache[].kG)...)
             for qi in 1:Nq
-                wcache[].Kνωq_pre[qi] = eom(U, wcache[].γsp[qi,ωi,νi], wcache[].γch[qi,ωi,νi], wcache[].χsp[qi,ωi], 
-                        wcache[].χch[qi,ωi], wcache[].λ₀[qi,ωi,νi])
+                wcache[].Kνωq_pre[qi] = eom(U, wcache[].γm[qi,ωi,νi], wcache[].γd[qi,ωi,νi], wcache[].χm[qi,ωi], 
+                        wcache[].χd[qi,ωi], wcache[].λ₀[qi,ωi,νi])
             end
             conv_fft1_noPlan!(wcache[].kG, wcache[].Kνωq_post, wcache[].Kνωq_pre, v)
-            wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post
+            wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post #.- err / νn
         end
     end
-    λm != 0 && χ_λ!(wcache[].χsp, wcache[].χsp, -λm) 
-    λd != 0 && χ_λ!(wcache[].χch, wcache[].χch, -λd) 
+    λm != 0 && χ_λ!(wcache[].χm, wcache[].χm, -λm) 
+    λd != 0 && χ_λ!(wcache[].χd, wcache[].χd, -λd) 
 end
 
 """
-    collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters)
+    collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters; λm=0.0)
 
 Collects self-energy from workers.
 """
@@ -176,12 +181,12 @@ function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP
     Σ_hartree = mP.n * mP.U/2.0;
 
     @sync begin
-    for w in workers()
-        @async begin
-            indices = @fetchfrom w getfield(LadderDGA.wcache[], :νn_indices)
-            Σ_ladder[:,indices] = @fetchfrom w getfield(LadderDGA.wcache[], :Σ_ladder)
+        for w in workers()
+            @async begin
+                indices = @fetchfrom w getfield(LadderDGA.wcache[], :νn_indices)
+                Σ_ladder[:,indices] = @fetchfrom w getfield(LadderDGA.wcache[], :Σ_ladder)
+            end
         end
-    end
     end
     Σ_ladder[:,:] = Σ_ladder[:,:] ./ mP.β .+ Σ_hartree
     return nothing
@@ -231,17 +236,28 @@ function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::Abstra
 end
 
 # -------------------------------------------- EoM: Defs ---------------------------------------------
-@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::Float64, χch::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
-@inline eom(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - γch * 0.5 * (1 - U * χch) - 1.5 + 0.5 + λ₀)
+@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (U * χ_m) )
+@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5 * ( - U * χ_d))
+@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5)
+@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5)
+@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
 
-@inline eom_χsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (U * χsp) )
-@inline eom_χch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * ( - U * χch))
-@inline eom_γsp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5)
-@inline eom_γch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5)
-@inline eom_rest_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
+@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
 
-@inline eom_sp_01(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 0.5 * (1 + U * χsp) - 0.5)
-@inline eom_sp_02(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.0 * (1 + U * χsp) - 1.0)
-@inline eom_sp(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γsp * 1.5 * (1 + U * χsp) - 1.5)
-@inline eom_ch(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γch * 0.5 * (1 - U * χch) - 0.5)
-@inline eom_rest(U::Float64, γsp::ComplexF64, γch::ComplexF64, χsp::ComplexF64, χch::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
+@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (U * χ_m) )
+@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5 * ( - U * χ_d))
+@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5)
+@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5)
+@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*1.0 + 0.0im
+
+@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*(γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U*(γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U*λ₀
