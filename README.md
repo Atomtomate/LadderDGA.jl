@@ -1,6 +1,6 @@
 # LadderDGA
 
-This package provides functionality for the calculation of non-local corrections on top of dynamical mean fiel theory (DMFT) calculations.
+This package provides functionality for the calculation of non-local corrections on top of dynamical mean field theory (DMFT) calculations.
 
 A tutorial for the usage of this package will hopefully follow soon. For now, examples are given in the `run*.jl` files and the `scripts` and `notebooks` directories.
 
