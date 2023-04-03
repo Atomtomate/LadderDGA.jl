@@ -178,11 +178,11 @@ function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=fals
     ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
     zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
     ωn2_tail[zero_ind] = 0.0
-    res =  sum_kω(kG, view(χ.data,:,ω_slice), χ.β, ωn2_tail, transform=transform) 
+    res =  sum_kω(kG, view(χ.data,:,ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
     return res
 end
 
-function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
+function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, c2::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
     res::Float64  = 0.0
     norm::Float64 = sum(kG.kMult)
     if transform === nothing
@@ -199,10 +199,8 @@ function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail:
             res += resi/norm - ωi
         end
     end
-    # for (qi,qm) in enumerate(kG.kMult)
-    #     res += qm*real(sum_ω(ωn_arr, view(χ,qi,:), tail_c, β))
-    # end
-    return res
+    #TODO: add limit
+    return (res + (-β^2/12)*c2)/β
 end
 
 """

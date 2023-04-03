@@ -16,6 +16,11 @@ end
     td = ComplexF64.(reshape(1:24,3,2,4))
     t1 = ComplexF64.([1,2,3])
     t = LadderDGA.χ₀T(td, kG_1, 1:4, 1, true, mP_1)
+    @test_throws ArgumentError LadderDGA.χ₀T(td, kG_1, 1:-1, 1, true, mP_1)
+    c1, c2, c3 = LadderDGA.χ₀Asym_coeffs(kG_1, true, mP_1)
+    @test c1 ≈ mP_1.U*mP_1.n/2 - mP_1.μ
+    @test c2[1] ≈ c1^2
+    @test c3 ≈ c1*c1 + mP_1.sVk + (mP_1.U^2)*(mP_1.n/2)*(1-mP_1.n/2)
     @test all(t.data .≈ td)
     @test t[1,1,1] ≈ 1
     t[1,1,1] = -1
@@ -50,12 +55,15 @@ end
     @test all(χ_test.tail_c .== [0,0.0,4.0])
     @test all(isfinite.(χ_test.data))
 
+    χ_test  = χT(real.(t3), 1.0, tail_c = [0.0, 0.0, 2.3])
     test_sum_direct = real.(sum(t3, dims=2)[:,1])
-    test_sum_direct_tf = real.(sum(map(x->x^3,t3), dims=2)[:,1])
+    test_sum_direct_tf = sum(map(x->x^3,real(t3)), dims=2)[:,1]
     @test all(ωn_grid(t2) .≈ 2 .* π .* 1im .* (-2:2) ./ 1.2)
     @test all(sum_ω(χ_test2) .≈ test_sum_direct)
     @test kintegrate(kG, test_sum_direct) ≈ sum_kω(kG, χ_test2)
     @test kintegrate(kG, test_sum_direct) ≈ sum_ωk(kG, χ_test2)
+    @test kintegrate(kG, test_sum_direct_tf) ≈ sum_kω(kG, χ_test2, transform=x->x^3)
+    @test sum_kω(kG, χ_test) ≈ sum_ωk(kG, χ_test)
 end
 
 @testset "γT" begin
