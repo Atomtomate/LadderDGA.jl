@@ -28,6 +28,7 @@ abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
 
 
 # =========================================== Struct Types ===========================================
+# ------------------------------------------------- χ₀ -----------------------------------------------
 """
     χ₀T <: MatsubaraFunction
 
@@ -36,7 +37,7 @@ Struct for the bubble term. The `q`, `ω` dependent asymptotic behavior is compu
 
 Constructor
 -------------
-    χ₀T(data::Array{_eltype,3}, kG::KGrid, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Bool, mP::ModelParameters; local_tail=false)
+    χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Bool, mP::ModelParameters; local_tail=false)
 
 Set `local_tail=true` in case of the local bubble constructed fro mthe impurity Green's function. This is necessary in order to construct the correct asymptotics.
 
@@ -46,21 +47,28 @@ Fields
 - **`data`**         : `Array{ComplexF64,3}`, data
 - **`asym`**         : `Array{ComplexF64,2}`, `[q, ω]` dependent asymptotic behavior.
 - **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
+- **`indices_νω`**   : `Matrix{Tuple{Int,Int}}`, (n,m) indices of fermionic ``\\nu_n`` and bosonic ``\\omega_m`` Matsubara frequencies.
+- **`β`**            : `Float64`, inverse temperature.
 """
 struct χ₀T <: MatsubaraFunction{_eltype,3}
     data::Array{_eltype,3}
     asym::Array{_eltype,2}
     axis_types::Dict{Symbol, Int}
-    function χ₀T(data::Array{_eltype,3}, kG::KGrid, ω_grid::AbstractVector{Int}, n_iν::Int,
+    indices_νω::Matrix{Tuple{Int,Int}}
+    β::Float64
+    function χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
                  shift::Bool, mP::ModelParameters; local_tail=false)
         c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
-        asym = χ₀Asym(c1, c2, c3, ω_grid, n_iν, shift, mP.β)
-        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3))
+        asym = χ₀Asym(c1, c2, c3, ωnGrid, n_iν, shift, mP.β)
+
+        νnGrid = -n_iν:n_iν-1
+        indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid .- trunc(Int64,shift*i/2)],(length(νnGrid), length(ωnGrid)));
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, mP.β)
     end
 end
 
 """
-    χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64, ω_grid::AbstractVector{Int}, n_iν::Int, shift::Int, β::Float64)
+    χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Int, β::Float64)
 
 Builds asymtotic helper array. See [`calc_bubble`](@ref calc_bubble) implementation for details.
 
@@ -68,13 +76,13 @@ Builds asymtotic helper array. See [`calc_bubble`](@ref calc_bubble) implementat
 `n_iν` is the number of positive fermionic Matsubara frequencies, `shift` is either `1` or `0`, depending on the type of frequency grid.
 """
 function χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64,
-                ω_grid::AbstractVector{Int}, n_iν::Int, shift::Bool, β::Float64)
-    if length(ω_grid) == 0 || length(first(ω_grid):last(ω_grid)) == 0
+                ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Bool, β::Float64)
+    if length(ωnGrid) == 0 || length(first(ωnGrid):last(ωnGrid)) == 0
         throw(ArgumentError("Cannot construct χ₀ array with empty frequency mesh!"))
     end
-    χ₀_rest = χ₀_shell_sum_core(β, first(ω_grid):last(ω_grid), n_iν, Int(shift))
-    asym = Array{_eltype, 2}(undef, length(c2), length(ω_grid))
-    for (ωi,ωn) in enumerate(ω_grid)
+    χ₀_rest = χ₀_shell_sum_core(β, first(ωnGrid):last(ωnGrid), n_iν, Int(shift))
+    asym = Array{_eltype, 2}(undef, length(c2), length(ωnGrid))
+    for (ωi,ωn) in enumerate(ωnGrid)
         for (qi,c2i) in enumerate(c2)
             asym[qi,ωi] = χ₀_shell_sum(χ₀_rest, ωn, β, c1, c2i, c3)
         end
@@ -88,20 +96,23 @@ end
 Builds tail coefficients for the χ₀ asymptotic helper, obtained through [`χ₀Asym`](@ref χ₀Asym).
 """
 function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
-    t1,  t2 = if local_tail
-        convert.(ComplexF64, [mP.U*mP.n/2 - mP.μ]),
-        mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+    if local_tail
+        c1 = mP.U*mP.n/2 - mP.μ
+        c2 = c1*c1
+        c3 = c1*c1 + mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        c1, [c2], c3
     else
-        convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ),
-        (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
+        t2 = (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        c1 = real.(kintegrate(kG, t1))
+        c2 = real.(conv_noPlan(kG, t1, t1))
+        c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+        c1, c2, c3
     end
-    c1 = real.(kintegrate(kG, t1))
-    c2 = real.(conv_noPlan(kG, t1, t1))
-    c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
-    return c1, c2, c3
 end
 
 
+# ------------------------------------------------- χ ------------------------------------------------
 """
     χT <: MatsubaraFunction
 
@@ -130,36 +141,17 @@ mutable struct χT <: MatsubaraFunction{Float64, 2}
     λ::Float64
     β::Float64
     usable_ω::AbstractArray{Int}
+    transform!::Function
 
     function χT(data::Array{Float64, 2}, β::Float64;
                 indices_ω::AbstractVector{Int}=axes(data,2) .- ceil(Int,size(data,2)/2), 
                 tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0)
+        f!(χ,λ) = nothing
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range, f!)
     end
 end
 
-
-"""
-    γT <: MatsubaraFunction
-
-Struct for the non-local triangular vertex. 
-
-Fields
--------------
-- **`data`**         : `Array{ComplexF64,3}`, data
-- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
-"""
-struct γT <: MatsubaraFunction{ComplexF64,3}
-    data::Array{ComplexF64,3}
-    axis_types::Dict{Symbol, Int}
-    function γT(data::Array{ComplexF64, 3})
-        new(data, Dict(:q => 1, :ν => 2, :ω => 3))
-    end
-end
-
-# ============================================= Interface ============================================
-# ------------------------------------------- Custom Helpers -----------------------------------------
 """
     ωn_grid(χ::χT)
 
@@ -169,27 +161,62 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 
 
 """
-    sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false)
-    sum_kω(kG::kGrid, χ::AbstractMatrix{Float64}, tail_c::Vector{Float64}, β::Float64, ωn_arr::Vector{ComplexF64})::Float64
+    sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, [transform::Function])
+    sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
 
 Returns ``\\int_\\mathrm{BZ} dk \\sum_\\omega \\chi^\\omega_k``. The bosonic Matsubara grid can be precomputed and given with `ωn_arr` to increase performance.
+
+TODO: for now this is only implemented for tail correction in the ``1 / \\omega^2_n`` term!
+Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the rverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
+The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation.
 """
-function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, λ::Float64=0.0)::ComplexF64
+function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing)::Float64
+    !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
-    λ != 0 && χ_λ!(χ, λ) 
-    res = sum_kω(kG, χ.data[:,ω_slice], χ.tail_c, χ.β, ωn_arr)
-    reset!(χ)
+
+    ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
+    zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
+    ωn2_tail[zero_ind] = 0.0
+    res =  sum_kω(kG, view(χ.data,:,ω_slice), χ.β, ωn2_tail, transform=transform) 
     return res
 end
 
-function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, tail_c::Vector{Float64}, β::Float64, ωn_arr::Vector{ComplexF64})::Float64
+function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
     res::Float64  = 0.0
-    for (qi,qm) in enumerate(kG.kMult)
-        res += real(qm*sum_ω(ωn_arr, view(χ,qi,:), tail_c, β))
+    norm::Float64 = sum(kG.kMult)
+    if transform === nothing
+        for (i,ωi) in enumerate(ωn2_tail)
+            res += kintegrate(kG, view(χ,:,i)) - ωi 
+        end
+    else
+        resi::Float64 = 0.0
+        for (i,ωi) in enumerate(ωn2_tail)
+            resi = 0.0
+            for (ki,km) in enumerate(kG.kMult)
+                resi += transform(χ[ki,i]) * km
+            end
+            res += resi/norm - ωi
+        end
     end
-    return res/Nk(kG)
+    # for (qi,qm) in enumerate(kG.kMult)
+    #     res += qm*real(sum_ω(ωn_arr, view(χ,qi,:), tail_c, β))
+    # end
+    return res
 end
+
+"""
+    sum_ωk(kG::KGrid, χ::χT; force_full_range=false)::Float64
+
+WARNING: This function is a non optimized debugging function! See [`sum_kω`](@ref sum_kω), which should return the same result if the asymptotics are captured correctly.
+Optional function `f` transforms `χ` before summation.
+"""
+function sum_ωk(kG::KGrid, χ::χT; force_full_range=false)::Float64
+    return kintegrate(kG, sum_ω(χ, force_full_range=force_full_range))
+end
+
+
+
 
 
 """
@@ -267,6 +294,28 @@ function update_tail!(χ::AbstractMatrix{Float64}, old_tail_c::Vector{Float64}, 
         end
     end
 end
+
+# ------------------------------------------------- γ ------------------------------------------------
+"""
+    γT <: MatsubaraFunction
+
+Struct for the non-local triangular vertex. 
+
+Fields
+-------------
+- **`data`**         : `Array{ComplexF64,3}`, data
+- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
+"""
+struct γT <: MatsubaraFunction{ComplexF64,3}
+    data::Array{ComplexF64,3}
+    axis_types::Dict{Symbol, Int}
+    function γT(data::Array{ComplexF64, 3})
+        new(data, Dict(:q => 1, :ν => 2, :ω => 3))
+    end
+end
+
+# ============================================= Interface ============================================
+# ------------------------------------------- Custom Helpers -----------------------------------------
 
 
 # ---------------------------------------------- Indexing --------------------------------------------

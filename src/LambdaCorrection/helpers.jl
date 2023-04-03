@@ -6,7 +6,6 @@
 #   λ-Correction related helper functions.                                                             #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   bisection root finding method is not tested properly.                                              #
-#   use full version of bisection: `https://arxiv.org/pdf/1702.05542.pdf`                              #
 # ==================================================================================================== #
 
 # ========================================== χ-λ-transform ===========================================
@@ -39,6 +38,7 @@ in the input `χ`.
 function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
     χ_λ!(χ_new.data, χ.data, λ)
     χ_new.λ = χ.λ + λ
+    χ_new.transform! = χ_λ!
     return nothing 
 end
 
@@ -63,8 +63,9 @@ dχ_λ(χ::AbstractArray, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), �
 
 function reset!(χ::χT)
     if χ.λ != 0
-        χ_λ!(χ, -χ.λ) 
+        χ.transform!(χ, -χ.λ) 
     end
+    χ.transform! = (f!(χ,λ) = nothing)
 end
 
 # ===================================== Specialized Root Finding =====================================
@@ -121,28 +122,25 @@ end
 
 # ------------------------------------------- Newton Right -------------------------------------------
 """
-    newton_right(f::Function, df::Function, start::[Float64,Vector{Float64}; nsteps=5000, atol=1e-11)
+    newton_right(f::Function, df::Function, start::[Float64,Vector{Float64},MVector{Float64}], min::[Float64,Vector{Float64},MVector{Float64}]; nsteps=5000, atol=1e-11)
 
-WARNING: Not properly tested!
-This is an adaption of the traditional Newton root finding algorithm, searching 
-only to the right of `start`.
+Computes root of function `f` but under the condition that each compontent of the root is larger than the corresponding component of the start vector.
+This algorithm also assumes, that `f` is stricly monotonically decreasing in each component.
+`nsteps` sets the maximum number of newton-steps, `atol` sets the convergence tolerance.
 """
-function newton_right(f::Function, df::Function, start::Float64; nsteps=5000, atol=1e-11)
+function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int=100, atol::Float64=1e-13)
     done = false
-    δ = 0.1
-    x0 = start + δ
+    δ = 1e-4
+    x0 = start
     xi = x0
     i = 1
     while !done
         fi = f(xi)
         dfii = 1 / df(xi)
-        xlast = xi
         xi = x0 - dfii * fi
-        (norm(xi-x0) < atol) && break
-        if xi < start            # only ever search to the right!
-            δ  = δ/2.0
-            x0  = start + δ      # reset with smaller delta
-            xi = x0
+        (norm(xi) < atol) && break
+        if xi < min                           # only ever search to the right!
+            x0 = min + δ + abs(min - x0)/2  # do bisection instead
         else
             x0 = xi
         end
@@ -152,26 +150,31 @@ function newton_right(f::Function, df::Function, start::Float64; nsteps=5000, at
     return xi
 end
 
-function newton_right(f::Function, start::Vector{Float64}; nsteps=500, atol=1e-6)::Vector{Float64}
+function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps=500, atol=1e-8)::Vector{Float64}
+    N = length(start)
+    newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps=nsteps, atol=atol)
+end
+
+function newton_right(f::Function, start::MVector{N,Float64}, min::MVector{N,Float64}; 
+                      nsteps=500, atol=1e-8)::Vector{Float64} where N
     done = false
-    δ = 0.1 .* ones(length(start))
-    x0 = start .+ δ
-    xi = x0
-    i = 1
+    xi_last::MVector{N,Float64} = deepcopy(start)
+    xi::MVector{N,Float64}      = deepcopy(xi_last)
+    i::Int = 1
+    fi::MVector{N,Float64}      = similar(start)
+    dfii::MMatrix{N,N,Float64,N*N}= Matrix{Float64}(undef, N, N)
+
     cache = FiniteDiff.JacobianCache(xi)
     while !done
-        fi = f(xi)
-        dfii = inv(FiniteDiff.finite_difference_jacobian(f, xi, cache))
-        xlast = xi
-        xi = x0 - dfii * fi
-        (norm(xi-x0) < atol) && break
-        reset_test = xi .< start
-        if any(reset_test)        # only ever search to the right!
-            δ  = [reset_test[i] ? δ[i]/2.0 : δ[i] for i in 1:length(start)]  
-            x0 = start .+ δ      # reset with larger delta
-            xi = x0
-        else
-            x0 = xi
+        fi[:]     = f(xi)
+        dfii[:,:] = inv(FiniteDiff.finite_difference_jacobian(f, xi, cache))
+        copyto!(xi_last, xi)
+        xi[:]     = xi - dfii * fi
+        (norm(xi) < atol) && break
+        for l in 1:N
+            if xi[l] < min[l]  # resort to bisection if min value is below left side
+                xi[l] = min[l] + (xi_last[l] - min[l])/2 + (fi[l]>0)*xi_last[l]
+            end
         end
         (i >= nsteps ) && (done = true)
         i += 1
@@ -192,26 +195,22 @@ function get_λ_min(χr::AbstractArray{Float64,2})::Float64
 end
 
 """
-λsp_rhs([imp_density::Float64, ]χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
+    λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
 
-Helper function for the right hand side of the Pauli principle conditions (old λ correction).
+Helper function for the right hand side of the Pauli principle conditions (λm correction).
+`imp_density` can be set to `NaN`, if the rhs (``\\frac{n}{2}(1-\\frac{n}{2})``) should not be error-corrected (not ncessary or usefull when asymptotic improvement are active).
 TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λsp_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
-    χ_d.λ != 0 && λd != 0 && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ)")
-    usable_ω = intersect(χ_m.usable_ω, χ_d.usable_ω)
-    #!(χ_d.tail_c[3] ≈ mP.Ekin_DMFT) && @warn "2nd moment not Ekin DMFT"
-    iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω)[usable_ω] .* π ./ mP.β
-    χ_λ!(χ_d, λd)
-    χ_d_ω = kintegrate(kG, χ_d[:,usable_ω], 1)[1,:]
-    λd != 0 && reset!(χ_d)
-    χ_d_sum = real(sum(subtract_tail(χ_d_ω, χ_d.tail_c[3], iωn, 2)))/mP.β - χ_d.tail_c[3] * mP.β/12
+function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
+    χ_d.λ != 0 && λd != 0 && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ). Reset χ_d.λ, or do not provide additional λ-correction for this function.")
+    χ_d_sum = sum_kω(kG, χ_d, λ=λd)
 
     verbose && @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χ_d as rhs"
         mP.n * (1 - mP.n/2) - χ_d_sum
     else
+        !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT rror compensation method"))
         verbose && @info "  ↳ using χupup_DMFT - Σ χ_d as rhs"
         2*imp_density - χ_d_sum
     end
@@ -220,7 +219,6 @@ function λsp_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::
     @info """  ↳ Found usable intervals for non-local susceptibility of length 
                  ↳ sp: $(χ_m.usable_ω), length: $(length(χ_m.usable_ω))
                  ↳ ch: $(χ_d.usable_ω), length: $(length(χ_d.usable_ω))
-                 ↳ total: $(usable_ω), length: $(length(usable_ω))
                ↳ χ_d sum = $(χ_d_sum), rhs = $(rhs)"""
     end
     return rhs

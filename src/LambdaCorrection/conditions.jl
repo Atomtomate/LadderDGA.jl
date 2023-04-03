@@ -1,61 +1,4 @@
-# ==================================================================================================== #
-#                                           conditions.jl                                              #
-# ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
-# ----------------------------------------- Description ---------------------------------------------- #
-#   lambda-correction conditions for several methods, fixing different physical properties.            #
-# -------------------------------------------- TODO -------------------------------------------------- #
-#  REFACTOR!!!!!                                                                                       #
-#  Pack results of lambda-correction into result struct                                                #
-#  Optimize Calc_E and remainder of run_sc!                                                            #
-# ==================================================================================================== #
-
-mutable struct λ_result
-    λm::Float64
-    λd::Float64
-    type::Symbol
-    EKin::Float64
-    EPot::Float64
-    residual_EPot::Float64
-    residual_PP::Float64
-    trace::DataFrame
-    G_ladder::OffsetMatrix
-    Σ_ladder::OffsetMatrix
-    μ::Float64
-end
-
-
-#TODO: fully implement
-function λ_correction(type::Symbol, imp_density, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP)
-    λm, λd = if type == :m
-        rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
-        λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
-        λm, 0.0
-    else
-        error("type $type not implemented!")
-    end
-    return λm, λd
-end
-
 # return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
-
-"""
-    λm_correction(χ_m::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-                        
-Calculates ``\\lambda_\\mathrm{m}`` value, by fixing ``\\sum_{q,\\omega} \\chi^{\\lambda_\\mathrm{m}}_{\\uparrow\\downarrow}(q,i\\omega) = \\frac{n}{2}(1-\\frac{n}{2})``.
-"""
-function λm_correction(χ_m::χT, rhs::Float64, kG::KGrid, 
-                        mP::ModelParameters, sP::SimulationParameters)
-    χr::Matrix{Float64}    = real.(χ_m[:,χ_m.usable_ω])
-    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χ_m.usable_ω] .* π ./ mP.β)
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    χ_tail::Vector{Float64} = real.(χ_m.tail_c[3] ./ (iωn.^2))
-    f_c1_int(λint::Float64)::Float64 = f_c1(χr, λint, kG.kMult, χ_tail)/mP.β - χ_m.tail_c[3]*mP.β/12 - rhs
-    df_c1_int(λint::Float64)::Float64 = df_c1(χr, λint, kG.kMult, χ_tail)/mP.β - χ_m.tail_c[3]*mP.β/12 - rhs
-
-    λm = newton_right(f_c1_int, df_c1_int, get_λ_min(χr))
-    return λm
-end
 
 """
     λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; 
@@ -198,7 +141,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
     trace = DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])
 
-    rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
+    rhs_λsp = λm_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
     λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
     if !isfinite(λm)
         @warn "no finite λm found!"
@@ -220,7 +163,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
             if isfinite(E_kin)
             update_tail!(χ_m, [0, 0, E_kin], iωn_f)
             update_tail!(χ_d, [0, 0, E_kin], iωn_f)
-            rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
+            rhs_λsp = λm_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
             λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
             else
                 println("Warning: unable to update χ tail: E_kin not finite")
@@ -269,7 +212,7 @@ function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
     par && initialize_EoM(gLoc_rfft_init, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
     trace = DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])
-    fft_νGrid= 0:last(sP.fft_range)
+    fft_νGrid= sP.fft_range
 
                 
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(fft_νGrid)), 1:length(kG.kMult), fft_νGrid) 
@@ -296,10 +239,10 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     converged= maxit == 0
     μbak     = mP.μ
     it       = 1
-    fft_νGrid= 0:last(sP.fft_range)
+    fft_νGrid= sP.fft_range
 
     χ_λ!(χ_d, λd)
-    rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
+    rhs_λsp = λm_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
     λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
     if !isfinite(λm)
         @warn "no finite λm found!"
@@ -323,7 +266,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
                 par && update_tail!([0, 0, E_kin])
                 update_tail!(χ_d, [0, 0, E_kin], iωn_f)
                 update_tail!(χ_m, [0, 0, E_kin], iωn_f)
-                rhs_λsp = λsp_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
+                rhs_λsp = λm_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
                 λm = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
             else
                 println("Warning: unable to update χ tail: E_kin not finite")
@@ -369,7 +312,7 @@ end
 #TODO: these need to be refactored. many code replications (use sum_kω instead)
 function f_c1(χ::Matrix, λ::Float64, kMult::Vector{Float64}, 
                  tail::Vector{Float64})::Float64
-    res = 0.0
+    res  = 0.0
     resi = 0.0
     norm = sum(kMult)
     for (i,ωi) in enumerate(tail)

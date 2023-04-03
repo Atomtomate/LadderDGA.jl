@@ -26,10 +26,12 @@ end
     t = LadderDGA.χT(randn(3,4), 1.0);
     t2 = LadderDGA.χT(randn(3,5), 1.2, tail_c=[0,0,1.0]);
     ωn = collect(2im .* (-100:100) .* π ./ 11.1)
-    t3 = zeros(ComplexF64, 3,length(ωn))
+    t3 = zeros(ComplexF64, 4,length(ωn))
+    kG = LadderDGA.gen_kGrid("3Dsc-1.1",2)
     t3[1,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
     t3[2,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
     t3[3,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
+    t3[4,:] = 1.2 ./ ωn .+ 2.3 ./ ωn .^ 2
     t3[:,101] .= 0.0
     t[1,2] = 0.1
     @test t[1,2] ≈ 0.1
@@ -37,7 +39,8 @@ end
     @test all(t2.tail_c .== [0,0,1.0])
     @test all(t2.indices_ω .== -2:2)
 
-    χ_test = χT(real.(t3), 1.0, tail_c = [0.0, 0.0, 2.3])
+    χ_test  = χT(real.(t3), 1.0, tail_c = [0.0, 0.0, 2.3])
+    χ_test2 = χT(real.(t3), 1.0, tail_c = [0.0, 0.0, 0.0])
     @test real(χ_test.data[1,:] .* ωn .^ 1)[end] ≈ 0.0
     @test real(χ_test.data[1,:] .* ωn .^ 2)[end] ≈ 2.3
     @test_throws ArgumentError LadderDGA.update_tail!(χ_test, [0, 1.0, 4.0], ωn)
@@ -47,15 +50,16 @@ end
     @test all(χ_test.tail_c .== [0,0.0,4.0])
     @test all(isfinite.(χ_test.data))
 
+    test_sum_direct = real.(sum(t3, dims=2)[:,1])
+    test_sum_direct_tf = real.(sum(map(x->x^3,t3), dims=2)[:,1])
     @test all(ωn_grid(t2) .≈ 2 .* π .* 1im .* (-2:2) ./ 1.2)
+    @test all(sum_ω(χ_test2) .≈ test_sum_direct)
+    @test kintegrate(kG, test_sum_direct) ≈ sum_kω(kG, χ_test2)
+    @test kintegrate(kG, test_sum_direct) ≈ sum_ωk(kG, χ_test2)
 end
 
 @testset "γT" begin
     t = LadderDGA.γT(randn(ComplexF64, 3,4,5));
     t[1,2,3] = 0.1
     @test t[1,2,3] ≈ 0.1
-end
-
-@testset "χT helpers" begin
-    
 end

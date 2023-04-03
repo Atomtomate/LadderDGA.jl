@@ -1,7 +1,7 @@
 module LambdaCorrection
 
 using LinearAlgebra, GenericLinearAlgebra
-using OffsetArrays
+using OffsetArrays, StaticArrays
 using FiniteDiff
 using Dispersions
 using Roots

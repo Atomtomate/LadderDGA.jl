@@ -15,7 +15,7 @@ module LadderDGA
     export addprocs
 
     # LadderDGA main functions
-    export ωn_grid, sum_ω, sum_ω!, sum_kω
+    export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk
     export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
     export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
     export collect_χ₀, collect_χ, collect_γ, collect_Σ

@@ -72,6 +72,18 @@ end
 χ_d2 = collect_χ(:d, kG, mP, sP)
 @test all(χ_m.data .≈ χ_m2.data)
 @test all(χ_d.data .≈ χ_d2.data)
+
+# λm 
+λm,_ = LadderDGA.λ_correction(:m, imp_density, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP)
+t_sc = 0.5 * (sum_kω(kG, χ_λ(χ_m,λm)) + sum_kω(kG,χ_d))
+t_sc2 = 0.5 * sum_kω(kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.tail_c, χ_m.β, ωn_grid(χ_m))
+@test t_sc ≈ t_sc2
+t_mc = 0.5 * sum_kω(kG, χ_λ(χ_m2,λm) .+ χ_d2)
+@test t_sc ≈ mP.n/2 * (1 - mP.n/2)
+@test t_sc ≈ t_mc
+
+# λdm 
+
 @test abs(sum(χ_d)) ≈ cs_χd
 res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=0, par=false, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
