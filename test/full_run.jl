@@ -1,4 +1,5 @@
 using Distributed
+using TimerOutputs
 using OffsetArrays
 
 rmprocs(workers(default_worker_pool()))
@@ -57,9 +58,9 @@ initialize_EoM(gLoc_rfft, χloc_m_sum, λ₀, 0:sP.n_iν-1, kG, mP, sP,
 @test abs(sum(χ_d)) ≈ cs_χd
 
 
-run_res = run_sc(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@timeit LadderDGA.to "run_res" run_res = run_sc(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
-run_res_par = LadderDGA.LambdaCorrection.run_sc_par(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@timeit LadderDGA.to "run_res_par" run_res_par = LadderDGA.LambdaCorrection.run_sc_par(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc,0.1, kG, mP, sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
 
 @testset "run_sc" begin
@@ -68,7 +69,7 @@ for el in zip(run_res[2:end], run_res_par[2:end])
 end
 end
 
-run_res_new = LadderDGA.LambdaCorrection.run_sc_new(gLoc_rfft, χ_m, γ_m, χ_d, γ_d, λ₀, Σ_loc, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
+@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc_new(gLoc_rfft, χ_m, γ_m, χ_d, γ_d, λ₀, Σ_loc, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
 
 χ_m2 = collect_χ(:m, kG, mP, sP)
 χ_d2 = collect_χ(:d, kG, mP, sP)
@@ -108,9 +109,9 @@ end
 _, G_ladder_dm_2 = G_from_Σladder(Σ_ladder_dm_2, Σ_loc, kG, mP, sP; fix_n=false);
 @test all(G_ladder_dm_2 .≈ res_λdm[3])
 
-res_λdm_sc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
+@timeit LadderDGA.to "res_sc" res_λdm_sc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_sc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
+@timeit LadderDGA.to "res_sc_par" res_λdm_sc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
 for el in zip(res_λdm_sc[2:end-1], res_λdm_sc_par[2:end-1])
@@ -120,17 +121,17 @@ end
 @test abs(sum(χ_d)) ≈ cs_χd
 
 tr = []
-res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false, with_trace=true)
+@timeit LadderDGA.to "res_tsc" res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false, with_trace=true)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
 #res_λdm_tsc = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.1, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=true)
-res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true, with_trace=true)
+@timeit LadderDGA.to "res_tsc_par" res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true, with_trace=true)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
 
 @testset "λdm_tsc" begin
     for el in zip(res_λdm_tsc[2:end-1], res_λdm_tsc_par[2:end-1])
-        @test all(isapprox.(el[1], el[2], atol=1e-3))
+        @test all(isapprox.(el[1], el[2], atol=1e-6))
     end
 end
 @test abs(sum(χ_m)) ≈ cs_χm

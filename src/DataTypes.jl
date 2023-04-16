@@ -22,7 +22,7 @@ const q_axis = 1;
 const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
-const GνqT = OffsetMatrix{ComplexF64, Matrix{ComplexF64}}
+const GνqT = OffsetArray
 
 abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
 

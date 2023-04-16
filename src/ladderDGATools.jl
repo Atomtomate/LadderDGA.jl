@@ -16,14 +16,15 @@ function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
     mP = wcache[].mP
     sP = wcache[].sP
     n_iν = 2*(sP.n_iν + sP.n_iν_shell)
+    νdim = length(gridshape(wcache[].kG))+1 
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), n_iν, length(ωi_range))
     for (iω,ωnR) in enumerate(ωi_range)
         _,ωn = ωnR
         νGrid = νnGrid(ωn, sP)
         for (iν, νn) in enumerate(νGrid)
             conv_fft_noPlan!(kG, view(data,:,iν,iω), 
-                     reshape(wcache[].G_fft[:,νn].parent,gridshape(kG)),
-                     reshape(wcache[].G_fft_reverse[:,νn+ωn].parent,gridshape(kG)))
+                selectdim(wcache[].G_fft,νdim,νn),
+                selectdim(wcache[].G_fft_reverse,νdim,νn+ωn))
         end
     end
     c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
@@ -148,6 +149,7 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
     #TODO: this is inefficient and should only be done on one processor
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
+    νdim = length(gridshape(wcache[].kG))+1 
     err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(wcache[].kG, wcache[].χm) - wcache[].χloc_m_sum
 
     Nq::Int = size(wcache[].χm,1)
@@ -155,12 +157,11 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)
         for (ωi,ωn) in enumerate(wcache[].ωn_ranges[νi])
-            v = reshape(view(wcache[].G_fft_reverse,:,νn + ωn), gridshape(wcache[].kG)...)
             for qi in 1:Nq
                 wcache[].Kνωq_pre[qi] = eom(U, wcache[].γm[qi,ωi,νi], wcache[].γd[qi,ωi,νi], wcache[].χm[qi,ωi], 
                         wcache[].χd[qi,ωi], wcache[].λ₀[qi,ωi,νi])
             end
-            conv_fft1_noPlan!(wcache[].kG, wcache[].Kνωq_post, wcache[].Kνωq_pre, v)
+            conv_fft1_noPlan!(wcache[].kG, wcache[].Kνωq_post, wcache[].Kνωq_pre, selectdim(wcache[].G_fft_reverse,νdim,νn+ωn),)
             wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post #.- err / νn
         end
     end

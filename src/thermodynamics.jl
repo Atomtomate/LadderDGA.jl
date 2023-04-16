@@ -120,6 +120,12 @@ end
 
 # ---------------------------------------------- Common ----------------------------------------------
 
+"""
+    calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
+    calc_E([G::Array{ComplexF64,2},] Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+
+Returns kinetic and potential energies from given self-energy `Σ`.
+"""
 function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
     Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
     E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)
@@ -133,23 +139,37 @@ function calc_E(Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters;
     return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax,  trace=trace)
 end
 
+# mutable struct EnergiesHelper 
+#     function EnergiesHelper(νmax::Int, kG::KGrid, mP::ModelParameters)
+#         νGrid = 0:(νmax-1)
+#         iν_n = iν_array(mP.β, νGrid)
+#         Σ_hartree = mP.n * mP.U/2
+
+#         E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
+#         E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
+#         tail = 1 ./ (iν_n .^ 2) 
+#         E_pot_tail = E_pot_tail_c .* transpose(tail)
+#         E_kin_tail = E_kin_tail_c .* transpose(tail)
+#         E_pot_tail_inv = (mP.β/2)  .* Σ_hartree .+ (mP.β/2)*(-mP.β/2) .* E_pot_tail_c
+#         E_kin_tail_inv = (mP.β/2) .* kG.ϵkGrid .* ( 1 .+ -(mP.β) .* E_kin_tail_c)
+#     end
+# end
 function calc_E(G::Array{ComplexF64,2}, Σ::Array{ComplexF64,2}, μ::Float64 , kG::KGrid, mP::ModelParameters;
                 νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     #println("TODO: make frequency summation with sum_freq optional")
-    νGrid = 0:(νmax-1)
-    iν_n = iν_array(mP.β, νGrid)
-    Σ_hartree = mP.n * mP.U/2
+        νGrid = 0:(νmax-1)
+        iν_n = iν_array(mP.β, νGrid)
+        Σ_hartree = mP.n * mP.U/2
 
-	E_kin_tail_c = [zeros(size(kG.ϵkGrid)), (kG.ϵkGrid .+ Σ_hartree .- μ)]
-	E_pot_tail_c = [zeros(size(kG.ϵkGrid)),
-					(mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))]
-	tail = [1 ./ (iν_n .^ n) for n in 1:length(E_kin_tail_c)]
-	E_pot_tail = sum(E_pot_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
-	E_kin_tail = sum(E_kin_tail_c[i] .* transpose(tail[i]) for i in 1:length(tail))
-	E_pot_tail_inv = sum((mP.β/2)  .* [Σ_hartree .* ones(size(kG.ϵkGrid)), (-mP.β/2) .* E_pot_tail_c[2]])
-	E_kin_tail_inv = sum(map(x->x .* (mP.β/2) .* kG.ϵkGrid , [1, -(mP.β) .* E_kin_tail_c[2]]))
+        E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
+        E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
+        tail = 1 ./ (iν_n .^ 2) 
+        E_pot_tail = E_pot_tail_c .* transpose(tail)
+        E_kin_tail = E_kin_tail_c .* transpose(tail)
+        E_pot_tail_inv = (mP.β/2)  .* Σ_hartree .+ (mP.β/2)*(-mP.β/2) .* E_pot_tail_c
+        E_kin_tail_inv = (mP.β/2) .* kG.ϵkGrid .* ( 1 .+ -(mP.β) .* E_kin_tail_c)
 
-	E_pot_full = real.(G .* Σ[:,1:νmax].- E_pot_tail);
+	E_pot_full = real.(G .* Σ[:,1:νmax] .- E_pot_tail);
 	E_kin_full = kG.ϵkGrid .* real.(G .- E_kin_tail);
     E_kin, E_pot = if trace
         [kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:i), dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β,
@@ -159,4 +179,7 @@ function calc_E(G::Array{ComplexF64,2}, Σ::Array{ComplexF64,2}, μ::Float64 , k
         kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:νmax), dims=[2])[:,1] .+ E_pot_tail_inv) ./ mP.β
     end
     return E_kin, E_pot
+end
+
+function calc_E!(tmp::Matrix{ComplexF64}, G, Σ, E_pot_tail, E_kin_tail, E_pot_tail_inv, E_kin_tail_inv, kG::KGrid, mP::ModelParameters)
 end

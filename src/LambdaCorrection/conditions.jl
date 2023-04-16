@@ -119,10 +119,10 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
     Σ_ladder_old::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}     = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
     E_pot    = NaN
+    E_pot_2  = NaN
     E_kin    = NaN
     cont     = true
     lhs_c1   = NaN
-    E_pot_2  = NaN
     converged = maxit == 0
 
 
@@ -153,31 +153,24 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
                 println("Warning: unable to update χ tail: E_kin not finite")
             end
         end
-        if it != 1
-            if abs(sum(Σ_ladder .- Σ_ladder_old))/(kG.Nk) < conv_abs  
-                converged = true
-                cont = false
-            end
+
+        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
+        χ_d_sum = sum_kω(kG, χ_d, λ=λd)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        if abs(E_pot - E_pot_2) < conv_abs && abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs
+            converged = true
+            cont = false
         end
         (it >= maxit) && (cont = false)
 
         if !isnothing(trace[])
-            χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-            χ_d_sum = sum_kω(kG, χ_d, λ=λd)
-            lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-            E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
             row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(χ_d_sum), abs(χ_m_sum), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
         it += 1
     end
 
-    if isfinite(E_kin)
-        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-        χ_d_sum = sum_kω(kG, χ_d, λ=λd)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
-    end
     update_tail!(χ_m, [0, 0, mP.Ekin_DMFT], iωn_f)
     update_tail!(χ_d, [0, 0, mP.Ekin_DMFT], iωn_f)
     μnew = mP.μ
@@ -215,6 +208,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
                  χ_m::χT, χ_d::χT, Σ_loc::Vector{ComplexF64},
                  λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true, trace::Ref=Ref(nothing))
+    dbgt = TimerOutput()
     E_pot    = NaN
     E_kin    = NaN
     lhs_c1   = NaN
@@ -234,17 +228,17 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     end
 
     while cont
-        par && update_wcaches_G_rfft!(gLoc_rfft)
+        @timeit dbgt "01" (par && update_wcaches_G_rfft!(gLoc_rfft))
         copy!(Σ_ladder_work, Σ_ladder)
-        calc_Σ_par!(Σ_ladder, mP, λm=λm, λd=λd)
-        mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work)
-        μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
+        @timeit dbgt "03" calc_Σ_par!(Σ_ladder, mP, λm=λm, λd=λd)
+        @timeit dbgt "04" (mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work))
+        @timeit dbgt "05" μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
         isnan(μnew) && break
-        G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
+        @timeit dbgt "06" G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         mP.μ = μnew
         # TODO: optimize calc_E (precompute tails) 
-        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
-        if update_χ_tail
+        @timeit dbgt "07" E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
+        @timeit dbgt "08" if update_χ_tail
             if isfinite(E_kin)
                 par && update_tail!([0, 0, E_kin])
                 update_tail!(χ_d, [0, 0, E_kin], iωn_f)
@@ -255,18 +249,17 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
                 println("Warning: unable to update χ tail: E_kin not finite")
             end
         end
-        if Σ_ladder_work !== nothing
-            if abs(sum(Σ_ladder .- Σ_ladder_work))/(kG.Nk) < conv_abs  
-                converged = true
-                cont = false
-            end
+
+        @timeit dbgt "09" χ_m_sum = sum_kω(kG, χ_m, λ=λm)
+        @timeit dbgt "10" χ_d_sum = sum_kω(kG, χ_d)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        if abs(E_pot - E_pot_2) < conv_abs && abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs
+            converged = true
+            cont = false
         end
         (it >= maxit) && (cont = false)
-        if !isnothing(trace[])
-            χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-            χ_d_sum = sum_kω(kG, χ_d)
-            lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-            E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        @timeit dbgt "11" if !isnothing(trace[])
             row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(sum(χ_d)), abs(sum(χ_m)), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
@@ -274,10 +267,6 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         it += 1
     end
     if isfinite(E_kin)
-        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-        χ_d_sum = sum_kω(kG, χ_d)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
         if update_χ_tail
             update_tail!(χ_m, [0, 0, mP.Ekin_DMFT], iωn_f)
             update_tail!(χ_d, [0, 0, mP.Ekin_DMFT], iωn_f)
@@ -289,5 +278,6 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     μnew = mP.μ
     mP.μ = μbak
     converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
+    println("DBG: ", dbgt)
     return E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end

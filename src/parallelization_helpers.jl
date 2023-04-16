@@ -131,8 +131,8 @@ mutable struct WorkerCache
     EoM_νGrid::UnitRange{Int}
     function WorkerCache()
         new(Dict(:G_fft => false, :G_fft_reverse => false, :kG => false), 
-            OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
-            OffsetMatrix(Array{ComplexF64,2}(undef,0,0)),
+            OffsetVector(Vector{ComplexF64}(undef,0)),
+            OffsetVector(Vector{ComplexF64}(undef,0)),
             nothing, nothing, nothing,
             Array{_eltype,3}(undef,0,0,0), Array{_eltype,2}(undef,0,0), 
             Vector{NTuple{3,Int}}(undef, 0),
@@ -319,8 +319,8 @@ end
 function _clear_wcache!()
     #wcache[] = WorkerCache()
     wcache[].initialized = Dict{Symbol,Bool}()
-    wcache[].G_fft = OffsetMatrix(Array{ComplexF64,2}(undef,0,0))
-    wcache[].G_fft_reverse = OffsetMatrix(Array{ComplexF64,2}(undef,0,0))
+    wcache[].G_fft = OffsetVector(Vector{ComplexF64}(undef,0))
+    wcache[].G_fft_reverse = OffsetVector(Vector{ComplexF64}(undef,0))
     wcache[].kG = nothing
     wcache[].mP = nothing
     wcache[].sP = nothing

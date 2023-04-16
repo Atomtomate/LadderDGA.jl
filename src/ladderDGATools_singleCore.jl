@@ -88,11 +88,12 @@ TODO: documentation
 function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gImp
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
         #TODO: fix the offset (BSE_SC inconsistency)
         for (νi,νn) in enumerate(νrange)
-            conv_fft!(kG, view(data,:,νi,ωi), reshape(Gνω[:,νn].parent,gridshape(kG)), reshape(Gνω_r[:,νn+ωn].parent,gridshape(kG)))
+            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim,νn+ωn))
             data[:,νi,ωi] .*= -mP.β
         end
     end
@@ -177,6 +178,7 @@ function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pr
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
 
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gIm
     fill!(Σ_ω, zero(ComplexF64))
     for (ωi,ωn) in enumerate(axes(Σ_ω,3))
         νZero = ν0Index_of_ωIndex(ωi, sP)
@@ -185,15 +187,14 @@ function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pr
         νlist = νZero:maxn
         length(νlist) >= size(Σ_ω,2) && (νlist = νlist[1:size(Σ_ω,2)])
         for (νii,νi) in enumerate(νlist)
-            v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
             for qi in 1:size(Σ_ω,q_axis)
                 Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi],
                                    χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
             end
             if nprocs() == 1
-                conv_fft1!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, v)
+                conv_fft1!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
             else
-                conv_fft1_noPlan!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, v)
+                conv_fft1_noPlan!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
             end
         end
     end

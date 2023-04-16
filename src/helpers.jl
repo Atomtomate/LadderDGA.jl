@@ -70,18 +70,21 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "Compute GLoc" begin
         rm = maximum(abs.(sP.fft_range))
         t = cat(conj(reverse(gImp_in[1:rm])),gImp_in[1:rm], dims=1)
+        gs    = gridshape(kG)
+        kGdims= length(gs)
+        νdim = kGdims+1
         gImp = OffsetArray(reshape(t,1,length(t)),1:1,-length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
         gLoc = OffsetArray(Array{ComplexF64,2}(undef, length(kG.kMult), length(sP.fft_range)), 1:length(kG.kMult), sP.fft_range)
-        gLoc_i = Array{ComplexF64, length(gridshape(kG))}(undef, gridshape(kG)...)
-        gLoc_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-        gLoc_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+        gLoc_i = Array{ComplexF64, kGdims}(undef, gs...)
+        gLoc_fft = OffsetArrays.Origin(repeat([1], kGdims)...,first(sP.fft_range))(Array{ComplexF64,kGdims+1}(undef, gs..., length(sP.fft_range)))
+        gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)...,first(sP.fft_range))(Array{ComplexF64,kGdims+1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
-        for νi in sP.fft_range
-            Σ_loc_i = (νi < 0) ? conj(Σ_loc[-νi]) : Σ_loc[νi + 1]
-            gLoc_i  = reshape(map(ϵk -> G_from_Σ(νi, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
-            gLoc[:,νi] = reduceKArr(kG, gLoc_i)
-            gLoc_fft[:,νi] .= fft(gLoc_i)[:]
-            gLoc_rfft[:,νi] .= fft(reverse(gLoc_i))[:]
+        for νn in sP.fft_range
+            Σ_loc_i = (νn < 0) ? conj(Σ_loc[-νn]) : Σ_loc[νn + 1]
+            gLoc_i  = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
+            gLoc[:,νn] = reduceKArr(kG, gLoc_i)
+            selectdim(gLoc_fft,νdim,νn) .= fft(gLoc_i)
+            selectdim(gLoc_rfft,νdim,νn) .= fft(reverse(gLoc_i))
         end
     end
 
@@ -293,26 +296,32 @@ end
 Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
 """
 function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
-    G_fft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
-    G_rfft = OffsetArray(Array{ComplexF64,2}(undef, kG.Nk, length(sP.fft_range)), 1:kG.Nk, sP.fft_range)
+
+    gs    = gridshape(kG)
+    kGdims= length(gs)
+    G_fft = OffsetArrays.Origin(repeat([1], kGdims)...,first(sP.fft_range))(Array{ComplexF64,kGdims+1}(undef, gs..., length(sP.fft_range)))
+    G_rfft = OffsetArrays.Origin(repeat([1], kGdims)...,first(sP.fft_range))(Array{ComplexF64,kGdims+1}(undef, gs..., length(sP.fft_range)))
     G_fft!(G_fft, G, kG, sP.fft_range)
     G_rfft!(G_rfft, G, kG, sP.fft_range)
     return G_fft, G_rfft
 end
 
 function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
-    expand_flag = all(collect(axes(G_rfft,2)) .== fft_range)
+    νdim = length(gridshape(kG))+1
     for νn in fft_range
-        expand_flag && νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
-        G_rfft[:,νn] .= fft(reverse(kG.cache1))[:]
+        νn < 0 ? expandKArr!(kG, G[:,-νn-1].parent) : expandKArr!(kG, G[:,νn].parent)
+        fft!(kG.cache1)
+        selectdim(G_rfft,νdim,νn) .= reverse(kG.cache1)
     end
     return G_rfft
 end
 
 function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+    νdim = length(gridshape(kG))+1
     for νn in fft_range
-        νn < 0 ? expandKArr!(kG, conj(G[:,-νn-1].parent)) : expandKArr!(kG, G[:,νn].parent)
-        G_fft[:,νn] .= fft(kG.cache1)[:]
+        νn < 0 ? expandKArr!(kG, G[:,-νn-1].parent) : expandKArr!(kG, G[:,νn].parent)
+        fft!(kG.cache1)
+        selectdim(G_fft,νdim,νn) .= kG.cache1
     end
     return G_fft
 end

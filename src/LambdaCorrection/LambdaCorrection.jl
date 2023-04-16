@@ -6,6 +6,7 @@ using FiniteDiff
 using Dispersions
 using Roots
 using DataFrames
+using TimerOutputs
 
 import ..χT, ..γT, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters 
 import ..sum_ω, ..sum_ω!, ..sum_kω, ..sum_ωk, ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array
