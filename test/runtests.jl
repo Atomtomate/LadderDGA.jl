@@ -14,6 +14,10 @@ sP_grid_s0 = SimulationParameters(4,5,2,false,nothing,1:3,0.1,false)
 ωνgrid_test_s0 = [(i,j - trunc(Int,0*i/2)) for i in -4:4, j in -5:5-1]
 
 
+@testset "full run" begin
+    include("full_run.jl")
+end
+
 @testset "Config" begin
     include("Config.jl")
 end

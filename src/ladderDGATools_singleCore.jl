@@ -172,33 +172,47 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     return χT(χ, mP.β, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
-function calc_Σ_ω!(eomf::Function, Σ::AbstractArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
-            ωindices::AbstractArray{Int,1},
+function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
             χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
-    fill!(Σ, zero(ComplexF64))
-    for ωii in 1:length(ωindices)
-        ωi = ωindices[ωii]
-        ωn = (ωi - sP.n_iω) - 1
+
+    fill!(Σ_ω, zero(ComplexF64))
+    for (ωi,ωn) in enumerate(axes(Σ_ω,3))
         νZero = ν0Index_of_ωIndex(ωi, sP)
-        maxn = minimum([size(γ_d,ν_axis), νZero + size(Σ, 2) - 1])
+        maxn = minimum([size(γ_d,ν_axis), νZero + size(Σ_ω, 2) - 1])
         # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
         νlist = νZero:maxn
-        length(νlist) >= size(Σ,2) && (νlist = νlist[1:size(Σ,2)])
+        length(νlist) >= size(Σ_ω,2) && (νlist = νlist[1:size(Σ_ω,2)])
         for (νii,νi) in enumerate(νlist)
             v = reshape(view(Gνω,:,(νii-1) + ωn), gridshape(kG)...)
-            for qi in 1:size(Σ,q_axis)
+            for qi in 1:size(Σ_ω,q_axis)
                 Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi],
                                    χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
             end
             if nprocs() == 1
-                conv_fft1!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+                conv_fft1!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, v)
             else
-                conv_fft1_noPlan!(kG, view(Σ,:,νii-1,ωn), Kνωq_pre, v)
+                conv_fft1_noPlan!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, v)
             end
         end
     end
+end
+
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
+                χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
+                χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, kG::KGrid,
+                mP::ModelParameters, sP::SimulationParameters)::Nothing
+
+    Σ_hartree = mP.n * mP.U/2.0;
+    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    sum!(Σ_ladder, Σ_ladder_ω)
+    Σ_ladder[:,:] = Σ_ladder[:,:] ./ mP.β .+ Σ_hartree
+    # for qi in 1:size(res,1)
+    #     res[qi,:] = res[qi,:] #.+ tail_correction 
+    # end
+    return nothing
 end
 
 function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
@@ -209,29 +223,27 @@ function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
                 λm::Float64=0.0, λd::Float64=0.0)
     χ_m.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χ_m.λ = $(χ_m.λ)")
     χ_d.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χ_d.λ = $(χ_d.λ)")
-    Σ_hartree = mP.n * mP.U/2.0;
     Nq, Nω = size(χ_m)
-    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
+    ωrange::UnitRange{Int}   = -sP.n_iω:sP.n_iω
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_m.usable_ω, χ_d.usable_ω)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
+    Σ_ladder   = OffsetArray(Array{Complex{Float64},2}(undef,Nq, νmax), 1:Nq, 0:νmax-1)
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
 
     
     λm != 0.0 && χ_λ!(χ_m, λm)
     λd != 0.0 && χ_λ!(χ_d, λd)
-    tail_correction = OffsetVector( mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:νmax-1), 0:νmax-1)
+    tail_correction = OffsetVector(mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:νmax-1), 0:νmax-1)
 
-    calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre,
+            χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP)
+
     reset!(χ_m)
     reset!(χ_d)
 
-    res = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
-    for qi in 1:size(res,1)
-        res[qi,:] = res[qi,:] #.+ tail_correction 
-    end
-    return res
+    return Σ_ladder
 end
 
 function calc_Σ_parts(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,

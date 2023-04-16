@@ -162,16 +162,19 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 
 """
     sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, [transform::Function])
+    sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, [λ::Float64])
     sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
 
 Returns ``\\int_\\mathrm{BZ} dk \\sum_\\omega \\chi^\\omega_k``. The bosonic Matsubara grid can be precomputed and given with `ωn_arr` to increase performance.
 
 TODO: for now this is only implemented for tail correction in the ``1 / \\omega^2_n`` term!
 Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the rverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
-The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation.
+The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
-function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing)::Float64
+function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
     !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
+    !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
+    !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
 

@@ -111,7 +111,7 @@ function bse_inv(type::Symbol, Γr::Array{ComplexF64,3})
         end
     end
     # TODO: unify naming ch/_d
-    update_wcache!(Symbol(string("χ", type)), χ_data)
+    update_wcache!(Symbol(string("χ", type,"_part")), χ_data)
     update_wcache!(Symbol(string("γ", type)), γ_data)
 end
 
@@ -145,13 +145,10 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
 
-    #TODO: this is unsave, λ values is not stored in χT
-    λm != 0 && χ_λ!(wcache[].χm, wcache[].χm, λm) 
-    λd != 0 && χ_λ!(wcache[].χd, wcache[].χd, λd) 
-
     #TODO: this is inefficient and should only be done on one processor
-    ωn_arr =   2im .* π .* (-wcache[].sP.n_iω:wcache[].sP.n_iω) ./ wcache[].mP.β
-    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(wcache[].kG, wcache[].χm, wcache[].χ_coeffs, wcache[].mP.β, ωn_arr) - wcache[].χloc_m_sum
+    λm != 0 && χ_λ!(wcache[].χm, λm) 
+    λd != 0 && χ_λ!(wcache[].χd, λd) 
+    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(wcache[].kG, wcache[].χm) - wcache[].χloc_m_sum
 
     Nq::Int = size(wcache[].χm,1)
     U = wcache[].mP.U
@@ -167,8 +164,8 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
             wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post #.- err / νn
         end
     end
-    λm != 0 && χ_λ!(wcache[].χm, wcache[].χm, -λm) 
-    λd != 0 && χ_λ!(wcache[].χd, wcache[].χd, -λd) 
+    reset!(wcache[].χm) 
+    reset!(wcache[].χd) 
 end
 
 """

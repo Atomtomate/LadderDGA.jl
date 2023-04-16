@@ -2,7 +2,7 @@
 kGrid = "3Dsc-0.2041241452319315"
 
 [Simulation]
-Nk        = [2]                         # number of k points in each dimension
+Nk        = [10]                         # number of k points in each dimension
 chi_asympt_method = "direct"            # direct/sc/nothong, see BSE_SC module for more
 chi_asympt_shell = 2                   # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
 

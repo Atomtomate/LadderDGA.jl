@@ -15,7 +15,7 @@
 Computes the λ-corrected susceptibility:  ``\\chi^{\\lambda,\\omega}_q = \\frac{1}{1 / \\chi^{\\lambda,\\omega}_q + \\lambda}``.
 The susceptibility ``\\chi`` can be either given element wise, or as χT See also [`χT`](@ref χT) in LadderDGA.jl.
 """
-χ_λ(χ::T, λ::Float64) where T <: Union{ComplexF64, Float64} = χ/(λ*χ + 1)
+Base.@assume_effects :total χ_λ(χ::Float64, λ::Float64)::Float64 = χ/(λ*χ + 1)
 
 function χ_λ(χ::χT, λ::Float64)::χT 
     χ_new = χT(deepcopy(χ.data), χ.β, tail_c=χ.tail_c)
@@ -23,7 +23,7 @@ function χ_λ(χ::χT, λ::Float64)::χT
     return χ_new 
 end
 
-function χ_λ(χ::AbstractArray, λ::Float64)
+function χ_λ(χ::AbstractArray{Float64}, λ::Float64)
     χ_new = similar(χ)
     χ_λ!(χ_new, χ, λ)
     return χ_new
@@ -35,22 +35,22 @@ end
 Inplace version of [`χ_λ`](@ref χ_λ). If the second argument is omitted, results are stored
 in the input `χ`.
 """
-function χ_λ!(χ_new::χT, χ::χT, λ::Float64)
+function χ_λ!(χ_new::χT, χ::χT, λ::Float64)::Nothing
     χ_λ!(χ_new.data, χ.data, λ)
     χ_new.λ = χ.λ + λ
     χ_new.transform! = χ_λ!
     return nothing 
 end
 
-function χ_λ!(χ_λ::AbstractArray, χ::AbstractArray, λ::Float64) 
+function χ_λ!(res::AbstractArray, χ::AbstractArray, λ::Float64)::Nothing
     λ == 0.0 && return nothing
-    !isfinite(λ) && throw(ArgumentError("λ = $λ is not finite!"))
-    for i in eachindex(χ_λ)
-        χ_λ[i] = χ[i] ./ ((λ .* χ[i]) .+ 1)
+    !isfinite(λ) && println("WARNING. SKIPPING λ correction because $λ is not finite!") && return nothing
+    for i in eachindex(res)
+        res[i] = χ_λ(χ[i], λ)
     end
 end
 
-χ_λ!(χ::χT, λ::Float64) = χ_λ!(χ, χ, λ)
+χ_λ!(χ::χT, λ::Float64)::Nothing = χ_λ!(χ, χ, λ)
 
 
 """
@@ -58,13 +58,14 @@ end
 
 First derivative of [`χ_λ`](@ref χ_λ).
 """
-dχ_λ(χ::T, λ::Float64) where T <: Union{Float64, ComplexF64} = -χ_λ(χ, λ)^2
+Base.@assume_effects :total dχ_λ(χ::Float64, λ::Float64)::Float64 = -χ_λ(χ, λ)^2
 dχ_λ(χ::AbstractArray, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), χ)
 
 function reset!(χ::χT)
     if χ.λ != 0
         χ.transform!(χ, -χ.λ) 
     end
+    χ.λ = 0
     χ.transform! = (f!(χ,λ) = nothing)
 end
 
@@ -122,13 +123,14 @@ end
 
 # ------------------------------------------- Newton Right -------------------------------------------
 """
-    newton_right(f::Function, df::Function, start::[Float64,Vector{Float64},MVector{Float64}], min::[Float64,Vector{Float64},MVector{Float64}]; nsteps=5000, atol=1e-11)
+    newton_right(f::Function, [df::Function,] start::[Float64,Vector{Float64},MVector{Float64}], min::[Float64,Vector{Float64},MVector{Float64}]; nsteps=5000, atol=1e-11)
 
 Computes root of function `f` but under the condition that each compontent of the root is larger than the corresponding component of the start vector.
 This algorithm also assumes, that `f` is stricly monotonically decreasing in each component.
 `nsteps` sets the maximum number of newton-steps, `atol` sets the convergence tolerance.
+`df` can be omitted. In this case it is approximated using finite differences.
 """
-function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int=100, atol::Float64=1e-13)
+Base.@assume_effects :total function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int=100, atol::Float64=1e-13)::Float64
     done = false
     δ = 1e-4
     x0 = start
@@ -150,12 +152,17 @@ function newton_right(f::Function, df::Function, start::Float64, min::Float64; n
     return xi
 end
 
-function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps=500, atol=1e-8)::Vector{Float64}
+Base.@assume_effects :total function newton_right(f::Function, start::Float64, min::Float64; nsteps::Int=100, atol::Float64=1e-13)::Float64
+    df(x) = FiniteDiff.finite_difference_derivative(f, x)
+    newton_right(f, df, start, min; nsteps=nsteps, atol=atol)
+end
+
+Base.@assume_effects :total function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps=500, atol=1e-8)::Vector{Float64}
     N = length(start)
     newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps=nsteps, atol=atol)
 end
 
-function newton_right(f::Function, start::MVector{N,Float64}, min::MVector{N,Float64}; 
+Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,Float64}, min::MVector{N,Float64}; 
                       nsteps=500, atol=1e-8)::Vector{Float64} where N
     done = false
     xi_last::MVector{N,Float64} = deepcopy(start)
@@ -201,7 +208,7 @@ Helper function for the right hand side of the Pauli principle conditions (λm c
 `imp_density` can be set to `NaN`, if the rhs (``\\frac{n}{2}(1-\\frac{n}{2})``) should not be error-corrected (not ncessary or usefull when asymptotic improvement are active).
 TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native; verbose=false)
+function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λ_rhs = :native, verbose=false)
     χ_d.λ != 0 && λd != 0 && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ). Reset χ_d.λ, or do not provide additional λ-correction for this function.")
     χ_d_sum = sum_kω(kG, χ_d, λ=λd)
 

@@ -112,9 +112,10 @@ mutable struct WorkerCache
     χ₀::Array{_eltype, 3}
     χ₀Asym::Array{_eltype, 2}
     χ₀Indices::Vector{NTuple{2,Int}}
-    χm::Array{Float64,2}
-    χd::Array{Float64,2}
-    χ_coeffs::Vector{Float64}
+    χm_part::Matrix{Float64}
+    χd_part::Matrix{Float64}
+    χm::Union{χT, Nothing}
+    χd::Union{χT, Nothing}
     γm::Array{ComplexF64,3}
     γd::Array{ComplexF64,3}
     # EoM related:
@@ -135,8 +136,8 @@ mutable struct WorkerCache
             nothing, nothing, nothing,
             Array{_eltype,3}(undef,0,0,0), Array{_eltype,2}(undef,0,0), 
             Vector{NTuple{3,Int}}(undef, 0),
-            Array{Float64,2}(undef, 0,0),Array{Float64,2}(undef, 0,0),
-            Vector{Float64}(undef, 0),
+            Matrix{Float64}(undef,0,0), Matrix{Float64}(undef,0,0), 
+            nothing, nothing,                 # χT
             Array{ComplexF64,3}(undef, 0,0,0),Array{ComplexF64,3}(undef, 0,0,0),
             # EoM
             Vector{UnitRange{Int}}(undef, 0),
@@ -239,9 +240,8 @@ function initialize_EoM(G_fft_reverse::GνqT,
         @sync begin
         for (i,wi) in enumerate(workers())
             @async begin
-            remotecall_fetch(update_wcache!, wi, :χm, χ_m.data)
-            remotecall_fetch(update_wcache!, wi, :χd, χ_d.data)
-            remotecall_fetch(update_wcache!, wi, :χ_coeffs, χ_m.tail_c)
+            remotecall_fetch(update_wcache!, wi, :χm, χ_m)
+            remotecall_fetch(update_wcache!, wi, :χd, χ_d)
             data_sl, νn_indices, ωn_ranges = gen_ν_part_slices(γ_m.data, indices[i])
             remotecall_fetch(update_wcache!, wi, :γm, data_sl)
             remotecall_fetch(update_wcache!, wi, :ωn_ranges,  ωn_ranges)
@@ -259,8 +259,7 @@ function initialize_EoM(G_fft_reverse::GνqT,
         update_wcache!(:EoMVars_initialized, true)
         update_wcache!(:EoM_νGrid, νGrid)
         update_wcache!(:χloc_m_sum, convert(ComplexF64, χloc_m_sum))
-        update_wcache!(:χm, χ_m.data)
-        update_wcache!(:χ_coeffs, χ_m.tail_c)
+        update_wcache!(:χm, χ_m)
         update_wcache!(:kG, kG)
     end
     end
@@ -271,7 +270,7 @@ end
 
 Updates the Ekin/ω^2 tail of physical susceptibilities on worker. Used by [`update_tail!`](@ref update_tail).
 """
-function _update_tail!(coeffs::Vector{Float64})
+function _update_tail!(coeffs::Vector{Float64})::Nothing
     #TODO: check if EoMVars_initialized
     #TODO: code replication from single core variant
     #TODO: checks from single core
@@ -279,12 +278,9 @@ function _update_tail!(coeffs::Vector{Float64})
     !wcache[].EoMVars_initialized && error("cannot update tail before EoMVars are initialized")
 
     ωnGrid = collect(2im .* (-wcache[].sP.n_iω:wcache[].sP.n_iω) .* π ./ wcache[].mP.β)
-    update_tail!(wcache[].χm, wcache[].χ_coeffs, coeffs, ωnGrid)
-    update_tail!(wcache[].χd, wcache[].χ_coeffs, coeffs, ωnGrid)
-
-    for ci in 2:length(coeffs)
-        wcache[].χ_coeffs[ci] = coeffs[ci]
-    end
+    update_tail!(wcache[].χm, coeffs, ωnGrid)
+    update_tail!(wcache[].χd, coeffs, ωnGrid)
+    return nothing
 end
 
 """
@@ -292,12 +288,13 @@ end
 
 Updates the Ekin/ω^2 tail of physical susceptibilities on all workers.
 """
-function update_tail!(coeff::Vector{Float64})
+function update_tail!(coeff::Vector{Float64})::Nothing
     @sync begin
         for wi in workers()
-            remotecall_fetch(_update_tail!, wi, coeff)
+            @async remotecall_fetch(_update_tail!, wi, coeff)
         end
     end
+    return nothing
 end
 
 """
@@ -312,6 +309,7 @@ function clear_wcache!()
         end
         _clear_wcache!()
     end
+    map!(x->false, values(wcache[].initialized))
     update_wcache!(:EoMVars_initialized, false)
     update_wcache!(:EoM_νGrid, 0:0)
 
@@ -329,9 +327,10 @@ function _clear_wcache!()
     wcache[].χ₀ = Array{_eltype,3}(undef,0,0,0)
     wcache[].χ₀Asym = Array{_eltype,2}(undef,0,0)
     wcache[].χ₀Indices = Vector{NTuple{2,Int}}(undef, 0)
-    wcache[].χm = Array{Float64,2}(undef, 0,0)
-    wcache[].χd = Array{Float64,2}(undef, 0,0)
-    wcache[].χ_coeffs = Vector{Float64}(undef, 0)
+    wcache[].χm_part = Matrix{Float64}(undef,0,0)
+    wcache[].χd_part = Matrix{Float64}(undef,0,0) 
+    wcache[].χm = nothing
+    wcache[].χd = nothing
     wcache[].γm = Array{ComplexF64,3}(undef, 0,0,0)
     wcache[].γd = Array{ComplexF64,3}(undef, 0,0,0)
     wcache[].ωn_ranges = Vector{UnitRange{Int}}(undef, 0)
@@ -356,13 +355,15 @@ Collects susceptibility and triangular vertex from workers, after parallel compu
 function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     χ_data::Array{Float64,2} = Array{Float64,2}(undef, length(kG.kMult), 2*sP.n_iω+1)
-    χfield = Symbol(string("χ",type))
+    χfield = Symbol(string("χ",type,"_part"))
+    χfield_full = Symbol(string("χ",type))
+    res = nothing
 
     #TODO: check if Σ_initialization is set. if true, use different indices (also for γ, remove error after implementation)
     #
     w_list = workers()
     if wcache[].EoMVars_initialized
-        χ_data[:,:] = @fetchfrom w_list[1] getfield(LadderDGA.wcache[], χfield)
+        res = @fetchfrom w_list[1] getfield(LadderDGA.wcache[], χfield_full)
     else
         @sync begin
         for w in w_list
@@ -376,9 +377,10 @@ function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
             end
         end
         end
+        log_q0_χ_check(kG, sP, χ_data, type)
+        res = χT(χ_data, mP.β, tail_c=[0,0,mP.Ekin_DMFT])
     end
-    log_q0_χ_check(kG, sP, χ_data, type)
-    χT(χ_data, mP.β, tail_c=[0,0,mP.Ekin_DMFT])
+    return res
 end
 
 function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)

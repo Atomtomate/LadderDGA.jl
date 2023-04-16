@@ -68,19 +68,27 @@ for el in zip(run_res[2:end], run_res_par[2:end])
 end
 end
 
+run_res_new = LadderDGA.LambdaCorrection.run_sc_new(gLoc_rfft, χ_m, γ_m, χ_d, γ_d, λ₀, Σ_loc, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
+
 χ_m2 = collect_χ(:m, kG, mP, sP)
 χ_d2 = collect_χ(:d, kG, mP, sP)
 @test all(χ_m.data .≈ χ_m2.data)
 @test all(χ_d.data .≈ χ_d2.data)
 
 # λm 
-λm,_ = LadderDGA.λ_correction(:m, imp_density, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP)
+λm_res = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, gLoc_rfft, λ₀, kG, mP, sP, λ_val_only=true)
+λm = λm_res.λm
 t_sc = 0.5 * (sum_kω(kG, χ_λ(χ_m,λm)) + sum_kω(kG,χ_d))
-t_sc2 = 0.5 * sum_kω(kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.tail_c, χ_m.β, ωn_grid(χ_m))
+t_sc2 = 0.5 * (sum_ωk(kG, χ_λ(χ_m,λm)) + sum_kω(kG,χ_d))
+ωn_arr=ωn_grid(χ_m)
+ωn2_tail = real(χ_m.tail_c[3] ./ ωn_arr .^ 2)
+zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
+ωn2_tail[zero_ind] = 0.0
+t_sc3 = 0.5 * sum_kω(kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.β, χ_m.tail_c[3], ωn2_tail)
 @test t_sc ≈ t_sc2
-t_mc = 0.5 * sum_kω(kG, χ_λ(χ_m2,λm) .+ χ_d2)
+@test t_sc ≈ t_sc3 atol=0.001
 @test t_sc ≈ mP.n/2 * (1 - mP.n/2)
-@test t_sc ≈ t_mc
+@test λm_res.converged
 
 # λdm 
 
@@ -89,6 +97,7 @@ res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_su
 @test abs(sum(χ_d)) ≈ cs_χd
 res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=0, par=true, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
+@test abs(sum(χ_m)) ≈ cs_χm
 @testset "λdm" begin
 for el in zip(res_λdm[2:end-1], res_λdm_par[2:end-1])
     @test all(isapprox.(el[1], el[2], rtol=0.01))
