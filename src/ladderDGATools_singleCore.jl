@@ -173,6 +173,18 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     return χT(χ, mP.β, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
+
+function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+                expandKArr!(kG, kG.cache1, arr1)
+                #@timeit to "fft2" kG.fftw_plan * kG.cache1
+                mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+                for i in eachindex(kG.cache1)
+                    kG.cache1[i] *= GView[i]
+                end
+                kG.fftw_plan \ kG.cache1
+                Dispersions.conv_post!(kG, res, kG.cache1)
+    return nothing
+end
 function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
             χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
@@ -183,7 +195,6 @@ function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pr
     for (ωi,ωn) in enumerate(axes(Σ_ω,3))
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([size(γ_d,ν_axis), νZero + size(Σ_ω, 2) - 1])
-        # maxn2 = 2*νmax + (sP.shift && ωi < sP.n_iω)*(trunc(Int, (ωi - sP.n_iω - 1)/2)) 
         νlist = νZero:maxn
         length(νlist) >= size(Σ_ω,2) && (νlist = νlist[1:size(Σ_ω,2)])
         for (νii,νi) in enumerate(νlist)
@@ -191,10 +202,11 @@ function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pr
                 Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi],
                                    χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
             end
-            if nprocs() == 1
+            #TODO: find a way to not unroll this!
+            if Nk(kG) == 1
                 conv_fft1!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
             else
-                conv_fft1_noPlan!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
+                conv_tmp!(view(Σ_ω,:,νii-1,ωn), kG, Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
             end
         end
     end

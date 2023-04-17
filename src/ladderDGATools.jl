@@ -146,14 +146,16 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
 
+    U = wcache[].mP.U
+    kG = wcache[].kG
+
     #TODO: this is inefficient and should only be done on one processor
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
-    νdim = length(gridshape(wcache[].kG))+1 
-    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(wcache[].kG, wcache[].χm) - wcache[].χloc_m_sum
+    νdim = length(gridshape(kG))+1 
+    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum
 
     Nq::Int = size(wcache[].χm,1)
-    U = wcache[].mP.U
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)
         for (ωi,ωn) in enumerate(wcache[].ωn_ranges[νi])
@@ -161,12 +163,24 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
                 wcache[].Kνωq_pre[qi] = eom(U, wcache[].γm[qi,ωi,νi], wcache[].γd[qi,ωi,νi], wcache[].χm[qi,ωi], 
                         wcache[].χd[qi,ωi], wcache[].λ₀[qi,ωi,νi])
             end
-            conv_fft1_noPlan!(wcache[].kG, wcache[].Kνωq_post, wcache[].Kνωq_pre, selectdim(wcache[].G_fft_reverse,νdim,νn+ωn),)
-            wcache[].Σ_ladder[:,νi] += wcache[].Kνωq_post #.- err / νn
+
+        conv_tmp!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, wcache[].Kνωq_post, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
+            #TODO: find a way to not unroll this!
         end
     end
     reset!(wcache[].χm) 
     reset!(wcache[].χd) 
+end
+function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, arr2::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+            expandKArr!(kG, kG.cache1, arr1)
+            mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+            for i in eachindex(kG.cache1)
+                kG.cache1[i] *= GView[i]
+            end
+            kG.fftw_plan \ kG.cache1
+            Dispersions.conv_post!(kG, arr2, kG.cache1)
+            res[:] += arr2[:] #.- err / νn
+    return nothing
 end
 
 """

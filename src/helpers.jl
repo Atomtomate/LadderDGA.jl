@@ -306,22 +306,23 @@ function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
     return G_fft, G_rfft
 end
 
-function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
     νdim = length(gridshape(kG))+1
     for νn in fft_range
-        νn < 0 ? expandKArr!(kG, G[:,-νn-1].parent) : expandKArr!(kG, G[:,νn].parent)
+        expandKArr!(kG, G[:,νn].parent)
+        reverse!(kG.cache1)
         fft!(kG.cache1)
-        selectdim(G_rfft,νdim,νn) .= reverse(kG.cache1)
+        selectdim(G_rfft,νdim,νn) .= kG.cache1
     end
-    return G_rfft
+    return nothing
 end
 
-function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)
+function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
     νdim = length(gridshape(kG))+1
     for νn in fft_range
-        νn < 0 ? expandKArr!(kG, G[:,-νn-1].parent) : expandKArr!(kG, G[:,νn].parent)
+        expandKArr!(kG, G[:,νn].parent)
         fft!(kG.cache1)
         selectdim(G_fft,νdim,νn) .= kG.cache1
     end
-    return G_fft
+    return nothing
 end

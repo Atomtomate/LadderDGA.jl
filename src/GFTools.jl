@@ -144,7 +144,7 @@ function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{Co
 end
 
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                        fix_n::Bool=false)
+                        fix_n::Bool=false)::Float64
     νRange = 0:last(axes(G_new, 2))
     function fμ(μ::Vector{Float64})
         G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
@@ -167,7 +167,8 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
         mP.μ = μ
         G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc)
     end
-    G_new[:,first(axes(G_new,2)):-1] = conj.(G_new[:, end-1:-1:0])
+    ind_neg = first(axes(G_new,2)):-1
+    G_new[:,ind_neg] = conj.(view(G_new,:, last(axes(G_new,2))-1:-1:0))
     return μ
 end
 
@@ -243,8 +244,8 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
     filling_pos(G, U, μ, β, shell)
 end
 
-function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
-    filling_pos(kintegrate(kG,G,1)[1,:], U, μ, β)
+function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)::Float64
+    filling_pos(view(kintegrate(kG,G,1),1,:), U, μ, β)
 end
 
 """

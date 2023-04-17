@@ -3,7 +3,7 @@
 """
     λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, λ₀, kG, mP, sP; 
         maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
-        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-6, par=false)
+        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false)
 
 Calculates ``\\lambda_\\mathrm{dm}`` and associated quantities like the self-energy.
 
@@ -48,7 +48,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])) : Ref(nothing)
     function ff_seq(λd_i::Float64)
         copy!(gLoc_rfft_init, gLoc_rfft)
-        trace, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
+        _, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
                     χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, trace=trace)
         return E_pot - E_pot_2
@@ -118,11 +118,11 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(fft_νGrid)), 1:length(kG.kMult), fft_νGrid) 
     Σ_ladder_old::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}     = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
-    E_pot    = NaN
+    E_pot    = Inf
     E_pot_2  = NaN
     E_kin    = NaN
     cont     = true
-    lhs_c1   = NaN
+    lhs_c1   = Inf
     converged = maxit == 0
 
 
@@ -137,6 +137,8 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
     it = 1
     while cont
         copy!(Σ_ladder_old, Σ_ladder)
+        E_pot_bak  = E_pot; 
+        lhs_c1_bak = lhs_c1
         Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
@@ -154,12 +156,12 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
             end
         end
 
-        χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-        χ_d_sum = sum_kω(kG, χ_d, λ=λd)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
-        if abs(E_pot - E_pot_2) < conv_abs && abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs
-            converged = true
+        χ_m_sum    = sum_kω(kG, χ_m, λ=λm)
+        χ_d_sum    = sum_kω(kG, χ_d, λ=λd)
+        lhs_c1     = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        if abs(E_pot - E_pot_bak) < conv_abs && abs(lhs_c1 - lhs_c1_bak) < conv_abs
+            converged = (abs(E_pot - E_pot_2) < conv_abs) && (abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs)
             cont = false
         end
         (it >= maxit) && (cont = false)
@@ -209,9 +211,9 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
                  λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true, trace::Ref=Ref(nothing))
     dbgt = TimerOutput()
-    E_pot    = NaN
+    E_pot    = Inf
     E_kin    = NaN
-    lhs_c1   = NaN
+    lhs_c1   = Inf
     E_pot_2  = NaN
     cont     = true
     converged= maxit == 0
@@ -228,17 +230,19 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     end
 
     while cont
+        E_pot_bak  = E_pot; 
+        lhs_c1_bak = lhs_c1
         @timeit dbgt "01" (par && update_wcaches_G_rfft!(gLoc_rfft))
         copy!(Σ_ladder_work, Σ_ladder)
         @timeit dbgt "03" calc_Σ_par!(Σ_ladder, mP, λm=λm, λd=λd)
-        @timeit dbgt "04" (mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work))
+        (mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work))
         @timeit dbgt "05" μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
         isnan(μnew) && break
         @timeit dbgt "06" G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         mP.μ = μnew
         # TODO: optimize calc_E (precompute tails) 
         @timeit dbgt "07" E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
-        @timeit dbgt "08" if update_χ_tail
+        if update_χ_tail
             if isfinite(E_kin)
                 par && update_tail!([0, 0, E_kin])
                 update_tail!(χ_d, [0, 0, E_kin], iωn_f)
@@ -250,16 +254,16 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
             end
         end
 
-        @timeit dbgt "09" χ_m_sum = sum_kω(kG, χ_m, λ=λm)
-        @timeit dbgt "10" χ_d_sum = sum_kω(kG, χ_d)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
-        if abs(E_pot - E_pot_2) < conv_abs && abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs
-            converged = true
+        χ_m_sum    = sum_kω(kG, χ_m, λ=λm)
+        χ_d_sum    = sum_kω(kG, χ_d)
+        lhs_c1     = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        if abs(E_pot - E_pot_bak) < conv_abs && abs(lhs_c1 - lhs_c1_bak) < conv_abs
+            converged = (abs(E_pot - E_pot_2) < conv_abs) && (abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs)
             cont = false
         end
         (it >= maxit) && (cont = false)
-        @timeit dbgt "11" if !isnothing(trace[])
+        if !isnothing(trace[])
             row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(sum(χ_d)), abs(sum(χ_m)), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
@@ -278,6 +282,5 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     μnew = mP.μ
     mP.μ = μbak
     converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
-    println("DBG: ", dbgt)
     return E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end

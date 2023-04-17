@@ -120,7 +120,7 @@ end
 end
 @test abs(sum(χ_d)) ≈ cs_χd
 
-tr = []
+# tr = []
 @timeit LadderDGA.to "res_tsc" res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false, with_trace=true)
 @test abs(sum(χ_m)) ≈ cs_χm
 @test abs(sum(χ_d)) ≈ cs_χd
