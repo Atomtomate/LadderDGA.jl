@@ -27,11 +27,16 @@ end
 
 
 """
-    F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64[; diag_term=true])
+    F_from_χ(type::Symbol, h::lDΓAHelper; diag_term=true)
+    F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64; diag_term=true)
 
 TODO: documentation
 """
-function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,1}, sP::SimulationParameters, β::Float64; diag_term=true)
+function F_from_χ(type::Symbol, h::lDΓAHelper; diag_term=true)
+    type != :m && error("only F_m tested!")
+    F_from_χ(h.χDMFT_m, h.gImp[1,:], h.sP, h.mP.β; diag_term=diag_term)
+end
+function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractVector{ComplexF64}, sP::SimulationParameters, β::Float64; diag_term=true)
     F = similar(χ)
     for ωi in 1:size(F,3)
     for νpi in 1:size(F,2)
@@ -47,10 +52,21 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractArray{ComplexF64,
 end
 # ========================================== Correction Term =========================================
 """
+    calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
+    calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
     calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
 
 Correction term, TODO: documentation
 """
+function calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
+    F_m   = F_from_χ(:m, h);
+    calc_λ0(χ₀, F_m, h)
+end
+
+function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
+    calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP)
+end
+
 function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
     #TODO: store nu grid in sP?
     Niν = size(Fr,ν_axis)
@@ -82,9 +98,14 @@ end
 # ======================================== LadderDGA Functions =======================================
 """
     calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
+    calc_bubble(h::lDΓAHelper, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
 
 TODO: documentation
 """
+function calc_bubble(h::lDΓAHelper; local_tail=false)
+    calc_bubble(h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP, local_tail=local_tail)
+end
+
 function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
@@ -103,6 +124,7 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
 end
 
 """
+    calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)
     calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
 
 Calculates susceptibility and triangular vertex in `type` channel. See [`calc_χγ_par`](@ref calc_χγ_par) for parallel calculation.
@@ -114,6 +136,10 @@ This method solves the following equation:
 \\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
 ``
 """
+function calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)
+    calc_χγ(type, getfield(h,Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP)
+end
+
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
@@ -140,7 +166,6 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     λ_cache = Array{eltype(χννpω),1}(undef, Nν)
-
     for ωi in ωi_range
         ωn = (ωi - sP.n_iω) - 1
         for qi in qi_range
@@ -185,7 +210,7 @@ function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{Comp
                 Dispersions.conv_post!(kG, res, kG.cache1)
     return nothing
 end
-function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Array{ComplexF64, 1},
+function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
             χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
             sP::SimulationParameters)
@@ -229,33 +254,35 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
 end
 
 function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
+                λ₀::AbstractArray{_eltype,3}, h::lDΓAHelper;
+                νmax::Int = h.sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
+    calc_Σ(χ_m, γ_m, χ_d, γ_d, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm=λm, λd=λd, tc=tc)
+end
+function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; 
                 νmax::Int = sP.n_iν,
-                λm::Float64=0.0, λd::Float64=0.0)
+                λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
     χ_m.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χ_m.λ = $(χ_m.λ)")
     χ_d.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χ_d.λ = $(χ_d.λ)")
     Nq, Nω = size(χ_m)
     ωrange::UnitRange{Int}   = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χ_m.usable_ω, χ_d.usable_ω)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     Σ_ladder   = OffsetArray(Array{Complex{Float64},2}(undef,Nq, νmax), 1:Nq, 0:νmax-1)
     Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
                               1:Nq, 0:νmax-1, ωrange)
-
     
     λm != 0.0 && χ_λ!(χ_m, λm)
     λd != 0.0 && χ_λ!(χ_d, λd)
-    tail_correction = OffsetVector(mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:νmax-1), 0:νmax-1)
+    tail_correction = mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:νmax-1)
 
-    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre,
-            χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP)
+    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP)
 
     reset!(χ_m)
     reset!(χ_d)
-
+    tc && (Σ_ladder.parent[:,:] .= Σ_ladder.parent[:,:] .+ reshape(tail_correction, 1, length(tail_correction)))
     return Σ_ladder
 end
 
@@ -279,17 +306,17 @@ function calc_Σ_parts(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
     λd != 0.0 && χ_λ!(χ_d, λd)
 
     tail_correction = mP.U^2 .* (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:sP.n_iν-1)
-    calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,2] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_χ_d, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_χ_d, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,3] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
-    calc_Σ_ω!(eom_γ_d, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_γ_d, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,4] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β 
-    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,5] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
-    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, ωindices, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     for qi in 1:size(Σ_ladder,1)
         Σ_ladder[qi,:,7] .= tail_correction 

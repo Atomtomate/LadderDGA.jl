@@ -36,10 +36,13 @@ function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
 end
 
 """
+    calc_bubble_par(h::lDΓAHelper; collect_data=true)
     calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
 Calculates the bubble, based on two fourier-transformed Greens functions where the second one has to be reversed.
 """
+calc_bubble_par(h::lDΓAHelper; collect_data=true) = calc_bubble_par(h.kG, h.mP, h.sP; collect_data=collect_data)
+
 function calc_bubble_par(kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
     worker_list = workers()
     !(length(worker_list) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
@@ -59,6 +62,8 @@ end
 
 Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref `calc_bubble_par`).
 """
+collect_χ₀(h::lDΓAHelper) = collect_χ₀(h.kG, h.mP, h.sP)
+
 function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
@@ -117,6 +122,7 @@ function bse_inv(type::Symbol, Γr::Array{ComplexF64,3})
 end
 
 """
+    calc_χγ_par(type::Symbol, h::lDΓAHelper)
     calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
 
 Calculate susceptibility and triangular vertex parallel on workerpool. 
@@ -125,6 +131,8 @@ Set `collect_data` to return both quantities, or call [`collect_χγ`](@ref coll
 [`calc_χγ`](@ref calc_χγ) can be used for single core computations.
 
 """
+calc_χγ_par(type::Symbol, h::lDΓAHelper; collect_data=true) = calc_χγ_par(type, getfield(h,Symbol("Γ_$(type)")), h.kG, h.mP, h.sP; collect_data=collect_data)
+
 function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; collect_data=true)
     @sync begin
     for w in workers()
@@ -141,7 +149,7 @@ end
 
 Equation of motion for self energy. See [`calc_Σ_par`](@ref calc_Σ_par).
 """
-function calc_Σ_eom_par(λm::Float64, λd::Float64) 
+function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true) 
     if !wcache[].EoMVars_initialized 
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
@@ -153,8 +161,7 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
     νdim = length(gridshape(kG))+1 
-    err = wcache[].mP.U^2 * wcache[].mP.β * sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum
-
+    tail_correction = wcache[].mP.U^2 * (sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum) 
     Nq::Int = size(wcache[].χm,1)
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)
@@ -163,14 +170,14 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64)
                 wcache[].Kνωq_pre[qi] = eom(U, wcache[].γm[qi,ωi,νi], wcache[].γd[qi,ωi,νi], wcache[].χm[qi,ωi], 
                         wcache[].χd[qi,ωi], wcache[].λ₀[qi,ωi,νi])
             end
-
-        conv_tmp!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, wcache[].Kνωq_post, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
-            #TODO: find a way to not unroll this!
+            conv_tmp!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, wcache[].Kνωq_post, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
         end
+        tc && (wcache[].Σ_ladder[:,νi] .= wcache[].Σ_ladder[:,νi] ./ wcache[].mP.β  .+ tail_correction / (1im*(2*νn+1)*π/wcache[].mP.β))
     end
     reset!(wcache[].χm) 
     reset!(wcache[].χd) 
 end
+
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, arr2::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
             expandKArr!(kG, kG.cache1, arr1)
             mul!(kG.cache1, kG.fftw_plan, kG.cache1)
@@ -179,7 +186,7 @@ function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{Comp
             end
             kG.fftw_plan \ kG.cache1
             Dispersions.conv_post!(kG, arr2, kG.cache1)
-            res[:] += arr2[:] #.- err / νn
+            res[:] += arr2[:]
     return nothing
 end
 
@@ -188,9 +195,10 @@ end
 
 Collects self-energy from workers.
 """
-function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP::ModelParameters)
+function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}})
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
-    Σ_hartree = mP.n * mP.U/2.0;
+    Σ_hartree = wcache[].mP.n * wcache[].mP.U/2.0;
+    tail = nothing
 
     @sync begin
         for w in workers()
@@ -200,48 +208,47 @@ function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, mP
             end
         end
     end
-    Σ_ladder[:,:] = Σ_ladder[:,:] ./ mP.β .+ Σ_hartree
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] .+ Σ_hartree
     return nothing
 end
 
 """
-    calc_Σ_par(mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν; collect_data=true)
+    calc_Σ_par(; νmax=sP.n_iν; collect_data=true)
 
 Calculates self-energy on worker pool. Workers must first be initialized using [`initialize_EoM`](@ref initialize_EoM).
 #TODO: νrange must be equal to the one used during initialization. remove one.
 """
-function calc_Σ_par(kG::KGrid, mP::ModelParameters; 
-                    λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
-    !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
-    Nk::Int = collect_data ? length(kG.kMult) : 1
+function calc_Σ_par(; λm::Float64=0.0, λd::Float64=0.0, collect_data=true, tc::Bool=true)
+    Nk::Int = collect_data ? length(wcache[].kG.kMult) : 1
     νrange = wcache[].EoM_νGrid
     νrange = collect_data ?  νrange : UnitRange(0,0)
-
     Σ_ladder = collect_data ? OffsetArray(Matrix{ComplexF64}(undef, Nk, length(νrange)), 1:Nk, νrange) : OffsetArray(Matrix{ComplexF64}(undef, 0, 0), 1:1, 0:0)
-    return calc_Σ_par!(Σ_ladder, mP; λm=λm, λd=λd, collect_data=collect_data)
+    return calc_Σ_par!(Σ_ladder; λm=λm, λd=λd, collect_data=collect_data, tc=tc)
 end
 
-function calc_Σ_par!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}, 
-                    mP::ModelParameters; 
-                    λm::Float64=0.0, λd::Float64=0.0, collect_data=true)
+function calc_Σ_par!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}; 
+                     λm::Float64=0.0, λd::Float64=0.0, collect_data=true, tc::Bool=true)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
+
     @sync begin
-    for wi in workers()
-        @async remotecall_fetch(calc_Σ_eom_par, wi, λm, λd)
+        for wi in workers()
+            @async remotecall_fetch(calc_Σ_eom_par, wi, λm, λd, tc=tc)
+        end
     end
+    if collect_data 
+        collect_Σ!(Σ_ladder) 
     end
-    collect_data && collect_Σ!(Σ_ladder, mP) 
 
     return collect_data ? Σ_ladder : nothing
 end
 
 
 # ---------------------------------------------- Misc. -----------------------------------------------
-function Σ_loc_correction(Σ_ladder::AbstractArray{T1, 2}, Σ_ladderLoc::AbstractArray{T2, 2}, Σ_loc::AbstractArray{T3, 1}) where {T1 <: Number, T2 <: Number, T3 <: Number}
+function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::AbstractMatrix{ComplexF64}, Σ_loc::AbstractMatrix{ComplexF64})
     res = similar(Σ_ladder)
     for qi in axes(Σ_ladder,1)
         for νi in axes(Σ_ladder,2)
-            res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[νi]
+            res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[1,νi]
         end
     end
     return res

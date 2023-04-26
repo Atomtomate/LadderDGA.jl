@@ -164,8 +164,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
         μ_new_nls.zero[1]
     end
     if (fix_n && !isnan(μ)) || !fix_n
-        mP.μ = μ
-        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=mP.μ, Σloc = Σloc)
+        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
     end
     ind_neg = first(axes(G_new,2)):-1
     G_new[:,ind_neg] = conj.(view(G_new,:, last(axes(G_new,2))-1:-1:0))
@@ -304,6 +303,3 @@ function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64},
         χ_tail::Vector{Float64} = real.(ci ./ (iωn.^i))
     end
 end
-
-#TODO: sum_ω functions
-# sum_ω(inp::AbstractVector, tail_c::)
