@@ -174,8 +174,8 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
         end
         tc && (wcache[].Σ_ladder[:,νi] .= wcache[].Σ_ladder[:,νi] ./ wcache[].mP.β  .+ tail_correction / (1im*(2*νn+1)*π/wcache[].mP.β))
     end
-    reset!(wcache[].χm) 
-    reset!(wcache[].χd) 
+    λm != 0.0 && reset!(wcache[].χm) 
+    λd != 0.0 && reset!(wcache[].χd) 
 end
 
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, arr2::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N

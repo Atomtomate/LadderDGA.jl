@@ -241,15 +241,13 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
                 χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
-                mP::ModelParameters, sP::SimulationParameters)::Nothing
+                mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
 
     Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
-    Σ_ladder[:,:] = Σ_ladder[:,:] ./ mP.β .+ Σ_hartree
-    # for qi in 1:size(res,1)
-    #     res[qi,:] = res[qi,:] #.+ tail_correction 
-    # end
+    tail_correction = (tc ? mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+  reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
     return nothing
 end
 
@@ -258,6 +256,7 @@ function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
                 νmax::Int = h.sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
     calc_Σ(χ_m, γ_m, χ_d, γ_d, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm=λm, λd=λd, tc=tc)
 end
+
 function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
@@ -276,13 +275,11 @@ function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
     
     λm != 0.0 && χ_λ!(χ_m, λm)
     λd != 0.0 && χ_λ!(χ_d, λd)
-    tail_correction = mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) ./ iν_array(mP.β, 0:νmax-1)
 
-    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP)
+    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP, tc=tc)
 
-    reset!(χ_m)
-    reset!(χ_d)
-    tc && (Σ_ladder.parent[:,:] .= Σ_ladder.parent[:,:] .+ reshape(tail_correction, 1, length(tail_correction)))
+    λm != 0.0 && reset!(χ_m)
+    λd != 0.0 && reset!(χ_d)
     return Σ_ladder
 end
 
@@ -321,8 +318,8 @@ function calc_Σ_parts(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
     for qi in 1:size(Σ_ladder,1)
         Σ_ladder[qi,:,7] .= tail_correction 
     end
-    reset!(χ_m)
-    reset!(χ_d)
+    λm != 0.0 && reset!(χ_m)
+    λd != 0.0 && reset!(χ_d)
 
     return  OffsetArray(Σ_ladder, 1:Nq, 0:sP.n_iν-1, 1:7)
 end

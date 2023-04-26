@@ -166,7 +166,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
         lhs_c1     = real(χ_d_sum + χ_m_sum)/2
         E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
         if abs(E_pot - E_pot_bak) < conv_abs && abs(lhs_c1 - lhs_c1_bak) < conv_abs
-            converged = (abs(E_pot - E_pot_2) < conv_abs) && (abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs)
+            converged = true
             cont = false
         end
         (it >= maxit) && (cont = false)
@@ -265,7 +265,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         lhs_c1     = real(χ_d_sum + χ_m_sum)/2
         E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
         if abs(E_pot - E_pot_bak) < conv_abs && abs(lhs_c1 - lhs_c1_bak) < conv_abs
-            converged = (abs(E_pot - E_pot_2) < conv_abs) && (abs(lhs_c1 - mP.n/2 * (1-mP.n/2)) < conv_abs)
+            converged = true
             cont = false
         end
         (it >= maxit) && (cont = false)
@@ -284,7 +284,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
             par && update_tail!([0, 0, mP.Ekin_DMFT])
         end
     end
-    reset!(χ_d)
+    λd != 0 && reset!(χ_d)
     μnew = mP.μ
     mP.μ = μbak
     converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
