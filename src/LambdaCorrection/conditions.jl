@@ -36,7 +36,7 @@ function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vec
                         νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
                         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false, with_trace=false)
 
-    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
+    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP, full=true)
     iωn = iωn_f[ωindices]
     iωn[findfirst(x->x ≈ 0, iωn)] = Inf
     iωn_m2 = 1 ./ iωn .^ 2
@@ -149,7 +149,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
         μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
         isnan(μnew) && break
         _, gLoc_rfft = G_fft(G_ladder, kG, sP)
-        E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
+        E_kin, E_pot = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(axes(Σ_ladder,2)))
         if update_χ_tail
             if isfinite(E_kin)
             update_tail!(χ_m, [0, 0, E_kin], iωn_f)
@@ -247,7 +247,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         @timeit dbgt "06" G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         mP.μ = μnew
         # TODO: optimize calc_E (precompute tails) 
-        @timeit dbgt "07" E_kin, E_pot = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, kG, mP, νmax = last(νGrid)+1)
+        E_kin, E_pot = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(axes(Σ_ladder,2)))
         if update_χ_tail
             if isfinite(E_kin)
                 par && update_tail!([0, 0, E_kin])

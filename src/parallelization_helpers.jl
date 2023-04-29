@@ -261,6 +261,7 @@ function initialize_EoM(G_fft_reverse::GνqT,
             remotecall_fetch(update_wcache!, wi, :G_fft_reverse, G_fft_reverse)
             remotecall_fetch(update_wcache!, wi, :EoMVars_initialized, true)
             remotecall_fetch(update_wcache!, wi, :χloc_m_sum, convert(ComplexF64, χloc_m_sum))
+            remotecall_fetch(update_wcache!, wi, :EoM_νGrid, νGrid)
             end
         end
         update_wcache!(:EoMVars_initialized, true)

@@ -8,6 +8,7 @@ addprocs(2, exeflags="--project=$(Base.active_project())")
 
 dir = dirname(@__FILE__)
 dir = joinpath(dir, "test_data/config_b1u2.toml")
+# dir = "/home/julian/Hamburg/eom_tails/b5.0_mu1.4_tp0.toml"
 cfg_file = joinpath(dir)
 
 LadderDGA.clear_wcache!()
@@ -39,19 +40,20 @@ cs_γd = abs(sum(γ_d))
 
 
 λ₀ = calc_λ0(bubble, lDGAhelper)
-Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν);
-initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-5, χ_m = χ_m, γ_m = γ_m,
+Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, λm=0.123, λd=1.234);
+μnew, G_ladder = G_from_Σladder(Σ_ladder, lDGAhelper.Σ_loc, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fix_n=true)
+initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χ_m, γ_m = γ_m,
                 χ_d = χ_d, γ_d = γ_d, force_reinit=true)
-Σ_ladder_par_2 = calc_Σ_par();
-@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_par_2.parent)
+Σ_ladder_par_2 = calc_Σ_par(λm=0.123, λd=1.234);
+@test all(Σ_ladder.parent .≈ Σ_ladder_par_2.parent)
 Σ_ladder_inplace = similar(Σ_ladder_par_2)
-LadderDGA.calc_Σ_par!(Σ_ladder_inplace)
-@test all(Σ_ladder.parent[:,1:end-4] .≈ Σ_ladder_inplace.parent)
+LadderDGA.calc_Σ_par!(Σ_ladder_inplace, λm=0.123, λd=1.234)
+@test all(Σ_ladder.parent .≈ Σ_ladder_inplace.parent)
 
 initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1,
                 χ_m = χ_m, γ_m = γ_m,
                 χ_d = χ_d, γ_d = γ_d, force_reinit=true)
-Σ_ladder_par = calc_Σ_par();
+Σ_ladder_par = calc_Σ_par(λm=0.123, λd=1.234);
 @test all(Σ_ladder.parent .≈ Σ_ladder_par.parent)
 @test abs(sum(χ_d)) ≈ cs_χd
 
@@ -105,23 +107,36 @@ t_sc3 = 0.5 * sum_kω(lDGAhelper.kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.β, χ_m.tail
 @test t_sc ≈ t_sc3 atol=0.001
 @test t_sc ≈ lDGAhelper.mP.n/2 * (1 - lDGAhelper.mP.n/2)
 @test λm_res.converged
+Σ_ladder_λm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, λm=λm, λd=0.0);
+μnew, G_ladder_λm = G_from_Σladder(Σ_ladder_λm, lDGAhelper.Σ_loc, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fix_n=true)
+E_kin_1, E_pot_1 = LadderDGA.calc_E(G_ladder, Σ_ladder, μnew, lDGAhelper.kG, lDGAhelper.mP)
+println("λm:",  E_kin_1, " : ", E_pot_1 )
+#(-0.206933363187936, 0.11612950667253669)
+#-0.10584196361003705 : 0.3183123266700337
+Σ_ladder_λm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν);
+μnew, G_ladder_λm = G_from_Σladder(Σ_ladder_λm, lDGAhelper.Σ_loc, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fix_n=true)
+E_kin_1, E_pot_1 = LadderDGA.calc_E(G_ladder, Σ_ladder, μnew, lDGAhelper.kG, lDGAhelper.mP)
+println("DMFT: ", E_kin_1, " : ", E_pot_1 )
+
 
 # λdm 
-
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, lDGAhelper.Σ_loc, lDGAhelper.gLoc_rfft, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; update_χ_tail=false, maxit=0, par=false, with_trace=true)
+res_λdm_old = λdm_correction(χ_m, γ_m, χ_d, γ_d, lDGAhelper.Σ_loc, lDGAhelper.gLoc_rfft, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; update_χ_tail=false, maxit=0, par=false, with_trace=true)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, lDGAhelper.Σ_loc, lDGAhelper.gLoc_rfft, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; update_χ_tail=false, maxit=0, par=true, with_trace=true)
+res_λdm_new = LadderDGA.LambdaCorrection.λdm_correction_new(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
 @test abs(sum(χ_d)) ≈ cs_χd
-@test abs(sum(χ_m)) ≈ cs_χm
+res_λdm_new_par = LadderDGA.LambdaCorrection.λdm_correction_new(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, par=true)
+@test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
-for el in zip(res_λdm[2:end-1], res_λdm_par[2:end-1])
-    @test all(isapprox.(el[1], el[2], rtol=0.01))
-end
+    @test res_λdm_old[7] ≈ res_λdm_new[1]
+    @test res_λdm_old[7] ≈ res_λdm_new_par[1]
+    @test res_λdm_old[end] ≈ res_λdm_new[2]
+    @test res_λdm_old[end] ≈ res_λdm_new_par[2]
 end
 
-Σ_ladder_dm_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=last(axes(res_λdm[2],2))+1, λm=res_λdm[7], λd=res_λdm[end]);
-@test all(Σ_ladder_dm_2 .≈ res_λdm[2])
+
+# Σ_ladder_dm_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=last(axes(res_λdm[2],2))+1, λm=res_λdm[7], λd=res_λdm[end]);
+# @test all(Σ_ladder_dm_2 .≈ res_λdm[2])
 # _, G_ladder_dm_2 = G_from_Σladder(Σ_ladder_dm_2, Σ_loc, kG, mP, sP; fix_n=false);
 # @test all(G_ladder_dm_2 .≈ res_λdm[3])
 

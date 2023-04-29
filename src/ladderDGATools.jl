@@ -198,7 +198,6 @@ Collects self-energy from workers.
 function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}})
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     Σ_hartree = wcache[].mP.n * wcache[].mP.U/2.0;
-    tail = nothing
 
     @sync begin
         for w in workers()
@@ -244,11 +243,11 @@ end
 
 
 # ---------------------------------------------- Misc. -----------------------------------------------
-function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::AbstractMatrix{ComplexF64}, Σ_loc::AbstractMatrix{ComplexF64})
+function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::AbstractMatrix{ComplexF64}, Σ_loc::AbstractVector{ComplexF64})
     res = similar(Σ_ladder)
     for qi in axes(Σ_ladder,1)
-        for νi in axes(Σ_ladder,2)
-            res[qi,νi] = Σ_ladder[qi,νi] .- Σ_ladderLoc[νi] .+ Σ_loc[1,νi]
+        for (νi,νn) in enumerate(axes(Σ_ladder,2))
+            res[qi,νn] = Σ_ladder[qi,νn] .- Σ_ladderLoc[1,νn] .+ Σ_loc[νi]
         end
     end
     return res

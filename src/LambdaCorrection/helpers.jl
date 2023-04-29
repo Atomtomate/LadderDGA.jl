@@ -163,7 +163,7 @@ Base.@assume_effects :total function newton_right(f::Function, start::Vector{Flo
 end
 
 Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,Float64}, min::MVector{N,Float64}; 
-                      nsteps=500, atol=1e-8)::Vector{Float64} where N
+                      nsteps::Int=500, atol::Float64=1e-8, verbose::Bool=false)::Vector{Float64} where N
     done = false
     xi_last::MVector{N,Float64} = deepcopy(start)
     xi::MVector{N,Float64}      = deepcopy(xi_last)
@@ -177,7 +177,8 @@ Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,
         dfii[:,:] = inv(FiniteDiff.finite_difference_jacobian(f, xi, cache))
         copyto!(xi_last, xi)
         xi[:]     = xi - dfii * fi
-        (norm(xi) < atol) && break
+        verbose && println("i=$i : xi = $xi, fi = $fi. $(norm(fi)) ?<? $(atol)")
+        (abs(norm(fi)) < atol) && break
         for l in 1:N
             if xi[l] < min[l]  # resort to bisection if min value is below left side
                 xi[l] = min[l] + (xi_last[l] - min[l])/2 + (fi[l]>0)*xi_last[l]
@@ -258,9 +259,9 @@ end
 
 Internal helper to generate usable bosonic and fermionic ranges. Also returns the ``c_1/x^2`` tail. 
 """
-function gen_νω_indices(χ_m::χT, χ_d::χT, mP::ModelParameters, sP::SimulationParameters)
+function gen_νω_indices(χ_m::χT, χ_d::χT, mP::ModelParameters, sP::SimulationParameters; full=false)
     ωindices = usable_ωindices(sP, χ_m, χ_d)
-    νmax::Int = minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)])
+    νmax::Int = full ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : sP.n_iν
     νGrid    = 0:νmax-1
     iωn_f = collect(2im .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β)
     # iωn = iωn_f[ωindices]

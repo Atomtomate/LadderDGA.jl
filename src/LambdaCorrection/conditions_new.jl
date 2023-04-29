@@ -60,11 +60,11 @@ Calculates ``\\lambda_\\mathrm{m}`` value, by fixing ``\\sum_{q,\\omega} \\chi^{
 Set `verbose` to obtain a trace of the checks.
 `validate_threshold` sets the threshold for the `rhs ≈ lhs` condition, set to `Inf` in order to accept any result. 
 """
-function λm_correction(χm::χT, rhs::Float64, h::lDΓAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
-    λm_correction(χm, rhs, h.kG, h.mP, h.sP, validate_threshold=validate_threshold)
+function λm_correction(χm::χT, rhs::Float64, h::lDΓAHelper; validate_threshold::Float64=1e-8, verbose::Bool=false)
+    λm_correction(χm, rhs, h.kG, h.mP, h.sP, validate_threshold=validate_threshold, verbose=verbose)
 end
 
-function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose::Bool=false, validate_threshold::Float64=1e-8)
+function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; validate_threshold::Float64=1e-8, verbose::Bool=false)
     λm_min = get_λ_min(χm)
     χr::SubArray{Float64,2}    = view(χm,:,χm.usable_ω)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χm.usable_ω] .* π ./ mP.β)
@@ -95,7 +95,7 @@ end
 # =============================================== λm =================================================
 
 """
-    λdm_correction(χ_m, γ_m, χ_d, γ_d, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀]; 
+    λdm_correction(χm, γm, χd, γd, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀]; 
         maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false)
 
@@ -105,60 +105,78 @@ TODO: full documentation. Pack results into struct
 
 Returns: 
 -------------
-    Σ_ladder : ladder self-energy
-    G_ladder : ladder Green's function obtained from `Σ_ladder`
-    E_kin    : kinetic energy, unless `update_χ_tail = true`, this will be not consistent with the susceptibility tail coefficients.
-    E_pot    : one-particle potential energy, obtained through galitskii-migdal formula
-    μnew:    : chemical potential of `G_ladder`
-    λm       : λ-correction for the magnetic channel
-    lhs_c1   : check-sum for the Pauli-principle value obtained from the susceptibilities (`λm` fixes this to ``n/2 \\cdot (1-n/2)``) 
-    E_pot_2  : Potential energy obtained from susceptibilities. `λd` fixes this to `E_pot`
-    converged: error flag. False if no `λd` was found. 
-    λd       : λ-correction for the density channel.
+    λdm: `Vector`, containing `λm` and `λd`.
 """
-function λdm_correction_new(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                        maxit_root = 50, atol_root = 1e-8, νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
-                        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false, with_trace=false)
-    λdm_correction_new(χ_m, γ_m, χ_d, γ_d, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
-                   maxit_root = maxit_root, atol_root = atol_root, νmax = νmax, λd_min_δ = λd_min_δ, λd_max = λd_max,
-                   maxit = maxit, update_χ_tail=update_χ_tail, mixing=mixing, conv_abs=conv_abs, par=par, with_trace=with_trace)
+function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                            νmax::Int=-1, λ_min_δ::Float64 = 0.05,
+                            validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
+    λdm_correction_new(χm, γm, χd, γd, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
+                       νmax=νmax, λ_min_δ=λ_min_δ,
+                       validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
 end
-function λdm_correction_new(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
-                        gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
-                        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                        maxit_root = 50, atol_root = 1e-8,
-                        νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
-                        maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false, verbose::Bool=false)
+function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vector{ComplexF64},
+                            gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
+                            kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                            νmax::Int = -1, λ_min_δ::Float64 = 0.05,
+                            validate_threshold::Float64=1e-8, par=false, verbose::Bool=false, tc::Bool=true)
 
-    ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
-    iωn = iωn_f[ωindices]
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    iωn_m2 = 1 ./ iωn .^ 2
-    gLoc_rfft_init = deepcopy(gLoc_rfft)
-    par && initialize_EoM(gLoc_rfft_init, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χ_m, γ_m = γ_m, χ_d = χ_d, γ_d = γ_d)
+    ωindices, νGrid, iωn_f = gen_νω_indices(χm, χd, mP, sP, full=true)
+    if νmax < 1 
+        νmax = last(νGrid)+1
+    else
+        νGrid = νGrid[1:νmax]
+    end
+
+    # --- Preallocations ---
+    par && initialize_EoM(gLoc_rfft, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
     fft_νGrid= sP.fft_range
-    G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(fft_νGrid)), 1:length(kG.kMult), fft_νGrid) 
-    Σ_ladder_work::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
-    Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
+    Nq::Int = length(kG.kMult)
+    ωrange::UnitRange{Int}   = -sP.n_iω:sP.n_iω
+    G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
+    Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(νGrid)), 1:Nq, νGrid)
+    Σ_ladder_ω = par ? nothing : OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)), 1:Nq, 0:νmax-1, ωrange)
+    Kνωq_pre   = par ? nothing : Vector{ComplexF64}(undef, Nq)
+    rhs_c1 = mP.n/2 * (1-mP.n/2)
+    println("dbg, par = $par : size(Σ_ladder), νGrid = $(νGrid), λm = $(χm.λ), λd = $(χd.λ)")
 
-    λd_min_tmp = get_λ_min(real(χ_d.data)) 
-    verbose && println("Bracket for λdm: [",λd_min_tmp + λd_min_δ*abs(λd_min_tmp), ",", λd_max, "]")
+    # --- Internal root finding function ---
+    function residual_f(λ::MVector{2,Float64})::MVector{2,Float64} 
+        χ_λ!(χm,λ[1])
+        χ_λ!(χd,λ[2])
+        if par
+            calc_Σ_par!(Σ_ladder, λm=λ[1], λd=λ[2], tc=tc)
+        else
+            calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
+        end
+        μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
+        E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(axes(Σ_ladder,2)))
+        χ_m_sum    = sum_kω(kG, χm)
+        χ_d_sum    = sum_kω(kG, χd)
+        lhs_c1     = real(χ_d_sum + χ_m_sum)/2
+        E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        verbose && println("dbg: par = $par: cs Σ = $(abs(sum(Σ_ladder))), cs G = $(abs(sum(G_ladder))), cs χm = $(abs(sum(χm))), cs χd = $(abs(sum(χd))), EPot1 = $E_pot_1, EPot2 = $E_pot_2")
+        reset!(χm)
+        reset!(χd)
+        return MVector{2,Float64}([lhs_c1 - rhs_c1, E_pot_1 - E_pot_2])
+    end
+
+    # --- actual root finding ---
+    λm_min_tmp = get_λ_min(real(χm.data)) 
+    λd_min_tmp = get_λ_min(real(χd.data)) 
+    start = MVector{2,Float64}([0.0, 0.0])
+    min_λ = MVector{2,Float64}([λm_min_tmp, λd_min_tmp] .+ λ_min_δ)
     root = try
-        #find_zero(residual_f, (λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max), Roots.A42(), maxiters=maxit_root, atol=atol_root, tracks=track)
-        newton_right(residual_f, 0.0, λd_min_tmp; nsteps=maxit_root, atol=atol_root)
+        newton_right(residual_f, start, min_λ, verbose=verbose)
     catch e
         println("Error: $e")
-        println("Retrying with initial guess 0!")
-        NaN
+        [NaN, NaN]
     end
-
-    if isnan(root) #|| track.convergence_flag == :not_converged
-        println("WARNING: No λd root was found!")
-        reset!(χ_d)
-    elseif root < λd_min_tmp
-        println("WARNING: λd = $root outside region ($λd_min_tmp)!")
-        reset!(χ_d)
+    if any(isnan.(root))
+        println("WARNING: No λ root was found!")
+    elseif any(root .< min_λ)
+        println("WARNING: λ = $root outside region ($min_λ)!")
     end
+    return root
 end
 
 
@@ -196,7 +214,7 @@ function run_sc_new(χm::χT, γm::γT, χd::χT, γd::γT,
         isnan(μnew) && break
         _, gLoc_rfft = G_fft(G_ladder, h.kG, h.sP)
         E_pot_1_old = E_pot_1
-        E_kin, E_pot_1 = calc_E(G_ladder[:,νGrid].parent, Σ_ladder.parent, μnew, h.kG, h.mP, νmax = last(νGrid)+1)
+        E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP, νmax=last(νGrid))
 
         if trace
             χ_m_sum  = sum_kω(h.kG, χm)

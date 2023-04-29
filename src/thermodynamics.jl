@@ -128,14 +128,14 @@ Returns kinetic and potential energies from given self-energy `Σ`.
 """
 function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
     Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
-    E_kin, E_pot = calc_E(Σ_ladder.parent, kG, mP, νmax = νmax)
+    E_kin, E_pot = calc_E(Σ_ladder, kG, mP, νmax = νmax)
     return E_kin, E_pot
 end
 
 
-function calc_E(Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+function calc_E(Σ::OffsetArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
-    G = G_from_Σ(Σ[:,1:νmax], kG.ϵkGrid, νGrid, mP);
+    G = G_from_Σ(Σ, kG.ϵkGrid, νGrid, mP);
     return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax,  trace=trace)
 end
 
@@ -170,32 +170,30 @@ end
 #     E_pot_full = real.(view(G,:,0:νmax-1) .* Σ[:,1:νmax] .- (eh.E_kin_tail_c .- μ) .* eh.tail);
 # end
 
-function calc_E(G::Array{ComplexF64,2}, Σ::Array{ComplexF64,2}, μ::Float64 , kG::KGrid, mP::ModelParameters;
-                νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::Float64, kG::KGrid, mP::ModelParameters;
+                trace::Bool=false, νmax::Int=min(last(axes(G,2)), last(axes(Σ,2))))
     #println("TODO: make frequency summation with sum_freq optional")
-        νGrid = 0:(νmax-1)
-        iν_n = iν_array(mP.β, νGrid)
-        Σ_hartree = mP.n * mP.U/2
+    first(axes(Σ,2)) != 0 && println("WARNING: Calc_E assumes a ν grid starting at 0! check G axes.")
+    νGrid = 0:νmax
+    iν_n = iν_array(mP.β, νGrid)
+    Σ_hartree = mP.n * mP.U/2
 
-        E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
-        E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
-        tail = 1 ./ (iν_n .^ 2) 
-        E_pot_tail = E_pot_tail_c .* transpose(tail)
-        E_kin_tail = E_kin_tail_c .* transpose(tail)
-        E_pot_tail_inv = (mP.β/2)  .* Σ_hartree .+ (mP.β/2)*(-mP.β/2) .* E_pot_tail_c
-        E_kin_tail_inv = (mP.β/2) .* kG.ϵkGrid .* ( 1 .+ -(mP.β) .* E_kin_tail_c)
+    E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
+    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
+    tail = 1 ./ (iν_n .^ 2) 
+    E_pot_tail = E_pot_tail_c .* transpose(tail)
+    E_kin_tail = E_kin_tail_c .* transpose(tail)
+    E_pot_tail_inv = (mP.β/2)  .* Σ_hartree .+ (mP.β/2)*(-mP.β/2) .* E_pot_tail_c
+    E_kin_tail_inv = (mP.β/2) .* kG.ϵkGrid .* (1 .+ -(mP.β) .* E_kin_tail_c)
 
-	E_pot_full = real.(G .* Σ[:,1:νmax] .- E_pot_tail);
-	E_kin_full = kG.ϵkGrid .* real.(G .- E_kin_tail);
+    E_pot_full = real.((G[:,νGrid] .* Σ[:,νGrid]) .- E_pot_tail);
+    E_kin_full = kG.ϵkGrid .* real.(G[:,νGrid] .- E_kin_tail);
     E_kin, E_pot = if trace
-        [kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:i), dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:νmax] ./ mP.β,
-        [kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:i), dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:νmax] ./ mP.β
+    [kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:i), dims=[2])[:,1] .+ E_kin_tail_inv) for i in 1:last(νGrid)] ./ mP.β,
+    [kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:i), dims=[2])[:,1] .+ E_pot_tail_inv) for i in 1:last(νGrid)] ./ mP.β
     else
-        kintegrate(kG, 4 .* sum(view(E_kin_full,:,1:νmax), dims=[2])[:,1] .+ E_kin_tail_inv) ./ mP.β,
-        kintegrate(kG, 2 .* sum(view(E_pot_full,:,1:νmax), dims=[2])[:,1] .+ E_pot_tail_inv) ./ mP.β
+        kintegrate(kG, 4 .* sum(E_kin_full, dims=[2])[:,1] .+ E_kin_tail_inv) ./ mP.β,
+        kintegrate(kG, 2 .* sum(E_pot_full, dims=[2])[:,1] .+ E_pot_tail_inv) ./ mP.β
     end
     return E_kin, E_pot
-end
-
-function calc_E!(tmp::Matrix{ComplexF64}, G, Σ, E_pot_tail, E_kin_tail, E_pot_tail_inv, E_kin_tail_inv, kG::KGrid, mP::ModelParameters)
 end

@@ -98,28 +98,28 @@ attaching the tail of the local self energy in the high frequency regime. This i
 The inplace version stores the result in `res`.
 """
 function G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
-    res = Array{ComplexF64,2}(undef, length(ϵkGrid), length(range))
+    res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, length(ϵkGrid), length(range)), 1:length(ϵkGrid), range)
     G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ,  Σloc = Σloc)
     return res
 end
 
-function G_from_Σ!(res::AbstractMatrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for (i,ind) in enumerate(range)
-        Σi = i <= length(Σ) ? Σ[i] : Σloc[i]
+        Σi = ind ∈ length(Σ) ? Σ[ind] : Σloc[i]
         for (ki, ϵk) in enumerate(ϵkGrid)
-            @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+            @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
 end
 
-function G_from_Σ!(res::AbstractMatrix{ComplexF64}, Σ::AbstractMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for (i,ind) in enumerate(range)
         for (ki, ϵk) in enumerate(ϵkGrid)
-            Σi = i < size(Σ,2) ? Σ[ki, i] : Σloc[i]
-            @inbounds res[ki,i] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+            Σi = ind ∈ axes(Σ,2) ? Σ[ki, ind] : Σloc[i]
+            @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
@@ -147,7 +147,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
                         fix_n::Bool=false)::Float64
     νRange = 0:last(axes(G_new, 2))
     function fμ(μ::Vector{Float64})
-        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
         filling_pos(view(G_new, :, νRange), kG, mP.U, μ[1], mP.β) - mP.n
     end
     μ_new_nls = try 
@@ -164,7 +164,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
         μ_new_nls.zero[1]
     end
     if (fix_n && !isnan(μ)) || !fix_n
-        G_from_Σ!(view(G_new, :, νRange), OffsetArrays.no_offset_view(Σ_ladder), kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
     end
     ind_neg = first(axes(G_new,2)):-1
     G_new[:,ind_neg] = conj.(view(G_new,:, last(axes(G_new,2))-1:-1:0))
