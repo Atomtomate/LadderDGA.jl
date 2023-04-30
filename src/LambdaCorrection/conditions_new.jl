@@ -36,8 +36,12 @@ mutable struct λ_result
 end
 
 function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ₀, h::lDΓAHelper; 
-                      λ_val_only::Bool=false, λm_rhs_type::Symbol=:native, 
-                      verbose::Bool=false, validate_threshold::Float64=1e-8)
+                      # λm related:
+                      λm_rhs_type::Symbol=:native,
+                      # λdm related:
+                      νmax::Int=-1, λ_min_δ::Float64 = 0.05,
+                      # common options
+                      λ_val_only::Bool=false, par::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
     if type == :m
         rhs = λm_rhs(χm, χd, 0.0, h; λ_rhs = λm_rhs_type)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
@@ -46,7 +50,10 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
         else
             error("Full result for λm not imlemented yet")
         end
-    else
+    elseif type == :dm
+        λdm_correction(χm, γm, χd, γd, λ₀, h;
+                            νmax=νmax, λ_min_δ=λ_min_δ,
+                            validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc, λ_val_only=λ_val_only)
     end
 end
 
@@ -107,24 +114,24 @@ Returns:
 -------------
     λdm: `Vector`, containing `λm` and `λd`.
 """
-function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                            νmax::Int=-1, λ_min_δ::Float64 = 0.05,
+function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                            νmax::Int=-1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
                             validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
-    λdm_correction_new(χm, γm, χd, γd, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
-                       νmax=νmax, λ_min_δ=λ_min_δ,
+    λdm_correction(χm, γm, χd, γd, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
+                       νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=λ_val_only,
                        validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
 end
-function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vector{ComplexF64},
+function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vector{ComplexF64},
                             gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                            νmax::Int = -1, λ_min_δ::Float64 = 0.05,
+                            νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
                             validate_threshold::Float64=1e-8, par=false, verbose::Bool=false, tc::Bool=true)
 
     ωindices, νGrid, iωn_f = gen_νω_indices(χm, χd, mP, sP, full=true)
     if νmax < 1 
         νmax = last(νGrid)+1
     else
-        νGrid = νGrid[1:νmax]
+        νGrid = νGrid[1:min(length(νGrid),νmax)]
     end
 
     # --- Preallocations ---
@@ -137,10 +144,9 @@ function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vec
     Σ_ladder_ω = par ? nothing : OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)), 1:Nq, 0:νmax-1, ωrange)
     Kνωq_pre   = par ? nothing : Vector{ComplexF64}(undef, Nq)
     rhs_c1 = mP.n/2 * (1-mP.n/2)
-    println("dbg, par = $par : size(Σ_ladder), νGrid = $(νGrid), λm = $(χm.λ), λd = $(χd.λ)")
 
     # --- Internal root finding function ---
-    function residual_f(λ::MVector{2,Float64})::MVector{2,Float64} 
+    function residual_vals(λ::MVector{2,Float64})
         χ_λ!(χm,λ[1])
         χ_λ!(χd,λ[2])
         if par
@@ -157,6 +163,11 @@ function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vec
         verbose && println("dbg: par = $par: cs Σ = $(abs(sum(Σ_ladder))), cs G = $(abs(sum(G_ladder))), cs χm = $(abs(sum(χm))), cs χd = $(abs(sum(χd))), EPot1 = $E_pot_1, EPot2 = $E_pot_2")
         reset!(χm)
         reset!(χd)
+        return μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
+    end
+
+    function residual_f(λ::MVector{2,Float64})::MVector{2,Float64} 
+        _, _, E_pot_1, E_pot_2, lhs_c1 = residual_vals(λ)
         return MVector{2,Float64}([lhs_c1 - rhs_c1, E_pot_1 - E_pot_2])
     end
 
@@ -176,10 +187,14 @@ function λdm_correction_new(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vec
     elseif any(root .< min_λ)
         println("WARNING: λ = $root outside region ($min_λ)!")
     end
-    return root
+    if λ_val_only
+        return root
+    else
+        μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = residual_vals(MVector{2,Float64}(root))
+        converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
+        return λ_result(root[1], root[2], :dm, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
+    end
 end
-
-
 
 # =============================================== sc =================================================
 function run_sc_new(χm::χT, γm::γT, χd::χT, γd::γT, 

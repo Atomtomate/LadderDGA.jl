@@ -1,7 +1,7 @@
 # return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 
 """
-    λdm_correction(χ_m, γ_m, χ_d, γ_d, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀]; 
+    λdm_correction_old(χ_m, γ_m, χ_d, γ_d, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀]; 
         maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false)
 
@@ -22,14 +22,14 @@ Returns:
     converged: error flag. False if no `λd` was found. 
     λd       : λ-correction for the density channel.
 """
-function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
                         maxit_root = 50, atol_root = 1e-8, νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
                         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false, with_trace=false)
-    λdm_correction(χ_m, γ_m, χ_d, γ_d, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
+    λdm_correction_old(χ_m, γ_m, χ_d, γ_d, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
                    maxit_root = maxit_root, atol_root = atol_root, νmax = νmax, λd_min_δ = λd_min_δ, λd_max = λd_max,
                    maxit = maxit, update_χ_tail=update_χ_tail, mixing=mixing, conv_abs=conv_abs, par=par, with_trace=with_trace)
 end
-function λdm_correction(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
+function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
                         gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                         maxit_root = 50, atol_root = 1e-8,

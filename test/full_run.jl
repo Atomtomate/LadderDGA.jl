@@ -121,17 +121,13 @@ println("DMFT: ", E_kin_1, " : ", E_pot_1 )
 
 # λdm 
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_old = λdm_correction(χ_m, γ_m, χ_d, γ_d, lDGAhelper.Σ_loc, lDGAhelper.gLoc_rfft, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; update_χ_tail=false, maxit=0, par=false, with_trace=true)
+res_λdm_new = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new = LadderDGA.LambdaCorrection.λdm_correction_new(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
-@test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new_par = LadderDGA.LambdaCorrection.λdm_correction_new(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, par=true)
+res_λdm_new_par = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, par=true, λ_val_only=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
-    @test res_λdm_old[7] ≈ res_λdm_new[1]
-    @test res_λdm_old[7] ≈ res_λdm_new_par[1]
-    @test res_λdm_old[end] ≈ res_λdm_new[2]
-    @test res_λdm_old[end] ≈ res_λdm_new_par[2]
+    res_λdm_new[1] ≈ res_λdm_new_par[1]
+    res_λdm_new[2] ≈ res_λdm_new_par[2] 
 end
 
 
