@@ -97,16 +97,16 @@ attaching the tail of the local self energy in the high frequency regime. This i
 `range` larger than the array size of `Σ` and in addition setting `Σloc` (the size of `Σloc` must be as large or larger than `range`). 
 The inplace version stores the result in `res`.
 """
-function G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ(Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1)) 
     res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, length(ϵkGrid), length(range)), 1:length(ϵkGrid), range)
     G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ,  Σloc = Σloc)
     return res
 end
 
-function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1))::Nothing
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
-    for (i,ind) in enumerate(range)
-        Σi = ind ∈ length(Σ) ? Σ[ind] : Σloc[i]
+    for ind in range
+        Σi = ind ∈ axes(Σ,1) ? Σ[ind] : Σloc[ind]
         for (ki, ϵk) in enumerate(ϵkGrid)
             @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
@@ -114,11 +114,11 @@ function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::AbstractVector{ComplexF64
     return nothing
 end
 
-function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector{ComplexF64} = ComplexF64[]) 
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1))::Nothing
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
-    for (i,ind) in enumerate(range)
+    for ind in range
         for (ki, ϵk) in enumerate(ϵkGrid)
-            Σi = ind ∈ axes(Σ,2) ? Σ[ki, ind] : Σloc[i]
+            Σi = ind ∈ axes(Σ,2) ? Σ[ki, ind] : Σloc[ind]
             @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
@@ -135,15 +135,15 @@ Computes Green's function from lDΓA self-energy.
 
 The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 """
-function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                         fix_n::Bool=false)
     νRange = sP.fft_range
-    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)),1:size(Σ_ladder,1), sP.fft_range)
-    μ = G_from_Σladder!(G_new, Σ_ladder, view(Σloc, 1:last(νRange)+1), kG, mP, fix_n=fix_n)
+    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)), 1:size(Σ_ladder,1), sP.fft_range)
+    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n)
     return μ, G_new
 end
 
-function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
+function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
                         fix_n::Bool=false)::Float64
     νRange = 0:last(axes(G_new, 2))
     function fμ(μ::Vector{Float64})

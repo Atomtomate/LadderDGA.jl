@@ -29,7 +29,8 @@ function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::
                    maxit_root = maxit_root, atol_root = atol_root, νmax = νmax, λd_min_δ = λd_min_δ, λd_max = λd_max,
                    maxit = maxit, update_χ_tail=update_χ_tail, mixing=mixing, conv_abs=conv_abs, par=par, with_trace=with_trace)
 end
-function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::Vector{ComplexF64},
+
+function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::OffsetVector{ComplexF64},
                         gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                         maxit_root = 50, atol_root = 1e-8,
@@ -70,21 +71,17 @@ function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc:
     residual_f = par ? ff_par : ff_seq
 
     λd_min_tmp = get_λ_min(real(χ_d.data)) 
-    #track = Roots.Tracks()
     println("Bracket for λdm: [",λd_min_tmp + λd_min_δ*abs(λd_min_tmp), ",", λd_max, "]")
     root = try
-        #find_zero(residual_f, (λd_min_tmp + λd_min_δ*abs(λd_min_tmp), λd_max), Roots.A42(), maxiters=maxit_root, atol=atol_root, tracks=track)
         newton_right(residual_f, 0.0, λd_min_tmp; nsteps=maxit_root, atol=atol_root)
     catch e
         println("Error: $e")
-        #println("Trace: $track")
         println("Retrying with initial guess 0!")
         NaN
     end
 
     if isnan(root) #|| track.convergence_flag == :not_converged
         println("WARNING: No λd root was found!")
-        #println(track)
         reset!(χ_d)
         return trace, nothing, NaN, NaN, NaN, NaN, NaN, NaN, false, NaN
     elseif root < λd_min_tmp
@@ -114,7 +111,7 @@ end
 TODO: refactor (especially _par version)
 """
 function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
-                λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
+                λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::OffsetVector{ComplexF64},
                 λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, trace::Ref=Ref(nothing))
     _, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
@@ -187,7 +184,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
 end
 
 function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
-                    λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::Vector{ComplexF64},
+                    λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::OffsetVector{ComplexF64},
                     λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true)
     ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
@@ -212,7 +209,7 @@ end
 
 function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladder::OffsetMatrix, gLoc_rfft::GνqT, 
                  νGrid::AbstractVector{Int}, iωn_f::Vector{ComplexF64}, iωn_m2::Vector{ComplexF64},
-                 χ_m::χT, χ_d::χT, Σ_loc::Vector{ComplexF64},
+                 χ_m::χT, χ_d::χT, Σ_loc::OffsetVector{ComplexF64},
                  λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true, trace::Ref=Ref(nothing))
     dbgt = TimerOutput()

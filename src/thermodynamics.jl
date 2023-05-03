@@ -139,37 +139,6 @@ function calc_E(Σ::OffsetArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; �
     return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax,  trace=trace)
 end
 
-#TODO: finish heler version of calc_E
-# mutable struct EnergiesHelper 
-#     tail::Vector{Float64}
-#     E_kin_tail_c::Vector{Float64}
-#     E_pot_tail_c::Vector{Float64}
-#     E_kin_tail_cache::Vector{Float64}
-#     E_pot_tail_cache::Vector{Float64}
-#     E_kin_tail_inv::Vector{Float64}
-#     E_pot_tail_inv::Vector{Float64}
-
-
-#     function EnergiesHelper(νmax::Int, kG::KGrid, mP::ModelParameters)
-#         νGrid = 0:(νmax-1)
-#         iν_n = iν_array(mP.β, νGrid)
-#         Σ_hartree = mP.n * mP.U/2
-
-#         E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
-#         E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1-0.5*mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
-#         tail = transpose(real(1 ./ (iν_n .^ 2)))
-#         E_pot_tail = E_pot_tail_c .* tail
-#         E_kin_tail = E_kin_tail_c .* tail
-#         E_pot_tail_inv = (mP.β/2)  .* Σ_hartree .+ (mP.β/2)*(-mP.β/2) .* E_pot_tail_c
-#         E_kin_tail_inv = (mP.β/2) .* kG.ϵkGrid .* ( 1 .+ -(mP.β) .* E_kin_tail_c)
-#         new(tail)
-#     end
-# end
-
-#     function calc_E(G::OffsetArray{ComplexF64,2}, Σ::OffsetArray{ComplexF64,2}, μ::Float64, eh::EnergiesHelper)
-#     E_pot_full = real.(view(G,:,0:νmax-1) .* Σ[:,1:νmax] .- (eh.E_kin_tail_c .- μ) .* eh.tail);
-# end
-
 function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::Float64, kG::KGrid, mP::ModelParameters;
                 trace::Bool=false, νmax::Int=min(last(axes(G,2)), last(axes(Σ,2))))
     #println("TODO: make frequency summation with sum_freq optional")

@@ -1,5 +1,6 @@
 using LadderDGA
 using Test
+using OffsetArrays
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7)
 sP_1 = SimulationParameters(1,2,3,true,nothing,1:3,0.1,false)
@@ -13,10 +14,6 @@ sP_grid_s0 = SimulationParameters(4,5,2,false,nothing,1:3,0.1,false)
 ωνgrid_test_s1 = [(i,j - trunc(Int,1*i/2)) for i in -4:4, j in -5:5-1]
 ωνgrid_test_s0 = [(i,j - trunc(Int,0*i/2)) for i in -4:4, j in -5:5-1]
 
-
-@testset "full run" begin
-    include("full_run.jl")
-end
 
 @testset "Config" begin
     include("Config.jl")
@@ -56,7 +53,7 @@ end
 
 include("LambdaCorrection/runtests.jl")
 
-# @testset "full run" begin
-#     include("full_run.jl")
-# end
+@testset "full run" begin
+    include("full_run.jl")
+end
 

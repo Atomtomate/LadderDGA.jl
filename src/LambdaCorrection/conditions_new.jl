@@ -121,12 +121,14 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{Co
                        νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=λ_val_only,
                        validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
 end
-function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vector{ComplexF64},
+
+function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
                             gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                             kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                             νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
                             validate_threshold::Float64=1e-8, par=false, verbose::Bool=false, tc::Bool=true)
 
+    (χm.λ != 0 || χd.λ != 0) && error("λ parameter already set. Aborting λdm calculation")    
     ωindices, νGrid, iωn_f = gen_νω_indices(χm, χd, mP, sP, full=true)
     if νmax < 1 
         νmax = last(νGrid)+1
@@ -136,15 +138,15 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::Vector{
 
     # --- Preallocations ---
     par && initialize_EoM(gLoc_rfft, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
-    fft_νGrid= sP.fft_range
-    Nq::Int = length(kG.kMult)
-    ωrange::UnitRange{Int}   = -sP.n_iω:sP.n_iω
+    fft_νGrid = sP.fft_range
+    Nq::Int   = length(kG.kMult)
+    ωrange::UnitRange{Int}  = -sP.n_iω:sP.n_iω
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(νGrid)), 1:Nq, νGrid)
     Σ_ladder_ω = par ? nothing : OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)), 1:Nq, 0:νmax-1, ωrange)
     Kνωq_pre   = par ? nothing : Vector{ComplexF64}(undef, Nq)
     rhs_c1 = mP.n/2 * (1-mP.n/2)
-
+        
     # --- Internal root finding function ---
     function residual_vals(λ::MVector{2,Float64})
         χ_λ!(χm,λ[1])
@@ -242,7 +244,6 @@ function run_sc_new(χm::χT, γm::γT, χd::χT, γd::γT,
             push!(traceDF, row)
         end
 
-        # if it != 1 && abs(sum(Σ_ladder .- Σ_ladder_work))/(h.kG.Nk) < conv_abs  
         if abs(E_pot_1 - E_pot_1_old) < conv_abs && abs(rhs_c1 - lhs_c1) < conv_abs
             converged = true
             done = true

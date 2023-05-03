@@ -16,7 +16,7 @@ mutable struct lDΓAHelper
     mP::ModelParameters
     kG::KGrid
     Σ_ladderLoc::OffsetMatrix
-    Σ_loc::Vector
+    Σ_loc::OffsetVector
     imp_density::Float64
     gLoc::GνqT
     gLoc_fft::GνqT
@@ -66,7 +66,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             Σ_loc = f["SigmaLoc"]
             gImp, Σ_loc
         end
-        χDMFT_m, χDMFT_d, Γ_m, Γ_d, gImp, Σ_loc
+        χDMFT_m, χDMFT_d, Γ_m, Γ_d, gImp, OffsetVector(Σ_loc, 0:(length(Σ_loc)-1))
     end
 
     @timeit to "Compute GLoc" begin
@@ -82,7 +82,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)...,first(sP.fft_range))(Array{ComplexF64,kGdims+1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νn in sP.fft_range
-            Σ_loc_i = (νn < 0) ? conj(Σ_loc[-νn]) : Σ_loc[νn + 1]
+            Σ_loc_i = (νn < 0) ? conj(Σ_loc[-νn-1]) : Σ_loc[νn]
             gLoc_i  = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, Σ_loc_i), ϵk_full), gridshape(kG))
             gLoc[:,νn] = reduceKArr(kG, gLoc_i)
             selectdim(gLoc_fft,νdim,νn) .= fft(gLoc_i)

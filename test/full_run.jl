@@ -110,13 +110,9 @@ t_sc3 = 0.5 * sum_kω(lDGAhelper.kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.β, χ_m.tail
 Σ_ladder_λm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, λm=λm, λd=0.0);
 μnew, G_ladder_λm = G_from_Σladder(Σ_ladder_λm, lDGAhelper.Σ_loc, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fix_n=true)
 E_kin_1, E_pot_1 = LadderDGA.calc_E(G_ladder, Σ_ladder, μnew, lDGAhelper.kG, lDGAhelper.mP)
-println("λm:",  E_kin_1, " : ", E_pot_1 )
-#(-0.206933363187936, 0.11612950667253669)
-#-0.10584196361003705 : 0.3183123266700337
 Σ_ladder_λm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν);
 μnew, G_ladder_λm = G_from_Σladder(Σ_ladder_λm, lDGAhelper.Σ_loc, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fix_n=true)
 E_kin_1, E_pot_1 = LadderDGA.calc_E(G_ladder, Σ_ladder, μnew, lDGAhelper.kG, lDGAhelper.mP)
-println("DMFT: ", E_kin_1, " : ", E_pot_1 )
 
 
 # λdm 
