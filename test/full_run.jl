@@ -58,9 +58,9 @@ initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1,
 @test abs(sum(χ_d)) ≈ cs_χd
 
 
-@timeit LadderDGA.to "run_res" run_res = run_sc(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc,0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@timeit LadderDGA.to "run_res" run_res = LadderDGA.LambdaCorrection.run_sc_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc,0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
-@timeit LadderDGA.to "run_res_par" run_res_par = LadderDGA.LambdaCorrection.run_sc_par(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc, 0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+@timeit LadderDGA.to "run_res_par" run_res_par = LadderDGA.LambdaCorrection.run_sc_par_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc, 0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
 
 @testset "run_sc" begin
@@ -70,22 +70,22 @@ end
 end
 
 χ_λ!(χ_d, 0.1)
-λm_res_λd01 = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, λ_val_only=true)
+λm_res_λd01 = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
 λm = λm_res_λd01.λm
 χ_λ!(χ_m, λm)
-@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc_new(χ_m, γ_m, χ_d, γ_d, lDGAhelper.gLoc_rfft, λ₀, lDGAhelper; maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
+@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper; type=:O, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
 reset!(χ_d)
 reset!(χ_m)
 @testset "run_sc" begin
-    @test all(run_res[2] .≈ run_res_new.Σ_ladder)
-    @test all(run_res[3] .≈ run_res_new.G_ladder)
     @test run_res[4] .≈ run_res_new.EKin
     @test run_res[5] .≈ run_res_new.EPot_p1
     @test run_res[6] .≈ run_res_new.μ   atol=1e-7
     @test run_res[7] .≈ run_res_new.λm
     @test run_res[8] .≈ run_res_new.PP_p2
     @test run_res[9] .≈ run_res_new.EPot_p2
-    @test run_res[10] .≈ run_res_new.converged
+    @test run_res[10] .≈ run_res_new.sc_converged
+    @test all(run_res[2] .≈ run_res_new.Σ_ladder)
+    @test all(run_res[3] .≈ run_res_new.G_ladder)
 end
 
 χ_m2 = collect_χ(:m, lDGAhelper)
@@ -94,7 +94,7 @@ end
 @test all(χ_d.data .≈ χ_d2.data)
 
 # λm 
-λm_res = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, λ_val_only=true)
+λm_res = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
 λm = λm_res.λm
 t_sc = 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_m,λm)) + sum_kω(lDGAhelper.kG,χ_d))
 t_sc2 = 0.5 * (sum_ωk(lDGAhelper.kG, χ_λ(χ_m,λm)) + sum_kω(lDGAhelper.kG,χ_d))
@@ -117,20 +117,15 @@ E_kin_1, E_pot_1 = LadderDGA.calc_E(G_ladder, Σ_ladder, μnew, lDGAhelper.kG, l
 
 # λdm 
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
+res_λdm_new = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4)
 @test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new_par = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, par=true, λ_val_only=true)
+res_λdm_new_par = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, par=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
     res_λdm_new[1] ≈ res_λdm_new_par[1]
     res_λdm_new[2] ≈ res_λdm_new_par[2] 
 end
 
-
-# Σ_ladder_dm_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=last(axes(res_λdm[2],2))+1, λm=res_λdm[7], λd=res_λdm[end]);
-# @test all(Σ_ladder_dm_2 .≈ res_λdm[2])
-# _, G_ladder_dm_2 = G_from_Σladder(Σ_ladder_dm_2, Σ_loc, kG, mP, sP; fix_n=false);
-# @test all(G_ladder_dm_2 .≈ res_λdm[3])
 
 # SC
 
@@ -149,7 +144,7 @@ end
 # @timeit LadderDGA.to "res_tsc" res_λdm_tsc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=false, with_trace=true)
 # @test abs(sum(χ_m)) ≈ cs_χm
 # @test abs(sum(χ_d)) ≈ cs_χd
-# #res_λdm_tsc = run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.1, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=true)
+# #res_λdm_tsc = LadderDGA.LambdaCorrection.run_sc_old(χ_m, γ_m, χ_d, γ_d, λ₀, gLoc_rfft, Σ_loc, 0.1, kG, mP, sP; maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=true)
 # @timeit LadderDGA.to "res_tsc_par" res_λdm_tsc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=true, maxit=10, par=true, with_trace=true)
 # @test abs(sum(χ_m)) ≈ cs_χm
 # @test abs(sum(χ_d)) ≈ cs_χd

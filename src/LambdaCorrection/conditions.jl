@@ -54,7 +54,7 @@ function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc:
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[])) : Ref(nothing)
     function ff_seq(λd_i::Float64)
         copy!(gLoc_rfft_init, gLoc_rfft)
-        _, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc(
+        _, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc_old(
                     χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, Σ_loc, λd_i, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, trace=trace)
         return E_pot - E_pot_2
@@ -63,7 +63,7 @@ function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc:
 
     function ff_par(λd_i::Float64)
         copy!(gLoc_rfft_init, gLoc_rfft)
-            _, E_pot, _, _, _, E_pot_2, _ = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init,
+            _, E_pot, _, _, _, E_pot_2, _ = run_sc_old!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init,
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
                          maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true, trace=trace)
         return E_pot - E_pot_2
@@ -91,12 +91,12 @@ function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc:
     else
         copy!(gLoc_rfft_init, gLoc_rfft)
         if par
-            vars = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, 
+            vars = run_sc_old!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, 
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, root, kG, mP, sP;
                          maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true, trace=trace)
             return trace, Σ_ladder, G_ladder, vars..., root
         else
-            vars = run_sc(
+            vars = run_sc_old(
                     χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft_init, Σ_loc, root, kG, mP, sP, 
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, trace=trace)
             return trace, vars[2:end]..., root
@@ -110,7 +110,7 @@ end
 """
 TODO: refactor (especially _par version)
 """
-function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
+function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
                 λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::OffsetVector{ComplexF64},
                 λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, trace::Ref=Ref(nothing))
@@ -183,7 +183,7 @@ function run_sc(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{F
     return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end
 
-function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
+function run_sc_par_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64}, 
                     λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::OffsetVector{ComplexF64},
                     λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                     maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par = true)
@@ -201,13 +201,13 @@ function run_sc_par(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
 
 
-    E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged = run_sc!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, 
+    E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged = run_sc_old!(G_ladder, Σ_ladder_work,  Σ_ladder, gLoc_rfft_init, 
                          νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd, kG, mP, sP;
                          maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=true, trace=Ref(trace))
     return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end
 
-function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladder::OffsetMatrix, gLoc_rfft::GνqT, 
+function run_sc_old!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladder::OffsetMatrix, gLoc_rfft::GνqT, 
                  νGrid::AbstractVector{Int}, iωn_f::Vector{ComplexF64}, iωn_m2::Vector{ComplexF64},
                  χ_m::χT, χ_d::χT, Σ_loc::OffsetVector{ComplexF64},
                  λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
@@ -236,7 +236,6 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         lhs_c1_bak = lhs_c1
         @timeit dbgt "01" (par && update_wcaches_G_rfft!(gLoc_rfft))
         copy!(Σ_ladder_work, Σ_ladder)
-
         @timeit dbgt "03" calc_Σ_par!(Σ_ladder, λm=λm, λd=λd)
         (mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work))
         @timeit dbgt "05" μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
@@ -261,7 +260,7 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
         χ_d_sum    = sum_kω(kG, χ_d)
         lhs_c1     = real(χ_d_sum + χ_m_sum)/2
         E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
-        if abs(E_pot - E_pot_bak) < conv_abs && abs(lhs_c1 - lhs_c1_bak) < conv_abs
+        if abs(E_pot - E_pot_bak) < conv_abs
             converged = true
             cont = false
         end
@@ -285,5 +284,6 @@ function run_sc!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_ladde
     μnew = mP.μ
     mP.μ = μbak
     converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
+    println(dbgt)
     return E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end

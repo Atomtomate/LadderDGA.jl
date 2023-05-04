@@ -64,9 +64,9 @@ dχ_λ(χ::AbstractArray, λ::Float64) = map(χi -> - ((1.0 / χi) + λ)^(-2), �
 function reset!(χ::χT)
     if χ.λ != 0
         χ.transform!(χ, -χ.λ) 
+        χ.λ = 0
+        χ.transform! = (f!(χ,λ) = nothing)
     end
-    χ.λ = 0
-    χ.transform! = (f!(χ,λ) = nothing)
 end
 
 # ===================================== Specialized Root Finding =====================================

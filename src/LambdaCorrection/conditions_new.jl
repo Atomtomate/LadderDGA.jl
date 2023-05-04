@@ -15,6 +15,7 @@ mutable struct λ_result
     λd::Float64
     type::Symbol
     converged::Bool
+    sc_converged::Bool
     EKin::Float64
     EPot_p1::Float64
     EPot_p2::Float64
@@ -25,13 +26,25 @@ mutable struct λ_result
     Σ_ladder::Union{Nothing, OffsetMatrix}
     μ::Float64
     function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool)
-        new(λm, λd, type, converged, NaN, NaN, NaN, NaN, NaN, nothing, nothing, nothing, NaN)
+        new(λm, λd, type, true, converged, NaN, NaN, NaN, NaN, NaN, nothing, nothing, nothing, NaN)
     end
-    function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool, 
+    function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool, sc_converged::Bool, 
                       EKin::Float64, EPot_p1::Float64, EPot_p2::Float64, PP_p1::Float64, PP_p2::Float64, 
                       trace::Union{DataFrame,Nothing}, 
                       G_ladder::Union{Nothing, OffsetMatrix}, Σ_ladder::Union{Nothing,OffsetMatrix}, μ::Float64)
-        new(λm, λd, type, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace, G_ladder, Σ_ladder, μ)
+        new(λm, λd, type, sc_converged, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace, G_ladder, Σ_ladder, μ)
+    end
+end
+
+function Base.show(io::IO, m::λ_result)
+    compact = get(io, :compact, false)
+    cc = m.converged ? "converged" : "NOT converged"
+    if !compact
+        println(io, "λ-correction (type: $(m.type)), $converged")
+        println(io, "λm = $(m.λm), λd = $(m.λd)")
+        !isnothing(m.trace) && println(io, "trace: \n", m.trace)
+    else
+        print(io, "λ-correction (type: $type) result, λm = $(m.λm), λd = $(m.λd) // $converged")
     end
 end
 
@@ -40,20 +53,24 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       λm_rhs_type::Symbol=:native,
                       # λdm related:
                       νmax::Int=-1, λ_min_δ::Float64 = 0.05,
+                      # sc_X related:
+                      maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trac::Bool=false,
                       # common options
-                      λ_val_only::Bool=false, par::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
+                      par::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
     if type == :m
         rhs = λm_rhs(χm, χd, 0.0, h; λ_rhs = λm_rhs_type)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
-        if λ_val_only
-            return λ_result(λm, 0.0, :m, validation)
-        else
-            error("Full result for λm not imlemented yet")
-        end
+        λ_result(λm, 0.0, :m, validation)
     elseif type == :dm
-        λdm_correction(χm, γm, χd, γd, λ₀, h;
-                            νmax=νmax, λ_min_δ=λ_min_δ,
-                            validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc, λ_val_only=λ_val_only)
+        λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ,
+                       validate_threshold=validate_threshold, par=par, 
+                       verbose=verbose, tc=tc, λ_val_only=λ_val_only)
+    elseif type == :sc
+        run_sc(χm, γm, χd, γd, λ₀, h; maxit=maxit, mixing=mixing, conv_abs=conv_abs, trace=trace)
+    elseif type == :sc_m
+        run_sc(χm, γm, χd, γd, λ₀, h; type=:m, maxit=maxit, mixing=mixing, conv_abs=conv_abs, trace=trace)
+    else
+        error("λ-correction type '$type' not recognized!")
     end
 end
 
@@ -194,74 +211,87 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     else
         μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = residual_vals(MVector{2,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], :dm, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
+        return λ_result(root[1], root[2], :dm, true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
     end
 end
 
 # =============================================== sc =================================================
-function run_sc_new(χm::χT, γm::γT, χd::χT, γd::γT, 
-                    gLoc_rfft_init::GνqT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                    maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=true)
-    E_pot_1 = Inf
-    E_pot_2 = Inf
-    rhs_c1  = h.mP.n/2*(1-h.mP.n/2)
-    E_kin   = Inf
-    μnew    = h.mP.μ
-    it      = 1
-    done    = false
-    converged = false
+function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                type::Symbol=:O,
+                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
-    gLoc_rfft = deepcopy(gLoc_rfft_init)
     fft_νGrid= h.sP.fft_range
     Nk = length(h.kG.kMult)
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, Nk, length(fft_νGrid)), 1:Nk, fft_νGrid) 
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, Nk, length(νGrid)),     1:Nk, νGrid)
-    Σ_ladder_work = similar(Σ_ladder)
+    Σ_work   = similar(Σ_ladder)
+    Kνωq_pre = Vector{ComplexF64}(undef, Nk)
 
-    traceDF = DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
+    traceDF = trace ? DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
-        cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[])
+        cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
+
+    if type == :m || type == :d
+        rhs = λm_rhs(χm, χd, 0.0, h)
+        λm, validation = λm_correction(χm, rhs, h)
+        λd = 0.0
+        χ_λ!(χm, λm)
+        χ_λ!(χd, λd)
+    end
+    rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
+                G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, h;
+                maxit=maxit, mixing=mixing, conv_abs=conv_abs)
+    type != :O && reset!(χm)
+    type != :O && reset!(χd)
+
+    converged = all(isfinite.([lhs_c1, E_pot_2])) && abs(rhs_c1 - lhs_c1) <= conv_abs && abs(E_pot_1 - E_pot_2) <= conv_abs
+    return λ_result(χm.λ, χd.λ, :sc, sc_converged, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 
+                    traceDF, G_ladder, Σ_ladder, μnew)
+end
+
+
+function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetMatrix{ComplexF64}, 
+                 Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
+                 χm::χT, γm::γT, χd::χT, γd::γT, 
+                 λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8)
+    it      = 1
+    done    = false
+    converged = false
+    fft_νGrid = h.sP.fft_range
+    E_pot_1 = Inf
+    χ_m_sum = sum_kω(h.kG, χm)
+    χ_d_sum = sum_kω(h.kG, χd)
+    lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+    rhs_c1  = h.mP.n/2*(1-h.mP.n/2)
+    E_pot_2 = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
+    E_kin   = Inf
+    μnew    = h.mP.μ
 
     while !done
-        copy!(Σ_ladder_work, Σ_ladder)
-
-        Σ_ladder = calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, νmax=last(νGrid)+1) 
-        mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work)
+        copy!(Σ_work, Σ_ladder)
+        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
+        mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
         μnew = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=true)
         isnan(μnew) && break
-        _, gLoc_rfft = G_fft(G_ladder, h.kG, h.sP)
+        G_rfft!(gLoc_rfft, G_ladder, h.kG, fft_νGrid)
         E_pot_1_old = E_pot_1
         E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP, νmax=last(νGrid))
 
-        if trace
-            χ_m_sum  = sum_kω(h.kG, χm)
-            χ_d_sum  = sum_kω(h.kG, χd)
+        if abs(E_pot_1 - E_pot_1_old) < conv_abs
+            converged = true
+            done = true
+        end
+        if !isnothing(trace[])
             χ_m_sum2 = sum_ωk(h.kG, χm)
             χ_d_sum2 = sum_ωk(h.kG, χd)
             lhs_c1   = real(χ_d_sum + χ_m_sum)/2
-            E_pot_2    = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
             row = [it, χm.λ, χd.λ, μnew, E_kin, E_pot_1, lhs_c1, E_pot_2, χ_m_sum, χ_m_sum2, χ_d_sum, χ_d_sum2, abs(sum(Σ_ladder)), abs(sum(G_ladder))]
-            push!(traceDF, row)
-        end
-
-        if abs(E_pot_1 - E_pot_1_old) < conv_abs && abs(rhs_c1 - lhs_c1) < conv_abs
-            converged = true
-            done = true
+            push!(trace[], row)
         end
         (it >= maxit) && (done = true)
 
         it += 1
     end
-
-    if isfinite(E_kin)
-        χ_m_sum = sum_kω(h.kG, χm)
-        χ_d_sum = sum_kω(h.kG, χd)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        E_pot_2    = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
-    end
-    update_tail!(χm, [0, 0, h.mP.Ekin_DMFT], iωn_f)
-    update_tail!(χd, [0, 0, h.mP.Ekin_DMFT], iωn_f)
-    converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
-    return λ_result(χm.λ, χd.λ, :test, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 
-                    traceDF, G_ladder, Σ_ladder, μnew)
+    return rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, converged
 end

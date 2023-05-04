@@ -198,18 +198,31 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     return χT(χ, mP.β, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
-
+#TODO: THIS NEEDS CLEANUP!
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
-                expandKArr!(kG, kG.cache1, arr1)
-                #@timeit to "fft2" kG.fftw_plan * kG.cache1
-                mul!(kG.cache1, kG.fftw_plan, kG.cache1)
-                for i in eachindex(kG.cache1)
-                    kG.cache1[i] *= GView[i]
-                end
-                kG.fftw_plan \ kG.cache1
-                Dispersions.conv_post!(kG, res, kG.cache1)
+    Nk(kG) == 1 && (res[:] += arr1 .* GView)
+    expandKArr!(kG, kG.cache1, arr1)
+    mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+    for i in eachindex(kG.cache1)
+        kG.cache1[i] *= GView[i]
+    end
+    kG.fftw_plan \ kG.cache1
+    Dispersions.conv_post!(kG, res, kG.cache1)
     return nothing
 end
+
+function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+    Nk(kG) == 1 && (res[:] += arr1 .* GView)
+    expandKArr!(kG, kG.cache1, arr1)
+    mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+    for i in eachindex(kG.cache1)
+        kG.cache1[i] *= GView[i]
+    end
+    kG.fftw_plan \ kG.cache1
+    Dispersions.conv_post_add!(kG, res, kG.cache1)
+    return nothing
+end
+
 function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
             χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
             Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
@@ -221,20 +234,50 @@ function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pr
         νZero = ν0Index_of_ωIndex(ωi, sP)
         maxn = minimum([size(γ_d,ν_axis), νZero + size(Σ_ω, 2) - 1])
         νlist = νZero:maxn
-        length(νlist) >= size(Σ_ω,2) && (νlist = νlist[1:size(Σ_ω,2)])
+        length(νlist) > size(Σ_ω,2) && (νlist = νlist[1:size(Σ_ω,2)])
         for (νii,νi) in enumerate(νlist)
             for qi in 1:size(Σ_ω,q_axis)
-                Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi],
-                                   χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
+                Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi], χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
             end
             #TODO: find a way to not unroll this!
-            if Nk(kG) == 1
-                conv_fft1!(kG, view(Σ_ω,:,νii-1,ωn), Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
-            else
-                conv_tmp!(view(Σ_ω,:,νii-1,ωn), kG, Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
-            end
+            conv_tmp!(view(Σ_ω,:,νii-1,ωn), kG, Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
         end
     end
+end
+
+function calc_Σ_ω!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+            χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
+            Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, 
+            sP::SimulationParameters)
+
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gIm
+    fill!(Σ_ladder, zero(ComplexF64))
+    ω_axis = χ_m.indices_ω 
+    for (ωi,ωn) in enumerate(ω_axis)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        maxn = minimum([size(γ_d,ν_axis), νZero + size(Σ_ladder, 2) - 1])
+        νlist = νZero:maxn
+        length(νlist) > size(Σ_ladder,2) && (νlist = νlist[1:size(Σ_ladder,2)])
+        for (νii,νi) in enumerate(νlist)
+            for qi in 1:size(Σ_ladder,1)
+                Kνωq_pre[qi] = eomf(U, γ_m[qi,νi,ωi], γ_d[qi,νi,ωi], χ_m[qi,ωi], χ_d[qi,ωi], λ₀[qi,νi,ωi])
+            end
+            #TODO: find a way to not unroll this!
+            conv_tmp_add!(view(Σ_ladder,:,νii-1), kG, Kνωq_pre, selectdim(Gνω,νdim,(νii-1) + ωn))
+        end
+    end
+end
+
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, 
+                χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, kG::KGrid,
+                mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
+    Σ_hartree = mP.n * mP.U/2.0;
+    calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
+    tail_correction = (tc ? mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
+    return nothing
 end
 
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
@@ -247,7 +290,7 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
     tail_correction = (tc ? mP.U^2 * (sum_kω(kG, χ_m) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
-    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+  reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
     return nothing
 end
 
@@ -270,13 +313,11 @@ function calc_Σ(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
     Σ_ladder   = OffsetArray(Array{Complex{Float64},2}(undef,Nq, νmax), 1:Nq, 0:νmax-1)
-    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef,Nq, νmax, length(ωrange)),
-                              1:Nq, 0:νmax-1, ωrange)
     
     λm != 0.0 && χ_λ!(χ_m, λm)
     λd != 0.0 && χ_λ!(χ_d, λd)
 
-    calc_Σ!(Σ_ladder, Σ_ladder_ω, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP, tc=tc)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χ_m, γ_m, χ_d, γ_d, χ_m_sum, λ₀, Gνω, kG, mP, sP, tc=tc)
 
     λm != 0.0 && reset!(χ_m)
     λd != 0.0 && reset!(χ_d)
