@@ -40,7 +40,7 @@ function Base.show(io::IO, m::λ_result)
     compact = get(io, :compact, false)
     cc = m.converged ? "converged" : "NOT converged"
     if !compact
-        println(io, "λ-correction (type: $(m.type)), $converged")
+        println(io, "λ-correction (type: $(m.type)), $cc")
         println(io, "λm = $(m.λm), λd = $(m.λd)")
         !isnothing(m.trace) && println(io, "trace: \n", m.trace)
     else
@@ -140,10 +140,10 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{Co
 end
 
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
-                            gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
-                            kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                            νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
-                            validate_threshold::Float64=1e-8, par=false, verbose::Bool=false, tc::Bool=true)
+                        gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
+                        kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                        νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
+                        validate_threshold::Float64=1e-8, par=false, verbose::Bool=false, tc::Bool=true)
 
     (χm.λ != 0 || χd.λ != 0) && error("λ parameter already set. Aborting λdm calculation")    
     ωindices, νGrid, iωn_f = gen_νω_indices(χm, χd, mP, sP, full=true)
@@ -217,8 +217,9 @@ end
 
 # =============================================== sc =================================================
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                type::Symbol=:O,
-                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false)
+                type::Symbol=:O, par::Bool=false, λ_min_δ::Float64 = 0.05,
+                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false,
+                tc::Bool=true)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
     fft_νGrid= h.sP.fft_range
     Nk = length(h.kG.kMult)
@@ -231,18 +232,23 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
-    if type == :m || type == :d
+    if type == :m 
         rhs = λm_rhs(χm, χd, 0.0, h)
         λm, validation = λm_correction(χm, rhs, h)
         λd = 0.0
+        χ_λ!(χm, λm)
+        χ_λ!(χd, λd)
+    elseif type == :dm
+        λm, λd = λdm_correction(χm, γm, χd, γd, λ₀, h; λ_min_δ=λ_min_δ, λ_val_only=true,
+                                validate_threshold=conv_abs, par=par, verbose=trace, tc=tc)
         χ_λ!(χm, λm)
         χ_λ!(χd, λd)
     end
     rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
                 G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, h;
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs)
-    type != :O && reset!(χm)
-    type != :O && reset!(χd)
+    type != :O  && reset!(χm)
+    type == :dm && reset!(χd)
 
     converged = all(isfinite.([lhs_c1, E_pot_2])) && abs(rhs_c1 - lhs_c1) <= conv_abs && abs(E_pot_1 - E_pot_2) <= conv_abs
     return λ_result(χm.λ, χd.λ, :sc, sc_converged, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 

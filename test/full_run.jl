@@ -129,9 +129,9 @@ end
 
 # SC
 
-# @timeit LadderDGA.to "res_sc" res_λdm_sc = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
+# @timeit LadderDGA.to "res_sc" res_λdm_sc = LadderDGA.LambdaCorrection.λdm_correction_old(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
 # @test abs(sum(χ_d)) ≈ cs_χd
-# @timeit LadderDGA.to "res_sc_par" res_λdm_sc_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
+# @timeit LadderDGA.to "res_sc_par" res_λdm_sc_par = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)
 # @test abs(sum(χ_d)) ≈ cs_χd
 # @testset "λdm" begin
 # for el in zip(res_λdm_sc[2:end-1], res_λdm_sc_par[2:end-1])

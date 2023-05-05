@@ -284,6 +284,5 @@ function run_sc_old!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_l
     μnew = mP.μ
     mP.μ = μbak
     converged = converged && all(isfinite.([lhs_c1, E_pot_2]))
-    println(dbgt)
     return E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end

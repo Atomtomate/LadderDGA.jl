@@ -18,7 +18,7 @@ import ..update_wcaches_G_rfft!
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
-export λ_correction, λm_correction, λdm_correction
+export λ_correction, λm_correction, λdm_correction, λ_result 
 export bisect, correct_margins, newton_right
 export run_sc
 

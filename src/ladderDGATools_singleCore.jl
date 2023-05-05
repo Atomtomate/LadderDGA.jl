@@ -200,28 +200,20 @@ end
 
 #TODO: THIS NEEDS CLEANUP!
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
-    Nk(kG) == 1 && (res[:] += arr1 .* GView)
-    expandKArr!(kG, kG.cache1, arr1)
-    mul!(kG.cache1, kG.fftw_plan, kG.cache1)
-    for i in eachindex(kG.cache1)
-        kG.cache1[i] *= GView[i]
+    if Nk(kG) == 1 
+        res[:] = arr1 .* GView
+    else
+        expandKArr!(kG, kG.cache1, arr1)
+        mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+        for i in eachindex(kG.cache1)
+            kG.cache1[i] *= GView[i]
+        end
+        kG.fftw_plan \ kG.cache1
+        Dispersions.conv_post!(kG, res, kG.cache1)
     end
-    kG.fftw_plan \ kG.cache1
-    Dispersions.conv_post!(kG, res, kG.cache1)
     return nothing
 end
 
-function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
-    Nk(kG) == 1 && (res[:] += arr1 .* GView)
-    expandKArr!(kG, kG.cache1, arr1)
-    mul!(kG.cache1, kG.fftw_plan, kG.cache1)
-    for i in eachindex(kG.cache1)
-        kG.cache1[i] *= GView[i]
-    end
-    kG.fftw_plan \ kG.cache1
-    Dispersions.conv_post_add!(kG, res, kG.cache1)
-    return nothing
-end
 
 function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
             χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT,

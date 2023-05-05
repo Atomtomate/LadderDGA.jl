@@ -144,6 +144,22 @@ function calc_χγ_par(type::Symbol, Γr::ΓT, kG::KGrid, mP::ModelParameters, s
 end
 
 # -------------------------------------------- EoM: Main ---------------------------------------------
+function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+    if Nk(kG) == 1 
+        res[:] += arr1 .* GView
+    else
+        expandKArr!(kG, kG.cache1, arr1)
+        mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+        for i in eachindex(kG.cache1)
+            kG.cache1[i] *= GView[i]
+        end
+        kG.fftw_plan \ kG.cache1
+        Dispersions.conv_post_add!(kG, res, kG.cache1)
+    end
+    return nothing
+end
+
+
 """
     calc_Σ_eom_par(νmax::Int) 
 
@@ -153,10 +169,8 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
     if !wcache[].EoMVars_initialized 
         error("Call initialize_EoM before calc_Σ_par in order to initialize worker caches.")
     end
-
-    U = wcache[].mP.U
+    U  = wcache[].mP.U
     kG = wcache[].kG
-
     #TODO: this is inefficient and should only be done on one processor
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
@@ -170,24 +184,12 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
                 wcache[].Kνωq_pre[qi] = eom(U, wcache[].γm[qi,ωi,νi], wcache[].γd[qi,ωi,νi], wcache[].χm[qi,ωi], 
                         wcache[].χd[qi,ωi], wcache[].λ₀[qi,ωi,νi])
             end
-            conv_tmp!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, wcache[].Kνωq_post, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
+            conv_tmp_add!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
         end
         tc && (wcache[].Σ_ladder[:,νi] .= wcache[].Σ_ladder[:,νi] ./ wcache[].mP.β  .+ tail_correction / (1im*(2*νn+1)*π/wcache[].mP.β))
     end
     λm != 0.0 && reset!(wcache[].χm) 
     λd != 0.0 && reset!(wcache[].χd) 
-end
-
-function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, arr2::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
-            expandKArr!(kG, kG.cache1, arr1)
-            mul!(kG.cache1, kG.fftw_plan, kG.cache1)
-            for i in eachindex(kG.cache1)
-                kG.cache1[i] *= GView[i]
-            end
-            kG.fftw_plan \ kG.cache1
-            Dispersions.conv_post!(kG, arr2, kG.cache1)
-            res[:] += arr2[:]
-    return nothing
 end
 
 """

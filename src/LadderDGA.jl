@@ -28,6 +28,6 @@ module LadderDGA
     export χ_λ, χ_λ!, reset!
     export newton_right
     #TODO: check interface after refactoring
-    export λdm_correction, λ_correction, λ_correction!, residuals, find_root
+    export λdm_correction, λ_correction, λ_correction!, λ_result 
 
 end
