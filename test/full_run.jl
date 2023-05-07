@@ -130,6 +130,7 @@ end
 # SC
 
 res_λdm_sc_new = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, sc_max_it=100, νmax=4)
+res_λdm_tsc_new = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, sc_max_it=100, update_χ_tail=true, νmax=4)
 # @timeit LadderDGA.to "res_sc" res_λdm_sc = LadderDGA.LambdaCorrection.λdm_correction_old(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=false, with_trace=true)
 # @test abs(sum(χ_d)) ≈ cs_χd
 # @timeit LadderDGA.to "res_sc_par" res_λdm_sc_par = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, Σ_loc, gLoc_rfft, χloc_m_sum, λ₀, kG, mP, sP; update_χ_tail=false, maxit=10, par=true, with_trace=true)

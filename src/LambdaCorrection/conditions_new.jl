@@ -132,13 +132,15 @@ Returns:
     λdm: `Vector`, containing `λm` and `λd`.
 """
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                            νmax::Int=-1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
-                            sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
-                            validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
+                        νmax::Int=-1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
+                        sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
+                        update_χ_tail::Bool=false,
+                        validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
     λdm_correction(χm, γm, χd, γd, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP; 
-                       νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=λ_val_only,
-                       sc_max_it=sc_max_it, sc_mixing=sc_mixing, sc_conv=sc_conv,
-                       validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
+                   νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=λ_val_only,
+                   sc_max_it=sc_max_it, sc_mixing=sc_mixing, sc_conv=sc_conv,
+                   update_χ_tail=update_χ_tail,
+                   validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
 end
 
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
@@ -146,6 +148,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                         νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
+                        update_χ_tail::Bool=false,
                         validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
 
     (χm.λ != 0 || χd.λ != 0) && error("λ parameter already set. Aborting λdm calculation")    
@@ -185,7 +188,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         verbose && println("dbg: par = $par: cs Σ = $(abs(sum(Σ_ladder))), cs G = $(abs(sum(G_ladder))), cs χm = $(abs(sum(χm))), cs χd = $(abs(sum(χd))), EPot1 = $E_pot_1, EPot2 = $E_pot_2")
         reset!(χm)
         reset!(χd)
-        return E_pot_1, E_pot_2, lhs_c1 
+        return μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
     function residual_vals_sc(λ::MVector{2,Float64})
@@ -193,15 +196,15 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         χ_λ!(χd,λ[2])
         rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin_1, μnew, converged = run_sc!(νGrid, iωn_f, deepcopy(gLoc_rfft), G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(nothing),
                 χm, γm, χd, γd, λ₀,kG, mP, sP, Σ_loc, χloc_m_sum;
-                maxit=sc_max_it, mixing=sc_mixing, conv_abs=sc_conv)
+                maxit=sc_max_it, mixing=sc_mixing, conv_abs=sc_conv, update_χ_tail=update_χ_tail)
 
         reset!(χm)
         reset!(χd)
-        return E_pot_1, E_pot_2, lhs_c1 
+        return μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
     function residual_f(λ::MVector{2,Float64})::MVector{2,Float64} 
-        E_pot_1, E_pot_2, lhs_c1 = sc_max_it > 0 ? residual_vals_sc(λ) : residual_vals(λ)
+        _, _, E_pot_1, E_pot_2, lhs_c1 = sc_max_it > 0 ? residual_vals_sc(λ) : residual_vals(λ)
         return MVector{2,Float64}([lhs_c1 - rhs_c1, E_pot_1 - E_pot_2])
     end
 
@@ -224,16 +227,19 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     if λ_val_only
         return root
     else
-        μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = residual_vals(MVector{2,Float64}(root))
+        type_str = sc_max_it > 0 ? "_sc" : ""
+        type_str = update_χ_tail ? "_tsc" : type_str
+        type_str = "dm"*type_str
+        μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], :dm, true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
+        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
     end
 end
 
 # =============================================== sc =================================================
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
                 type::Symbol=:O, par::Bool=false, λ_min_δ::Float64 = 0.05,
-                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false,
+                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, update_χ_tail::Bool=false,
                 tc::Bool=true)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
     fft_νGrid= h.sP.fft_range
@@ -261,7 +267,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     end
     rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
                 G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, h.kG, h.mP, h.sP, h.Σ_loc, h.χloc_m_sum;
-                maxit=maxit, mixing=mixing, conv_abs=conv_abs)
+                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
     type != :O  && reset!(χm)
     type == :dm && reset!(χd)
 
@@ -275,7 +281,7 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
                  Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                  kG::KGrid, mP::ModelParameters, sP::SimulationParameters, Σ_loc::OffsetVector{ComplexF64}, χloc_m_sum::Union{Float64,ComplexF64};
-                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8)
+                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false)
     it      = 1
     done    = false
     converged = false
@@ -299,6 +305,11 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
         E_pot_1_old = E_pot_1
         E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(νGrid))
 
+        if update_χ_tail
+            update_tail!(χm, [0, 0, E_kin], iωn_f)
+            update_tail!(χd, [0, 0, E_kin], iωn_f)
+        end
+
         if abs(E_pot_1 - E_pot_1_old) < conv_abs
             converged = true
             done = true
@@ -314,5 +325,9 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
 
         it += 1
     end
+
+    update_tail!(χm, [0, 0, mP.Ekin_DMFT], iωn_f)
+    update_tail!(χd, [0, 0, mP.Ekin_DMFT], iωn_f)
+
     return rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, converged
 end
