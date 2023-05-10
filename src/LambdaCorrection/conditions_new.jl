@@ -303,14 +303,25 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
         isnan(μnew) && break
         G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         E_pot_1_old = E_pot_1
+        E_pot_2_old = E_pot_2
         E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(νGrid))
 
         if update_χ_tail
-            update_tail!(χm, [0, 0, E_kin], iωn_f)
-            update_tail!(χd, [0, 0, E_kin], iωn_f)
+            if !isfinite(E_kin)
+                E_pot_1 = Inf
+                lhs_c1  = Inf
+                done    = true
+            else
+                update_tail!(χm, [0, 0, E_kin], iωn_f)
+                update_tail!(χd, [0, 0, E_kin], iωn_f)
+                χ_m_sum = sum_kω(kG, χm)
+                χ_d_sum = sum_kω(kG, χd)
+                lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+                E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+            end
         end
 
-        if abs(E_pot_1 - E_pot_1_old) < conv_abs
+        if abs(E_pot_1 - E_pot_1_old) < conv_abs &&  abs(E_pot_2 - E_pot_2_old) < conv_abs
             converged = true
             done = true
         end

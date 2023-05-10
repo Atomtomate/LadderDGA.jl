@@ -104,10 +104,10 @@ function readConfig(cfg_in::String)
                 end
 
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
-                               χ_helper,
-                               fft_range,
-                               sim["usable_prct_reduction"],
-                               dbg_full_eom_omega
+                              χ_helper,
+                              fft_range,
+                              sim["usable_prct_reduction"],
+                              dbg_full_eom_omega
     )
     kGrids = Array{Tuple{String,Int}, 1}(undef, length(sim["Nk"]))
     if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"

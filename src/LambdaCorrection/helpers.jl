@@ -140,7 +140,7 @@ Base.@assume_effects :total function newton_right(f::Function, df::Function, sta
         fi = f(xi)
         dfii = 1 / df(xi)
         xi = x0 - dfii * fi
-        (norm(xi) < atol) && break
+        (norm(fi) < atol) && break
         if xi < min                           # only ever search to the right!
             x0 = min + δ + abs(min - x0)/2  # do bisection instead
         else
@@ -181,7 +181,7 @@ Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,
         (abs(norm(fi)) < atol) && break
         for l in 1:N
             if xi[l] < min[l]  # resort to bisection if min value is below left side
-                xi[l] = min[l] + (xi_last[l] - min[l])/2 + (fi[l]>0)*xi_last[l]
+                xi[l] = min[l] + abs(xi_last[l] - min[l])/2
             end
         end
         (i >= nsteps ) && (done = true)
