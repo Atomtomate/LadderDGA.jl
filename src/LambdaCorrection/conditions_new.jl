@@ -21,18 +21,25 @@ mutable struct λ_result
     EPot_p2::Float64
     PP_p1::Float64
     PP_p2::Float64
-    trace::Union{DataFrame,Nothing}
-    G_ladder::Union{Nothing,OffsetMatrix}
+    trace::Vector{DataFrame}
+    G_ladder::Union{Nothing, OffsetMatrix}
     Σ_ladder::Union{Nothing, OffsetMatrix}
     μ::Float64
     function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool)
-        new(λm, λd, type, true, converged, NaN, NaN, NaN, NaN, NaN, nothing, nothing, nothing, NaN)
+        new(λm, λd, type, true, converged, NaN, NaN, NaN, NaN, NaN, DataFrame[], nothing, nothing, NaN)
     end
     function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool, sc_converged::Bool, 
                       EKin::Float64, EPot_p1::Float64, EPot_p2::Float64, PP_p1::Float64, PP_p2::Float64, 
-                      trace::Union{DataFrame,Nothing}, 
+                      trace::Union{Vector{DataFrame},DataFrame,Nothing}, 
                       G_ladder::Union{Nothing, OffsetMatrix}, Σ_ladder::Union{Nothing,OffsetMatrix}, μ::Float64)
-        new(λm, λd, type, sc_converged, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace, G_ladder, Σ_ladder, μ)
+        trace_int = if typeof(trace) === Nothing
+            DataFrame[]
+        elseif typeof(trace) === DataFrame
+            DataFrame[trace]
+        else
+            trace
+        end
+        new(λm, λd, type, sc_converged, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace_int, G_ladder, Σ_ladder, μ)
     end
 end
 
@@ -169,6 +176,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     Σ_work   = similar(Σ_ladder)
     Kνωq_pre = par ? nothing : Vector{ComplexF64}(undef, Nq)
     rhs_c1 = mP.n/2 * (1-mP.n/2)
+    traces = DataFrame[]
 
     # --- Internal root finding function ---
     function residual_vals(λ::MVector{2,Float64})
@@ -192,14 +200,18 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     end
 
     function residual_vals_sc(λ::MVector{2,Float64})
+        traceDF = verbose ? DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
+            lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
+            cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
         χ_λ!(χm,λ[1])
         χ_λ!(χd,λ[2])
-        rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin_1, μnew, converged = run_sc!(νGrid, iωn_f, deepcopy(gLoc_rfft), G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(nothing),
+        rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin_1, μnew, converged = run_sc!(νGrid, iωn_f, deepcopy(gLoc_rfft), G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF),
                 χm, γm, χd, γd, λ₀,kG, mP, sP, Σ_loc, χloc_m_sum;
                 maxit=sc_max_it, mixing=sc_mixing, conv_abs=sc_conv, update_χ_tail=update_χ_tail)
 
         reset!(χm)
         reset!(χd)
+        verbose && push!(traces, traceDF)
         return μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
@@ -232,7 +244,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         type_str = "dm"*type_str
         μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew)
+        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traces, G_ladder, Σ_ladder, μnew)
     end
 end
 
