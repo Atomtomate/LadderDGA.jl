@@ -45,7 +45,7 @@ gen_PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
 # ====================== lDGA ======================
 dir = dirname(@__FILE__)
 dir = joinpath(dir, "../test/test_data/config_b1u2.toml")
-dir = joinpath(dir, "/home/julian/Hamburg/ED_data/U1b14m0.4_ldmsc_test/config.toml")
+dir = joinpath(dir, "config_b1u2.toml") #/home/julian/Hamburg/ED_data/U1b14m0.4_ldmsc_test/config.toml")
 cfg_file = joinpath(dir)
 LadderDGA.clear_wcache!()
 wp, mP, sP, env, kGridsStr = readConfig(cfg_file);

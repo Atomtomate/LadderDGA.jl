@@ -265,9 +265,11 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         χ_λ!(χm, λm)
         χ_λ!(χd, λd)
     end
+
+    par && initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
     rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, μnew, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
                 G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, h.kG, h.mP, h.sP, h.Σ_loc, h.χloc_m_sum;
-                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail)
+                maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
     type != :O  && reset!(χm)
     type == :dm && reset!(χd)
 
@@ -281,7 +283,7 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
                  Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                  kG::KGrid, mP::ModelParameters, sP::SimulationParameters, Σ_loc::OffsetVector{ComplexF64}, χloc_m_sum::Union{Float64,ComplexF64};
-                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false)
+                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, par::Bool=false)
     it      = 1
     done    = false
     converged = false
@@ -297,7 +299,11 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
 
     while !done
         copy!(Σ_work, Σ_ladder)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP)
+        if par
+            calc_Σ_par!(Σ_ladder_inplace)
+        else
+            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP)
+        end
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
         μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
         isnan(μnew) && break

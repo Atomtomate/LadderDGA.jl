@@ -175,7 +175,7 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
     νdim = length(gridshape(kG))+1 
-    tail_correction = wcache[].mP.U^2 * (sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum) 
+    tail_correction = (tc ? wcache[].mP.U^2 * (sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum) : 0) 
     Nq::Int = size(wcache[].χm,1)
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)
@@ -187,6 +187,7 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
             conv_tmp_add!(view(wcache[].Σ_ladder,:,νi), kG, wcache[].Kνωq_pre, selectdim(wcache[].G_fft_reverse,νdim, νn + ωn))
         end
         tc && (wcache[].Σ_ladder[:,νi] .= wcache[].Σ_ladder[:,νi] ./ wcache[].mP.β  .+ tail_correction / (1im*(2*νn+1)*π/wcache[].mP.β))
+
     end
     λm != 0.0 && reset!(wcache[].χm) 
     λd != 0.0 && reset!(wcache[].χd) 
@@ -214,7 +215,7 @@ function collect_Σ!(Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}})
 end
 
 """
-    calc_Σ_par(; νmax=sP.n_iν; collect_data=true)
+    calc_Σ_par(; λm::Float64=0.0, λd::Float64=0.0, collect_data=true, tc::Bool=true)
 
 Calculates self-energy on worker pool. Workers must first be initialized using [`initialize_EoM`](@ref initialize_EoM).
 #TODO: νrange must be equal to the one used during initialization. remove one.
