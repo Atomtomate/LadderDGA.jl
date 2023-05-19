@@ -26,7 +26,7 @@ using LinearAlgebra
 # Fortran compatibility
 using Printf, DelimitedFiles
 
-using NLsolve
+using Roots # Roots.jl for μ determination for now, may be replaced by NLsolve
 
 # lDGA related
 using Dispersions

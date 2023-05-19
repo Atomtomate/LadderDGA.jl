@@ -136,34 +136,30 @@ Computes Green's function from lDΓA self-energy.
 The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 """
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                        fix_n::Bool=false)
+                        fix_n::Bool=false, μstart=mP.μ)
     νRange = sP.fft_range
     G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)), 1:size(Σ_ladder,1), sP.fft_range)
-    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n)
+    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n, μstart=μstart)
     return μ, G_new
 end
 
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                        fix_n::Bool=false)::Float64
+                        fix_n::Bool=false, μstart=mP.μ)::Float64
     νRange = 0:last(axes(G_new, 2))
-    function fμ(μ::Vector{Float64})
-        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ[1], Σloc = Σloc)
-        filling_pos(view(G_new, :, νRange), kG, mP.U, μ[1], mP.β) - mP.n
+    length(νRange) < 10 && println("WARNING: fixing ν range with only $(length(νRange)) frequencies!")
+    function fμ(μ::Float64)
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
+        filling_pos(view(G_new, :, νRange), kG, mP.U, μ, mP.β) - mP.n
     end
-    μ_new_nls = try 
-        nlsolve(fμ, [mP.μ])
-    catch e
-        @warn "μ determination failed with: $e"
-        return NaN
+    μ = if fix_n
+        try 
+            find_zero(fμ, μstart) #nlsolve(fμ, [last_μ])
+        catch e
+            @warn "μ determination failed with: $e"
+            return NaN
+        end
     end
-    μ = if !μ_new_nls.f_converged 
-        @warn "Could not determine μ!"
-        @warn μ_new_nls
-        μ = NaN
-    else
-        μ_new_nls.zero[1]
-    end
-    if (fix_n && !isnan(μ)) || !fix_n
+    if !isnan(μ)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
     end
     ind_neg = first(axes(G_new,2)):-1

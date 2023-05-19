@@ -163,11 +163,14 @@ Base.@assume_effects :total function newton_right(f::Function, start::Vector{Flo
 end
 
 Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,Float64}, min::MVector{N,Float64}; 
-                      nsteps::Int=500, atol::Float64=1e-8, verbose::Bool=false)::Vector{Float64} where N
+                      nsteps::Int=500, atol::Float64=1e-8, verbose::Bool=false,
+                      max_reset::Int=5, reset_backoff::Float64=1.0)::Vector{Float64} where N
     done = false
     xi_last::MVector{N,Float64} = deepcopy(start)
     xi::MVector{N,Float64}      = deepcopy(xi_last)
     i::Int = 1
+    reset_i::Int = 1
+    bisection_fail::Bool = false
     fi::MVector{N,Float64}      = similar(start)
     dfii::MMatrix{N,N,Float64,N*N}= Matrix{Float64}(undef, N, N)
 
@@ -178,12 +181,26 @@ Base.@assume_effects :total function newton_right(f::Function, start::MVector{N,
         copyto!(xi_last, xi)
         xi[:]     = xi - dfii * fi
         verbose && println("i=$i : xi = $xi, fi = $fi. $(norm(fi)) ?<? $(atol)")
-        (abs(norm(fi)) < atol) && break
         for l in 1:N
             if xi[l] < min[l]  # resort to bisection if min value is below left side
+                verbose && println("i=$i, l=$l: xi[l] = $(xi[l]) < min[l] = $(min[l]), bisection to $(min[l] + abs(xi_last[l] - min[l])/2)")
                 xi[l] = min[l] + abs(xi_last[l] - min[l])/2
+                if abs(xi_last[l] - min[l])/2 < 1e-8
+                    println("WARNING: Bisection step is smaller than 1e-8. This indicates faulty data or no solution.")
+                    bisection_fail = true
+                end
             end
         end
+        if bisection_fail || !all(isfinite.(fi)) # reset, if NaNs are encountered
+            bisection_fail = false
+            if reset_i >= max_reset 
+                error("λ root-finding returned NaN after $i iterations and $max_reset resets. min values are $min")
+            end
+            reset_i += 1
+            xi[:] = start .+ reset_i * reset_backoff .* abs.(min)
+        end
+        (abs(norm(fi)) < atol) && break
+        verbose && println("i=$i, after reset, xi = $xi")
         (i >= nsteps ) && (done = true)
         i += 1
     end

@@ -11,6 +11,7 @@ using Plots
 using LaTeXStrings
 using JLD2
 
+cfg = ARGS[1]
 
 # =================== Functions ====================
 @everywhere function gen_sc(λ::Tuple{Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
@@ -44,12 +45,8 @@ gen_PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
 
 
 # ====================== lDGA ======================
-dir = dirname(@__FILE__)
-dir = joinpath(dir, "../test/test_data/config_b1u2.toml")
-#dir = joinpath(dir, "config_b1u2.toml") #/home/julian/Hamburg/ED_data/U1b14m0.4_ldmsc_test/config.toml")
-cfg_file = joinpath(dir)
 LadderDGA.clear_wcache!()
-wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
+wp, mP, sP, env, kGridsStr = readConfig(cfg);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
 bubble     = calc_bubble(lDGAhelper);
 χm, γm = calc_χγ(:m, lDGAhelper, bubble);
@@ -78,11 +75,11 @@ PP_diff_grid_tsc   = map(gen_PP_diff, results_tsc)
 
 println("λdm")
 
-λdm_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=0, update_χ_tail=false, trace=true) catch; nothing end
+λdm_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=0, update_χ_tail=false, verbose=true) catch; nothing end
 println("λdm sc")
-λdm_sc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=100, update_χ_tail=false, trace=true) catch; nothing end
+λdm_sc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=100, update_χ_tail=false, verbose=true) catch; nothing end
 println("λdm tsc")
-λdm_tsc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=100, update_χ_tail=true, trace=true) catch; nothing end
+λdm_tsc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=100, update_χ_tail=true, verbose=true) catch; nothing end
 
 abs_diff = abs.(transpose(EPot_diff_grid)) .+ abs.(transpose(PP_diff_grid))
 p1 = heatmap(λm_grid, λd_grid, transpose(PP_diff_grid),  clims=(-0.01,0.01), xlabel=L"\lambda_\mathrm{m}", ylabel=L"\lambda_\mathrm{d}", title=L"\sum_{q,\omega} \chi^\omega_{q,\!\!\uparrow\!\!\uparrow} - \frac{n}{2}\left(1-\frac{n}{2}\right)")

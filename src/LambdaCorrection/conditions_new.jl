@@ -59,7 +59,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       # λm related:
                       λm_rhs_type::Symbol=:native,
                       # λdm related:
-                      νmax::Int=-1, λ_min_δ::Float64 = 0.05,
+                      νmax::Int=-1, λ_min_δ::Float64 = 0.15,
                       # sc_X related:
                       maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trac::Bool=false,
                       # common options
@@ -139,7 +139,7 @@ Returns:
     λdm: `Vector`, containing `λm` and `λd`.
 """
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                        νmax::Int=-1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
+                        νmax::Int=-1, λ_min_δ::Float64 = 0.15, λ_val_only::Bool=true,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false,
                         validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
@@ -153,7 +153,7 @@ end
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
                         gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                        νmax::Int = -1, λ_min_δ::Float64 = 0.05, λ_val_only::Bool=true,
+                        νmax::Int = -1, λ_min_δ::Float64 = 0.15, λ_val_only::Bool=true,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false,
                         validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
@@ -176,7 +176,9 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     Σ_work   = similar(Σ_ladder)
     Kνωq_pre = par ? nothing : Vector{ComplexF64}(undef, Nq)
     rhs_c1 = mP.n/2 * (1-mP.n/2)
-    traces = DataFrame[]
+    traceDF = verbose ? DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
+        lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
+        cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
     # --- Internal root finding function ---
     function residual_vals(λ::MVector{2,Float64})
@@ -200,9 +202,6 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     end
 
     function residual_vals_sc(λ::MVector{2,Float64})
-        traceDF = verbose ? DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[], 
-            lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
-            cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
         χ_λ!(χm,λ[1])
         χ_λ!(χd,λ[2])
         rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin_1, μnew, converged = run_sc!(νGrid, iωn_f, deepcopy(gLoc_rfft), G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF),
@@ -211,7 +210,6 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
 
         reset!(χm)
         reset!(χd)
-        verbose && push!(traces, traceDF)
         return μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
@@ -224,7 +222,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     λm_min_tmp = get_λ_min(real(χm.data)) 
     λd_min_tmp = get_λ_min(real(χd.data)) 
     start = MVector{2,Float64}([0.0, 0.0])
-    min_λ = MVector{2,Float64}([λm_min_tmp, λd_min_tmp] .+ λ_min_δ)
+    min_λ = MVector{2,Float64}([λm_min_tmp + λ_min_δ*abs(λm_min_tmp), λd_min_tmp + λ_min_δ*abs(λd_min_tmp)])
     root = try
         newton_right(residual_f, start, min_λ, verbose=verbose)
     catch e
@@ -244,13 +242,13 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         type_str = "dm"*type_str
         μnew, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traces, G_ladder, Σ_ladder, μnew)
+        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, μnew)
     end
 end
 
 # =============================================== sc =================================================
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                type::Symbol=:O, par::Bool=false, λ_min_δ::Float64 = 0.05,
+                type::Symbol=:O, par::Bool=false, λ_min_δ::Float64 = 0.15,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, update_χ_tail::Bool=false,
                 tc::Bool=true)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
@@ -317,7 +315,7 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
             calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP)
         end
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
-        μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
+        μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true, μstart=μnew)
         isnan(μnew) && break
         G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         E_pot_1_old = E_pot_1
