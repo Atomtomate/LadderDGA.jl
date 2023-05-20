@@ -133,7 +133,7 @@ function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft
 end
 
 
-function calc_E(Σ::OffsetArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+function calc_E(Σ::OffsetMatrix{ComplexF64}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
     νGrid = 0:(νmax-1)
     G = G_from_Σ(Σ, kG.ϵkGrid, νGrid, mP);
     return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax,  trace=trace)

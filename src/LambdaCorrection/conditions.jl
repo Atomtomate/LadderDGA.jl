@@ -143,7 +143,7 @@ function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
         lhs_c1_bak = lhs_c1
         Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
-        μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=true)
+        μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
         isnan(μnew) && break
         _, gLoc_rfft = G_fft(G_ladder, kG, sP)
         E_kin, E_pot = calc_E(G_ladder, Σ_ladder, μnew, kG, mP, νmax=last(axes(Σ_ladder,2)))
@@ -238,7 +238,7 @@ function run_sc_old!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_l
         copy!(Σ_ladder_work, Σ_ladder)
         @timeit dbgt "03" calc_Σ_par!(Σ_ladder, λm=λm, λd=λd)
         (mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_work))
-        @timeit dbgt "05" μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=true)
+        @timeit dbgt "05" μnew = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=false)
         isnan(μnew) && break
         @timeit dbgt "06" G_rfft!(gLoc_rfft, G_ladder, kG, fft_νGrid)
         mP.μ = μnew

@@ -128,36 +128,38 @@ end
 # =============================================== GLoc ===============================================
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
 """
-    G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-    G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; fix_n::Bool=false)
+    G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
+    G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
 
 Computes Green's function from lDΓA self-energy.
 
 The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 """
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                        fix_n::Bool=false, μstart=mP.μ)
+                        fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
     νRange = sP.fft_range
     G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)), 1:size(Σ_ladder,1), sP.fft_range)
-    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n, μstart=μstart)
+    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n, μ=μ, improved_sum_filling=improved_sum_filling)
     return μ, G_new
 end
 
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                        fix_n::Bool=false, μstart=mP.μ)::Float64
+                        fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)::Float64
     νRange = 0:last(axes(G_new, 2))
     length(νRange) < 10 && println("WARNING: fixing ν range with only $(length(νRange)) frequencies!")
     function fμ(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, νRange), kG, mP.U, μ, mP.β) - mP.n
+        filling_pos(view(G_new, :, νRange), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
     end
     μ = if fix_n
         try 
-            find_zero(fμ, μstart) #nlsolve(fμ, [last_μ])
+            find_zero(fμ, μ) #nlsolve(fμ, [last_μ])
         catch e
             @warn "μ determination failed with: $e"
             return NaN
         end
+    else
+        μ
     end
     if !isnan(μ)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
@@ -223,7 +225,7 @@ function filling(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float
 end
 
 """
-    filling_pos(G::Vector, U::Float64, μ::Float64, β::Float64[, shell::Float64])::Float64
+    filling_pos(G::Vector, U::Float64, μ::Float64, β::Float64[, shell::Float64, improved_sum::Bool=true])::Float64
 
 Returns filling from `G` only defined over positive Matsubara frequencies. 
 See [`filling`](@ref filling) for further documentation.
@@ -233,14 +235,19 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
     2*(real(sG + conj(sG))/β + 0.5 + μ * shell) / (1 + U * shell)
 end
 
-function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64)::Float64
-    N = floor(Int, length(G)/2)
-    shell = G_shell_sum(N, β)
-    filling_pos(G, U, μ, β, shell)
+function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64; improved_sum::Bool=true)::Float64
+    if improved_sum
+        sG = sum(G)
+        2*real(sG + conj(sG))/β + 1
+    else
+        N = floor(Int, length(G)/2)
+        shell = G_shell_sum(N, β)
+        filling_pos(G, U, μ, β, shell)
+    end
 end
 
-function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)::Float64
-    filling_pos(view(kintegrate(kG,G,1),1,:), U, μ, β)
+function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64; improved_sum::Bool=true)::Float64
+    filling_pos(view(kintegrate(kG,G,1),1,:), U, μ, β, improved_sum=improved_sum)
 end
 
 """
