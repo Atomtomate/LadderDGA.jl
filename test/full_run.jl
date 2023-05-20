@@ -139,12 +139,12 @@ end
 #
 res_λdm = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=10, λ_val_only=false)
 Σ_ladder_λdm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=size(res_λdm.Σ_ladder,2), λm=res_λdm.λm, λd=res_λdm.λd);
-μnew, G_ladder_λdm = G_from_Σladder(Σ_ladder_λdm, lDGAhelper.Σ_loc, lDGAhelper.kG, mP, sP; fix_n=false)
+μnew, G_ladder_λdm = G_from_Σladder(Σ_ladder_λdm, lDGAhelper.Σ_loc, lDGAhelper.kG, mP, sP, μ=res_λdm.μ; fix_n=false)
 PP_λdm    = 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm)) + 
                    sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)))
 EPot2_λdm = mP.U * 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)) - 
                           sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm))) + mP.U * (mP.n/2)^2
-EKin1_λdm, EPot1_λdm = calc_E(G_ladder_λdm, Σ_ladder_λdm, mP.μ, lDGAhelper.kG, mP)
+EKin1_λdm, EPot1_λdm = calc_E(G_ladder_λdm, Σ_ladder_λdm, res_λdm.μ, lDGAhelper.kG, mP)
 @test PP_λdm ≈ PP_val
 @test all(res_λdm.Σ_ladder .≈ Σ_ladder_λdm)
 @test all(res_λdm.G_ladder .≈ G_ladder_λdm)

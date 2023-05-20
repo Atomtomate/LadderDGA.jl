@@ -183,10 +183,10 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
     # --- Internal root finding function ---
-    function residual_vals(λ::MVector{2,Float64})
+    function residual_vals(λ::MVector{3,Float64})
         χ_λ!(χm,λ[1])
         χ_λ!(χd,λ[2])
-        μ = mP.μ # λ[3]
+        μ = λ[3] #mP.μ # λ[3]
         if par
             calc_Σ_par!(Σ_ladder, λm=λ[1], λd=λ[2], tc=tc)
         else
@@ -205,10 +205,10 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         return n, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
-    function residual_vals_sc(λ::MVector{2,Float64})
+    function residual_vals_sc(λ::MVector{3,Float64})
         χ_λ!(χm,λ[1])
         χ_λ!(χd,λ[2])
-        μ = mP.μ
+        μ = λ[3]# mP.μ
         rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin_1, n, converged = run_sc!(νGrid, iωn_f, deepcopy(gLoc_rfft), G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF),
                 χm, γm, χd, γd, λ₀, μ, kG, mP, sP, Σ_loc, χloc_m_sum;
                 maxit=sc_max_it, mixing=sc_mixing, conv_abs=sc_conv, update_χ_tail=update_χ_tail)
@@ -218,21 +218,21 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         return n, E_kin_1, E_pot_1, E_pot_2, lhs_c1 
     end
 
-    function residual_f(λ::MVector{2,Float64})::MVector{2,Float64} 
-        _, _, E_pot_1, E_pot_2, lhs_c1 = sc_max_it > 0 ? residual_vals_sc(λ) : residual_vals(λ)
-        return MVector{2,Float64}([lhs_c1 - rhs_c1, E_pot_1 - E_pot_2])
+    function residual_f(λ::MVector{3,Float64})::MVector{3,Float64} 
+        n, _, E_pot_1, E_pot_2, lhs_c1 = sc_max_it > 0 ? residual_vals_sc(λ) : residual_vals(λ)
+        return MVector{3,Float64}([lhs_c1 - rhs_c1, E_pot_1 - E_pot_2, n - mP.n])
     end
 
     # --- actual root finding ---
     λm_min_tmp = get_λ_min(real(χm.data)) 
     λd_min_tmp = get_λ_min(real(χd.data)) 
-    start = MVector{2,Float64}([0.0, 0.0])
-    min_λ = MVector{2,Float64}([λm_min_tmp + λ_min_δ*abs(λm_min_tmp), λd_min_tmp + λ_min_δ*abs(λd_min_tmp)])
+    start = MVector{3,Float64}([0.0, 0.0, mP.μ])
+    min_λ = MVector{3,Float64}([λm_min_tmp + λ_min_δ*abs(λm_min_tmp), λd_min_tmp + λ_min_δ*abs(λd_min_tmp), -Inf])
     root = try
         newton_right(residual_f, start, min_λ, verbose=verbose)
     catch e
         println("Error: $e")
-        [NaN, NaN]
+        [NaN, NaN, NaN]
     end
     if any(isnan.(root))
         println("WARNING: No λ root was found!")
@@ -245,9 +245,9 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         type_str = sc_max_it > 0 ? "_sc" : ""
         type_str = update_χ_tail ? "_tsc" : type_str
         type_str = "dm"*type_str
-        n, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
+        n, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{3,Float64}(root)) : residual_vals_sc(MVector{3,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, mP.μ)
+        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, root[3])
     end
 end
 
