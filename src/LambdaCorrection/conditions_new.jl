@@ -257,6 +257,9 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, update_χ_tail::Bool=false,
                 tc::Bool=true)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
+    zero_ind = findfirst(x->abs(x)<1e-12, iωn_f) 
+    iωn_f_int = deepcopy(iωn_f)
+    iωn_f_int[zero_ind] = Inf
     fft_νGrid= h.sP.fft_range
     Nk = length(h.kG.kMult)
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, Nk, length(fft_νGrid)), 1:Nk, fft_νGrid) 
@@ -282,7 +285,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     end
 
     par && initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
-    rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
+    rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, sc_converged = run_sc!(νGrid, iωn_f_int, deepcopy(h.gLoc_rfft), 
                 G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, μ, h.kG, h.mP, h.sP, h.Σ_loc, h.χloc_m_sum;
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
     type != :O  && reset!(χm)
@@ -313,6 +316,7 @@ function run_sc!(νGrid::UnitRange{Int}, iωn_f::Vector{ComplexF64}, gLoc_rfft::
     rhs_c1  = mP.n/2*(1-mP.n/2)
     E_pot_2 = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
     E_kin   = Inf
+
 
     while !done
         copy!(Σ_work, Σ_ladder)

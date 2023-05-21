@@ -30,8 +30,8 @@ end
     i = 1
     total = length(λm_grid)*length(λd_grid)*length(μ_grid)
     for λ in λ_grid
-        λp = rpad.(lpad.(round.(λ,digits=1),4),4)
-        print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
+        λp = rpad.(lpad.(round.(λ,digits=1),5),5)
+        print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),6)) % done λ = $λp")
         res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
         push!(results, res)
         i += 1
@@ -56,9 +56,9 @@ bubble     = calc_bubble(lDGAhelper);
 
 # ==================== Results =====================
 μDMFT = mP.μ
-λm_grid = -10.0:0.2:10.0
-λd_grid = -10.0:0.2:10.0
-μ_grid  = (μDMFT-0.5):0.1:(μDMFT+0.5)
+λm_grid = -10.0:2.5:10.0
+λd_grid = -10.0:2.5:10.0
+μ_grid  = (μDMFT-0.5):0.4:(μDMFT+0.5)
 λ_grid = collect(Base.product(λm_grid, λd_grid, μ_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);
