@@ -12,6 +12,7 @@ using LaTeXStrings
 using JLD2
 
 cfg = ARGS[1]
+out_dir = ARGS[2]
 
 # =================== Functions ====================
 @everywhere function gen_sc(λ::Tuple{Float64,Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
@@ -32,8 +33,8 @@ end
     i = 1
     total = length(λm_grid)*length(λd_grid)*length(μ_grid)
     for λ in λ_grid
-        λp = rpad.(lpad.(round.(λ,digits=1),5),5)
-        print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),6)) % done λ = $λp")
+        λp = rpad.(lpad.(round.(λ,digits=1),4),4)
+        print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
         res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
         push!(results, res)
         i += 1
@@ -58,9 +59,9 @@ bubble     = calc_bubble(lDGAhelper);
 
 # ==================== Results =====================
 μDMFT = mP.μ
-λm_grid = -10.0:2.5:10.0
-λd_grid = -10.0:2.5:10.0
-μ_grid  = (μDMFT-0.5):0.4:(μDMFT+0.5)
+λm_grid = -10.0:0.2:10.0
+λd_grid = -10.0:0.2:10.0
+μ_grid  = (μDMFT-0.5):0.1:(μDMFT+0.5)
 λ_grid = collect(Base.product(λm_grid, λd_grid, μ_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);
@@ -103,7 +104,7 @@ println("λdm")
 # p1_diff = heatmap(λm_grid, λd_grid, abs_diff .- abs_diff_tsc, clims=(-0.01,0.01), xlabel=L"\lambda_\mathrm{m}", ylabel=L"\lambda_\mathrm{d}", title=L"\Delta \mathrm{Res}")
 
 
-jldopen("sc_grids_U$(mP.U)_b$(mP.β)_n$(mP.n).jld2", "w") do f
+jldopen(joinpath(out_dir,"sc_grids_U$(mP.U)_b$(mP.β)_n$(mP.n).jld2"), "w") do f
     f["lDGAHelper"] = lDGAhelper
     f["results_sc"]    = results
     f["results_0sc"]   = results_0sc

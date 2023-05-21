@@ -79,9 +79,11 @@ results_tsc = false #gen_sc_grid(λ_grid, maxit=100, with_tsc=true);
 
 
 
+Nk = lDGAhelper.kG.Ns
+Nω = 2*lDGAhelper.sP.n_iω
 
 Σ_dmft    =  calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper);
-jldopen(joinpath(out_dir,"res_ldga.jld2"), "w") do f
+jldopen(joinpath(out_dir,"res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["lDGAHelper"] = lDGAhelper
     f["χ0"] = bubble
     f["χm"] = χm
@@ -92,21 +94,21 @@ end
 λdm_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=0, update_χ_tail=false, verbose=true) catch; nothing end
 Σ_dm    = isnothing(λdm_res) ? nothing : calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper, λm=λdm_res.λm, λd=λdm_res.λd);
 
-jldopen(joinpath(out_dir,"res_dm.jld2"), "w") do f
+jldopen(joinpath(out_dir,"res_dm_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["λ_dm"] = λdm_res 
     f["Σ_dm"] = Σ_dm
 end
 println("λdm sc")
 λdm_sc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=150, update_χ_tail=false, verbose=true) catch; nothing end
 Σ_dm_sc    = isnothing(λdm_sc_res) ? nothing : calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper, λm=λdm_sc_res.λm, λd=λdm_sc_res.λd);
-jldopen(joinpath(out_dir,"res_dm_sc.jld2"), "w") do f
+jldopen(joinpath(out_dir,"res_dm_sc_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["λ_dm_sc"] = λdm_sc_res 
     f["Σ_dm_sc"] = Σ_dm_sc
 end
 println("λdm tsc")
 λdm_tsc_res = try λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λ_val_only=false, sc_max_it=150, update_χ_tail=true, verbose=true) catch; nothing end
 Σ_dm_tsc    = isnothing(λdm_tsc_res) ? nothing : calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper, λm=λdm_tsc_res.λm, λd=λdm_tsc_res.λd);
-jldopen(joinpath(out_dir,"res_dm_tsc.jld2"), "w") do f
+jldopen(joinpath(out_dir,"res_dm_tsc_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["λ_dm_tsc"] = λdm_tsc_res 
     f["Σ_dm_tsc"] = Σ_dm_tsc
 end
