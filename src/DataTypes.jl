@@ -284,12 +284,13 @@ end
 
 function update_tail!(χ::AbstractMatrix{Float64}, old_tail_c::Vector{Float64}, new_tail_c::Vector{Float64}, ωnGrid::Vector{ComplexF64})
     ci::Int = 3
+
+    zero_ind = findfirst(x->abs(x) < 1e-10, ωnGrid) 
     if old_tail_c[ci] != new_tail_c[ci]
         length(new_tail_c) != length(old_tail_c) && throw(ArgumentError("length of new tail coefficient array ($(length(new_tail_c))) must be the same as the old one ($(length(χ.tail_c)))!"))
         !all(isfinite.(new_tail_c)) && throw(ArgumentError("One or more tail coefficients are not finite!"))
         sum(new_tail_c) != new_tail_c[ci] && throw(ArgumentError("update tail only implemented for c_2 coefficient!"))
-        for ωi in axes(χ,2)
-            println(ωi, ": ", ωnGrid[ωi], " .... ", (new_tail_c[ci] - old_tail_c[ci]))
+        for ωi in setdiff(axes(χ,2), zero_ind)
             tmp = real((new_tail_c[ci] - old_tail_c[ci]) / (ωnGrid[ωi] ^ (ci-1)))
             χ[:,ωi] = χ[:,ωi] .+ tmp
         end

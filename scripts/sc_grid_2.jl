@@ -21,6 +21,8 @@ cfg = ARGS[1]
     res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
     reset!(χd)
     reset!(χm)
+    res.G_ladder = nothing
+    res.Σ_ladder = nothing
     return res
 end
 

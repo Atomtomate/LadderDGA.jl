@@ -60,7 +60,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       λm_rhs_type::Symbol=:native,
                       # λdm related:
                       νmax::Int=-1, λ_min_δ::Float64 = 0.15,
-                      # sc_X related:
+                      # sc_X r, delete_G_Σ::Bool=trueelated:
                       maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trac::Bool=false,
                       # common options
                       par::Bool=false, λ_val_only::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
@@ -100,8 +100,8 @@ function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, 
     χr::SubArray{Float64,2}    = view(χm,:,χm.usable_ω)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χm.usable_ω] .* π ./ mP.β)
     ωn2_tail::Vector{Float64} = real.(χm.tail_c[3] ./ (iωn.^2))
-    zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
-    ωn2_tail[zero_ind] = 0.0
+    zi = findfirst(x->abs(x)<1e-10, iωn)
+    ωn2_tail[zi] = 0.0
 
     f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform=(f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
     df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform=(f(x::Float64)::Float64 = dχ_λ(x, λint)))
@@ -257,9 +257,6 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, update_χ_tail::Bool=false,
                 tc::Bool=true)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
-    zero_ind = findfirst(x->abs(x)<1e-12, iωn_f) 
-    iωn_f_int = deepcopy(iωn_f)
-    iωn_f_int[zero_ind] = Inf
     fft_νGrid= h.sP.fft_range
     Nk = length(h.kG.kMult)
     G_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}} = OffsetArray(Matrix{ComplexF64}(undef, Nk, length(fft_νGrid)), 1:Nk, fft_νGrid) 
@@ -285,7 +282,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     end
 
     par && initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
-    rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, sc_converged = run_sc!(νGrid, iωn_f_int, deepcopy(h.gLoc_rfft), 
+    rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, sc_converged = run_sc!(νGrid, iωn_f, deepcopy(h.gLoc_rfft), 
                 G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, μ, h.kG, h.mP, h.sP, h.Σ_loc, h.χloc_m_sum;
                 maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, par=par)
     type != :O  && reset!(χm)
