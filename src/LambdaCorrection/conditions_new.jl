@@ -69,7 +69,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
     if type == :m
         rhs = λm_rhs(χm, χd, 0.0, h; λ_rhs = λm_rhs_type)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
-        λ_result(λm, 0.0, :m, validation)
+        λ_result(λm, χd.λ, :m, validation)
     elseif type == :dm
         λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ,
                        validate_threshold=validate_threshold, par=par, 

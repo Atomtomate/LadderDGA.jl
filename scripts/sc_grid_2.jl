@@ -12,8 +12,13 @@ using Plots
 using LaTeXStrings
 using JLD2
 
-cfg = ARGS[1]
-out_dir = ARGS[2]
+cfg       = ARGS[1]
+out_dir   = ARGS[2]
+N_λm::Int = parse(Int,ARGS[3])
+N_λd::Int = parse(Int,ARGS[4])
+N_μ::Int  = parse(Int,ARGS[5])
+
+full_grid::Bool = N_λm != 0
 
 # =================== Functions ====================
 @everywhere function gen_sc(λ::Tuple{Float64,Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
@@ -21,6 +26,24 @@ out_dir = ARGS[2]
     χ_λ!(χm, λm)
     χ_λ!(χd, λd)
     res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
+    reset!(χd)
+    reset!(χm)
+    res.G_ladder = nothing
+    res.Σ_ladder = nothing
+    return res
+end
+
+@everywhere function gen_sc(λ::Tuple{Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
+    λd,μ = λ
+    χ_λ!(χd, λd)
+    λm_res = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
+    res = if λm_res.converged
+        χ_λ!(χm,  λm_res.λm)
+        run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
+    else
+        println("λm did not converge for λd = $λd")
+        λm_res
+    end
     reset!(χd)
     reset!(χm)
     res.G_ladder = nothing
@@ -43,8 +66,24 @@ end
     return results
 end
 
+@everywhere function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64}}; maxit::Int=100, with_tsc::Bool=false)
+    results = λ_result[]
+
+    total = length(λd_grid)*length(μ_grid)
+    println("running for grid size $total = $(length(λd_grid)) * $(length(μ_grid)) // (λm * λd * μ)")
+    @showprogress for λ in λ_grid
+        λp = rpad.(lpad.(round.(λ,digits=1),4),4)
+        #print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
+        res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
+        push!(results, res)
+    end
+    results = reshape(results, length(λd_grid), length(μ_grid))
+    return results
+end
+
+
 gen_EPot_diff(result::λ_result) = result.EPot_p1 - result.EPot_p2
-gen_PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
+gen_PP_diff(result::λ_result) = result.PP_p1 - result.PP_p2
 gen_n_diff(result::λ_result) = result.n - mP.n
 
 
@@ -64,10 +103,10 @@ bubble     = calc_bubble(lDGAhelper);
 λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd.data)
 λm_min = λm_min + 0.1*abs(λm_min)
 λd_min = λd_min + 0.1*abs(λd_min)
-λm_grid = λm_min:2.5:10.0
-λd_grid = λd_min:2.5:10.0
-μ_grid  = (μDMFT-0.5):0.5:(μDMFT+0.5)
-λ_grid = collect(Base.product(λm_grid, λd_grid, μ_grid))
+λm_grid = LinRange(λm_min, 10.0, N_λm)
+λd_grid = LinRange(λd_min, 20.0, N_λd)
+μ_grid  = LinRange(μDMFT-0.2,μDMFT+0.2, N_μ)
+λ_grid = full_grid ? collect(Base.product(λm_grid, λd_grid, μ_grid)) : collect(Base.product(λd_grid, μ_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);
 println("\n\nsc grid:")
