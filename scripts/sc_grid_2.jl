@@ -45,6 +45,7 @@ end
 
 gen_EPot_diff(result::λ_result) = result.EPot_p1 - result.EPot_p2
 gen_PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
+gen_n_diff(result::λ_result) = result.n - mP.n
 
 
 # ====================== lDGA ======================
@@ -76,10 +77,13 @@ results_tsc = gen_sc_grid(λ_grid, maxit=40, with_tsc=true);
 
 EPot_diff_grid     = map(gen_EPot_diff, results)
 PP_diff_grid       = map(gen_PP_diff, results)
+n_diff_grid        = map(gen_n_diff, results)
 EPot_diff_grid_0sc = map(gen_EPot_diff, results_0sc)
 PP_diff_grid_0sc   = map(gen_PP_diff, results_0sc)
+n_diff_grid_0sc    = map(gen_n_diff, results_0sc)
 EPot_diff_grid_tsc = map(gen_EPot_diff, results_tsc)
 PP_diff_grid_tsc   = map(gen_PP_diff, results_tsc)
+n_diff_grid_tsc    = map(gen_n_diff, results_tsc)
 
 
 println("λdm")

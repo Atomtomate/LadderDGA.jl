@@ -25,13 +25,15 @@ mutable struct λ_result
     G_ladder::Union{Nothing, OffsetMatrix}
     Σ_ladder::Union{Nothing, OffsetMatrix}
     μ::Float64
+    n::Float64
     function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool)
-        new(λm, λd, type, true, converged, NaN, NaN, NaN, NaN, NaN, DataFrame[], nothing, nothing, NaN)
+        new(λm, λd, type, true, converged, NaN, NaN, NaN, NaN, NaN, DataFrame[], nothing, nothing, NaN, NaN)
     end
     function λ_result(λm::Float64, λd::Float64, type::Symbol, converged::Bool, sc_converged::Bool, 
                       EKin::Float64, EPot_p1::Float64, EPot_p2::Float64, PP_p1::Float64, PP_p2::Float64, 
                       trace::Union{Vector{DataFrame},DataFrame,Nothing}, 
-                      G_ladder::Union{Nothing, OffsetMatrix}, Σ_ladder::Union{Nothing,OffsetMatrix}, μ::Float64)
+                      G_ladder::Union{Nothing, OffsetMatrix}, Σ_ladder::Union{Nothing,OffsetMatrix}, 
+                      μ::Float64, n::Float64)
         trace_int = if typeof(trace) === Nothing
             DataFrame[]
         elseif typeof(trace) === DataFrame
@@ -39,7 +41,7 @@ mutable struct λ_result
         else
             trace
         end
-        new(λm, λd, type, sc_converged, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace_int, G_ladder, Σ_ladder, μ)
+        new(λm, λd, type, sc_converged, converged, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace_int, G_ladder, Σ_ladder, μ, n)
     end
 end
 
@@ -247,7 +249,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         type_str = "dm"*type_str
         n, E_kin_1, E_pot_1, E_pot_2, lhs_c1 = sc_max_it == 0 ? residual_vals(MVector{3,Float64}(root)) : residual_vals_sc(MVector{3,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, root[3])
+        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin_1, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, root[3], n)
     end
 end
 
@@ -293,7 +295,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     #filling_pos(view(G_ladder, :, 0:last(fft_grid)), kG, mP.U, μ[1], mP.β)
     converged = all(isfinite.([lhs_c1, E_pot_2])) && abs(rhs_c1 - lhs_c1) <= conv_abs && abs(E_pot_1 - E_pot_2) <= conv_abs
     return λ_result(χm.λ, χd.λ, :sc, sc_converged, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 
-                    traceDF, G_ladder, Σ_ladder, μ)
+                    traceDF, G_ladder, Σ_ladder, μ, n)
 end
 
 
