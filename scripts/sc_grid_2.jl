@@ -7,6 +7,7 @@ using Distributed
 @everywhere println("activating: ", path)
 @everywhere Pkg.activate(path)
 @everywhere using LadderDGA
+@everywhere using ProgressMeter
 using Plots
 using LaTeXStrings
 using JLD2
@@ -30,14 +31,13 @@ end
 @everywhere function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64,Float64},3}; maxit::Int=100, with_tsc::Bool=false)
     results = λ_result[]
 
-    i = 1
     total = length(λm_grid)*length(λd_grid)*length(μ_grid)
-    for λ in λ_grid
+    println("running for grid size $total = $(length(λm_grid)) * $(length(λd_grid)) * $(length(μ_grid)) // (λm * λd * μ)")
+    @showprogress for λ in λ_grid
         λp = rpad.(lpad.(round.(λ,digits=1),4),4)
-        print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
+        #print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
         res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
         push!(results, res)
-        i += 1
     end
     results = reshape(results, length(λm_grid), length(λd_grid), length(μ_grid))
     return results
@@ -59,16 +59,20 @@ bubble     = calc_bubble(lDGAhelper);
 
 # ==================== Results =====================
 μDMFT = mP.μ
-λm_grid = -10.0:0.2:10.0
-λd_grid = -10.0:0.2:10.0
-μ_grid  = (μDMFT-0.5):0.1:(μDMFT+0.5)
+λm_min = LadderDGA.LambdaCorrection.get_λ_min(χm.data)
+λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd.data)
+λm_min = λm_min + 0.1*abs(λm_min)
+λd_min = λd_min + 0.1*abs(λd_min)
+λm_grid = λm_min:2.5:10.0
+λd_grid = λd_min:2.5:10.0
+μ_grid  = (μDMFT-0.5):0.5:(μDMFT+0.5)
 λ_grid = collect(Base.product(λm_grid, λd_grid, μ_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);
 println("\n\nsc grid:")
-results = gen_sc_grid(λ_grid);
+results = gen_sc_grid(λ_grid, maxit=40);
 println("\n\ntsc grid:")
-results_tsc = gen_sc_grid(λ_grid, maxit=100, with_tsc=true);
+results_tsc = gen_sc_grid(λ_grid, maxit=40, with_tsc=true);
 
 EPot_diff_grid     = map(gen_EPot_diff, results)
 PP_diff_grid       = map(gen_PP_diff, results)
