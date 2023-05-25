@@ -278,7 +278,7 @@ Internal helper to generate usable bosonic and fermionic ranges. Also returns th
 """
 function gen_νω_indices(χ_m::χT, χ_d::χT, mP::ModelParameters, sP::SimulationParameters; full=false)
     ωindices = usable_ωindices(sP, χ_m, χ_d)
-    νmax::Int = full ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : sP.n_iν
+    νmax::Int = !full ? minimum([sP.n_iν,floor(Int,3*length(ωindices)/8)]) : sP.n_iν
     νGrid    = 0:νmax-1
     iωn_f = collect(2im .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β)
     # iωn = iωn_f[ωindices]

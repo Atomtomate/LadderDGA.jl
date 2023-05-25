@@ -16,68 +16,32 @@ cfg       = ARGS[1]
 out_dir   = ARGS[2]
 N_λm::Int = parse(Int,ARGS[3])
 N_λd::Int = parse(Int,ARGS[4])
-N_μ::Int  = parse(Int,ARGS[5])
 
-full_grid::Bool = N_μ != 0
 
 # =================== Functions ====================
-@everywhere function gen_sc(λ::Tuple{Float64,Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
-    λm,λd,μ = λ
-    χ_λ!(χm, λm)
-    χ_λ!(χd, λd)
-    res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
-    reset!(χd)
-    reset!(χm)
-    res.G_ladder = nothing
-    res.Σ_ladder = nothing
-    return res
-end
-
 @everywhere function gen_sc(λ::Tuple{Float64,Float64}; maxit::Int=100, with_tsc::Bool=false)
-    λd,μ = λ
-    χ_λ!(χd, λd)
-    λm_res = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
-    res = if λm_res.converged
-        χ_λ!(χm,  λm_res.λm)
-        run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
-    else
-        println("λm did not converge for λd = $λd")
-        λm_res
-    end
-    reset!(χd)
+    χ_λ!(χm, λ[1])
+    χ_λ!(χd, λ[2])
+    res = run_sc(χm, γm, χd, γd, λ₀, 1.0, lDGAhelper; type=:O, maxit=maxit, mixing=0.2, conv_abs=1e-8, trace=true, update_χ_tail=with_tsc)
     reset!(χm)
+    reset!(χd)
     res.G_ladder = nothing
     res.Σ_ladder = nothing
     return res
-end
-
-@everywhere function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64,Float64},3}; maxit::Int=100, with_tsc::Bool=false)
-    results = λ_result[]
-
-    total = length(λm_grid)*length(λd_grid)*length(μ_grid)
-    println("running for grid size $total = $(length(λm_grid)) * $(length(λd_grid)) * $(length(μ_grid)) // (λm * λd * μ)")
-    @showprogress for λ in λ_grid
-        λp = rpad.(lpad.(round.(λ,digits=1),4),4)
-        #print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
-        res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
-        push!(results, res)
-    end
-    results = reshape(results, length(λm_grid), length(λd_grid), length(μ_grid))
-    return results
 end
 
 @everywhere function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64}}; maxit::Int=100, with_tsc::Bool=false)
     results = λ_result[]
 
-    total = length(λd_grid)*length(μ_grid)
-    println("running for grid size $total = $(length(λd_grid)) * $(length(μ_grid)) // (λm * λd * μ)")
+    total = length(λm_grid)*length(λd_grid)
+    println("running for grid size $total = $(length(λm_grid)) * $(length(λd_grid)) // (λm * λd)")
     @showprogress for λ in λ_grid
         λp = rpad.(lpad.(round.(λ,digits=1),4),4)
         #print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
         res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
         push!(results, res)
     end
-    results = reshape(results, length(λd_grid), length(μ_grid))
+    results = reshape(results, length(λm_grid), length(λd_grid))
     return results
 end
 
@@ -85,6 +49,7 @@ end
 gen_EPot_diff(result::λ_result) = result.EPot_p1 - result.EPot_p2
 gen_PP_diff(result::λ_result) = result.PP_p1 - result.PP_p2
 gen_n_diff(result::λ_result) = result.n - mP.n
+gen_conv(result::λ_result) = 1.0 * (result.sc_converged)
 
 
 # ====================== lDGA ======================
@@ -98,15 +63,13 @@ bubble     = calc_bubble(lDGAhelper);
 
 
 # ==================== Results =====================
-μDMFT = mP.μ
 λm_min = LadderDGA.LambdaCorrection.get_λ_min(χm.data)
 λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd.data)
 λm_min = λm_min + 0.1*abs(λm_min)
 λd_min = λd_min + 0.1*abs(λd_min)
-λm_grid = LinRange(λm_min, 10.0, N_λm)
-λd_grid = LinRange(λd_min, 20.0, N_λd)
-#μ_grid  = LinRange(μDMFT-0.5,μDMFT+0.5, N_μ)
-λ_grid = full_grid ? collect(Base.product(λm_grid, λd_grid, μ_grid)) : collect(Base.product(λd_grid, μ_grid))
+λm_grid = LinRange(λm_min, 0.0, N_λm)
+λd_grid = LinRange(λd_min, 1000.0, N_λd)
+λ_grid =  collect(Base.product(λm_grid, λd_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);
 println("\n\nsc grid:")
@@ -117,12 +80,15 @@ results_tsc = gen_sc_grid(λ_grid, maxit=40, with_tsc=true);
 EPot_diff_grid     = map(gen_EPot_diff, results)
 PP_diff_grid       = map(gen_PP_diff, results)
 n_diff_grid        = map(gen_n_diff, results)
+conv_grid          = map(gen_conv, results)
 EPot_diff_grid_0sc = map(gen_EPot_diff, results_0sc)
 PP_diff_grid_0sc   = map(gen_PP_diff, results_0sc)
 n_diff_grid_0sc    = map(gen_n_diff, results_0sc)
+conv_grid_0sc      = map(gen_conv, results_0sc)
 EPot_diff_grid_tsc = map(gen_EPot_diff, results_tsc)
 PP_diff_grid_tsc   = map(gen_PP_diff, results_tsc)
 n_diff_grid_tsc    = map(gen_n_diff, results_tsc)
+conv_grid_tsc      = map(gen_conv, results_tsc)
 
 
 println("λdm")
@@ -161,3 +127,4 @@ jldopen(joinpath(out_dir,"sc_grids_U$(mP.U)_b$(mP.β)_n$(mP.n).jld2"), "w") do f
     # f["λ_dm_tsc"] = λdm_tsc_res 
 end
 nothing
+

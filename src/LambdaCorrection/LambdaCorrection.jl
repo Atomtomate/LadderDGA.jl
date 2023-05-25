@@ -7,6 +7,7 @@ using Dispersions
 using Roots
 using DataFrames
 using TimerOutputs
+using FiniteDifferences
 
 import ..χT, ..γT, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..lDΓAHelper
 import ..sum_ω, ..sum_ω!, ..sum_kω, ..sum_ωk, ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array
@@ -18,13 +19,15 @@ import ..update_wcaches_G_rfft!
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
-export λ_correction, λm_correction, λdm_correction, λ_result 
+export λ_correction, λm_correction, λdm_correction, λdm_correction_dbg, λdm_correction_nu_mu, λ_result 
 export bisect, correct_margins, newton_right
 export run_sc
 
 include("helpers.jl")
 include("conditions.jl")
 include("conditions_new.jl")
+# include("conditions_new_mu_test.jl")
+include("conditions_dbg.jl")
 
 
 end
