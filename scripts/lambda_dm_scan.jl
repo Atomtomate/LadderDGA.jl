@@ -67,8 +67,10 @@ bubble     = calc_bubble(lDGAhelper);
 λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd.data)
 λm_min = λm_min + 0.1*abs(λm_min)
 λd_min = λd_min + 0.1*abs(λd_min)
-λm_grid = LinRange(λm_min, 0.0, N_λm)
-λd_grid = LinRange(λd_min, 1000.0, N_λd)
+#λm_grid = LinRange(λm_min, 0.0, N_λm)
+#λd_grid = LinRange(λd_min, 1000.0, N_λd)
+λm_grid = LinRange(-0.35,-0.1, N_λm)
+λd_grid = LinRange(λd_min, 50.0, N_λd)
 λ_grid =  collect(Base.product(λm_grid, λd_grid))
 println("\n\nλdm grid:")
 results_0sc = gen_sc_grid(λ_grid, maxit=0);

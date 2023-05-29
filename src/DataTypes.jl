@@ -172,6 +172,7 @@ Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_k�
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
 function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
+    χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
     !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
     !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
     !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
@@ -212,8 +213,13 @@ end
 WARNING: This function is a non optimized debugging function! See [`sum_kω`](@ref sum_kω), which should return the same result if the asymptotics are captured correctly.
 Optional function `f` transforms `χ` before summation.
 """
-function sum_ωk(kG::KGrid, χ::χT; force_full_range=false)::Float64
-    return kintegrate(kG, sum_ω(χ, force_full_range=force_full_range))
+function sum_ωk(kG::KGrid, χ::χT; force_full_range=false, λ::Float64=NaN)::Float64
+    λ_check = !isnan(λ) && λ != 0
+    χ.λ != 0 && λ_check  && error("χ already λ-corrected, but external λ provided!")
+    λ_check && χ_λ!(χ, λ)
+    res = kintegrate(kG, sum_ω(χ, force_full_range=force_full_range))
+    λ_check && reset!(χ)
+    return res
 end
 
 

@@ -149,7 +149,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     length(νRange) < 10 && println("WARNING: fixing ν range with only $(length(νRange)) frequencies!")
     function fμ(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, νRange), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
+        filling_pos(view(G_new, :, 0:size(Σ_ladder,2)-1), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
     end
     μ = if fix_n
         try 
