@@ -32,7 +32,7 @@ function gen_param_grid(h::lDΓAHelper, res_λdm::λ_result, Nm::Int, Nd::Int, N
     return grid
 end
 
-function gen_param_grid_full(χm::χT, χd::χT, h::lDΓAHelper, res_λdm::λ_result, Nm::Int, Nd::Int, Nμ::Int;
+function gen_param_grid_full(χm::χT, χd::χT, h::lDΓAHelper, Nm::Int, Nd::Int, Nμ::Int;
                         λm_range::Float64=0.2, λd_range::Float64=0.2, μ_range=0.2)
     λm_min = LadderDGA.LambdaCorrection.get_λ_min(χm)
     λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd)
@@ -59,13 +59,20 @@ function gen_sc_grid(χm::χT, γm::γT, χd::χT, γd::γT, λ₀, lDGAhelper::
     χd_bak = deepcopy(χd)
     @showprogress for (i,p) in enumerate(param_grid)
         λm, λd, μ = p
-        run_res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=type, λm, λd, fit_μ=fit_μ, update_χ_tail=update_tail, maxit=80, mixing=0.2, conv_abs=1e-7, trace=false)
-        Δpp   = run_res.PP_p1 - run_res.PP_p2
-        ΔEPot = run_res.EPot_p1 - run_res.EPot_p2
-        Δn    = lDGAhelper.mP.n - run_res.n
-        res[i] = (Δpp, ΔEPot, Δn)
-        converged[i] = run_res.sc_converged
-        fit_params[i] = (run_res.λm, run_res.λd, run_res.μ)
+        try
+            run_res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=type, λm, λd, fit_μ=fit_μ, update_χ_tail=update_tail, maxit=80, mixing=0.2, conv_abs=1e-7, trace=false)
+            Δpp   = run_res.PP_p1 - run_res.PP_p2
+            ΔEPot = run_res.EPot_p1 - run_res.EPot_p2
+            Δn    = lDGAhelper.mP.n - run_res.n
+            converged[i] = run_res.sc_converged
+            fit_params[i] = (run_res.λm, run_res.λd, run_res.μ)
+            res[i] = (Δpp, ΔEPot, Δn)
+        catch e
+            println("error during sc: $e")
+            converged[i] = false
+            fit_params[i] = (NaN,NaN,NaN)
+            res[i] = (NaN,NaN,NaN)
+        end
         χm = deepcopy(χm_bak)
         χd = deepcopy(χd_bak)
     end
@@ -95,7 +102,8 @@ bubble     = calc_bubble(lDGAhelper);
 # ==================== script ======================
 
 res_λdm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=false)
-param_grid    = gen_param_grid(lDGAhelper, res_λdm, Nm, Nd, Nμ)
+# param_grid    = gen_param_grid(lDGAhelper, res_λdm, Nm, Nd, Nμ)
+param_grid    = gen_param_grid_full(χm, χd, lDGAhelper, Nm, Nd, Nμ;)
 sc_grid, param_sc_grid, converged = if version == 1
     gen_sc_grid(χm, γm, χd, γd, λ₀, lDGAhelper, :fix, false, false, param_grid);
 elseif version == 2
@@ -127,6 +135,7 @@ param_sc_grid_normalized = normalize_grid(param_sc_grid)
 sc_grid_normalized = normalize_grid(sc_grid);
 
 jldopen(output, "w") do f
+    f["res_dm"] = res_λdm
     f["param_grid"] = param_grid
     f["sc_grid"] = sc_grid
     f["param_sc_grid"] = param_sc_grid
