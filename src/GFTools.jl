@@ -153,7 +153,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     end
     μ = if fix_n
         try 
-            find_zero(fμ, μ) #nlsolve(fμ, [last_μ])
+            find_zero(fμ, μ, atol=1e-8) #nlsolve(fμ, [last_μ])
         catch e
             @warn "μ determination failed with: $e"
             return NaN

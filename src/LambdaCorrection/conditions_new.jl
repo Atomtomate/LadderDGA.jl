@@ -254,10 +254,25 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
 end
 
 # =============================================== sc =================================================
+#
+"""
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
-                type::Symbol=:O, par::Bool=false, λ_min_δ::Float64 = 0.15, νmax::Int=-1,
+                type::Symbol=:fix, par::Bool=false, λ_min_δ::Float64 = 0.15, νmax::Int=-1,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
-                tc::Bool=true, internal_λ=:O)
+                tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
+
+  - *type* : 
+    - :fix     : `λm` and `λd` (see above) are used, values are not changed for successive iterations.
+    - :pre_dm  : `λm` and `λd` (see above) are used, after the first iteration, lDΓA_dm conditions are used in each iteration.
+    - :pre_m   : `λm` (see above) is used, after the first iteration, lDΓA_m conditions is used in each iteration.
+    - :dm      : Same as `:pre_dm`, but initial values are obtained from lDΓA_dm conditions.
+    - :m       : Same as `:pre_m`, but initial values are obtained from lDΓA_m condition.
+"""
+
+function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
+                par::Bool=false, λ_min_δ::Float64 = 0.15, νmax::Int=-1,
+                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
+                tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
     if νmax < 1 
         νmax = last(νGrid)+1
@@ -276,26 +291,30 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
-    λm, λd,validation = if internal_λ == :pre && type == :m 
+    λm, λd,validation = if type == :m 
         rhs = λm_rhs(χm, χd, 0.0, h)
         λm, validation = λm_correction(χm, rhs, h)
         λd = 0.0
         λm, λd, validation
-    elseif internal_λ == :pre && type == :dm
+    elseif type == :dm
         λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=true,
                     validate_threshold=conv_abs, fit_μ=fit_μ, μ=μ, par=par, verbose=verbose, tc=tc)
+    elseif type in [:fix, :pre_dm, :pre_m]
+        λm, λd, true
     else
+        @warn "Unrecognized type = $type in run_sc"
         0.0, 0.0, true
     end
 
     par && initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
 
-    λm_int, λd_int, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged = if validation
+    λm, λd, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged = if validation
         χ_λ!(χm, λm)
         χ_λ!(χd, λd)
         λm_int, λd_int, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged = run_sc!(iωn_f, deepcopy(h.gLoc_rfft), 
                     G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, μ, h;
-            maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, fit_μ=fit_μ, par=par, internal_λ=(internal_λ == :pre ? :O : type))
+                    maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, 
+                    fit_μ=fit_μ, par=par, type=type)
         reset!(χm)
         reset!(χd)
         λm_int, λd_int, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged 
@@ -303,25 +322,20 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, NaN, false
     end
 
-
-    λm = (internal_λ == :m || internal_λ == :dm) ? λm_int : λm
-    λd = (internal_λ == :dm) ? λd_int : λd
-
-
     #TODO: CHECK mu CONVERGENCE
     #filling_pos(view(G_ladder, :, 0:last(fft_grid)), kG, mP.U, μ[1], mP.β)
     converged = sc_converged && all(isfinite.([lhs_c1, E_pot_2])) && abs(rhs_c1 - lhs_c1) <= conv_abs && abs(E_pot_1 - E_pot_2) <= conv_abs
-    type_sym = Symbol("sc_"*String(type)*"_"*(internal_λ == :pre ? "pre" : "int"))
-    return λ_result(λm, λd, type_sym, sc_converged, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 
+    return λ_result(λm, λd, type, sc_converged, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, 
                     traceDF, G_ladder, Σ_ladder, μ, n)
 end
 
 
+#TODO: docu, :m, :dm, :pre, :fix
 function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetMatrix{ComplexF64}, 
                  Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
                  maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, fit_μ::Bool=true,
-                 par::Bool=false, internal_λ::Symbol=:O)
+                 par::Bool=false, type::Symbol=:fix)
     it      = 1
     done    = false
     converged = false
@@ -336,17 +350,41 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
     νmax    = size(Σ_ladder,2)
     λm      = 0.0
     λd      = 0.0
+    Nd = 4
 
     while !done
-        λm,λd,validation = if internal_λ == :dm 
-            λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
-                            νmax=νmax, λ_val_only=true, sc_max_it=0, update_χ_tail=false, fit_μ=false, μ=μ, λinit=[λm,λd],verbose=false)
-        elseif internal_λ == :m
-            rhs = λm_rhs(χm, χd, 0.0, h)
-            λm, validation = λm_correction(χm, rhs, h)
-            λm, 0.0, validation
+        λm,λd,μ,validation = if it == 1 && type in [:fix, :pre_dm, :pre_m]
+            λm,λd,validation = χm.λ, χd.λ, true  
+            reset!(χm)
+            reset!(χd)
+            λm,λd,μ,validation
         else
-            0.0, 0.0, true
+            if type == :dm || type == :pre_dm
+                try
+                    res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
+                                    νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=fit_μ, μ=μ, λinit=[λm,λd],verbose=false)
+                    println("DBG: λm=",round(res.λm,digits=Nd),
+                                  ", λd=",round(res.λd,digits=Nd), 
+                                  ", μ=",round(res.μ,digits=Nd), 
+                                  ", n=",round(res.n,digits=Nd), 
+                                  " // EPot_p1: ",round(res.EPot_p1,digits=Nd),
+                                  " , p2: ",round(res.EPot_p2,digits=Nd),
+                                  " :: ", round(res.PP_p1,digits=Nd), 
+                                  " // ", round(res.PP_p2,digits=Nd))
+                    res.λm, res.λd, res.μ, res.converged   
+                catch e
+                    done = true
+                    res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
+                                    νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=false, μ=μ, λinit=[λm,λd],verbose=false)
+                    res.λm, res.λd,0.0,false
+                end
+            elseif type == :m || type == :pre_m
+                rhs = λm_rhs(χm, χd, 0.0, h)
+                λm, validation = λm_correction(χm, rhs, h)
+                λm, 0.0, μ, validation
+            else
+                λm, λd, μ, true
+            end
         end
                    
         if !isfinite(λm) || !isfinite(λd) || !validation
@@ -359,15 +397,15 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
         if par
             calc_Σ_par!(Σ_ladder_inplace, λm=λm, λd=λd)
         else
-            (internal_λ == :m || internal_λ == :dm) && χ_λ!(χm, λm)
-            (internal_λ == :dm) && χ_λ!(χd, λd)
+            (λm != 0) && χ_λ!(χm, λm)
+            (λd != 0) && χ_λ!(χd, λd)
             calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
-            (internal_λ == :m || internal_λ == :dm) && reset!(χm)
-            (internal_λ == :dm) && reset!(χd)
+            (λm != 0) && reset!(χm)
+            (λd != 0) && reset!(χd)
         end
 
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
-        μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
+        μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=false, μ=μ)
         if isnan(μ) 
             break
         end
@@ -376,7 +414,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
         E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, h.kG, h.mP)
         G_rfft!(gLoc_rfft, G_ladder, h.kG, fft_νGrid)
 
-        if internal_λ == :m || internal_λ == :dm
+        if type in [:m, :dm, :pre_m, :pre_dm] 
             χ_m_sum = sum_kω(h.kG, χm, λ=λm)
             χ_d_sum = sum_kω(h.kG, χd, λ=λd)
             lhs_c1  = real(χ_d_sum + χ_m_sum)/2
@@ -408,7 +446,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
             λm_log = (λm != 0 ? λm : χm.λ)
             λd_log = (λd != 0 ? λd : χd.λ)
             lhs_c1   = real(χ_d_sum + χ_m_sum)/2
-            n = filling_pos(view(G_ladder, :, 0:νmax-1), h.kG, h.mP.U, μ, h.mP.β)
+            n = filling(G_ladder, h.kG, h.mP.U, μ, h.mP.β)
             row = [it, λm_log, λd_log, μ, n, E_kin, E_pot_1, lhs_c1, E_pot_2, χ_m_sum, χ_m_sum2, χ_d_sum, χ_d_sum2, abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
