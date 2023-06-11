@@ -276,8 +276,8 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     - :fix     : `λm` and `λd` (see above) are used, values are not changed for successive iterations.
     - :pre_dm  : `λm` and `λd` (see above) are used, after the first iteration, lDΓA_dm conditions are used in each iteration.
     - :pre_m   : `λm` (see above) is used, after the first iteration, lDΓA_m conditions is used in each iteration.
-    - :dm      : Same as `:pre_dm`, but initial values are obtained from lDΓA_dm conditions.
-    - :m       : Same as `:pre_m`, but initial values are obtained from lDΓA_m condition.
+    - :dm      : Same as `:fix`, but initial values are obtained from lDΓA_dm conditions.
+    - :m       : Same as `:fix`, but initial values are obtained from lDΓA_m condition.
 """
 
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
@@ -370,7 +370,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
             reset!(χd)
             λm,λd,μ,validation
         else
-            if type == :dm || type == :pre_dm
+            if type == :pre_dm
                 try
                     res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
                                     νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=fit_μ, μ=μ, λinit=[λm,λd],verbose=false)
@@ -389,7 +389,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
                                     νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=false, μ=μ, λinit=[λm,λd],verbose=false)
                     res.λm, res.λd,0.0,false
                 end
-            elseif type == :m || type == :pre_m
+            elseif type == :pre_m
                 rhs = λm_rhs(χm, χd, h)
                 λm, validation = λm_correction(χm, rhs, h)
                 λm, 0.0, μ, validation
