@@ -60,7 +60,7 @@ function gen_sc_grid(χm::χT, γm::γT, χd::χT, γd::γT, λ₀, lDGAhelper::
     @showprogress for (i,p) in enumerate(param_grid)
         λm, λd, μ = p
         try
-            run_res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=type, λm, λd, fit_μ=fit_μ, update_χ_tail=update_tail, maxit=80, mixing=0.2, conv_abs=1e-7, trace=false)
+            run_res = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=type, λm, λd, fit_μ=fit_μ, update_χ_tail=update_tail, maxit=20, mixing=0.2, conv_abs=1e-7, trace=false)
             Δpp   = run_res.PP_p1 - run_res.PP_p2
             ΔEPot = run_res.EPot_p1 - run_res.EPot_p2
             Δn    = lDGAhelper.mP.n - run_res.n

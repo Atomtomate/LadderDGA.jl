@@ -67,7 +67,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       # common options
                       par::Bool=false, λ_val_only::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
     if type == :m
-        rhs = λm_rhs(χm, χd, 0.0, h; λ_rhs = λm_rhs_type)
+        rhs = λm_rhs(χm, χd, h; λ_rhs = λm_rhs_type)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
         λ_result(λm, χd.λ, :m, validation)
     elseif type == :dm
@@ -241,15 +241,26 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         println("WARNING: λ = $root outside region ($min_λ)!")
     end
 
-    converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
-    if λ_val_only
-        return root[1], root[2], converged
-    else
-        type_str = sc_max_it > 0 ? "_sc" : ""
-        type_str = update_χ_tail ? "_tsc" : type_str
-        type_str = "dm"*type_str
+    if all(isfinite.(root))
         n, μ, E_kin, E_pot_1, E_pot_2, lhs_c1, sc_converged = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
-        return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, μ, n)
+        converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
+        if λ_val_only
+            return root[1], root[2], converged
+        else
+            type_str = sc_max_it > 0 ? "_sc" : ""
+            type_str = update_χ_tail ? "_tsc" : type_str
+            type_str = "dm"*type_str
+            return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, μ, n)
+        end
+    else
+        if λ_val_only
+            return root[1], root[2], false
+        else
+            type_str = sc_max_it > 0 ? "_sc" : ""
+            type_str = update_χ_tail ? "_tsc" : type_str
+            type_str = "dm"*type_str
+            return λ_result(root[1], root[2], Symbol(type_str), true, false, NaN, NaN, NaN, NaN, NaN, traceDF, nothing, nothing, NaN, NaN)
+        end
     end
 end
 
@@ -292,7 +303,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
     λm, λd,validation = if type == :m 
-        rhs = λm_rhs(χm, χd, 0.0, h)
+        rhs = λm_rhs(χm, χd, h)
         λm, validation = λm_correction(χm, rhs, h)
         λd = 0.0
         λm, λd, validation
@@ -379,7 +390,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
                     res.λm, res.λd,0.0,false
                 end
             elseif type == :m || type == :pre_m
-                rhs = λm_rhs(χm, χd, 0.0, h)
+                rhs = λm_rhs(χm, χd, h)
                 λm, validation = λm_correction(χm, rhs, h)
                 λm, 0.0, μ, validation
             else

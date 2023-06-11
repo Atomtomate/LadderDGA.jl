@@ -128,7 +128,7 @@ function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
     converged = maxit == 0
 
 
-    rhs_λsp = λm_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
+    rhs_λsp = λm_rhs(NaN, χ_m, χ_d,kG, mP, sP; λd=λd)
     λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
     if !isfinite(λm)
         @warn "no finite λm found!"
@@ -151,7 +151,7 @@ function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
             if isfinite(E_kin)
             update_tail!(χ_m, [0, 0, E_kin], iωn_f)
             update_tail!(χ_d, [0, 0, E_kin], iωn_f)
-            rhs_λsp = λm_rhs(NaN, χ_m, χ_d, λd, kG, mP, sP)
+            rhs_λsp = λm_rhs(NaN, χ_m, χ_d,kG, mP, sP, λd=λd)
             λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
             else
                 println("Warning: unable to update χ tail: E_kin not finite")
@@ -223,8 +223,8 @@ function run_sc_old!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_l
     it       = 1
     fft_νGrid= sP.fft_range
 
-    χ_λ!(χ_d, λd)
-    rhs_λsp = λm_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
+    λd != 0 && χ_λ!(χ_d, λd)
+    rhs_λsp = λm_rhs(NaN, χ_m, χ_d, kG, mP, sP)
     λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
     if !isfinite(λm)
         @warn "no finite λm found!"
@@ -249,7 +249,7 @@ function run_sc_old!(G_ladder::OffsetMatrix, Σ_ladder_work::OffsetMatrix,  Σ_l
                 par && update_tail!([0, 0, E_kin])
                 update_tail!(χ_d, [0, 0, E_kin], iωn_f)
                 update_tail!(χ_m, [0, 0, E_kin], iωn_f)
-                rhs_λsp = λm_rhs(NaN, χ_m, χ_d, 0.0, kG, mP, sP)
+                rhs_λsp = λm_rhs(NaN, χ_m, χ_d, kG, mP, sP)
                 λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
             else
                 println("Warning: unable to update χ tail: E_kin not finite")

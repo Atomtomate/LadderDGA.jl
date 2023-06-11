@@ -227,11 +227,12 @@ Helper function for the right hand side of the Pauli principle conditions (λm c
 `imp_density` can be set to `NaN`, if the rhs (``\\frac{n}{2}(1-\\frac{n}{2})``) should not be error-corrected (not ncessary or usefull when asymptotic improvement are active).
 TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λm_rhs(χ_m::χT, χ_d::χT, λd::Float64, h::lDΓAHelper; λ_rhs = :native, verbose=false)
-    λm_rhs(h.imp_density, χ_m, χ_d, λd, h.kG, h.mP, h.sP; λ_rhs=λ_rhs, verbose=verbose)
+function λm_rhs(χ_m::χT, χ_d::χT, h::lDΓAHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
+    λm_rhs(h.imp_density, χ_m, χ_d, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, verbose=verbose)
 end
-function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λ_rhs = :native, verbose=false)
-    χ_d.λ != 0 && λd != 0 && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ). Reset χ_d.λ, or do not provide additional λ-correction for this function.")
+
+function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64=NaN, λ_rhs = :native, verbose=false)
+    χ_d.λ != 0 && !isnan(λd) && error("Stopping λ rhs calculation: λd = $λd AND χ_d.λ = $(χ_d.λ). Reset χ_d.λ, or do not provide additional λ-correction for this function.")
     χ_d_sum = sum_kω(kG, χ_d, λ=λd)
 
     verbose && @info "λsp correction infos:"
