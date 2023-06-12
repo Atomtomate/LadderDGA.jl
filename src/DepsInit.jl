@@ -34,7 +34,7 @@ using BSE_SC
 
 using TimerOutputs
 
-using Base.Iterators
+using Base.Iterators, Base
 
 # ============================================= Includes =============================================
 include("LapackWrapper.jl")

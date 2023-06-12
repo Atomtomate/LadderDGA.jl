@@ -31,11 +31,11 @@ bubble     = calc_bubble(lDGAhelper);
 
 
 # ==================== Results =====================
-res_dm = λdm_correction(χm, γm, χd, γd, lDGAhelper.Σ_loc, g_rfft, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP; fit_μ=false, verbose=false)
-res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=80, mixing=0.2, conv_abs=1e-8, trace=true);
+res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=false)
+res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=80, mixing=0.2, conv_abs=1e-8, trace=true);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
-jldopen(joinpath(out_dir,"res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
+jldopen(joinpath(out_dir,"new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["lDGAHelper"] = lDGAhelper
     f["χ0"] = bubble
     f["χm"] = χm

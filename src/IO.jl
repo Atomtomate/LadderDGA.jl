@@ -60,6 +60,10 @@ function readConfig(cfg_in::String)
                                   for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
                           lowercase(tml["Environment"]["logfile"]))
 
+    if !isfile(env.inputVars)
+        @error "ERROR: input file at location $(env.inputVars) not found!"
+        Base.exit(2)
+    end
     nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputVars, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
