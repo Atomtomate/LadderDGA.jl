@@ -61,7 +61,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       # λm related:
                       λm_rhs_type::Symbol=:native,
                       # λdm related:
-                      νmax::Int=-1, λ_min_δ::Float64 = 0.15,
+                      νmax::Int=-1, λ_min_δ::Float64 = 0.005,
                       # sc_X r, delete_G_Σ::Bool=trueelated:
                       maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trac::Bool=false,
                       # common options
@@ -143,7 +143,7 @@ Returns:
     λdm: `Vector`, containing `λm` and `λd`.
 """
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                        νmax::Int=-1, λ_min_δ::Float64 = 0.15, λ_val_only::Bool=false,
+                        νmax::Int=-1, λ_min_δ::Float64 = 0.005, λ_val_only::Bool=false,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false, fit_μ::Bool=true, μ::Float64=h.mP.μ,
                         validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
@@ -157,7 +157,7 @@ end
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
                         gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                        νmax::Int = -1, λ_min_δ::Float64 = 0.15, λ_val_only::Bool=false,
+                        νmax::Int = -1, λ_min_δ::Float64 = 0.005, λ_val_only::Bool=false,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false, fit_μ::Bool=true, μ::Float64=mP.μ, 
                         λinit::Vector{Float64}=[0.0,0.0],
@@ -281,7 +281,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
 """
 
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
-                par::Bool=false, λ_min_δ::Float64 = 0.15, νmax::Int=-1,
+                par::Bool=false, λ_min_δ::Float64 = 0.005, νmax::Int=-1,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
                 tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
