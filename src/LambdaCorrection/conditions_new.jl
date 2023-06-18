@@ -201,6 +201,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         χ_d_sum    = sum_kω(kG, χd)
         lhs_c1     = real(χ_d_sum + χ_m_sum)/2
         E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
+        println("dbg2: par = $par: λ=$λ, EPot1 = $E_pot_1, EPot2 = $E_pot_2, PP_1 = $rhs_c1, PP_2 = $lhs_c1, μ = $μ")
         verbose && println("dbg: par = $par: λ=$λ, EPot1 = $E_pot_1, EPot2 = $E_pot_2, PP_1 = $rhs_c1, PP_2 = $lhs_c1, μ = $μ")
         reset!(χm)
         reset!(χd)
@@ -284,6 +285,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
                 par::Bool=false, λ_min_δ::Float64 = 0.005, νmax::Int=-1,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
                 tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
+    !fit_μ && @warn "Not fitting μ can lead to unphysical results!"
     _, νGrid, iωn_f = gen_νω_indices(χm, χd, h.mP, h.sP)
     if νmax < 1 
         νmax = last(νGrid)+1
