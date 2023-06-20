@@ -13,6 +13,10 @@ cfg = ARGS[1]
 out_dir = ARGS[2]
 
 output_file = joinpath(out_dir,"ldm_sc.jld2")
+if isfile(outpit_file)
+    println("Output file exists, aborting.")
+    exit(1)
+end
 println("output file location: ", output_file)
 flush(stdout)
 
