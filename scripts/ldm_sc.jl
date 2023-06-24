@@ -13,7 +13,7 @@ cfg = ARGS[1]
 out_dir = ARGS[2]
 
 output_file = joinpath(out_dir,"ldm_sc.jld2")
-if isfile(outpit_file)
+if isfile(output_file)
     println("Output file exists, aborting.")
     exit(1)
 end
@@ -35,6 +35,7 @@ bubble     = calc_bubble(lDGAhelper);
 
 
 # ==================== Results =====================
+res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
 res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
 res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=80, mixing=0.2, conv_abs=1e-8, trace=true);
 Nk = lDGAhelper.kG.Ns
@@ -44,6 +45,7 @@ jldopen(joinpath(out_dir,"new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
     f["χ0"] = bubble
     f["χm"] = χm
     f["χd"] = χd
+    f["res_m"] = res_dm
     f["res_dm"] = res_dm
     f["res_dm_sc"] = res_dm_sc
 end

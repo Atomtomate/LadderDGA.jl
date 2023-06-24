@@ -181,6 +181,12 @@ function Σ_Dyson(GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{C
     Σ_Dyson!(Σ, GBath, GImp)
     return Σ 
 end
+
+function Σ_Dyson(GBath::OffsetVector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
+    Σ = similar(GImp)
+    Σ_Dyson!(Σ, GBath.parent, GImp)
+    return Σ 
+end
     
 function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})
     Σ[:] =  1 ./ GBath .- 1 ./ GImp
