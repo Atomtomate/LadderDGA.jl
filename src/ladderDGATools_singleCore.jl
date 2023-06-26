@@ -183,7 +183,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
                 if typeof(sP.χ_helper) === BSE_SC_Helper
                     improve_χ!(type, ωi, view(χννpω,:,:,ωi), view(χ₀,qi,:,ωi), mP.U, mP.β, sP.χ_helper);
                 end
-                χ[qi,ωi] = sum(χννpω)/mP.β^2
+                χ[qi,ωi] = real(sum(χννpω))/mP.β^2
                 for νk in νi_range
                     γ[qi,νk,ωi] = sum(view(χννpω,:,νk))/(χ₀.data[qi,νk,ωi] * (1.0 + s*mP.U * χ[qi,ωi]))
                 end

@@ -63,13 +63,13 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       # λdm related:
                       νmax::Int=-1, λ_min_δ::Float64 = 0.005,
                       # sc_X r, delete_G_Σ::Bool=trueelated:
-                      maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trac::Bool=false,
+                      maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace::Bool=false,
                       # common options
                       par::Bool=false, λ_val_only::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
     if type == :m
-        rhs = λm_rhs(χm, χd, h; λ_rhs = λm_rhs_type)
-        λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
-        λ_result(λm, χd.λ, :m, validation)
+        λm_correction_full(χm, γm, χd, γd, λ₀, h;
+                           νmax=νmax, λ_min_δ=λ_min_δ, verbose=verbose,
+                           validate_threshold=validate_threshold)
     elseif type == :dm
         λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ,
                        validate_threshold=validate_threshold, par=par, 
@@ -125,6 +125,24 @@ function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, 
     end
     validation = (abs(rhs - check) <= validate_threshold) &&  (abs(rhs - check2) <= validate_threshold) 
     return λm, validation
+end
+
+function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                            νmax::Int=-1, λ_min_δ::Float64 = 0.005, λ_val_only::Bool=false, verbose::Bool=false,
+                            fit_μ::Bool=true, validate_threshold::Float64=1e-8)
+
+        νmax = νmax < 0 ? size(γm, γm.axis_types[:ν]) : νmax
+        rhs = λm_rhs(χm, χd, h; λ_rhs = :native)
+        λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
+        Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm);
+        μnew, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n=fit_μ)
+        EKin1, EPot1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP)
+        rhs_c1  = h.mP.n/2 * (1-h.mP.n/2)
+        χ_m_sum = sum_kω(h.kG, χm, λ=λm)
+        χ_d_sum = sum_kω(h.kG, χd)
+        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+        EPot2   = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
+        λ_result(λm, χd.λ, :m, validation, true, EKin1, EPot1, EPot2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew, h.mP.n)
 end
 
 # =============================================== λm =================================================
@@ -201,7 +219,6 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         χ_d_sum    = sum_kω(kG, χd)
         lhs_c1     = real(χ_d_sum + χ_m_sum)/2
         E_pot_2    = (mP.U/2)*real(χ_d_sum - χ_m_sum) + mP.U * (mP.n/2 * mP.n/2)
-        println("dbg2: par = $par: λ=$λ, EPot1 = $E_pot_1, EPot2 = $E_pot_2, PP_1 = $rhs_c1, PP_2 = $lhs_c1, μ = $μ")
         verbose && println("dbg: par = $par: λ=$λ, EPot1 = $E_pot_1, EPot2 = $E_pot_2, PP_1 = $rhs_c1, PP_2 = $lhs_c1, μ = $μ")
         reset!(χm)
         reset!(χd)
