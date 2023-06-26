@@ -40,12 +40,14 @@ res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
 res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=80, mixing=0.2, conv_abs=1e-8, trace=true);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
-jldopen(joinpath(out_dir,"new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
-    f["lDGAHelper"] = lDGAhelper
-    f["χ0"] = bubble
-    f["χm"] = χm
-    f["χd"] = χd
-    f["res_m"] = res_dm
-    f["res_dm"] = res_dm
-    f["res_dm_sc"] = res_dm_sc
+if isfinite(res_dm.λm) && isfinite(res_dm.λd)
+    jldopen(joinpath(out_dir,"new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"), "w") do f
+        f["lDGAHelper"] = lDGAhelper
+        f["χ0"] = bubble
+        f["χm"] = χm
+        f["χd"] = χd
+        f["res_m"] = res_m
+        f["res_dm"] = res_dm
+        f["res_dm_sc"] = res_dm_sc
+    end
 end
