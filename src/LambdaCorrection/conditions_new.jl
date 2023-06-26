@@ -435,7 +435,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
         end
 
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
-        μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=!fit_μ, μ=μ)
+        μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
         if isnan(μ) 
             break
         end
