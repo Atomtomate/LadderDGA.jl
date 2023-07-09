@@ -17,7 +17,7 @@ lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
 
-file_name = "new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"
+file_name = "sc_it_ldga_NK$(Nk)_Nw$(Nω).jld2"
 output_file = joinpath(out_dir,file_name)
 if isfile(output_file)
     println("Output file exists, aborting.")
@@ -41,7 +41,13 @@ bubble     = calc_bubble(lDGAhelper);
 # ==================== Results =====================
 res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
 res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
-res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true);
+res_dm_sc_list = []
+for ii in 1:100
+    res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=ii, mixing=0.2, conv_abs=1e-8, trace=true);
+    push!(res_dm_sc_list, res_dm_sc)
+    res_dm_sc.sc_converged && break
+        
+end
 if isfinite(res_dm.λm) && isfinite(res_dm.λd)
     jldopen(joinpath(out_dir,file_name), "w") do f
         f["lDGAHelper"] = lDGAhelper
@@ -50,6 +56,7 @@ if isfinite(res_dm.λm) && isfinite(res_dm.λd)
         f["χd"] = χd
         f["res_m"] = res_m
         f["res_dm"] = res_dm
-        f["res_dm_sc"] = res_dm_sc
+        f["res_dm_sc_list"] = res_dm_sc_list
     end
 end
+
