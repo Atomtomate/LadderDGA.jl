@@ -36,10 +36,10 @@ function gen_param_grid_full(χm::χT, χd::χT, h::lDΓAHelper, Nm::Int, Nd::In
                         λm_range::Float64=0.2, λd_range::Float64=0.2, μ_range=0.2)
     λm_min = LadderDGA.LambdaCorrection.get_λ_min(χm)
     λd_min = LadderDGA.LambdaCorrection.get_λ_min(χd)
-    λm_max = 20.0
-    λd_max = 1000.0
-    λm_min = λm_min + abs(λm_min)/10
-    λd_min = λd_min + abs(λd_min)/10
+    λm_max = 10.0
+    λd_max = 100.0
+    λm_min = λm_min + 1e-4
+    λd_min = λd_min + 1e-4
     μ_min  = h.mP.μ - h.mP.μ/4
     μ_max  = h.mP.μ + h.mP.μ/4
     λm_grid = LinRange(λm_min, λm_max, Nm)
