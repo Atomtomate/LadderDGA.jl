@@ -175,7 +175,7 @@ function calc_Σ_eom_par(λm::Float64, λd::Float64; tc::Bool=true)
     λm != 0 && χ_λ!(wcache[].χm, λm) 
     λd != 0 && χ_λ!(wcache[].χd, λd) 
     νdim = length(gridshape(kG))+1 
-    tail_correction = (tc ? wcache[].mP.U^2 * (sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum) : 0) 
+    tail_correction = (tc ? - wcache[].mP.U * (sum_kω(kG, wcache[].χm) - wcache[].χloc_m_sum) : 0) 
     Nq::Int = size(wcache[].χm,1)
     fill!(wcache[].Σ_ladder, 0)
     for (νi,νn) in enumerate(wcache[].νn_indices)

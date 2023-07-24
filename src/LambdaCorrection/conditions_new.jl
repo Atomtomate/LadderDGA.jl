@@ -131,7 +131,7 @@ function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Arra
                             νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false, verbose::Bool=false,
                             fit_μ::Bool=true, validate_threshold::Float64=1e-8)
 
-        νmax = νmax < 0 ? size(γm, γm.axis_types[:ν]) : νmax
+        νmax = νmax < 0 ? floor(Int, size(γm, γm.axis_types[:ν])/2) : νmax
         rhs = λm_rhs(χm, χd, h; λ_rhs = :native)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
         Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm);
@@ -321,15 +321,15 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
 
-    λm, λd,validation = if type == :m 
+    λm, λd,validation = if type in [:pre_m] 
         rhs = λm_rhs(χm, χd, h)
         λm, validation = λm_correction(χm, rhs, h)
         λd = 0.0
         λm, λd, validation
-    elseif type == :dm
+    elseif type in [:pre_dm]
         λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ, λ_val_only=true,
                     validate_threshold=conv_abs, fit_μ=fit_μ, μ=μ, par=par, verbose=verbose, tc=tc)
-    elseif type in [:fix, :pre_dm, :pre_m]
+    elseif type in [:fix, :dm, :m]
         λm, λd, true
     else
         @warn "Unrecognized type = $type in run_sc"

@@ -125,6 +125,22 @@ function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64},
     return nothing
 end
 
+
+function Σ_from_Gladder(Gladder::AbstractMatrix{ComplexF64}, kG::KGrid, μ::Float64, β::Float64)
+    res = similar(Gladder)
+    Σ_from_Gladder!(res, Gladder, kG, μ, β)
+    return res
+end
+
+function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64)
+    νn_list = axes(Gladder,2)
+    for νn in νn_list
+        for ki in axes(Gladder,1)
+            res[ki,νn] = μ + 1im*(2*νn+1)*π/β - kG.ϵkGrid[ki] - 1 / Gladder[ki,νn]
+        end
+    end
+end
+
 # =============================================== GLoc ===============================================
 #TODO: docs, test, cleanup, consistency with G_from_Σ 
 """
