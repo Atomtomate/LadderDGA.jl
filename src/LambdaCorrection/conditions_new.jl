@@ -418,7 +418,9 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
         end
                    
         if !isfinite(λm) || !isfinite(λd) || !validation
-            println("ERROR: λm = $λm or λd = $λd not finite, OR internal λ correction did not find root!")
+            println("ERROR: (run: β = $(h.mP.β), U = $(h.mP.U), n = $(h.mP.n))\n
+Nν = $(h.sP.n_iν), Nω = $(h.sP.n_iω), Nk = $(h.kG.Ns)\n
+λm = $λm or λd = $λd not finite, OR internal λ correction did not find root!")
             done = true
             break
         end
