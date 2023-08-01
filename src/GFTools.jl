@@ -165,7 +165,7 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     length(νRange) < 10 && println("WARNING: fixing ν range with only $(length(νRange)) frequencies!")
     function fμ(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, 0:size(Σ_ladder,2)-1), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
+        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder,2))), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
     end
     μ = if fix_n
         try 
@@ -258,11 +258,11 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
 end
 
 function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64; improved_sum::Bool=true)::Float64
-    if improved_sum
+    if !improved_sum
         sG = sum(G)
         2*real(sG + conj(sG))/β + 1
     else
-        N = floor(Int, length(G)/2)
+        N = floor(Int, length(G))
         shell = G_shell_sum(N, β)
         filling_pos(G, U, μ, β, shell)
     end
@@ -328,3 +328,19 @@ function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64},
         χ_tail::Vector{Float64} = real.(ci ./ (iωn.^i))
     end
 end
+
+# ==================================== Fermi Surface Estimation ======================================
+function lin_fit(ν, Σ)
+    m = (Σ[2] - Σ[1])/(ν[2] - ν[1])
+    return Σ[1] - m * ν[1]
+end
+
+function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
+    νGrid = [1im * (2*n+1)*π/mP.β for n in 0:1];
+    s_r0 = [ν0_estimator(imag(νGrid), real.(Σ_ladder[i,0:2])) for i in 1:size(Σ_ladder,1)];
+    ekf = mP.μ .- kG.ϵkGrid
+    ek_diff = ekf .- s_r0
+    min_diff = minimum(abs.(ekf .- s_r0))
+    return abs.(ek_diff) .< relax_zero_condition*kG.Ns*min_diff
+end
+

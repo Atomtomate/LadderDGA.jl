@@ -30,4 +30,6 @@ module LadderDGA
     #TODO: check interface after refactoring
     export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result 
 
+    # Additional functionality
+    estimate_ef
 end

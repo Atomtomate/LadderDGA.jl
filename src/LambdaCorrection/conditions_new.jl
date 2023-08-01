@@ -259,24 +259,21 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         println("WARNING: λ = $root outside region ($min_λ)!")
     end
 
+    type_str = sc_max_it > 0 ? "_sc" : ""
+    type_str = update_χ_tail ? "_tsc" : type_str
+    type_str = "dm"*type_str
     if all(isfinite.(root))
         n, μ, E_kin, E_pot_1, E_pot_2, lhs_c1, sc_converged = sc_max_it == 0 ? residual_vals(MVector{2,Float64}(root)) : residual_vals_sc(MVector{2,Float64}(root))
         converged = abs(rhs_c1 - lhs_c1) <= validate_threshold && abs(E_pot_1 - E_pot_2) <= validate_threshold
         if λ_val_only
             return root[1], root[2], converged
         else
-            type_str = sc_max_it > 0 ? "_sc" : ""
-            type_str = update_χ_tail ? "_tsc" : type_str
-            type_str = "dm"*type_str
             return λ_result(root[1], root[2], Symbol(type_str), true, converged, E_kin, E_pot_1, E_pot_2, rhs_c1, lhs_c1, traceDF, G_ladder, Σ_ladder, μ, n)
         end
     else
         if λ_val_only
             return root[1], root[2], false
         else
-            type_str = sc_max_it > 0 ? "_sc" : ""
-            type_str = update_χ_tail ? "_tsc" : type_str
-            type_str = "dm"*type_str
             return λ_result(root[1], root[2], Symbol(type_str), true, false, NaN, NaN, NaN, NaN, NaN, traceDF, nothing, nothing, NaN, NaN)
         end
     end
@@ -367,7 +364,9 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
                  maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, fit_μ::Bool=true,
                  par::Bool=false, type::Symbol=:fix)
     it      = 1
+    χTail_sc = 1
     done    = false
+    χTail_sc_done = false
     converged = false
     fft_νGrid = h.sP.fft_range
     E_pot_1 = Inf
@@ -382,78 +381,101 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
     λd      = 0.0
     Nd = 4
 
-    while !done
-        λm,λd,μ,validation = if it == 1 && type in [:fix, :pre_dm, :pre_m]
-            λm,λd,validation = χm.λ, χd.λ, true  
-            reset!(χm)
-            reset!(χd)
-            λm,λd,μ,validation
-        else
-            if type == :pre_dm
-                try
-                    res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
-                                    νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=fit_μ, μ=μ, λinit=[λm,λd],verbose=false)
-                    println("DBG: λm=",round(res.λm,digits=Nd),
-                                  ", λd=",round(res.λd,digits=Nd), 
-                                  ", μ=",round(res.μ,digits=Nd), 
-                                  ", n=",round(res.n,digits=Nd), 
-                                  " // EPot_p1: ",round(res.EPot_p1,digits=Nd),
-                                  " , p2: ",round(res.EPot_p2,digits=Nd),
-                                  " :: ", round(res.PP_p1,digits=Nd), 
-                                  " // ", round(res.PP_p2,digits=Nd))
-                    res.λm, res.λd, res.μ, res.converged   
-                catch e
-                    done = true
-                    res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
-                                    νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=false, μ=μ, λinit=[λm,λd],verbose=false)
-                    res.λm, res.λd,0.0,false
-                end
-            elseif type == :pre_m
-                rhs = λm_rhs(χm, χd, h)
-                λm, validation = λm_correction(χm, rhs, h)
-                λm, 0.0, μ, validation
+
+    while !χTail_sc_done
+        while !done
+            λm,λd,μ,validation = if it == 1 && type in [:pre_dm, :dm, :pre_m, :m]
+                λm,λd,validation = χm.λ, χd.λ, true  
+                reset!(χm)
+                reset!(χd)
+                λm,λd,μ,validation
             else
-                λm, λd, μ, true
+                if type in [:pre_dm, :dm]
+                    try
+                        res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
+                                        νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=fit_μ, μ=μ, λinit=[λm,λd],verbose=false)
+                        println("DBG: λm=",round(res.λm,digits=Nd),
+                                      ", λd=",round(res.λd,digits=Nd), 
+                                      ", μ=",round(res.μ,digits=Nd), 
+                                      ", n=",round(res.n,digits=Nd), 
+                                      " // EPot_p1: ",round(res.EPot_p1,digits=Nd),
+                                      " , p2: ",round(res.EPot_p2,digits=Nd),
+                                      " :: ", round(res.PP_p1,digits=Nd), 
+                                      " // ", round(res.PP_p2,digits=Nd))
+                        res.λm, res.λd, res.μ, res.converged   
+                    catch e
+                        done = true
+                        res = λdm_correction(χm, γm, χd, γd, h.Σ_loc, gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
+                                        νmax=νmax, λ_val_only=false, sc_max_it=0, update_χ_tail=false, fit_μ=false, μ=μ, λinit=[λm,λd],verbose=false)
+                        res.λm, res.λd,0.0,false
+                    end
+                elseif type == [:pre_m, :m]
+                    rhs = λm_rhs(χm, χd, h)
+                    λm, validation = λm_correction(χm, rhs, h)
+                    λm, 0.0, μ, validation
+                else
+                    λm, λd, μ, true
+                end
             end
-        end
-                   
-        if !isfinite(λm) || !isfinite(λd) || !validation
-            println("ERROR: (run: β = $(h.mP.β), U = $(h.mP.U), n = $(h.mP.n))\n
-Nν = $(h.sP.n_iν), Nω = $(h.sP.n_iω), Nk = $(h.kG.Ns)\n
-λm = $λm or λd = $λd not finite, OR internal λ correction did not find root!")
-            done = true
-            break
-        end
+                       
+            if !isfinite(λm) || !isfinite(λd) || !validation
+                println("ERROR: (run: β = $(h.mP.β), U = $(h.mP.U), n = $(h.mP.n))\n
+    Nν = $(h.sP.n_iν), Nω = $(h.sP.n_iω), Nk = $(h.kG.Ns)\n
+    λm = $λm or λd = $λd not finite, OR internal λ correction did not find root!")
+                done = true
+                break
+            end
 
-        copy!(Σ_work, Σ_ladder)
-        if par
-            calc_Σ_par!(Σ_ladder_inplace, λm=λm, λd=λd)
-        else
-            (λm != 0) && χ_λ!(χm, λm)
-            (λd != 0) && χ_λ!(χd, λd)
-            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
-            (λm != 0) && reset!(χm)
-            (λd != 0) && reset!(χd)
-        end
+            copy!(Σ_work, Σ_ladder)
+            if par
+                calc_Σ_par!(Σ_ladder_inplace, λm=λm, λd=λd)
+            else
+                (λm != 0) && χ_λ!(χm, λm)
+                (λd != 0) && χ_λ!(χd, λd)
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
+                (λm != 0) && reset!(χm)
+                (λd != 0) && reset!(χd)
+            end
 
-        mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
-        μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
-        if isnan(μ) 
-            break
-        end
-        E_pot_1_old = E_pot_1
-        E_pot_2_old = E_pot_2
-        E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, h.kG, h.mP)
-        G_rfft!(gLoc_rfft, G_ladder, h.kG, fft_νGrid)
+            mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
+            μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
+            if isnan(μ) 
+                break
+            end
+            E_pot_1_old = E_pot_1
+            E_pot_2_old = E_pot_2
+            E_kin, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, h.kG, h.mP)
+            G_rfft!(gLoc_rfft, G_ladder, h.kG, fft_νGrid)
 
-        if type in [:m, :dm, :pre_m, :pre_dm] 
-            χ_m_sum = sum_kω(h.kG, χm, λ=λm)
-            χ_d_sum = sum_kω(h.kG, χd, λ=λd)
-            lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-            E_pot_2 = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
+
+            if type in [:m, :dm, :pre_m, :pre_dm] 
+                χ_m_sum = sum_kω(h.kG, χm, λ=λm)
+                χ_d_sum = sum_kω(h.kG, χd, λ=λd)
+                lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+                E_pot_2 = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
+            end
+
+
+            if abs(E_pot_1 - E_pot_1_old) < conv_abs && abs(E_pot_2 - E_pot_2_old) < conv_abs
+                converged = true
+                done = true
+            end
+            if !isnothing(trace[])
+                χ_m_sum2 = sum_ωk(h.kG, χm, λ=λm)
+                χ_d_sum2 = sum_ωk(h.kG, χd, λ=λd)
+                λm_log = (λm != 0 ? λm : χm.λ)
+                λd_log = (λd != 0 ? λd : χd.λ)
+                lhs_c1 = real(χ_d_sum + χ_m_sum)/2
+                n = filling(G_ladder, h.kG, h.mP.U, μ, h.mP.β)
+                row = [it, λm_log, λd_log, μ, n, E_kin, E_pot_1, lhs_c1, E_pot_2, χ_m_sum, χ_m_sum2, χ_d_sum, χ_d_sum2, abs(sum(Σ_ladder)), abs(sum(G_ladder))]
+                push!(trace[], row)
+            end
+            (it >= maxit) && (done = true)
+            it += 1
         end
 
         if update_χ_tail
+            println("in χ tail update # $χTail_sc")
             if !isfinite(E_kin)
                 E_pot_1 = NaN
                 lhs_c1  = NaN
@@ -461,30 +483,24 @@ Nν = $(h.sP.n_iν), Nω = $(h.sP.n_iω), Nk = $(h.kG.Ns)\n
             else
                 update_tail!(χm, [0, 0, E_kin], iωn_f)
                 update_tail!(χd, [0, 0, E_kin], iωn_f)
-                χ_m_sum = sum_kω(h.kG, χm, λ=λm)
-                χ_d_sum = sum_kω(h.kG, χd, λ=λd)
-                lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-                E_pot_2 = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
             end
-        end
+            χ_m_sum = sum_kω(h.kG, χm, λ=λm)
+            χ_d_sum = sum_kω(h.kG, χd, λ=λd)
+            lhs_c1  = real(χ_d_sum + χ_m_sum)/2
+            E_pot_2 = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
 
-        if abs(E_pot_1 - E_pot_1_old) < conv_abs && abs(E_pot_2 - E_pot_2_old) < conv_abs
-            converged = true
-            done = true
+            if χTail_sc >= 20 || abs(E_pot_1 - E_pot_2) < conv_abs && abs(lhs_c1 - h.mP.n/2 * (1 - h.mP.n/2)) < conv_abs
+                χTail_sc_done = true
+            else
+                it = 1
+                done = false
+            end
+        else
+            χTail_sc_done = true
         end
-        if !isnothing(trace[])
-            χ_m_sum2 = sum_ωk(h.kG, χm, λ=λm)
-            χ_d_sum2 = sum_ωk(h.kG, χd, λ=λd)
-            λm_log = (λm != 0 ? λm : χm.λ)
-            λd_log = (λd != 0 ? λd : χd.λ)
-            lhs_c1   = real(χ_d_sum + χ_m_sum)/2
-            n = filling(G_ladder, h.kG, h.mP.U, μ, h.mP.β)
-            row = [it, λm_log, λd_log, μ, n, E_kin, E_pot_1, lhs_c1, E_pot_2, χ_m_sum, χ_m_sum2, χ_d_sum, χ_d_sum2, abs(sum(Σ_ladder)), abs(sum(G_ladder))]
-            push!(trace[], row)
-        end
-        (it >= maxit) && (done = true)
-        it += 1
+        χTail_sc += 1
     end
+
 
     n = filling_pos(view(G_ladder, :, 0:νmax-1), h.kG, h.mP.U, μ, h.mP.β)
 
