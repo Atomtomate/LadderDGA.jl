@@ -339,6 +339,26 @@ function zero_freq(ν, Σ)
     return Σ[1]
 end
 
+"""
+    fermi_surface_connected(ef_ind::BitVector, kG::KGrid, D::Int)
+
+Checks for connected fermi surface of `kG` dimensions, given a `BitVector` of points on the fermi surface.
+Returns `< 0` if fermi surface is not connected, `== 0` if it is exactly a line, `> 0` if the line is multiple points thick.
+"""
+function fermi_surface_connected(ef_ind::BitVector, kG::KGrid)
+    D = typeof(kG).parameters[2]
+    shift_indices = filter(x->!all(iszero.(x)), collect(Base.product([[xi for xi in [-1,0,1]] for Di = 1:D]...))[:])
+    ef_ind_exp = convert.(Bool, LadderDGA.expandKArr(kG, convert.(Float64,ef_ind)))
+    kernel = sum([circshift(ef_ind_exp, s) for s in shift_indices])[ef_ind_exp]
+    sum(kernel .- D)
+end
+
+"""
+    estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
+
+Estimate fermi surface of `Σ_ladder`, using extrapolation to ``\\nu = 0`` with the function `ν0_estimator` and the condition ``\\lim_{\\nu \\to 0} \\Sigma (\\nu, k_f) = \\mu - \\epsilon_{k_f}``.
+
+"""
 function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
     νGrid = [1im * (2*n+1)*π/mP.β for n in 0:1];
     s_r0 = [ν0_estimator(imag(νGrid), real.(Σ_ladder[i,0:2])) for i in 1:size(Σ_ladder,1)];
@@ -346,5 +366,23 @@ function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν
     ek_diff = ekf .- s_r0
     min_diff = minimum(abs.(ekf .- s_r0))
     return abs.(ek_diff) .< relax_zero_condition*kG.Ns*min_diff
+end
+
+"""
+    estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit)
+
+Estimates connected fermi surface. See also [`estimate_ef`](@ref estimate_ef) and [`fermi_surface_connected`](@ref fermi_surface_connected).
+Returns fermi surface indices and `relax_zero_condition` (values substantially larger than `1` indicate appearance of fermi arcs).
+"""
+function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit)
+    ef = nothing
+    rc_res = 0.0
+    for rc in 0.1:0.1:20.0
+        ef = estimate_ef(Σ_ladder, kG, mP; ν0_estimator=lin_fit, relax_zero_condition=rc)
+        conn = fermi_surface_connected(ef, kG)
+        rc_res = rc
+        conn >= 0 && break
+    end
+    return ef, rc_res
 end
 

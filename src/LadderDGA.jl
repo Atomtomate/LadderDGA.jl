@@ -31,5 +31,5 @@ module LadderDGA
     export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result 
 
     # Additional functionality
-    estimate_ef
+    estimate_ef, fermi_surface_connected, estimate_connected_ef
 end
