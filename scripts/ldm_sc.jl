@@ -17,7 +17,7 @@ lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
 
-file_name = "new_res_ldga_NK$(Nk)_Nw$(Nω).jld2"
+file_name = "test_res_ldga_NK$(Nk)_Nw$(Nω).jld2"
 output_file = joinpath(out_dir,file_name)
 if isfile(output_file)
     println("Output file exists, aborting.")

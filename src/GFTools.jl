@@ -335,6 +335,10 @@ function lin_fit(ν, Σ)
     return Σ[1] - m * ν[1]
 end
 
+function zero_freq(ν, Σ)
+    return Σ[1]
+end
+
 function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
     νGrid = [1im * (2*n+1)*π/mP.β for n in 0:1];
     s_r0 = [ν0_estimator(imag(νGrid), real.(Σ_ladder[i,0:2])) for i in 1:size(Σ_ladder,1)];
