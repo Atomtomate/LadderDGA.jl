@@ -350,7 +350,7 @@ function fermi_surface_connected(ef_ind::BitVector, kG::KGrid)
     shift_indices = filter(x->!all(iszero.(x)), collect(Base.product([[xi for xi in [-1,0,1]] for Di = 1:D]...))[:])
     ef_ind_exp = convert.(Bool, LadderDGA.expandKArr(kG, convert.(Float64,ef_ind)))
     kernel = sum([circshift(ef_ind_exp, s) for s in shift_indices])[ef_ind_exp]
-    sum(kernel .- D)
+    sum(kernel .- 2)
 end
 
 """
@@ -378,7 +378,7 @@ function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelPara
     ef = nothing
     rc_res = 0.0
     for rc in 0.1:0.1:20.0
-        ef = estimate_ef(Σ_ladder, kG, mP; ν0_estimator=lin_fit, relax_zero_condition=rc)
+        ef = estimate_ef(Σ_ladder, kG, mP; ν0_estimator=ν0_estimator, relax_zero_condition=rc)
         conn = fermi_surface_connected(ef, kG)
         rc_res = rc
         conn >= 0 && break
