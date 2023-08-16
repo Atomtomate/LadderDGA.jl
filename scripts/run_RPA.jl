@@ -53,8 +53,9 @@ println(bubble.data[begin,:])
 println("χ_0(R-point,ω):")
 println(bubble.data[end,:])
 
-# χm, γm = calc_χγ(:m, RPAhelper, bubble);   # vergleiche Notizen. χ_r ist klar, γ (Hedin Vertex) = 1 im RPA-Fall ebenso einfach eingebaut
-# χd, γd = calc_χγ(:d, RPAhelper, bubble);   # vergleiche Notizen. χ_r ist klar, γ (Hedin Vertex) = 1 im RPA-Fall ebenso einfach eingebaut
+χm, γm = calc_χγ(:m, RPAhelper, bubble); # delta vertex = 1
+χd, γd = calc_χγ(:d, RPAhelper, bubble);
+println("done")
 # # λ₀ = calc_λ0(bubble, RPAhelper)
 
 

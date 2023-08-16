@@ -264,6 +264,28 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     return χT(χ, mP.β, tail_c=[0,0,mP.Ekin_DMFT]), γT(γ)
 end
 
+function calc_χγ(type::Symbol, h::RPAHelper, χ₀::χ₀RPA_T)
+    calc_χγ(type, χ₀, h.kG, h.mP, h.sP)
+end
+
+function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+    s = if type == :d 
+        1
+    elseif type == :m
+        -1
+    else
+        error("Unkown type")
+    end
+    Nq  = length(kG.kMult)
+    Nω  = size(χ₀.data,ω_axis)
+    Nν = 2*sP.n_iν
+    γ = ones(ComplexF64, Nq, Nν, Nω)
+    χ = Array{Float64,2}(undef, Nq, Nω)
+    χ = χ₀./ (1 .+ s * mP.U .* χ₀)
+    return χT(χ, mP.β, full_range=true), γT(γ)
+end
+
+
 #TODO: THIS NEEDS CLEANUP!
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
     if Nk(kG) == 1 
