@@ -18,11 +18,16 @@ const ω_axis = 3;
 const ν_axis = 2;
 const q_axis = 1;
 
+const q_axis_RPA = 1;
+const ω_axis_RPA = 2;
+
 # =========================================== Static Types ===========================================
 const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const GνqT = OffsetArray
+
+const _eltype_RPA = Float64
 
 abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
 
@@ -75,7 +80,7 @@ Struct for the RPA bubble term.
 
 Constructor
 ------------
-χ₀RPA_T(data::Array{_eltype,3}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
+χ₀RPA_T(data::Array{_eltype,2}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
 
 This constructor does not perform any checks for the entered data array in the currently implemented version.
 Make sure that the axes match the axis_types field!
@@ -83,18 +88,18 @@ Make sure that the axes match the axis_types field!
 Fields
 -------------
 - **`data`**         : `Array{ComplexF64,3}`, data.
-- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
-- **`indices_νω`**   : `Matrix{Tuple{Int,Int}}`, (n,m) indices of fermionic ``\\nu_n`` and bosonic ``\\omega_m`` Matsubara frequencies.
+- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
+- **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
 - **`β`**            : `Float64`, inverse temperature.
 """
-struct χ₀RPA_T <: MatsubaraFunction{_eltype,3}
-    data::Array{_eltype,3}
+struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
+    data::Array{_eltype_RPA,2}
     axis_types::Dict{Symbol, Int}
-    indices_νω::Matrix{Tuple{Int,Int}}
+    indices_ω::Vector{Int}
     β::Float64
-function χ₀RPA_T(data::Array{_eltype,3}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
-        indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid],(length(νnGrid), length(ωnGrid))); # .- trunc(Int64,shift*i/2) ?
-        new(data,Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis), indices_νω, β)
+function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
+        indices_ω = [i for i in ωnGrid];
+        new(data,Dict(:q => q_axis_RPA, :ω => ω_axis_RPA), indices_ω, β)
     end
 end
 
@@ -361,12 +366,12 @@ end
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
 Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
 Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
-Base.getindex(arr::χ₀RPA_T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::χ₀RPA_T, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
 Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
-Base.setindex!(arr::χ₀RPA_T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
+Base.setindex!(arr::χ₀RPA_T, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
 

@@ -47,11 +47,11 @@ flush(stdout)
 
 # ====================== lDGA ======================
 bubble = calc_bubble(RPAhelper);
-bubble2 = dropdims(sum(bubble.data,dims=2),dims=2)/β; # sum over fermionic matsubara frequencies
+bubble.data; # sum over fermionic matsubara frequencies
 println("χ_0(Γ-point,ω):")
-println(real(bubble2[begin,:]))
+println(bubble.data[begin,:])
 println("χ_0(R-point,ω):")
-println(real(bubble2[end,:]))
+println(bubble.data[end,:])
 
 # χm, γm = calc_χγ(:m, RPAhelper, bubble);   # vergleiche Notizen. χ_r ist klar, γ (Hedin Vertex) = 1 im RPA-Fall ebenso einfach eingebaut
 # χd, γd = calc_χγ(:d, RPAhelper, bubble);   # vergleiche Notizen. χ_r ist klar, γ (Hedin Vertex) = 1 im RPA-Fall ebenso einfach eingebaut

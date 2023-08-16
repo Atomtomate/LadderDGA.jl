@@ -152,21 +152,24 @@ Parameters
 
 """
 function calc_bubble(β::Float64, kG::KGrid, sP::SimulationParameters)
-    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2 * sP.n_iω + 1) # shell indices?
+    data_qνω = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2 * sP.n_iω + 1) # shell indices?
     ωrange = (-sP.n_iω : sP.n_iω)
     νrange = (-sP.n_iν : sP.n_iν - 1) # shift ?
     for (iω, ωn) = enumerate(ωrange)
         for (iν, νn) = enumerate(νrange) 
             gν = gf(νn, β, dispersion(kG))
             gνω = gf(νn + ωn, β, dispersion(kG))
-            data[:, iν, iω] = -conv(kG, gν, gνω) # prefactor of 1/β is attached to frequency sums. Omit them here.
+            data_qνω[:, iν, iω] = conv(kG, gν, gνω) # prefactor of 1/β is attached to frequency sums. Omit them here.
         end
     end
-
-    if maximum(abs.(imag(data))) > 1e-10
+    
+    if maximum(abs.(imag(data_qνω))) > 1e-10
         error("Non vanishing imaginary part!")
     end
-    return χ₀RPA_T(real(data) .+ 0im, ωrange, νrange, β)
+    data_qω = Array{Float64,2}(undef, length(kG.kMult), 2 * sP.n_iω + 1)
+    data_qω = -dropdims(real(sum(data_qνω,dims=2)),dims=2)/β; # naive sum over fermionic matsubara frequencies (1\β corresponds to this sum)
+
+    return χ₀RPA_T(data_qω, ωrange, β)
 end
 
 """
