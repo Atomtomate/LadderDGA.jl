@@ -33,7 +33,7 @@ abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
     χ₀T <: MatsubaraFunction
 
 Struct for the bubble term. The `q`, `ω` dependent asymptotic behavior is computed from the 
-`t1` and `t2` input.
+`t1` and `t2` input.  See [`χ₀Asym_coeffs`](@ref χ₀Asym_coeffs) implementation for details.
 
 Constructor
 -------------
@@ -56,6 +56,7 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     axis_types::Dict{Symbol, Int}
     indices_νω::Matrix{Tuple{Int,Int}}
     β::Float64
+    # possible inconsistency: ω grid is passed generated, while ν grid is generated in the constructor. The grids must already be known before the calculation of data. From my point of view both grids should be passed to the constructor already generated.
     function χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
                  shift::Bool, mP::ModelParameters; local_tail=false)
         c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
@@ -63,7 +64,37 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
 
         νnGrid = -n_iν:n_iν-1
         indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid .- trunc(Int64,shift*i/2)],(length(νnGrid), length(ωnGrid)));
-        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, mP.β)
+        new(data,asym,Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis), indices_νω, mP.β)
+    end
+end
+
+"""
+    χ₀RPA_T <: MatsubaraFunction
+
+Struct for the RPA bubble term.
+
+Constructor
+------------
+χ₀RPA_T(data::Array{_eltype,3}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
+
+This constructor does not perform any checks for the entered data array in the currently implemented version.
+Make sure that the axes match the axis_types field!
+
+Fields
+-------------
+- **`data`**         : `Array{ComplexF64,3}`, data.
+- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
+- **`indices_νω`**   : `Matrix{Tuple{Int,Int}}`, (n,m) indices of fermionic ``\\nu_n`` and bosonic ``\\omega_m`` Matsubara frequencies.
+- **`β`**            : `Float64`, inverse temperature.
+"""
+struct χ₀RPA_T <: MatsubaraFunction{_eltype,3}
+    data::Array{_eltype,3}
+    axis_types::Dict{Symbol, Int}
+    indices_νω::Matrix{Tuple{Int,Int}}
+    β::Float64
+function χ₀RPA_T(data::Array{_eltype,3}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
+        indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid],(length(νnGrid), length(ωnGrid))); # .- trunc(Int64,shift*i/2) ?
+        new(data,Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis), indices_νω, β)
     end
 end
 
@@ -148,7 +179,7 @@ mutable struct χT <: MatsubaraFunction{Float64, 2}
                 tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0)
         f!(χ,λ) = nothing
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range, f!)
+        new(data, Dict(:q => q_axis, :ω => ω_axis), indices_ω, tail_c, 0.0, β, range, f!)
     end
 end
 
@@ -318,7 +349,7 @@ struct γT <: MatsubaraFunction{ComplexF64,3}
     data::Array{ComplexF64,3}
     axis_types::Dict{Symbol, Int}
     function γT(data::Array{ComplexF64, 3})
-        new(data, Dict(:q => 1, :ν => 2, :ω => 3))
+        new(data, Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis))
     end
 end
 
@@ -330,10 +361,12 @@ end
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
 Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
 Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::χ₀RPA_T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
 Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
+Base.setindex!(arr::χ₀RPA_T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
 

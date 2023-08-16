@@ -124,6 +124,68 @@ function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameter
     return χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=local_tail) 
 end
 
+function calc_bubble(h::RPAHelper)
+    calc_bubble(h.mP.β, h.kG, h.sP)
+end
+
+"""
+    calc_bubble(β::Float64, kG::KGrid, sP::SimulationParameters)
+
+Calc RPA-bubble term.
+
+TODO: So far 3d hardcoded. Generalize to d dimensions...
+
+χ_0(q,ω)=-Σ_{k} Σ_ν G(ν, k) * G(ν+ω, k+q)
+
+where
+    ν  : Fermionic Matsubara frequencies
+    ω  : Bosonic Matsubara frequencies
+    k,q: Element of the first Brilluoin zone
+
+    This is a real-valued quantity.
+
+Parameters
+----------
+    β     :: Float64  Inverse temperature in natural units
+    kG    :: KGrid    The k-grid on which to perform the calculation
+    sP    :: SimulationParameters (to construct a frequency range)
+
+"""
+function calc_bubble(β::Float64, kG::KGrid, sP::SimulationParameters)
+    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2 * sP.n_iω + 1) # shell indices?
+    ωrange = (-sP.n_iω : sP.n_iω)
+    νrange = (-sP.n_iν : sP.n_iν - 1) # shift ?
+    for (iω, ωn) = enumerate(ωrange)
+        for (iν, νn) = enumerate(νrange) 
+            gν = gf(νn, β, dispersion(kG))
+            gνω = gf(νn + ωn, β, dispersion(kG))
+            data[:, iν, iω] = -conv(kG, gν, gνω) # prefactor of 1/β is attached to frequency sums. Omit them here.
+        end
+    end
+
+    if maximum(abs.(imag(data))) > 1e-10
+        error("Non vanishing imaginary part!")
+    end
+    return χ₀RPA_T(real(data) .+ 0im, ωrange, νrange, β)
+end
+
+"""
+    gf(n::Int,β::Float64,ϵk)
+
+Evaluates the RPA greensfunction.
+G(ν,k) = \frac{1}{i ν - ϵ_k}
+
+Parameters
+----------
+    n     :: Integer that corresponds to the fermionic matsubara frequency
+    β     :: Float64  Inverse temperature in natural units
+    ϵk    :: evaluated dispersion relation ... (ϵk-μ)
+"""
+function gf(n::Int, β::Float64, ϵk)
+    ν = (2n + 1) * π / β # fermionic matsubara frequency
+    return 1.0 ./ (im * ν .- ϵk)
+end
+
 """
     calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)
     calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)

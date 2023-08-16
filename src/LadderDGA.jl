@@ -20,6 +20,9 @@ module LadderDGA
     export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
     export collect_χ₀, collect_χ, collect_γ, collect_Σ
     export λ_from_γ, F_from_χ, G_from_Σ, G_from_Σladder, Σ_from_Gladder
+    
+    # RPA main functions
+    export setup_RPA, χ₀RPA_T
 
     # Thermodynamics
     export calc_E_ED, calc_E, calc_Epot2

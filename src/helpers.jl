@@ -34,6 +34,14 @@ mutable struct lDΓAHelper
     gImp::OffsetArray
 end
 
+mutable struct RPAHelper
+    sP::SimulationParameters
+    mP::ModelParameters
+    kG::KGrid
+end
+
+
+
 """
     setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true])
 
@@ -157,6 +165,20 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, real(sum_ω(χ_m_loc)[1]), χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
+end
+
+"""
+    setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters)
+
+Computes all needed objects for RPA calculations.
+
+Returns: [`RPAHelper`](@ref RPAHelper)
+"""
+function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters)
+
+    @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
+    @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
+    return RPAHelper(sP, mP, kG)
 end
 
 # ========================================== Index Functions =========================================
