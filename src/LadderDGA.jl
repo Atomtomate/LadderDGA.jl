@@ -8,6 +8,7 @@ module LadderDGA
     # Types
     export ModelParameters, SimulationParameters, EnvironmentVars, lDΓAHelper
     export ΓT, FT, χ₀T, χT, γT, GνqT
+    export RPAHelper
     
     # Setup and auxilliary functions
     export filling, filling_pos, G_fft

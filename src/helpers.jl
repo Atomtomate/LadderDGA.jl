@@ -112,7 +112,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         χLoc_m_ω = similar(χDMFT_m, size(χDMFT_m, 3))
         χLoc_d_ω = similar(χDMFT_d, size(χDMFT_d, 3))
-        for ωi in axes(χDMFT_m, ω_axis)
+        for ωi in axes(χDMFT_m, 3)
             if typeof(sP.χ_helper) === BSE_SC_Helper
                 @error "SC not fully implemented yet"
                 @info "Using asymptotics improvement for large ν, ν' of χ_DMFT with shell size of $(sP.n_iν_shell)"

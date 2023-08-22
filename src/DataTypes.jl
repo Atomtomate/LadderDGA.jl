@@ -14,12 +14,6 @@
 
 
 import Base.copy
-const ω_axis = 3;
-const ν_axis = 2;
-const q_axis = 1;
-
-const q_axis_RPA = 1;
-const ω_axis_RPA = 2;
 
 # =========================================== Static Types ===========================================
 const _eltype = ComplexF64
@@ -69,7 +63,7 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
 
         νnGrid = -n_iν:n_iν-1
         indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid .- trunc(Int64,shift*i/2)],(length(νnGrid), length(ωnGrid)));
-        new(data,asym,Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis), indices_νω, mP.β)
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, mP.β)
     end
 end
 
@@ -97,9 +91,9 @@ struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     axis_types::Dict{Symbol, Int}
     indices_ω::Vector{Int}
     β::Float64
-function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
         indices_ω = [i for i in ωnGrid];
-        new(data,Dict(:q => q_axis_RPA, :ω => ω_axis_RPA), indices_ω, β)
+        new(data,Dict(:q => 1, :ω => 2), indices_ω, β)
     end
 end
 
@@ -184,7 +178,7 @@ mutable struct χT <: MatsubaraFunction{Float64, 2}
                 tail_c::Vector{Float64} = Float64[], full_range=true, reduce_range_prct=0.0)
         f!(χ,λ) = nothing
         range = full_range ? (1:size(data,2)) : find_usable_χ_interval(data, reduce_range_prct=reduce_range_prct)
-        new(data, Dict(:q => q_axis, :ω => ω_axis), indices_ω, tail_c, 0.0, β, range, f!)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range, f!)
     end
 end
 
@@ -218,7 +212,7 @@ function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=fals
     ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
     zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
     ωn2_tail[zero_ind] = 0.0
-    res =  sum_kω(kG, view(χ.data,:,ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
+    res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
     return res
 end
 
@@ -354,7 +348,7 @@ struct γT <: MatsubaraFunction{ComplexF64,3}
     data::Array{ComplexF64,3}
     axis_types::Dict{Symbol, Int}
     function γT(data::Array{ComplexF64, 3})
-        new(data, Dict(:q => q_axis, :ν => ν_axis, :ω => ω_axis))
+        new(data, Dict(:q => 1, :ν => 2, :ω => 3))
     end
 end
 

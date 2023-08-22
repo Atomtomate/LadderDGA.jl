@@ -15,6 +15,7 @@ import ..G_from_Σ, ..G_fft, ..G_rfft!, ..G_from_Σladder!, ..G_from_Σladder, .
 import ..initialize_EoM, ..calc_Σ_par, ..calc_Σ_par!
 import ..filling, ..filling_pos
 import ..update_wcaches_G_rfft!
+import ..RPAHelper
 
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min

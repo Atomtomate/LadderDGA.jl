@@ -237,7 +237,7 @@ function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, kG::KGrid, mP::Mode
 
     verbose && @info "λsp correction infos:"
     rhs = if (( (typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
-        verbose && @info "  ↳ using n/2 * (1 - n/2) - Σ χ_d as rhs"
+        verbose && @info "  ↳ using n * (1 - n/2) - Σ χ_d as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
         mP.n * (1 - mP.n/2) - χ_d_sum
     else
         !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT rror compensation method"))

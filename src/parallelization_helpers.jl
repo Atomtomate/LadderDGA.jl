@@ -79,7 +79,7 @@ Returns three arrays:
 """
 function gen_ν_part_slices(data::Array{ComplexF64,3}, index_list::Vector{NTuple{4,Int}})
     νn = map(x->x[4], index_list)
-    res::Array{eltype(data),3} = zeros(eltype(data), size(data,q_axis), size(data,ω_axis), length(unique(νn)))
+    res::Array{eltype(data),3} = zeros(eltype(data), size(data,1), size(data, 3), length(unique(νn)))
     νn_list = unique(νn)
     ωn_ranges = Vector{UnitRange{Int}}(undef, length(νn_list))
     for (i,νn) in enumerate(νn_list)
