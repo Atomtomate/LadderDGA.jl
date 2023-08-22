@@ -82,7 +82,7 @@ function calc_χγ(type::Symbol, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, 
     else
         error("Unkown type")
     end
-    χ₀_qω = dropdims(sum(χ₀.data, dims=χ₀.axis_types[:ν]), dims=χ₀.axis_types[:ν]) ./ mP.β
+    χ₀_qω = dropdims(sum(χ₀.data, dims=χ₀.axis_types[:ν]), dims=χ₀.axis_types[:ν]) ./ mP.β^2
     Nq  = length(kG.kMult)
     Nω  = size(χ₀.data, χ₀.axis_types[:ω])
     Nν  = 2*sP.n_iν+1

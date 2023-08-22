@@ -17,10 +17,10 @@ out_dir = splitdir(cfg)[1]
 to2 = TimerOutput()
 
 β = 26.790697674418606;
-U = 1.7;
+U = 1.8;
 μ = 0.0;
 nden = 1.0;
-Nk = 10
+Nk = 40
 
 mP = ModelParameters(U, μ, β, nden, NaN, NaN, NaN)
 
@@ -52,12 +52,14 @@ flush(stdout)
 
 
 # ====================== lDGA ======================
-bubblett = calc_bubble(RPAhelper);
-bubble_testtt = LadderDGA.calc_bubble_test(RPAhelper);
+# bubblett = calc_bubble(RPAhelper);
+# bubble_testtt = LadderDGA.calc_bubble_test(RPAhelper);
 
 @timeit to2 "intern" bubble = calc_bubble(RPAhelper);
 @timeit to2 "test" bubble_test = LadderDGA.calc_bubble_test(RPAhelper);
 bbl = dropdims(sum(bubble.data,dims=bubble.axis_types[:ν]) ./ mP.β, dims=2)
+
+
 χm, γm = calc_χγ(:m, RPAhelper, bubble); # delta vertex = 1
 χd, γd = calc_χγ(:d, RPAhelper, bubble);
 
