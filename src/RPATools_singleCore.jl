@@ -1,9 +1,10 @@
 
-function calc_bubble(h::RPAHelper)
+function calc_bubble_test(h::RPAHelper)
     calc_bubble(h.mP.β, h.kG, h.sP)
 end
 
 """
+    calc_bubble(h::RPAHelper)
     calc_bubble(β::Float64, kG::KGrid, sP::SimulationParameters)
 
 Calc RPA-bubble term.
@@ -47,6 +48,10 @@ function calc_bubble(β::Float64, kG::KGrid, sP::SimulationParameters)
     return χ₀RPA_T(data_qω, ωrange, β)
 end
 
+function calc_bubble(h::RPAHelper; local_tail=false)
+    calc_bubble(h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP, local_tail=false)
+end
+
 """
     gf(n::Int,β::Float64,ϵk)
 
@@ -65,11 +70,11 @@ function gf(n::Int, β::Float64, ϵk)
 end
 
 
-function calc_χγ(type::Symbol, h::RPAHelper, χ₀::χ₀RPA_T)
+function calc_χγ(type::Symbol, h::RPAHelper, χ₀::χ₀T)
     calc_χγ(type, χ₀, h.kG, h.mP, h.sP)
 end
 
-function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ(type::Symbol, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     s = if type == :d 
         1
     elseif type == :m
@@ -77,11 +82,11 @@ function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParamete
     else
         error("Unkown type")
     end
+    χ₀_qω = dropdims(sum(χ₀.data, dims=χ₀.axis_types[:ν]), dims=χ₀.axis_types[:ν]) ./ mP.β
     Nq  = length(kG.kMult)
-    Nω  = size(χ₀.data,ω_axis)
-    Nν = 2*sP.n_iν
+    Nω  = size(χ₀.data, χ₀.axis_types[:ω])
+    Nν  = 2*sP.n_iν+1
     γ = ones(ComplexF64, Nq, Nν, Nω)
-    χ = Array{Float64,2}(undef, Nq, Nω)
-    χ = χ₀./ (1 .+ s * mP.U .* χ₀)
+    χ = real(χ₀_qω  ./ (1 .+ s * mP.U .* χ₀_qω))
     return χT(χ, mP.β, full_range=true; tail_c=[0.0,0.0,0.0]), γT(γ)
 end

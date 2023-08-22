@@ -6,7 +6,7 @@
 #   General purpose helper functions for the ladder DΓA code.                                          #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   Add documentation for all functions                                                                #
-#   Cleanup of setup function                                                                          #
+#   !!!!Cleanup of setup function!!!!                                                                  #
 # ==================================================================================================== #
 
 
@@ -38,6 +38,9 @@ mutable struct RPAHelper
     sP::SimulationParameters
     mP::ModelParameters
     kG::KGrid
+    gLoc::GνqT
+    gLoc_fft::GνqT
+    gLoc_rfft::GνqT
 end
 
 
@@ -79,11 +82,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     @timeit to "Compute GLoc" begin
         rm = maximum(abs.(sP.fft_range))
-        t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims=1)
         gs = gridshape(kG)
         kGdims = length(gs)
         νdim = kGdims + 1
-        gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
         gLoc = OffsetArray(Array{ComplexF64,2}(undef, length(kG.kMult), length(sP.fft_range)), 1:length(kG.kMult), sP.fft_range)
         gLoc_i = Array{ComplexF64,kGdims}(undef, gs...)
         gLoc_fft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
@@ -101,6 +102,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "local correction" begin
         #TODO: unify checks
         kGridLoc = gen_kGrid(kGridStr[1], 1)
+        t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims=1)
+        gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
         F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
         χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true)
         χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP)
@@ -178,7 +181,28 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
 
     @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
-    return RPAHelper(sP, mP, kG)
+
+    # TODO: refactor this as a function
+
+    @timeit to "Compute GLoc" begin
+        gs = gridshape(kG)
+        kGdims = length(gs)
+        νdim = kGdims + 1
+
+        gLoc = OffsetArray(Array{ComplexF64,2}(undef, length(kG.kMult), length(sP.fft_range)), 1:length(kG.kMult), sP.fft_range)
+        gLoc_i = Array{ComplexF64,kGdims}(undef, gs...)
+        gLoc_fft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
+        gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
+        ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
+        for νn in sP.fft_range
+            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, 0.0+0.0im), ϵk_full), gridshape(kG))
+            gLoc[:, νn] = reduceKArr(kG, gLoc_i)
+            selectdim(gLoc_fft, νdim, νn) .= fft(gLoc_i)
+            selectdim(gLoc_rfft, νdim, νn) .= fft(reverse(gLoc_i))
+        end
+    end
+
+    return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft)
 end
 
 # ========================================== Index Functions =========================================

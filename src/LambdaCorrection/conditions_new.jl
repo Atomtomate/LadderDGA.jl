@@ -107,22 +107,21 @@ function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool=fals
     df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=(f(x::Float64)::Float64 = dχ_λ(x, λint)))
     λm = newton_right(f_c1, df_c1, 0.0, λm_min)
 
-    # check, check2 = if isfinite(validate_threshold) || verbose
-    #     χ_λ!(χm, λm)
-    #     check  = sum_kω(kG, χm)
-    #     check2 = sum_ωk(kG, χm)
-    #     reset!(χm)
-    #     check, check2
-    # else
-    #     -Inf, Inf
-    # end
-    # if verbose
-    #     println("CHECK for rhs = $rhs  : ", check, " ?=? ", 0)
-    #     println("sum_kω - PP = ", abs(rhs - check))
-    #     println("sum_ωk - PP = ", abs(rhs - check2))
-    # end
-    # validation = (abs(rhs - check) <= validate_threshold) &&  (abs(rhs - check2) <= validate_threshold) 
-    validation = false
+    check, check2 = if isfinite(validate_threshold) || verbose
+        χ_λ!(χm, λm)
+        check  = sum_kω(kG, χm)
+        check2 = sum_ωk(kG, χm)
+        reset!(χm)
+        check, check2
+    else
+        -Inf, Inf
+    end
+    if verbose
+        println("CHECK for rhs = $rhs  : ", check, " ?=? ", 0)
+        println("sum_kω - PP = ", abs(rhs - check))
+        println("sum_ωk - PP = ", abs(rhs - check2))
+    end
+    validation = (abs(rhs - check) <= validate_threshold) &&  (abs(rhs - check2) <= validate_threshold) 
     return λm, validation
 
 
