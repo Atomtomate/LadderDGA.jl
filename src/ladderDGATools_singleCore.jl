@@ -159,7 +159,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     #TODO: use predifened ranks for Nq,... cleanup definitions
     γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
     χ = Array{Float64,2}(undef, Nq, Nω)
-    ωi_range = 1:Nω
+
     νi_range = 1:Nν
     qi_range = 1:Nq
 
@@ -168,8 +168,8 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
     λ_cache = Array{eltype(χννpω),1}(undef, Nν)
-    for ωi in ωi_range
-        ωn = (ωi - sP.n_iω) - 1
+    
+    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         for qi in qi_range
             χννpω[:,:] = deepcopy(Γr[:,:,ωi])
             for l in νi_range
