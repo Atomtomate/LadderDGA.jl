@@ -263,7 +263,7 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
         2*real(sG + conj(sG))/β + 1
     else
         N = floor(Int, length(G))
-        shell = G_shell_sum(N, β)
+        shell = G_shell_sum(N+1, β)
         filling_pos(G, U, μ, β, shell)
     end
 end

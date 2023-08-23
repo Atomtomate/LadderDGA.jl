@@ -134,12 +134,12 @@ EKin1_λm, EPot1_λm = LadderDGA.calc_E(G_ladder_λm, Σ_ladder_λm, μnew, lDGA
 # λdm 
 @test abs(sum(χ_d)) ≈ cs_χd
 res_λdm_new = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
-println(res_λdm_new)
+#println(res_λdm_new)
 @test abs(sum(χ_d)) ≈ cs_χd
 res_λdm_new_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true, par=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 # res_λdm_dbg = λdm_correction_dbg(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
-println("ttttt5")
+#println("ttttt5")
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
     res_λdm_new[1] ≈ res_λdm_new_par[1]
