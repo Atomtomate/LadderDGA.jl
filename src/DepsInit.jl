@@ -40,6 +40,7 @@ using Base.Iterators, Base
 include("LapackWrapper.jl")
 include("Config.jl")
 include("DataTypes.jl")
+include("runHelpers.jl")
 include("helpers.jl")
 include("parallelization_helpers.jl")
 include("IO.jl")
