@@ -217,8 +217,8 @@ function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
     for ωi in 1:size(Γr,3)
         for qi in 1:length(kG.kMult)
             χννpω[:,:,qi,ωi] = inv(deepcopy(Γr[:,:,ωi]) + 
-                                    Diagonal(1.0 ./ bubble.data[qi,
-                                                                bubble.ν_shell_size+1:end-bubble.ν_shell_size,
+                                    Diagonal(1.0 ./ χ₀.data[qi,
+                                                                χ₀.ν_shell_size+1:end-χ₀.ν_shell_size,
                                                                 ωi]
                                             ))
         end
