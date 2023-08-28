@@ -54,16 +54,17 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     asym::Array{_eltype,2}
     axis_types::Dict{Symbol, Int}
     indices_νω::Matrix{Tuple{Int,Int}}
+    ν_shell_size::Int
     β::Float64
     # possible inconsistency: ω grid is passed generated, while ν grid is generated in the constructor. The grids must already be known before the calculation of data. From my point of view both grids should be passed to the constructor already generated.
     function χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
-                 shift::Bool, mP::ModelParameters; local_tail=false)
+                 shift::Bool, mP::ModelParameters; ν_shell_size::Int=0, local_tail=false)
         c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
         asym = χ₀Asym(c1, c2, c3, ωnGrid, n_iν, shift, mP.β)
 
         νnGrid = -n_iν:n_iν-1
         indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid .- trunc(Int64,shift*i/2)],(length(νnGrid), length(ωnGrid)));
-        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, mP.β)
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, ν_shell_size, mP.β)
     end
 end
 
