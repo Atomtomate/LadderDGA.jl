@@ -59,7 +59,7 @@ Calculates the full vertex from the generalized susceptibility ``\\chi^{\\nu\\nu
 ``F^{\\nu\\nu'\\omega}_{r,\\mathbf{q}} 
      =
      \\beta^2 \\left( \\chi^{\\nu\\nu'\\omega}_{0,\\mathbf{q}} \\right)^{-1} 
-  -  \\left( \\chi^{\\nu\\omega}_{0,\\mathbf{q}} \\right)^{-1}  \\chi^{\\nu\\nu'\\omega}_{r,\\mathbf{q}} \\left( \\chi^{\\nu'\\omega}_{0,\\mathbf{q}} \\right)^{-1}``
+     - \\left( \\chi^{\\nu\\omega}_{0,\\mathbf{q}} \\right)^{-1}  \\chi^{\\nu\\nu'\\omega}_{r,\\mathbf{q}} \\left( \\chi^{\\nu'\\omega}_{0,\\mathbf{q}} \\right)^{-1}``
 
 For a version using the physical susceptibilities see [`F_from_χ_gen`](@ref F_from_χ_gen).
 """
