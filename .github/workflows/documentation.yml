@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/add-julia-registry@v1
         with:
+          key: ${{ secrets.SSH_KEY }}
           registry: Atomtomate/JuliaRegistry
       - uses: julia-actions/setup-julia@latest
         with:
