@@ -24,6 +24,10 @@ end
     include("DataTypes.jl")
 end
 
+@testset "Run Helpers" begin
+    include("runHelpers.jl")
+end
+
 @testset "Helpers" begin
     include("helpers.jl")
 end

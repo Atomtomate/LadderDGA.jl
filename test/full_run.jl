@@ -13,7 +13,7 @@ cfg_file = joinpath(dir)
 
 LadderDGA.clear_wcache!()
 wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
-lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
+lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=true);
 bubble     = calc_bubble(lDGAhelper);
 bubble_par = calc_bubble_par(lDGAhelper);
 calc_bubble_par(lDGAhelper, collect_data=false);
@@ -139,7 +139,6 @@ res_λdm_new = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=
 res_λdm_new_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true, par=true)
 @test abs(sum(χ_d)) ≈ cs_χd
 # res_λdm_dbg = λdm_correction_dbg(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
-#println("ttttt5")
 @test abs(sum(χ_d)) ≈ cs_χd
 @testset "λdm" begin
     res_λdm_new[1] ≈ res_λdm_new_par[1]

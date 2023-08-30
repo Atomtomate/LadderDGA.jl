@@ -14,15 +14,14 @@
 
 
 import Base.copy
-const ω_axis = 3;
-const ν_axis = 2;
-const q_axis = 1;
 
 # =========================================== Static Types ===========================================
 const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const GνqT = OffsetArray
+
+const _eltype_RPA = Float64
 
 abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
 
@@ -33,7 +32,7 @@ abstract type MatsubaraFunction{T,N} <: AbstractArray{T,N} end
     χ₀T <: MatsubaraFunction
 
 Struct for the bubble term. The `q`, `ω` dependent asymptotic behavior is computed from the 
-`t1` and `t2` input.
+`t1` and `t2` input.  See [`χ₀Asym_coeffs`](@ref χ₀Asym_coeffs) implementation for details.
 
 Constructor
 -------------
@@ -55,17 +54,30 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     asym::Array{_eltype,2}
     axis_types::Dict{Symbol, Int}
     indices_νω::Matrix{Tuple{Int,Int}}
+    ν_shell_size::Int
     β::Float64
+    # possible inconsistency: ω grid is passed generated, while ν grid is generated in the constructor. The grids must already be known before the calculation of data. From my point of view both grids should be passed to the constructor already generated.
     function χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
-                 shift::Bool, mP::ModelParameters; local_tail=false)
+                 shift::Bool, mP::ModelParameters; ν_shell_size::Int=0, local_tail=false)
         c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
         asym = χ₀Asym(c1, c2, c3, ωnGrid, n_iν, shift, mP.β)
 
         νnGrid = -n_iν:n_iν-1
         indices_νω = reshape([(j,i) for i in ωnGrid for j in νnGrid .- trunc(Int64,shift*i/2)],(length(νnGrid), length(ωnGrid)));
-        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, mP.β)
+        new(data,asym,Dict(:q => 1, :ν => 2, :ω => 3), indices_νω, ν_shell_size, mP.β)
     end
 end
+
+    
+"""
+    core(χ₀::χ₀T)
+
+Select core region (without asymptotic shell) from bubble term.
+"""
+function core(χ₀::χ₀T)
+    view(χ₀.data, :,χ₀.ν_shell_size+1:size(χ₀.data,2)-χ₀.ν_shell_size,:)
+end
+
 
 """
     χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Int, β::Float64)
@@ -112,6 +124,35 @@ function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
 end
 
 
+"""
+    χ₀RPA_T <: MatsubaraFunction
+
+Struct for the RPA bubble term.
+
+Constructor
+------------
+χ₀RPA_T(data::Array{_eltype,2}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
+
+This constructor does not perform any checks for the entered data array in the currently implemented version.
+Make sure that the axes match the axis_types field!
+
+Fields
+-------------
+- **`data`**         : `Array{ComplexF64,3}`, data.
+- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
+- **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
+- **`β`**            : `Float64`, inverse temperature.
+"""
+struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
+    data::Array{_eltype_RPA,2}
+    axis_types::Dict{Symbol, Int}
+    indices_ω::Vector{Int}
+    β::Float64
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
+        indices_ω = [i for i in ωnGrid];
+        new(data,Dict(:q => 1, :ω => 2), indices_ω, β)
+    end
+end
 # ------------------------------------------------- χ ------------------------------------------------
 """
     χT <: MatsubaraFunction
@@ -182,7 +223,7 @@ function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=fals
     ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
     zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
     ωn2_tail[zero_ind] = 0.0
-    res =  sum_kω(kG, view(χ.data,:,ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
+    res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
     return res
 end
 
@@ -330,10 +371,12 @@ end
 Base.size(arr::T) where T <: MatsubaraFunction = size(arr.data)
 Base.getindex(arr::T, i::Int) where T <: MatsubaraFunction = Base.getindex(arr.data, i)
 Base.getindex(arr::χ₀T, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
+Base.getindex(arr::χ₀RPA_T, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::χT, I::Vararg{Int,2}) = Base.getindex(arr.data, I...)
 Base.getindex(arr::γT, I::Vararg{Int,3}) = Base.getindex(arr.data, I...)
 Base.setindex!(arr::T, v, i::Int) where T <: MatsubaraFunction = Base.setindex!(arr.data, v, i)
 Base.setindex!(arr::χ₀T, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
+Base.setindex!(arr::χ₀RPA_T, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::χT, v, I::Vararg{Int,2}) = Base.setindex!(arr.data, v, I...)
 Base.setindex!(arr::γT, v, I::Vararg{Int,3}) = Base.setindex!(arr.data, v, I...)
 
