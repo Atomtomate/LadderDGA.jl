@@ -84,7 +84,7 @@ end
 
 Builds asymtotic helper array. See [`calc_bubble`](@ref calc_bubble) implementation for details.
 
-`c1`, `c2` and `c3` are the coefficients for the asymtotic tail expansion and can be obtained through [`χ₀Asym_coeffs`](@ref χ₀Asym_coeffs`).
+`c1`, `c2` and `c3` are the coefficients for the asymtotic tail expansion and can be obtained through [`χ₀Asym_coeffs`](@ref χ₀Asym_coeffs).
 `n_iν` is the number of positive fermionic Matsubara frequencies, `shift` is either `1` or `0`, depending on the type of frequency grid.
 """
 function χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64,
@@ -172,7 +172,7 @@ Fields
 - **`tail_c`**       : `Vector{Float64}`, tail coefficients of ``1/\\omega^i`` tails. Index `1` corresponds to `i=0`.
 - **`λ`**            : `Float64`, λ correction parameter.
 - **`β`**            : `Float64`, inverse temperature.
-- **`usable_ω`**     : `AbstractArray{Int}`, usable indices for which data is assumed to be correct. See also [`find_usable_interval`](@ref find_usable_interval)
+- **`usable_ω`**     : `AbstractArray{Int}`, usable indices for which data is assumed to be correct. See also [`find_usable_χ_interval`](@ref find_usable_χ_interval)
 """
 mutable struct χT <: MatsubaraFunction{Float64, 2}
     data::Matrix{Float64}

@@ -194,7 +194,7 @@ function initialize_EoM_cache!(Nν::Int)
 end
 
 """
-function initialize_EoM([G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, 
+    function initialize_EoM([G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}, 
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters]; 
                         OR [h::lDΓAHelper, λ₀, νGrid];
                         force_reinit = false,
@@ -204,7 +204,6 @@ function initialize_EoM([G_fft_reverse, λ₀::Array{ComplexF64,3}, νGrid::Abst
                         γd::γT = collect_γ(:ch, kG, mP, sP))
 Worker cache initialization. Must be called before [`calc_Σ_par`](@ref calc_Σ_par).
 """
-
 function initialize_EoM(h::lDΓAHelper, λ₀::Array{ComplexF64,3}, νGrid::AbstractVector{Int}; force_reinit = false,
                         χ_m::Union{Nothing,χT} = nothing, γ_m::Union{Nothing,γT} = nothing,
                         χ_d::Union{Nothing,χT} = nothing, γ_d::Union{Nothing,γT} = nothing)
@@ -277,7 +276,7 @@ end
 """
     _update_tail!(coeffs::Vector{Float64})
 
-Updates the Ekin/ω^2 tail of physical susceptibilities on worker. Used by [`update_tail!`](@ref update_tail).
+Updates the Ekin/ω^2 tail of physical susceptibilities on worker. Used by [`update_tail!`](@ref update_tail!).
 """
 function _update_tail!(coeffs::Vector{Float64})::Nothing
     #TODO: check if EoMVars_initialized
@@ -357,9 +356,8 @@ end
 # --------------------------------------- Collect from workers ---------------------------------------
 """
     collect_χ(type::Symbol, [kG::KGrid, mP::ModelParameters, sP::SimulationParameters] OR [h::lDΓAHelper])
-    collect_γ(type::Symbol, [kG::KGrid, mP::ModelParameters, sP::SimulationParameters] OR [h::lDΓAHelper])
 
-Collects susceptibility and triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
+Collects susceptibility from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
 """
 collect_χ(type::Symbol, h::lDΓAHelper) = collect_χ(type, h.kG, h.mP, h.sP)
 collect_γ(type::Symbol, h::lDΓAHelper) = collect_γ(type, h.kG, h.mP, h.sP)
@@ -395,6 +393,11 @@ function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
     return res
 end
 
+"""
+    collect_γ(type::Symbol, [kG::KGrid, mP::ModelParameters, sP::SimulationParameters] OR [h::lDΓAHelper])
+
+Collects triangular vertex from workers, after parallel computation (see [`calc_χγ_par`](@ref calc_χγ_par)).
+"""
 function collect_γ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     !(length(workers()) > 1) && throw(ErrorException("Add workers and run lDGA_setup before calling parallel functions!"))
     γ_data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), 2*sP.n_iν, 2*sP.n_iω+1)

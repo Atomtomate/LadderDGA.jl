@@ -37,7 +37,7 @@ iν_array(β::Real, size::Int)::Vector{ComplexF64} = iν_array(β, 0:(size-1))
 
 Computes list of bosonic Matsubara frequencies.
 If length `size` is given, the grid will have indices `0:size-1`.
-Fermionic arrays can be generated with [`iν_array`](iν_array).
+Fermionic arrays can be generated with [`iν_array`](@ref iν_array).
 
 Returns: 
 -------------
@@ -60,7 +60,7 @@ Arguments:
 -------------
 - **`ϵₖ`** : list of bath levels
 - **`Vₖ`** : list of hopping amplitudes
-- **`νₙ`** : Vector of fermionic Matsubara frequencies, see also: [`iν_array`](iν_array).
+- **`νₙ`** : Vector of fermionic Matsubara frequencies, see also: [`iν_array`](@ref iν_array).
 
 """
 Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64} = [sum((Vₖ .* conj.(Vₖ)) ./ (ν .- ϵₖ)) for ν in νₙ]

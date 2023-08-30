@@ -94,6 +94,17 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
     return nothing
 end
 
+"""
+    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{_eltype,3}, h::lDΓAHelper;
+                νmax::Int = h.sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
+    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                νmax::Int = sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
+                
+Calculates the self-energy from ladder quantities.
+
+This is the single core variant, see [`calc_Σ_par`](@ref calc_Σ_par) for the parallel version.
+"""
 function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, 
                 λ₀::AbstractArray{_eltype,3}, h::lDΓAHelper;
                 νmax::Int = h.sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)

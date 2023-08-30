@@ -60,7 +60,7 @@ end
 """
     collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
 
-Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref `calc_bubble_par`).
+Collect non-local bubble ``\\chi_0^{\\omega}(q)`` from workers. Values first need to be calculated using [`calc_bubble_par`](@ref calc_bubble_par).
 """
 collect_χ₀(h::lDΓAHelper) = collect_χ₀(h.kG, h.mP, h.sP)
 
@@ -127,7 +127,7 @@ end
 
 Calculate susceptibility and triangular vertex parallel on workerpool. 
 
-Set `collect_data` to return both quantities, or call [`collect_χγ`](@ref collect_χγ) at a later point.
+Set `collect_data` to return both quantities, or call [`collect_χ`](@ref collect_χ) and [`collect_γ`](@ref collect_γ) at a later point.
 [`calc_χγ`](@ref calc_χγ) can be used for single core computations.
 
 """
