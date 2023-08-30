@@ -68,35 +68,16 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     end
 end
 
+    
 """
-    χ₀RPA_T <: MatsubaraFunction
+    core(χ₀::χ₀T)
 
-Struct for the RPA bubble term.
-
-Constructor
-------------
-χ₀RPA_T(data::Array{_eltype,2}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
-
-This constructor does not perform any checks for the entered data array in the currently implemented version.
-Make sure that the axes match the axis_types field!
-
-Fields
--------------
-- **`data`**         : `Array{ComplexF64,3}`, data.
-- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
-- **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
-- **`β`**            : `Float64`, inverse temperature.
+Select core region (without asymptotic shell) from bubble term.
 """
-struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
-    data::Array{_eltype_RPA,2}
-    axis_types::Dict{Symbol, Int}
-    indices_ω::Vector{Int}
-    β::Float64
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
-        indices_ω = [i for i in ωnGrid];
-        new(data,Dict(:q => 1, :ω => 2), indices_ω, β)
-    end
+function core(χ₀::χ₀T)
+    view(χ₀.data, :,χ₀.ν_shell_size+1:size(χ₀.data,2)-χ₀.ν_shell_size,:)
 end
+
 
 """
     χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Int, β::Float64)
@@ -143,6 +124,35 @@ function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
 end
 
 
+"""
+    χ₀RPA_T <: MatsubaraFunction
+
+Struct for the RPA bubble term.
+
+Constructor
+------------
+χ₀RPA_T(data::Array{_eltype,2}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
+
+This constructor does not perform any checks for the entered data array in the currently implemented version.
+Make sure that the axes match the axis_types field!
+
+Fields
+-------------
+- **`data`**         : `Array{ComplexF64,3}`, data.
+- **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
+- **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
+- **`β`**            : `Float64`, inverse temperature.
+"""
+struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
+    data::Array{_eltype_RPA,2}
+    axis_types::Dict{Symbol, Int}
+    indices_ω::Vector{Int}
+    β::Float64
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
+        indices_ω = [i for i in ωnGrid];
+        new(data,Dict(:q => 1, :ω => 2), indices_ω, β)
+    end
+end
 # ------------------------------------------------- χ ------------------------------------------------
 """
     χT <: MatsubaraFunction

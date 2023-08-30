@@ -51,6 +51,27 @@ function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractVector{ComplexF64
     end
     return F
 end
+
+"""
+    F_from_χ_gen(χ₀::χ₀T, χr::Array{ComplexF64,4})::Array{ComplexF64,4}
+
+Calculates the full vertex from the generalized susceptibility `\\chi_r`` and the bubble term ``\\chi_0`` via
+``F^{\\nu\\nu'\\omega}_{r,\\mathbf{q}} 
+     =
+     \\beta^2 \\left( \\chi^{\\nu\\nu'\\omega}_{0,\\mathbf{q}} \\right)^{-1} 
+  -  \\left( \\chi^{\\nu\\omega}_{0,\\mathbf{q}} \\right)^{-1}  \\chi^{\\nu\\nu'\\omega}_{r,\\mathbf{q}} \\left( \\chi^{\\nu'\\omega}_{0,\\mathbf{q}} \\right)^{-1}``
+
+For a version using the physical susceptibilities see [`F_from_χ_gen`](@ref F_from_χ_gen).
+"""
+function F_from_χ_gen(χ₀::χ₀T, χr::Array{ComplexF64,4})::Array{ComplexF64,4}
+    F = similar(χr)
+    for ωi in 1:size(χr,4)
+        for qi in 1:size(χr,3)
+            F[:,:,qi,ωi] = Diagonal(χ₀.β^2 ./ core(χ₀)[qi,:,ωi]) .- χ₀.β^2 .* χr[:,:,qi,ωi] ./ ( core(χ₀)[qi,:,ωi] .* transpose(core(χ₀)[qi,:,ωi]))
+        end
+    end
+    return F
+end
 # ========================================== Correction Term =========================================
 """
     calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
@@ -227,5 +248,14 @@ function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
     return χννpω
 end
 
-
+function F_from_χ_star_gen(χ₀::χ₀T, χstar_r::Array{ComplexF64,4}, χr::χT, γr::γT, Ur::Float64)
+    F = similar(χstar_r)
+    for ωi in 1:size(χstar_r,4)
+        for qi in 1:size(χstar_r,3)
+            F[:,:,qi,ωi] = Diagonal(χ₀.β^2 ./ core(χ₀)[qi,:,ωi]) .- χ₀.β^2 .* χstar_r[:,:,qi,ωi] ./ (core(χ₀)[qi,:,ωi] .* transpose(core(χ₀)[qi,:,ωi]))
+            F[:,:,qi,ωi] +=  Ur * (1 - Ur * χr[qi,ωi]) .* (γr[qi,:,ωi] .* transpose(γr[qi,:,ωi]))
+        end
+    end
+    return F
+end
 

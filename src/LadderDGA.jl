@@ -16,11 +16,11 @@ module LadderDGA
     export addprocs
 
     # LadderDGA main functions
-    export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk
+    export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk, core
     export readConfig, setup_LDGA, calc_bubble, calc_gen_χ, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
     export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
     export collect_χ₀, collect_χ, collect_γ, collect_Σ
-    export λ_from_γ, F_from_χ, G_from_Σ, G_from_Σladder, Σ_from_Gladder
+    export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder
     
     # RPA main functions
     export setup_RPA, χ₀RPA_T
