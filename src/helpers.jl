@@ -38,15 +38,36 @@ Index of ω₀ frequency.
 
 """
     OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
+    OneToIndex_to_Freq(ωi::Int, νi::Int, shift::Int, nBose::Int, nFermi::Int)
 
 Converts `(1:N,1:N)` index tuple for bosonic (`ωi`) and fermionic (`νi`) frequency to
 Matsubara frequency number. If the array has a `ν` shell (for example for tail
 improvements) this will also be taken into account by providing `Nν_shell`.
+This is the inverse function of [`Freq_to_OneToIndex`](@ref Freq_to_OneToIndex).
 """
 function OneToIndex_to_Freq(ωi::Int, νi::Int, sP::SimulationParameters)
-    ωn = ωi - sP.n_iω - 1
-    νn = (νi - sP.n_iν - 1) - sP.shift * trunc(Int, ωn / 2)
+    OneToIndex_to_Freq(ωi, νi, sP.shift, sP.n_iω, sP.n_iν)
+end
+
+function OneToIndex_to_Freq(ωi::Int, νi::Int, shift::Union{Bool,Int}, nBose::Int, nFermi::Int)
+    ωn = ωi - nBose - 1
+    νn = (νi - nFermi - 1) - shift * trunc(Int, ωn / 2)
     return ωn, νn
+end
+
+"""
+    OneToIndex_to_Freq(ωi::Int, νpi::Int, νi::Int, sP::SimulationParameters)
+    Freq_to_OneToIndex(ωn::Int, νn::Int, νpn::Int, shift::Int, nBose::Int, nFermi::Int)
+
+Converts Matsubara frequency index to array indices, starting at 1.
+This is the inverse function of [`OneToIndex_to_Freq`](@ref OneToIndex_to_Freq).
+"""
+function OneToIndex_to_Freq(ωi::Int, νpi::Int, νi::Int, sP::SimulationParameters)
+    Freq_to_OneToIndex(ωi, νpi, νi, sP.shift, sP.n_iω, sP.n_iν)
+end
+
+function Freq_to_OneToIndex(ωn::Int, νn::Int, νpn::Int, shift::Union{Bool,Int}, nBose::Int, nFermi::Int)
+    (ωn+nBose+1,νn+nFermi+1+trunc(Int, shift*ωn/2), νpn+nFermi+1+trunc(Int, shift*ωn/2))
 end
 
 """

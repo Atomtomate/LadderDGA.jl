@@ -13,6 +13,7 @@ module LadderDGA
     # Setup and auxilliary functions
     export filling, filling_pos, G_fft
     export find_usable_χ_interval, usable_ωindices, subtract_tail, subtract_tail!
+    export Freq_to_OneToIndex,OneToIndex_to_Freq
     export addprocs
 
     # LadderDGA main functions
