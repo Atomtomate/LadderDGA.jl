@@ -143,35 +143,6 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
     return λ0
 end
 
-# ======================================== LadderDGA Functions =======================================
-"""
-    calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
-    calc_bubble(h::lDΓAHelper, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
-
-TODO: documentation
-"""
-function calc_bubble(h::lDΓAHelper; local_tail=false)
-    calc_bubble(h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP, local_tail=local_tail)
-end
-
-function calc_bubble(Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; local_tail=false)
-    #TODO: fix the size (BSE_SC inconsistency)
-    data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
-    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gImp
-    for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
-        νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
-        #TODO: fix the offset (BSE_SC inconsistency)
-        for (νi,νn) in enumerate(νrange)
-            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim,νn+ωn))
-            data[:,νi,ωi] .*= -mP.β
-        end
-    end
-    #TODO: not necessary after real fft
-    data = _eltype === Float64 ? real.(data) : data
-    return χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, ν_shell_size=sP.n_iν_shell, local_tail=local_tail) 
-end
-
-
 """
     calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)
     calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)

@@ -52,6 +52,10 @@ end
     include("ladderDGATools.jl")
 end
 
+@testset "ladderDGATools" begin
+    include("RPATools.jl")
+end
+
 @testset "parallelization" begin
     include("parallelization_helpers.jl")
 end

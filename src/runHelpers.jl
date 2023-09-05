@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                          runHelpers.jl                                               #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Author          : Julian Stobbe, Jan Frederik Weissler                                             #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Setup functions and definition of runHelpers for different methods                                 #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -17,7 +17,7 @@ Struct with data needed to run ladder DΓA calculations.
 
 Constructor
 -------------
-    setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true)
+    setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars)
 
 See [`setup_LDGA`](@ref setup_LDGA)
 
@@ -52,17 +52,17 @@ end
 """
     RPAHelper <: RunHelper
 
-Struct with data needed to run ladder DΓA calculations.
+Struct with data needed to run ladder RPA calculations.
 
 Constructor
 -------------
-    setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true, silent=false])
+    setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; silent=false])
 
 See [`setup_RPA`](@ref setup_RPA)
 
 Fields
 -------------
-   TODO: documentation for fields
+    TODO: documentation
 """
 mutable struct RPAHelper <: RunHelper
     sP::SimulationParameters
@@ -76,13 +76,13 @@ end
 
 
 """
-    setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [; local_correction=true, silent=false])
+    setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [;silent=false])
 
 Computes all needed objects for DΓA calculations.
 
 Returns: [`lDΓAHelper`](@ref lDΓAHelper)
 """
-function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; local_correction=true, silent::Bool=false)
+function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; silent::Bool=false)
 
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
@@ -225,7 +225,7 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
         gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νn in sP.fft_range
-            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, 0.0+0.0im), ϵk_full), gridshape(kG))
+            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, mP.U*mP.n/2+0.0im), ϵk_full), gridshape(kG))
             gLoc[:, νn] = reduceKArr(kG, gLoc_i)
             selectdim(gLoc_fft, νdim, νn) .= fft(gLoc_i)
             selectdim(gLoc_rfft, νdim, νn) .= fft(reverse(gLoc_i))

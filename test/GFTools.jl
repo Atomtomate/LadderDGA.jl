@@ -12,6 +12,7 @@ end
 @testset "G_from_Σ" begin
     mf_t0 = (1im * π / mP_1.β)
     mf_t1 = (3im * π / mP_1.β)
+    @test G_from_Σ(-1im*2/5, 1.0/15.0, -1.0/30.0, -1.0/10.0 + 0*1im) ≈ 2*1im + 1
     @test G_from_Σ(1, mP_1.β, 1.2, 1.3, 1.4 + 0.0im) ≈ 1/(mf_t1 + 1.2 - 1.3 - 1.4)
     @test G_from_Σ(mf_t1, 1.2, 1.3, 1.4 + 0.0im) ≈ 1/(mf_t1 + 1.2 - 1.3 - 1.4)
     @test all(isapprox.(G_from_Σ(OffsetVector([1.1 + 0.0im],0:0), [1.2], 0:0, mP_1, μ = 1.4),
