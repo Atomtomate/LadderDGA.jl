@@ -112,19 +112,25 @@ TODO: full documentation
 """
 function χ₀Asym_coeffs(type::Symbol, kG::KGrid, mP::ModelParameters; sVk=NaN)
     if type == :local
-        c1 = mP.U*mP.n/2 - mP.μ
-        c2 = c1*c1
-        c3 = c1*c1 + sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-        c1, [c2], c3
+        c1_tilde = mP.U*mP.n/2 - mP.μ
+        c2_tilde = c1_tilde*c1_tilde
+        c3_tilde = c1_tilde*c1_tilde + sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        c1_tilde, [c2_tilde], c3_tilde
     elseif type == :DMFT
         t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
         t2 = (mP.U^2)*(mP.n/2)*(1-mP.n/2)
-        c1 = real.(kintegrate(kG, t1))
-        c2 = real.(conv_noPlan(kG, t1, t1))
-        c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
-        c1, c2, c3
+        c1_tilde = real.(kintegrate(kG, t1))
+        c2_tilde = real.(conv_noPlan(kG, t1, t1))
+        c3_tilde = real.(kintegrate(kG, t1 .^ 2) .+ t2)
+        c1_tilde, c2_tilde, c3_tilde
     elseif type == :RPA
-        error("Not implemented yet")       
+        t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
+        c1_tilde = real.(kintegrate(kG, t1))
+        c2_tilde = real.(conv_noPlan(kG, t1, t1))
+        c3_tilde = real.(kintegrate(kG, t1 .^ 2))
+        c1_tilde, c2_tilde, c3_tilde
+    elseif type == :RPA_exact
+        error("Not implemented yet!")
     else 
         throw(ArgumentError("Unkown type for χ₀Asym coefficients!"))
     end
