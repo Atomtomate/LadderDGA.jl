@@ -3,7 +3,6 @@
     @test mP_1.μ ≈ 1.2
     @test mP_1.β ≈ 1.3
     @test mP_1.n ≈ 1.4
-    @test mP_1.sVk ≈ 1.5
     @test mP_1.Epot_DMFT ≈ 1.6 
     @test mP_1.Ekin_DMFT ≈ 1.7
 end
@@ -14,6 +13,7 @@ end
     @test sP_1.n_iν_shell == 3
     @test sP_1.shift == true
     @test sP_1.χ_helper === nothing
+    @test sP_1.sVk ≈ 1.5
     @test sP_1.fft_range == 1:3
     @test sP_1.usable_prct_reduction == 0.1
     @test sP_1.dbg_full_eom_omega == false

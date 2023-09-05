@@ -27,7 +27,7 @@ function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
                 selectdim(wcache[].G_fft_reverse,νdim,νn+ωn))
         end
     end
-    c1, c2, c3 = χ₀Asym_coeffs(kG, false, mP)
+    c1, c2, c3 = χ₀Asym_coeffs(:DMFT, kG, mP)
     asym = χ₀Asym(c1, c2, c3, map(x->x[2],ωi_range), sP.n_iν, sP.shift, mP.β)
     update_wcache!(:χ₀, -mP.β .* data)
     update_wcache!(:χ₀Indices, ωi_range)
@@ -80,7 +80,7 @@ function collect_χ₀(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
         end
     end
     end
-    χ₀T(data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, mP, local_tail=false) 
+    χ₀T(:DMFT, data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, sP, mP) 
 end
 
 # --------------------------------------------- χ and γ ----------------------------------------------

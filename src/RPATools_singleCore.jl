@@ -1,6 +1,12 @@
 
-function calc_bubble(h::RPAHelper; local_tail=false)
-    calc_bubble(h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP, local_tail=local_tail)
+function calc_bubble(type::Symbol, h::RPAHelper)
+    if type == :RPA
+        calc_bubble(type, h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP)
+    elseif type == :RPA_exact
+        error("not implemented yet")
+    else
+        throw(ArgumentError("Unkown type in bubble calculation"))
+    end
 end
 
 function calc_bubble_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)

@@ -15,12 +15,12 @@ end
 @testset "χ₀T" begin
     td = ComplexF64.(reshape(1:24,3,2,4))
     t1 = ComplexF64.([1,2,3])
-    t = LadderDGA.χ₀T(td, kG_1, 1:4, 1, true, mP_1)
-    @test_throws ArgumentError LadderDGA.χ₀T(td, kG_1, 1:-1, 1, true, mP_1)
-    c1, c2, c3 = LadderDGA.χ₀Asym_coeffs(kG_1, true, mP_1)
+    t = LadderDGA.χ₀T(:local, td, kG_1, 1:4, 1, true, sP_1, mP_1)
+    @test_throws ArgumentError LadderDGA.χ₀T(:local, td, kG_1, 1:-1, 1, true, sP_1, mP_1)
+    c1, c2, c3 = LadderDGA.χ₀Asym_coeffs(:local, kG_1, mP_1; sVk=sP_1.sVk)
     @test c1 ≈ mP_1.U*mP_1.n/2 - mP_1.μ
     @test c2[1] ≈ c1^2
-    @test c3 ≈ c1*c1 + mP_1.sVk + (mP_1.U^2)*(mP_1.n/2)*(1-mP_1.n/2)
+    @test c3 ≈ c1*c1 + sP_1.sVk + (mP_1.U^2)*(mP_1.n/2)*(1-mP_1.n/2)
     @test all(t.data .≈ td)
     @test t[1,1,1] ≈ 1
     t[1,1,1] = -1

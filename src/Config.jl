@@ -32,7 +32,6 @@ Fields
 - **`μ`**         : `Float64`, chemical potential
 - **`β`**         : `Float64`, inverse temperature
 - **`n`**         : `Float64`, filling
-- **`sVk`**       : `Float64`, ∑_k Vₖ^2
 - **`Epot_DMFT`** : `Float64`, DMFT potential energy
 - **`Ekin_DMFT`** : `Float64`, DMFT kinetic intergy
 """
@@ -41,7 +40,6 @@ mutable struct ModelParameters <: ConfigStruct
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
     n::Float64              # number density
-    sVk::Float64            # ∑_k Vₖ^2
     Epot_DMFT::Float64
     Ekin_DMFT::Float64
 end
@@ -59,6 +57,7 @@ Fields
 - **`n_iν_shell`**              : `Int`, Number of fermionic frequencies used for asymptotic sum improvement (`χ_asym_r` arrays with at least these many entries need to be provided)
 - **`shift`**                   : `Bool`, Flag specifying if `-n_iν:n_iν-1` is shifted by `-ωₙ/2` at each `ωₙ` slice (centering the main features)
 - **`χ_helper`**                : `struct`, helper struct for asymptotic sum improvements involving the generalized susceptibility (`nothing` if `n_iν_shell == 0`), see also `BSE_SC.jl`.
+- **`sVk`**                     : `Float64`, ∑_k Vₖ^2
 - **`fft_range`**               : `Int`, Frequencies used for computations of type `f(νₙ + ωₙ)`. 
 - **`usable_prct_reduction`**   : `Float64`, percent reduction of usable bosonic frequencies
 - **`dbg_full_eom_omega`**      : `Bool`, if true overrides usable ω ranges to `n_iω`.
@@ -69,6 +68,7 @@ struct SimulationParameters <: ConfigStruct
     n_iν_shell::Int64
     shift::Bool             # shift of center for interval of bosonic frequencies
     χ_helper # Helper for χ asymptotics improvement
+    sVk::Float64            # ∑_k Vₖ^2, TODO: this should be moved somewhere else
     fft_range::AbstractArray
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
     dbg_full_eom_omega::Bool

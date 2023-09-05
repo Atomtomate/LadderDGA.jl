@@ -14,7 +14,7 @@ cfg_file = joinpath(dir)
 LadderDGA.clear_wcache!()
 wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=true);
-bubble     = calc_bubble(lDGAhelper);
+bubble     = calc_bubble(:DMFT, lDGAhelper);
 bubble_par = calc_bubble_par(lDGAhelper);
 calc_bubble_par(lDGAhelper, collect_data=false);
 @test all(bubble.data .≈ bubble_par.data)

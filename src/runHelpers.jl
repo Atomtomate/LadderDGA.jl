@@ -135,7 +135,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims=1)
         gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
         F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
-        χ₀Loc = calc_bubble(gImp, gImp, kGridLoc, mP, sP, local_tail=true)
+        χ₀Loc = calc_bubble(:local, gImp, gImp, kGridLoc, mP, sP)
         χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP)
         χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP)
         λ₀Loc = calc_λ0(χ₀Loc, F_m, χ_m_loc, γ_m_loc, mP, sP)
