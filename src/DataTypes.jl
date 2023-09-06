@@ -36,13 +36,14 @@ Struct for the bubble term. The `q`, `ω` dependent asymptotic behavior is compu
 
 Constructor
 -------------
-    χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Bool, mP::ModelParameters; local_tail=false)
+    χ₀T(type::Symbol, data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int, shift::Bool, mP::ModelParameters)
 
 Set `local_tail=true` in case of the local bubble constructed fro mthe impurity Green's function. This is necessary in order to construct the correct asymptotics.
 
 
 Fields
 -------------
+- **`type`**         : `Symbol`, can be `DMFT`, `local`, `RPA`, `RPA_exact`. TODO: documentation
 - **`data`**         : `Array{ComplexF64,3}`, data
 - **`asym`**         : `Array{ComplexF64,2}`, `[q, ω]` dependent asymptotic behavior.
 - **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ν, :ω` to the axis indices.
@@ -57,9 +58,9 @@ struct χ₀T <: MatsubaraFunction{_eltype,3}
     ν_shell_size::Int
     β::Float64
     # possible inconsistency: ω grid is passed generated, while ν grid is generated in the constructor. The grids must already be known before the calculation of data. From my point of view both grids should be passed to the constructor already generated.
-    function χ₀T(data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
-                 shift::Bool, mP::ModelParameters; ν_shell_size::Int=0, local_tail=false)
-        c1, c2, c3 = χ₀Asym_coeffs(kG, local_tail, mP)
+    function χ₀T(type::Symbol, data::Array{_eltype,3}, kG::KGrid, ωnGrid::AbstractVector{Int}, n_iν::Int,
+                 shift::Bool, sP::SimulationParameters, mP::ModelParameters; ν_shell_size::Int=0)
+        c1, c2, c3 = χ₀Asym_coeffs(type, kG, mP; sVk=sP.sVk)
         asym = χ₀Asym(c1, c2, c3, ωnGrid, n_iν, shift, mP.β)
 
         νnGrid = -n_iν:n_iν-1
@@ -103,23 +104,29 @@ function χ₀Asym(c1::Float64, c2::Vector{Float64}, c3::Float64,
 end
 
 """
-    χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
+    χ₀Asym_coeffs(type::Symbol, kG::KGrid, mP::ModelParameters; sVk=NaN)
 
 Builds tail coefficients for the χ₀ asymptotic helper, obtained through [`χ₀Asym`](@ref χ₀Asym).
+
+TODO: full documentation
 """
-function χ₀Asym_coeffs(kG::KGrid, local_tail::Bool, mP::ModelParameters)
-    if local_tail
+function χ₀Asym_coeffs(type::Symbol, kG::KGrid, mP::ModelParameters; sVk=NaN)
+    if type == :local
         c1 = mP.U*mP.n/2 - mP.μ
         c2 = c1*c1
-        c3 = c1*c1 + mP.sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
+        c3 = c1*c1 + sVk + (mP.U^2)*(mP.n/2)*(1-mP.n/2)
         c1, [c2], c3
-    else
+    elseif type == :DMFT
         t1 = convert.(ComplexF64, kG.ϵkGrid .+ mP.U*mP.n/2 .- mP.μ)
         t2 = (mP.U^2)*(mP.n/2)*(1-mP.n/2)
         c1 = real.(kintegrate(kG, t1))
         c2 = real.(conv_noPlan(kG, t1, t1))
         c3 = real.(kintegrate(kG, t1 .^ 2) .+ t2)
         c1, c2, c3
+    elseif type == :RPA
+        error("Not implemented yet")       
+    else 
+        throw(ArgumentError("Unkown type for χ₀Asym coefficients!"))
     end
 end
 

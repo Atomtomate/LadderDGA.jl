@@ -30,5 +30,6 @@ nohub.out
 *bak*
 *dbg*
 Roots NLSolve_files
+.vscode
 
 test/test_data/*

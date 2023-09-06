@@ -64,7 +64,7 @@ function readConfig(cfg_in::String)
         @error "ERROR: input file at location $(env.inputVars) not found!"
         Base.exit(2)
     end
-    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt = jldopen(env.inputVars, "r") do f
+    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt, Vk = jldopen(env.inputVars, "r") do f
         EPot_DMFT = 0.0
         EKin_DMFT = 0.0
         if haskey(f, "E_kin_DMFT")
@@ -80,10 +80,11 @@ function readConfig(cfg_in::String)
             tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"], f["Vₖ"]
         end
         return f["grid_nBose"], f["grid_nFermi"], f["grid_shift"], 
-               ModelParameters(U, μ, β, nden, sum(Vk.^2), EPot_DMFT, EKin_DMFT), 
+               ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT), 
                f["χ_sp_asympt"] ./ β^2, 
                f["χ_ch_asympt"] ./ β^2, 
-               f["χ_pp_asympt"] ./ β^2
+               f["χ_pp_asympt"] ./ β^2,
+               Vk
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0
@@ -109,6 +110,7 @@ function readConfig(cfg_in::String)
 
     sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
                               χ_helper,
+                              sum(Vk .^ 2), 
                               fft_range,
                               sim["usable_prct_reduction"],
                               dbg_full_eom_omega

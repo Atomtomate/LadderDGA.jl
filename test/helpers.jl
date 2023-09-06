@@ -19,8 +19,6 @@ end
     i_s1 = CartesianIndex.(zip(1:length(ν0_ind_s1),ν0_ind_s1))
     @test all(map(x->x[2],ωνgrid_test_s0[i_s0]) .== 0)
     @test all(map(x->x[2],ωνgrid_test_s1[i_s1]) .== 0)
-    println(OneToIndex_to_Freq(1, 1, 1, 5, 3))
-    println(Freq_to_OneToIndex(-5,-3,-3,1,5,3))
     @test all(OneToIndex_to_Freq(1, 1, 0, 5, 3) .== (-5,-3))
     @test all(OneToIndex_to_Freq(1, 1, 1, 5, 3) .== (-5,-1))
     @test all(Freq_to_OneToIndex(-5,-3,-3,0,5,3) .== (1,1,1))
