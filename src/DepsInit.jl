@@ -30,7 +30,7 @@ using Roots # Roots.jl for μ determination for now, may be replaced by NLsolve
 
 # lDGA related
 using Dispersions
-using BSE_SC
+using BSE_Asymptotics
 
 using TimerOutputs
 

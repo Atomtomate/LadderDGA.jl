@@ -1,8 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.9.2"
+julia_version = "1.9.3"
 manifest_format = "2.0"
-project_hash = "7b7128902c39422ce4e33e92ffe87778408cce99"
+project_hash = "256e2869912b2f0c6470e6c5269aa52621daa4d0"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -70,13 +70,13 @@ version = "7.4.11"
 [[deps.Artifacts]]
 uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
-[[deps.BSE_SC]]
+[[deps.BSE_Asymptotics]]
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
-git-tree-sha1 = "2de2d7d8b5e49f620a250f886a77f2d39a75c565"
+git-tree-sha1 = "b0513d34b1dbdf8d5d8b08f818d08926e0826525"
 repo-rev = "master"
-repo-url = "https://github.com/Atomtomate/BSE_SC.jl"
+repo-url = "https://github.com/Atomtomate/BSE_Asymptotics.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
-version = "2.3.8"
+version = "2.3.9"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -193,7 +193,7 @@ version = "1.9.1"
 
 [[deps.Dispersions]]
 deps = ["AbstractFFTs", "Combinatorics", "Coverage", "Documenter", "EquivalenceClassesConstructor", "FFTW", "FastGaussQuadrature", "LinearAlgebra", "Pkg", "Random", "ShiftedArrays", "Test"]
-git-tree-sha1 = "4a87bc9d980ac172735b0e84fb6be904566f48f9"
+git-tree-sha1 = "8719343f671ab0973d0521761b1f9e24e3e70ec5"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
