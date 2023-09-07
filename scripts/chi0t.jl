@@ -18,6 +18,6 @@ function χ0_inv(G, kG, mP, sP)
         g_rfft[:,νn] .= fft(reverse(1 ./ G_νn))[:]
     end
     g_fft, g_rfft
-    res = sum(calc_bubble(g_fft, g_rfft, kG, mP, sP).data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=2)[:,1,:] / mP.β
+    res = sum(calc_bubble(:DMFT, g_fft, g_rfft, kG, mP, sP).data[:,sP.n_iν_shell+1:end-sP.n_iν_shell,:], dims=2)[:,1,:] / mP.β
     return res
 end

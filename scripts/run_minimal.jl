@@ -6,7 +6,7 @@ cfg = ARGS[1]
 
 wp, mP, sP, env, kGridsStr = readConfig(cfg);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
-bubble     = calc_bubble(lDGAhelper);
+bubble     = calc_bubble(:DMFT, lDGAhelper);
 
 χm, γm = calc_χγ(:m, lDGAhelper, bubble);
 χd, γd = calc_χγ(:d, lDGAhelper, bubble);
