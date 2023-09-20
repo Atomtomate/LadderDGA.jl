@@ -49,6 +49,14 @@ function read_χ₀_RPA(file::String)
         throw(ArgumentError("ω-integers are distict from (0:$(maximum(ω_integers)))!"))
     end
     χ₀qω = read(chi0_group["values"])
+    
+    # consistency checks
+    if β ≤ 0.0
+        error("β is a positive quantity!")
+    end
+    if n_bz_q ≤ 8
+        error("Number of sample points in reciprocal space per dimension is supposed to be larger than 7!")
+    end
     if !is_okay(χ₀qω)
         throw(ArgumentError("The given array for χ₀qω violates at least one of the expected relations."))
     end
