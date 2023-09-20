@@ -155,15 +155,19 @@ Fields
 - **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
 - **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
 - **`β`**            : `Float64`, inverse temperature.
+- **`e_kin`**        : `Float64`, kinetic energy.
+- **`e_kin_q`**      : `Float64`, so called 'q-dependent kinetic energy'
 """
 struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     data::Array{_eltype_RPA,2}
     axis_types::Dict{Symbol, Int}
     indices_ω::Vector{Int}
     β::Float64
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
+    e_kin::Float64
+    e_kin_q::Float64        # q-independent part of the so called 'q-dependent RPA kinetic energy' which correpsonds to lim_{ω→∞} (iω)²⋅χ₀(q, ω)
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, e_kin_q::Float64)
         indices_ω = [i for i in ωnGrid];
-        new(data,Dict(:q => 1, :ω => 2), indices_ω, β)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, e_kin_q)
     end
 end
 # ------------------------------------------------- χ ------------------------------------------------

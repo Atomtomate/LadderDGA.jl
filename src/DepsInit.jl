@@ -52,6 +52,7 @@ include("ladderDGATools_singleCore.jl")
 include("RPATools_singleCore.jl")
 include("thermodynamics.jl")
 include("LambdaCorrection/LambdaCorrection.jl")
+include("IO_RPA.jl")
 
 # ======================================== Internal Packages =========================================
 using .LapackWrapper
