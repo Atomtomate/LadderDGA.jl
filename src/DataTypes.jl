@@ -228,7 +228,7 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 Returns ``\\int_\\mathrm{BZ} dk \\sum_\\omega \\chi^\\omega_k``. The bosonic Matsubara grid can be precomputed and given with `ωn_arr` to increase performance.
 
 TODO: for now this is only implemented for tail correction in the ``1 / \\omega^2_n`` term!
-Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the rverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
+Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the reverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
 function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
@@ -272,12 +272,14 @@ end
 
 WARNING: This function is a non optimized debugging function! See [`sum_kω`](@ref sum_kω), which should return the same result if the asymptotics are captured correctly.
 Optional function `f` transforms `χ` before summation.
+
+WARNING: This function might be buggy!
 """
 function sum_ωk(kG::KGrid, χ::χT; force_full_range=false, λ::Float64=NaN)::Float64
     λ_check = !isnan(λ) && λ != 0
     χ.λ != 0 && λ_check  && error("χ already λ-corrected, but external λ provided!")
     λ_check && χ_λ!(χ, λ)
-    res = kintegrate(kG, sum_ω(χ, force_full_range=force_full_range))
+    res = kintegrate(kG, sum_ω(χ, force_full_range=force_full_range)) # If I unde
     λ_check && reset!(χ)
     return res
 end
@@ -291,9 +293,17 @@ end
     sum_ω!(res::Vector{ComplexF64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
     sum_ω!(ωn_arr::Vector{T}, χ::AbstractVector{T}, tail_c::Vector{Float64}, β::Float64; force_full_range=false)::T where T <: Union{Float64,ComplexF64}
 
-Sums the physical susceptibility over all usable (if `force_full_range` is not set to `true`) bosonic frequencies, including improvd tail summation, if `χ.tail_c` is set.
+    Sums the physical susceptibility over all usable (if `force_full_range` is not set to `true`) bosonic frequencies, including improvd tail summation, if `χ.tail_c` is set.
+
+    WARNING: This function might be buggy!
 """
 function sum_ω(χ::χT; force_full_range=false)
+    # If I understand the implementation correctly, then this type of calculation is wrong.
+    # If the summation over the bosonic frequencies is carried out first, then a function of
+    # the points in the reciprocal space results for the tail coefficient. However, in the
+    # function that performs the summation over the bosonic frequency, it uses the kinetic 
+    # energy as the tail coefficient. This seems strange to me. I suspect that this is the
+    # reason why the results of the functions sum_ωk and sum_kω do not match.
     res  = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:q]))
     ωn_arr = ωn_grid(χ)
     sum_ω!(res, ωn_arr, χ; force_full_range=force_full_range)
