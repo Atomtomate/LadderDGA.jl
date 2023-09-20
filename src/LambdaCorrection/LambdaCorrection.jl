@@ -20,7 +20,7 @@ import ..RPAHelper
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
-export λ_correction, λm_correction, λdm_correction, λdm_correction_dbg, λdm_correction_nu_mu, λ_result 
+export λ_correction, λm_correction, λdm_correction, λdm_correction_dbg, λdm_correction_nu_mu, λ_result, λm_correction_full_RPA
 export bisect, correct_margins, newton_right
 export run_sc
 

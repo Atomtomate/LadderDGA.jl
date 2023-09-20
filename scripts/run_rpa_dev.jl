@@ -16,9 +16,15 @@ if length(LadderDGA.gridPoints(kG)) ≠ size(χ₀.data)[χ₀.axis_types[:q]]
 end
 # ---------------------------------------
 
-χ₀.e_kin
+gLoc      = []
+gLoc_fft  = []
+gLoc_rfft = [] 
+helper = RPAHelper(sP, mP, kG, gLoc,gLoc_fft, gLoc_rfft)
 
 χm, γm = calc_χγ(:m, χ₀, kG, mP);
 χd, γd = calc_χγ(:d, χ₀, kG, mP);
 
+println("U:$(χd.U)")
+
+λ_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)
 println("done.")

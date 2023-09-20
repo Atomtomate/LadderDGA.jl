@@ -84,69 +84,70 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
 end
 
 
-function λ_correction(type::Symbol, χm::χT, χd::χT, h::RPAHelper; 
+function λ_correction(type::Symbol, χm::χT, χd::χT, h::RPAHelper;
     # common options
     verbose::Bool=false, validate_threshold::Float64=1e-8)
     if type == :m
         λm_correction_RPA(χm, χd, h; verbose=verbose, validate_threshold=validate_threshold)
     else
-    error("RPA: λ-correction type '$type' not recognized!")
+        error("RPA: λ-correction type '$type' not recognized!")
     end
 end
 
-function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
+# function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
 
-    kG:: KGrid = h.kG
-    rhs = h.mP.n*(1-0.5*h.mP.n) - sum_kω(kG, χd, χd.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=nothing)
-    
-    λm_min = get_λ_min(χm)
-    χr::SubArray{Float64,2}    = view(χm,:,χm.usable_ω)
-    iωn = (1im .* 2 .* (-h.sP.n_iω:h.sP.n_iω)[χm.usable_ω] .* π ./ h.mP.β)
+#     kG::KGrid = h.kG
+#     rhs = h.mP.n * (1 - 0.5 * h.mP.n) - sum_kω(kG, χd, χd.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=nothing)
 
-    f_c1(λint::Float64)::Float64  = sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=(f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
-    df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=(f(x::Float64)::Float64 = dχ_λ(x, λint)))
-    λm = newton_right(f_c1, df_c1, 0.0, λm_min)
+#     λm_min = get_λ_min(χm)
+#     χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
+#     iωn = (1im .* 2 .* (-h.sP.n_iω:h.sP.n_iω)[χm.usable_ω] .* π ./ h.mP.β)
 
-    check, check2 = if isfinite(validate_threshold) || verbose
-        χ_λ!(χm, λm)
-        check  = sum_kω(kG, χm)
-        check2 = sum_ωk(kG, χm)
-        reset!(χm)
-        check, check2
-    else
-        -Inf, Inf
-    end
-    if verbose
-        println("CHECK for rhs = $rhs  : ", check, " ?=? ", 0)
-        println("sum_kω - PP = ", abs(rhs - check))
-        println("sum_ωk - PP = ", abs(rhs - check2))
-    end
-    validation = (abs(rhs - check) <= validate_threshold) &&  (abs(rhs - check2) <= validate_threshold) 
-    return λm, validation
+#     f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=(f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
+#     df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform=(f(x::Float64)::Float64 = dχ_λ(x, λint)))
+#     λm = newton_right(f_c1, df_c1, 0.0, λm_min)
+
+#     check, check2 = if isfinite(validate_threshold) || verbose
+#         χ_λ!(χm, λm)
+#         check = sum_kω(kG, χm)
+#         check2 = sum_ωk(kG, χm)
+#         reset!(χm)
+#         check, check2
+#     else
+#         -Inf, Inf
+#     end
+#     if verbose
+#         println("CHECK for rhs = $rhs  : ", check, " ?=? ", 0)
+#         println("sum_kω - PP = ", abs(rhs - check))
+#         println("sum_ωk - PP = ", abs(rhs - check2))
+#     end
+#     validation = (abs(rhs - check) <= validate_threshold) && (abs(rhs - check2) <= validate_threshold)
+#     return λm, validation
 
 
-end
+# end
 
 # =============================================== λm =================================================
 """
     λm_correction(χm::χT, rhs::Float64, h::lDΓAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
+    λm_correction(χm::χT, rhs::Float64, h::RPAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
     λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose::Bool=false, validate_threshold::Float64=1e-8)
-                        
+
 Calculates ``\\lambda_\\mathrm{m}`` value, by fixing ``\\sum_{q,\\omega} \\chi^{\\lambda_\\mathrm{m}}_{\\uparrow\\uparrow}(q,i\\omega) = \\frac{n}{2}(1-\\frac{n}{2})``.
 
 Set `verbose` to obtain a trace of the checks.
-`validate_threshold` sets the threshold for the `rhs ≈ lhs` condition, set to `Inf` in order to accept any result. 
+`validate_threshold` sets the threshold for the `rhs ≈ lhs` condition, set to `Inf` in order to accept any result.
 """
-function λm_correction(χm::χT, rhs::Float64, h::lDΓAHelper; validate_threshold::Float64=1e-8, verbose::Bool=false)
+function λm_correction(χm::χT, rhs::Float64, h::Union{lDΓAHelper, RPAHelper}; validate_threshold::Float64=1e-8, verbose::Bool=false)
     λm_correction(χm, rhs, h.kG, h.mP, h.sP, validate_threshold=validate_threshold, verbose=verbose)
 end
 
 function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; validate_threshold::Float64=1e-8, verbose::Bool=false)
     λm_min = get_λ_min(χm)
-    χr::SubArray{Float64,2}    = view(χm,:,χm.usable_ω)
+    χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χm.usable_ω] .* π ./ mP.β)
-    ωn2_tail::Vector{Float64} = real.(χm.tail_c[3] ./ (iωn.^2))
-    zi = findfirst(x->abs(x)<1e-10, iωn)
+    ωn2_tail::Vector{Float64} = real.(χm.tail_c[3] ./ (iωn .^ 2))
+    zi = findfirst(x -> abs(x) < 1e-10, iωn)
     ωn2_tail[zi] = 0.0
 
     f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform=(f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
@@ -167,32 +168,55 @@ function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, 
         println("sum_kω - PP = ", abs(rhs - check))
         println("sum_ωk - PP = ", abs(rhs - check2))
     end
-    validation = (abs(rhs - check) <= validate_threshold) &&  (abs(rhs - check2) <= validate_threshold) 
+    validation = (abs(rhs - check) <= validate_threshold) && (abs(rhs - check2) <= validate_threshold)
     return λm, validation
 end
 
 function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
                             νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false, verbose::Bool=false,
-                            fit_μ::Bool=true, validate_threshold::Float64=1e-8)
+    fit_μ::Bool=true, validate_threshold::Float64=1e-8)
 
-        νmax = νmax < 0 ? floor(Int, size(γm, γm.axis_types[:ν])/2) : νmax
-        rhs = λm_rhs(χm, χd, h; λ_rhs = :native)
-        λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
-        Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm);
-        μnew, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n=fit_μ)
-        EKin1, EPot1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP)
-        rhs_c1  = h.mP.n/2 * (1-h.mP.n/2)
-        χ_m_sum = sum_kω(h.kG, χm, λ=λm)
-        χ_d_sum = sum_kω(h.kG, χd)
-        lhs_c1  = real(χ_d_sum + χ_m_sum)/2
-        EPot2   = (h.mP.U/2)*real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n/2 * h.mP.n/2)
-        λ_result(λm, χd.λ, :m, validation, true, EKin1, EPot1, EPot2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew, h.mP.n)
+    νmax = νmax < 0 ? floor(Int, size(γm, γm.axis_types[:ν]) / 2) : νmax
+    rhs = λm_rhs(χm, χd, h; λ_rhs=:native)
+    λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
+    Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm)
+    μnew, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n=fit_μ)
+    EKin1, EPot1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP)
+    rhs_c1 = h.mP.n / 2 * (1 - h.mP.n / 2)
+    χ_m_sum = sum_kω(h.kG, χm, λ=λm)
+    χ_d_sum = sum_kω(h.kG, χd)
+    lhs_c1 = real(χ_d_sum + χ_m_sum) / 2
+    EPot2 = (h.mP.U / 2) * real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n / 2 * h.mP.n / 2)
+    λ_result(λm, χd.λ, :m, validation, true, EKin1, EPot1, EPot2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew, h.mP.n)
+end
+
+"""
+    λm_correction_full_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
+
+TBW
+"""
+function λm_correction_full_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool=false, validate_threshold::Float64=1e-8)
+    kG::KGrid = h.kG
+    rhs = h.mP.n * (1 - h.mP.n/2) - sum_kω(kG, χd)
+    λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
+    G_ladder = nothing
+    Σ_ladder = nothing
+    EKin1 = χm.tail_c[3]
+    EPot1 = NaN
+    μnew = NaN
+
+    rhs_c1 = h.mP.n / 2 * (1 - h.mP.n / 2)
+    χ_m_sum = sum_kω(h.kG, χm, λ=λm)
+    χ_d_sum = sum_kω(h.kG, χd)
+    lhs_c1 = real(χ_d_sum + χ_m_sum) / 2
+    EPot2 = (h.mP.U / 2) * real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n / 2 * h.mP.n / 2)
+    λ_result(λm, χd.λ, :m, validation, true, EKin1, EPot1, EPot2, rhs_c1, lhs_c1, nothing, G_ladder, Σ_ladder, μnew, h.mP.n)
 end
 
 # =============================================== λm =================================================
 
 """
-    λdm_correction(χm, γm, χd, γd, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀]; 
+    λdm_correction(χm, γm, χd, γd, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀];
         maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false)
 

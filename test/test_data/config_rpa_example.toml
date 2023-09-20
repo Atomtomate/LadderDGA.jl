@@ -1,5 +1,5 @@
 [Model]
-U         = 1.1 # Hubbard on-site interaction parameter
+U         = 4.0 # Hubbard on-site interaction parameter
 mu        = 0.0 # chemical potential
 n_density = 1.0 # number density/ filling
 EPot_DMFT = 0.0 # EPot_DMFT - what is this used for? How can I substitute this in RPA?
@@ -17,7 +17,7 @@ omega_smoothing = "nothing"             # nothing, range, full. Smoothes data af
 
 [Environment]
 inputDir = "/home/coding/LadderDGA.jl/test/test_data/"                  # path to input dir. Make this a relative path...
-inputVars = "rpa_test_chi0_15.h5"
+inputVars = "rpa_test_chi0_16.h5"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!

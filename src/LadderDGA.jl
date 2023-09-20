@@ -42,7 +42,7 @@ module LadderDGA
     export χ_λ, χ_λ!, reset!
     export newton_right
     #TODO: check interface after refactoring
-    export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result 
+    export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
 
     # Additional functionality
     estimate_ef, fermi_surface_connected, estimate_connected_ef
