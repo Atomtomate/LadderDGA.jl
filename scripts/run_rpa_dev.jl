@@ -8,9 +8,12 @@ using LadderDGA
 
 χ₀, wP, mP, sP, env, kGridStr = readConfig_RPA("/home/coding/LadderDGA.jl/test/test_data/config_rpa_example.toml");
 
+# --------- pull into setup_RPA --------- 
+kG = gen_kGrid(kGridStr, χ₀.Nq)
+
+if length(LadderDGA.gridPoints(kG)) ≠ size(χ₀.data)[χ₀.axis_types[:q]]
+    error("Number of q points in kGrid does not match number of q-points in χ₀!")
+end
+# ---------------------------------------
+
 χ₀.e_kin
-
-# inputfile = joinpath(abspath(@__DIR__), "../test/test_data/rpa_chi0_1.h5")
-# χ₀ = read_χ₀_RPA(inputfile)
-
-# println(χ₀.e_kin)

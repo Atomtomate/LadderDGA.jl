@@ -75,7 +75,7 @@ function read_χ₀_RPA(file::String)
 
     data = expand_ω(χ₀qω)
     ωnGrid = (convert(Int64, -maximum(ω_integers)):convert(Int64, maximum(ω_integers)))
-    return χ₀RPA_T(data, ωnGrid, β, e_kin, e_kin_q)
+    return χ₀RPA_T(data, ωnGrid, β, e_kin, e_kin_q, n_bz_q)
 end
 
 """

@@ -157,6 +157,7 @@ Fields
 - **`β`**            : `Float64`, inverse temperature.
 - **`e_kin`**        : `Float64`, kinetic energy.
 - **`e_kin_q`**      : `Float64`, so called 'q-dependent kinetic energy'
+- **`Nq`**           : `Int`, Number of points per dimension that are used to sample the reciprocal space
 """
 struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     data::Array{_eltype_RPA,2}
@@ -165,9 +166,10 @@ struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     β::Float64
     e_kin::Float64
     e_kin_q::Float64        # q-independent part of the so called 'q-dependent RPA kinetic energy' which correpsonds to lim_{ω→∞} (iω)²⋅χ₀(q, ω)
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, e_kin_q::Float64)
+    Nq::Int
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, e_kin_q::Float64, Nq::Int)
         indices_ω = [i for i in ωnGrid];
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, e_kin_q)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, e_kin_q, Nq)
     end
 end
 # ------------------------------------------------- χ ------------------------------------------------
