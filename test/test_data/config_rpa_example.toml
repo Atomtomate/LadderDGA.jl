@@ -1,0 +1,27 @@
+[Model]
+U         = 1.1 # Hubbard on-site interaction parameter
+mu        = 0.0 # chemical potential
+n_density = 1.0 # number density/ filling
+EPot_DMFT = 0.0 # EPot_DMFT - what is this used for? How can I substitute this in RPA?
+kGrid     = "3Dsc-0.2041241452319315081831070062254909493304956233880558440360577139"
+
+[Simulation]
+Nq        = [10]                         # number of q points in each dimension
+chi_asympt_method = "direct"             # direct/sc/nothong, see BSE_SC module for more
+chi_asympt_shell = 0                     # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
+
+# WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
+usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+omega_smoothing = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
+
+
+[Environment]
+inputDir = "/home/coding/LadderDGA.jl/test/test_data/"                  # path to input dir. Make this a relative path...
+inputVars = "rpa_test_chi0_15.h5"
+logfile = "stderr"                      # STDOUT, STDERR, filename
+
+# WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
+loglevel = "debug"                      # error, warn, info, debug
+
+[Debug]
+full_EoM_omega = true                  # compatibility flag for fortran code

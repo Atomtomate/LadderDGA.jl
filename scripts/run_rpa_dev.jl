@@ -6,8 +6,11 @@ Pkg.activate(path)
 Pkg.instantiate()
 using LadderDGA
 
+χ₀, wP, mP, sP, env, kGridStr = readConfig_RPA("/home/coding/LadderDGA.jl/test/test_data/config_rpa_example.toml");
 
-inputfile = joinpath(abspath(@__DIR__), "../test/test_data/rpa_chi0_1.h5")
-χ₀ = read_χ₀_RPA(inputfile)
+χ₀.e_kin
 
-println(χ₀.e_kin)
+# inputfile = joinpath(abspath(@__DIR__), "../test/test_data/rpa_chi0_1.h5")
+# χ₀ = read_χ₀_RPA(inputfile)
+
+# println(χ₀.e_kin)

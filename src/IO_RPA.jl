@@ -78,3 +78,95 @@ end
 function expand_ω(χ₀qω)
     return cat(reverse(χ₀qω, dims=2)[:, begin:end-1], χ₀qω, dims=2)
 end
+
+
+"""
+    readConfig_RPA(cfg_in::String)
+
+Reads a config.toml file either as string or from a file and returns 
+    - workerpool
+    - [`ModelParameter, "../test/test_data/rpa_chi0_1.h5")
+    # χ₀ = read_χ₀_RPA(inputfile)s`](@ref)
+    - [`SimulationParameters`](@ref)
+    - [`EnvironmentVars`](@ref)
+    - kGrid (see Dispersions.jl)
+"""
+function readConfig_RPA(cfg_in::String)
+    @info "Reading Inputs..."
+
+    cfg_is_file = true
+    try 
+        cfg_is_file = isfile(cfg_in)
+    catch e
+        @warn "cfg_file not found as file. Trying to parse as config string."
+        cfg_is_file = false
+    end
+    tml = if cfg_is_file
+        TOML.parsefile(cfg_in)
+    else
+        TOML.parse(cfg_in)
+    end
+
+    # sections
+    tml_model      = tml["Model"]
+    tml_simulation = tml["Simulation"]
+    tml_enviroment = tml["Environment"]
+    tml_debug      = tml["Debug"]
+
+    # read section Model
+    @warn "The parameter μ should be read from the χ₀-file and not passed via the configuration file!"
+    @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
+    @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
+    U         = tml_model["U"]
+    μ         = tml_model["mu"]
+    n_density = tml_model["n_density"]
+    EPot_DMFT = tml_model["EPot_DMFT"]
+    kGridStr  = tml_model["kGrid"]
+
+    # read section Debug
+    full_EoM_omega = tml_debug["full_EoM_omega"]
+
+    # read section Simulation
+    chi_asympt_method     = tml_simulation["chi_asympt_method"]      # what is this used for? First guess ν-Asymptotics...
+    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]       # what is this used for? First guess ν-Asymptotics...
+    usable_prct_reduction = tml_simulation["usable_prct_reduction"]  # what is this used for? First guess ν-Asymptotics...
+    omega_smoothing       = tml_simulation["omega_smoothing"]        # what is this used for?
+
+    # read section Environment
+    inputDir  = tml_enviroment["inputDir"]
+    inputVars = tml_enviroment["inputVars"]
+    logfile   = tml_enviroment["logfile"]
+    loglevel  = tml_enviroment["loglevel"]
+
+    # collect EnvironmentVars
+    input_dir = isabspath(inputDir) ? inputDir : abspath(joinpath(dirname(cfg_in), inputDir))
+    env = EnvironmentVars(input_dir,
+                          joinpath(input_dir, inputVars),
+                          String([(i == 1) ? uppercase(c) : lowercase(c)
+                                  for (i, c) in enumerate(loglevel)]),
+                          lowercase(logfile))
+
+    # read RPA χ₀ from hdf5 file
+    χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars)
+
+    # collect ModelParameters
+    mP = ModelParameters(U, μ, χ₀.β, n_density, EPot_DMFT, χ₀.e_kin)
+
+    # collect SimulationParameters
+    Nω = (length(χ₀.indices_ω) - 1 ) / 2 # number of positive bosonic matsubara frequencies
+    sP = SimulationParameters(
+        Nω,                            # number of positive bosonic matsubara frequencies
+        -1,                            # number of positive fermionic matsubara frequencies | Set this such that the program crashes whenever this is used...
+        -1,                            # number of fermionic frequencies used for asymptotic sum improvement | Set this such that the program crashes whenever this is used...
+        false,                         # since there are no fermionic frequencies there is no need for the shift | Is this save?
+        undef,                         # χ_helper. When is this guy used?
+        0.0,                           # sum(Vk .^ 2). What is this used for?  
+        (-Nω:Nω),                      # fft_range. No idea how this is supposed to be set...
+        NaN,                           # usable_prct_reduction. No idea what this is...
+        full_EoM_omega
+    )
+    
+    # build workerpool
+    wP = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    return χ₀, wP, mP, sP, env, kGridStr
+end

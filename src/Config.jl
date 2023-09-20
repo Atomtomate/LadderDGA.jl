@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                            Config.jl                                                 #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Author          : Julian Stobbe, Jan Frederik Weißler                                              #
 #   Last Edit Date  : 22.09.22                                                                         #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   This file contains legacy functionality for read/write operations of files generated and need      #
@@ -33,7 +33,7 @@ Fields
 - **`β`**         : `Float64`, inverse temperature
 - **`n`**         : `Float64`, filling
 - **`Epot_DMFT`** : `Float64`, DMFT potential energy
-- **`Ekin_DMFT`** : `Float64`, DMFT kinetic intergy
+- **`Ekin_DMFT`** : `Float64`, DMFT kinetic energy
 """
 mutable struct ModelParameters <: ConfigStruct
     U::Float64              # Hubbard U
