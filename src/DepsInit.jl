@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                           DepsInit.jl                                                #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Authors         : Julian Stobbe, Jan Frederik Weissler                                             #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Setup after loading the module. All dependencies, precompilation, logging and multi-core           #
 #   preperations should be done here.                                                                  #
@@ -16,11 +16,11 @@ using ArgParse
 using Logging, LoggingExtras
 using OffsetArrays
 using Distributed
-using FFTW              # used for convolutions
-using Combinatorics     # 
-using SpecialFunctions  # e.g. PolyLog in filling
-using TOML              # input configuration
-using JLD2, FileIO      # input/output files
+using FFTW                # used for convolutions
+using Combinatorics       # 
+using SpecialFunctions    # e.g. PolyLog in filling
+using TOML                # input configuration
+using JLD2, FileIO, HDF5  # input/output files
 using LinearAlgebra
 
 # Fortran compatibility
