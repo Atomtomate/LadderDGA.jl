@@ -33,7 +33,7 @@ module LadderDGA
     export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder
     
     # RPA main functions
-    export setup_RPA, χ₀RPA_T, read_RPA_input
+    export setup_RPA, χ₀RPA_T, read_χ₀_RPA
 
     # Thermodynamics
     export calc_E_ED, calc_E, calc_Epot2

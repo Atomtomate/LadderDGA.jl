@@ -8,6 +8,6 @@ using LadderDGA
 
 
 inputfile = joinpath(abspath(@__DIR__), "../test/test_data/rpa_chi0_1.h5")
-χ₀ = read_RPA_input(inputfile)
+χ₀ = read_χ₀_RPA(inputfile)
 
 println(χ₀.e_kin)

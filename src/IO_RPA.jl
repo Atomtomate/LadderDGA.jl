@@ -22,11 +22,11 @@ end
 
 
 """
-    read_RPA_input(file::String)
+    read_χ₀_RPA(file::String)
 
 TBW
 """
-function read_RPA_input(file::String)
+function read_χ₀_RPA(file::String)
     if !HDF5.ishdf5(file)
         throw(ArgumentError("The given file is not a valid hdf5 file!\ngiven path is: '$(file)'"))
     end
@@ -37,11 +37,11 @@ function read_RPA_input(file::String)
 
     # attributes
     attr_dict = attrs(chi0_group)
-    β = attr_dict["beta"]                            # inverse temperature
-    n_bz_k = attr_dict["n_cubes"]                         # number of sample points per dimension to sample the first brillouin zone
-    n_bz_q = 2 * (attr_dict["n_samples"] - 1)                    # number of sample points per dimension to sample the first brillouin zone
-    e_kin_q = attr_dict["tail_coeff_q_indep"]
-    e_kin = attr_dict["e_kin"]
+    β       =      attr_dict["beta"]               # inverse temperature
+    n_bz_k  =      attr_dict["n_cubes"]            # number of sample points per dimension to sample the first brillouin zone
+    n_bz_q  = 2 * (attr_dict["n_samples"] - 1)     # number of sample points per dimension to sample the first brillouin zone
+    e_kin   =      attr_dict["e_kin"]
+    e_kin_q =      attr_dict["tail_coeff_q_indep"]
 
     # datasets
     ω_integers = read(chi0_group["omega_integers"])
