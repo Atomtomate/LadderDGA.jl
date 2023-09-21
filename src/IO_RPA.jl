@@ -49,7 +49,7 @@ function read_χ₀_RPA(file::String)
         throw(ArgumentError("ω-integers are distict from (0:$(maximum(ω_integers)))!"))
     end
     χ₀qω = read(chi0_group["values"])
-    
+
     # consistency checks
     if β ≤ 0.0
         error("β is a positive quantity!")
@@ -103,7 +103,7 @@ function readConfig_RPA(cfg_in::String)
     @info "Reading Inputs..."
 
     cfg_is_file = true
-    try 
+    try
         cfg_is_file = isfile(cfg_in)
     catch e
         @warn "cfg_file not found as file. Trying to parse as config string."
@@ -135,10 +135,11 @@ function readConfig_RPA(cfg_in::String)
     full_EoM_omega = tml_debug["full_EoM_omega"]
 
     # read section Simulation
-    chi_asympt_method     = tml_simulation["chi_asympt_method"]      # what is this used for? First guess ν-Asymptotics...
-    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]       # what is this used for? First guess ν-Asymptotics...
-    usable_prct_reduction = tml_simulation["usable_prct_reduction"]  # what is this used for? First guess ν-Asymptotics...
-    omega_smoothing       = tml_simulation["omega_smoothing"]        # what is this used for?
+    Nν                    = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
+    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
+    usable_prct_reduction = tml_simulation["usable_prct_reduction"] # what is this used for? First guess ν-Asymptotics...
+    omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
     inputDir  = tml_enviroment["inputDir"]
@@ -148,11 +149,11 @@ function readConfig_RPA(cfg_in::String)
 
     # collect EnvironmentVars
     input_dir = isabspath(inputDir) ? inputDir : abspath(joinpath(dirname(cfg_in), inputDir))
-    env = EnvironmentVars(input_dir,
-                          joinpath(input_dir, inputVars),
-                          String([(i == 1) ? uppercase(c) : lowercase(c)
-                                  for (i, c) in enumerate(loglevel)]),
-                          lowercase(logfile))
+    env = EnvironmentVars(input_dir                   ,
+        joinpath(input_dir, inputVars)                ,
+        String([(i == 1) ? uppercase(c) : lowercase(c)
+                for (i, c) in enumerate(loglevel)])   ,
+        lowercase(logfile))
 
     # read RPA χ₀ from hdf5 file
     χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars)
@@ -161,20 +162,20 @@ function readConfig_RPA(cfg_in::String)
     mP = ModelParameters(U, μ, χ₀.β, n_density, EPot_DMFT, χ₀.e_kin)
 
     # collect SimulationParameters
-    Nω = (length(χ₀.indices_ω) - 1 ) / 2 # number of positive bosonic matsubara frequencies
+    Nω = (length(χ₀.indices_ω) - 1) / 2 # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
     sP = SimulationParameters(
         Nω,                            # number of positive bosonic matsubara frequencies
-        -1,                            # number of positive fermionic matsubara frequencies | Set this such that the program crashes whenever this is used...
+        Nν,                            # number of positive fermionic matsubara frequencies | Set this such that the program crashes whenever this is used...
         -1,                            # number of fermionic frequencies used for asymptotic sum improvement | Set this such that the program crashes whenever this is used...
         false,                         # since there are no fermionic frequencies there is no need for the shift | Is this save?
         undef,                         # χ_helper. When is this guy used?
         0.0,                           # sum(Vk .^ 2). What is this used for?  
         (-Nω:Nω),                      # fft_range. No idea how this is supposed to be set...
         NaN,                           # usable_prct_reduction. No idea what this is...
-        full_EoM_omega
+        full_EoM_omega                 # A debug flag I guess...
     )
-    
+
     # build workerpool
-    wP = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi
+    wP = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi # No idea how this is used...
     return χ₀, wP, mP, sP, env, kGridStr
 end

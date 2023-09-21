@@ -5,7 +5,8 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Functions to calculate RPA specific quantities                                                     #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Unit tests, Proper implementation of the triangular vertex in calc_χγ                              #
+#   Unit tests, Proper implementation of the triangular vertex in calc_χγ,                             #
+#   Refacture λ0 calculation: reduce rank by the dimension of the fermionic matsubara frequency        #
 # ==================================================================================================== #
 
 function calc_bubble(type::Symbol, h::RPAHelper)
@@ -63,4 +64,35 @@ function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParamete
     γ = ones(ComplexF64, Nq, Nν, Nω)
     χ = real(χ₀ ./ (1 .+ s * mP.U .* χ₀))
     return χT(χ, χ₀.β, full_range=true; tail_c=[0.0, 0.0, χ₀.e_kin]), γT(γ)
+end
+
+
+"""
+calc_λ0(χ₀::χ₀RPA_T, helper::RPAHelper)
+calc_λ0(χ₀::χ₀RPA_T, sP::SimulationParameters, mP::ModelParameters)
+
+This function corresponds to the following mapping
+    
+    λ0: BZ × π(2N + 1)/β × 2πN/β → C, (q, ν, ω)↦ -U χ₀(q,ω)
+
+    where ...
+        ... U is the Hubbard on-site interaction parameter
+        ... χ₀ is the RPA bubble term
+    
+TODO: λ0 is constant in the fermionic matsubara frequency. This should be refactured.
+"""
+function calc_λ0(χ₀::χ₀RPA_T, helper::RPAHelper)
+    calc_λ0(χ₀, helper.sP, helper.mP)
+end
+
+function calc_λ0(χ₀::χ₀RPA_T, sP::SimulationParameters, mP::ModelParameters)
+    Niν = 2 * sP.n_iν                       # total number of fermionic matsubara frequencies
+    Nω = size(χ₀.data, χ₀.axis_types[:ω])   # total number of bosonic matsubara frequencies
+    Nq = size(χ₀.data, χ₀.axis_types[:q])   # number of sample points in the sampled reduced reciprocal lattice space
+    
+    λ0 = zeros(ComplexF64, Nq, Niν, Nω)
+    for νi in 1 : Niν
+        λ0[ :, νi, :] = -mP.U * χ₀
+    end
+    return λ0
 end
