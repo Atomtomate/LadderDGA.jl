@@ -21,10 +21,17 @@ gLoc_fft  = []
 gLoc_rfft = [] 
 helper = RPAHelper(sP, mP, kG, gLoc,gLoc_fft, gLoc_rfft)
 
-χm, γm = calc_χγ(:m, χ₀, kG, mP);
-χd, γd = calc_χγ(:d, χ₀, kG, mP);
+χm, γm = calc_χγ(:m, χ₀, mP, sP);
+χd, γd = calc_χγ(:d, χ₀, mP, sP);
+# ---------- pull into a test -----------
+println( all(γm .== 1) )               # triangular vertex is identity
+println( all(γd .== 1) )               # triangular vertex is identity
 
-println("U:$(mP.U)")
+println(count(χd[begin, :] ≠ 0 ) == 1)            # χd(Γ, ω≠0) = 0
+println(count(χm[begin, :] ≠ 0 ) == 1)            # χm(Γ, ω≠0) = 0
+println(χm[begin, LadderDGA.ω0_index(sP)] ≠ 0 )   # χd(Γ, ω=0) ≠ 0
+println(χm[begin, LadderDGA.ω0_index(sP)] ≠ 0 )   # χm(Γ, ω=0) ≠ 0
+# ---------------------------------------
 
 λ₀ = calc_λ0(χ₀, helper)
 # ---------- pull into a test -----------
@@ -33,4 +40,4 @@ println( count(abs.(λ₀[begin, begin, :]) ≠ 0) == 1 )                       
 # ---------------------------------------
 
 println("done.")
-# λ_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)
+λ_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)

@@ -5,7 +5,7 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Functions to calculate RPA specific quantities                                                     #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Unit tests, Proper implementation of the triangular vertex in calc_χγ,                             #
+#   Unit tests                                                                                         #
 #   Refacture λ0 calculation: reduce rank by the dimension of the fermionic matsubara frequency        #
 # ==================================================================================================== #
 
@@ -47,9 +47,22 @@ end
 """
     calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParameters)
 
-TBW
+    This function corresponds to the following mappings
+    
+        χ: BZ × 2πN/β → R, (q, ω)↦ χ₀(q,ω) / ( 1 + U_r⋅χ₀(q,ω) )
+        
+        γ: BZ × π(2N + 1)/β × 2πN/β → C, (q, ν, ω)↦ 1
+
+        where ...
+            ... U_r is the Hubbard on-site interaction parameter multiplied by +1 if type = d and -1 if type = m.
+            ... χ₀ is the RPA bubble term
+            ... ν is a fermionic matsubara frequency
+            ... ω is a bosonic matsubara frequency
+            ... N is the set of natural numbers
+            ... β is the inverse temperature
+            ... q is a point in reciprocal space
 """
-function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParameters)
+function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, mP::ModelParameters, sP::SimulationParameters)
     s = if type == :d
         1
     elseif type == :m
@@ -57,12 +70,12 @@ function calc_χγ(type::Symbol, χ₀::χ₀RPA_T, kG::KGrid, mP::ModelParamete
     else
         error("Unkown type")
     end
-    Nq = length(kG.kMult)
+    Nν = 2 * sP.n_iν
     Nω = size(χ₀.data, χ₀.axis_types[:ω])
-    Nν = 1
-    @warn "Sum over fermionic Matsubara frequencies was performed analytically. Triangular vertex is constructed using one fermionic Matsubara frequency. This needs to be refactured!"
+    Nq = size(χ₀.data, χ₀.axis_types[:q])
+
     γ = ones(ComplexF64, Nq, Nν, Nω)
-    χ = real(χ₀ ./ (1 .+ s * mP.U .* χ₀))
+    χ = real( χ₀ ./ (1 .+ s * mP.U .* χ₀) )
     return χT(χ, χ₀.β, full_range=true; tail_c=[0.0, 0.0, χ₀.e_kin]), γT(γ)
 end
 
@@ -86,12 +99,12 @@ function calc_λ0(χ₀::χ₀RPA_T, helper::RPAHelper)
 end
 
 function calc_λ0(χ₀::χ₀RPA_T, sP::SimulationParameters, mP::ModelParameters)
-    Niν = 2 * sP.n_iν                       # total number of fermionic matsubara frequencies
+    Nν = 2 * sP.n_iν                        # total number of fermionic matsubara frequencies
     Nω = size(χ₀.data, χ₀.axis_types[:ω])   # total number of bosonic matsubara frequencies
     Nq = size(χ₀.data, χ₀.axis_types[:q])   # number of sample points in the sampled reduced reciprocal lattice space
     
-    λ0 = zeros(ComplexF64, Nq, Niν, Nω)
-    for νi in 1 : Niν
+    λ0 = zeros(ComplexF64, Nq, Nν, Nω)
+    for νi in 1 : Nν
         λ0[ :, νi, :] = -mP.U * χ₀
     end
     return λ0
