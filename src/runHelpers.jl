@@ -211,7 +211,7 @@ Returns: [`RPAHelper`](@ref RPAHelper)
 """
 function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm::χT; silent::Bool=false)
 
-    # # TODO: refactor this as a function
+    # TODO: refactor this as a function
 
     @timeit to "Compute GLoc" begin
         gs = gridshape(kG)
@@ -235,13 +235,6 @@ function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm
     Σ_loc = OffsetVector(repeat([mP.U * mP.n/2 + 0im], 5001), 0:5000)
     @warn "Proper implementation of χloc_m_sum needed!"
     χloc_m_sum = sum_kω(kG, χm)
-
-    # @warn "Proper implementation of gLoc needed!"
-    # gLoc = []
-    # @warn "Proper implementation of gLoc_fft needed!"
-    # gLoc_fft = []
-    # @warn "Proper implementation of gLoc_rfft needed!"
-    # gLoc_rfft = []
 
     return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end
