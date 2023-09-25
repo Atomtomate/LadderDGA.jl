@@ -37,11 +37,11 @@ function read_χ₀_RPA(file::String)
 
     # attributes
     attr_dict = attrs(chi0_group)
-    β       =      attr_dict["beta"]               # inverse temperature
-    n_bz_k  =      attr_dict["n_cubes"]            # number of sample points per dimension to sample the first brillouin zone
-    n_bz_q  = 2 * (attr_dict["n_samples"] - 1)     # number of sample points per dimension to sample the first brillouin zone
-    e_kin   =      attr_dict["e_kin"]
-    e_kin_q =      attr_dict["tail_coeff_q_indep"]
+    β = attr_dict["beta"]               # inverse temperature
+    n_bz_k = attr_dict["n_cubes"]            # number of sample points per dimension to sample the first brillouin zone
+    n_bz_q = 2 * (attr_dict["n_samples"] - 1)     # number of sample points per dimension to sample the first brillouin zone
+    e_kin = attr_dict["e_kin"]
+    e_kin_q = attr_dict["tail_coeff_q_indep"]
 
     # datasets
     ω_integers = read(chi0_group["omega_integers"])
@@ -116,43 +116,43 @@ function readConfig_RPA(cfg_in::String)
     end
 
     # sections
-    tml_model      = tml["Model"]
+    tml_model = tml["Model"]
     tml_simulation = tml["Simulation"]
     tml_enviroment = tml["Environment"]
-    tml_debug      = tml["Debug"]
+    tml_debug = tml["Debug"]
 
     # read section Model
     @warn "The parameter μ should be read from the χ₀-file and not passed via the configuration file!"
     @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
     @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
-    U         = tml_model["U"]
-    μ         = tml_model["mu"]
+    U = tml_model["U"]
+    μ = tml_model["mu"]
     n_density = tml_model["n_density"]
     EPot_DMFT = tml_model["EPot_DMFT"]
-    kGridStr  = tml_model["kGrid"]
+    kGridStr = tml_model["kGrid"]
 
     # read section Debug
     full_EoM_omega = tml_debug["full_EoM_omega"]
 
     # read section Simulation
-    Nν                    = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
-    chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
-    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
+    Nν = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    chi_asympt_method = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
+    chi_asympt_shell = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
     usable_prct_reduction = tml_simulation["usable_prct_reduction"] # what is this used for? First guess ν-Asymptotics...
-    omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
+    omega_smoothing = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
-    inputDir  = tml_enviroment["inputDir"]
+    inputDir = tml_enviroment["inputDir"]
     inputVars = tml_enviroment["inputVars"]
-    logfile   = tml_enviroment["logfile"]
-    loglevel  = tml_enviroment["loglevel"]
+    logfile = tml_enviroment["logfile"]
+    loglevel = tml_enviroment["loglevel"]
 
     # collect EnvironmentVars
     input_dir = isabspath(inputDir) ? inputDir : abspath(joinpath(dirname(cfg_in), inputDir))
-    env = EnvironmentVars(input_dir                   ,
-        joinpath(input_dir, inputVars)                ,
+    env = EnvironmentVars(input_dir,
+        joinpath(input_dir, inputVars),
         String([(i == 1) ? uppercase(c) : lowercase(c)
-                for (i, c) in enumerate(loglevel)])   ,
+                for (i, c) in enumerate(loglevel)]),
         lowercase(logfile))
 
     # read RPA χ₀ from hdf5 file
@@ -162,7 +162,9 @@ function readConfig_RPA(cfg_in::String)
     mP = ModelParameters(U, μ, χ₀.β, n_density, EPot_DMFT, χ₀.e_kin)
 
     # collect SimulationParameters
-    Nω = (length(χ₀.indices_ω) - 1) / 2 # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
+    Nω = trunc(Int, (length(χ₀.indices_ω) - 1) / 2) # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
+    freq_r = 2 * (Nν + Nω)
+    freq_r = -freq_r:freq_r
     sP = SimulationParameters(
         Nω,                            # number of positive bosonic matsubara frequencies
         Nν,                            # number of positive fermionic matsubara frequencies | Set this such that the program crashes whenever this is used...
@@ -170,7 +172,7 @@ function readConfig_RPA(cfg_in::String)
         false,                         # since there are no fermionic frequencies there is no need for the shift | Is this save?
         undef,                         # χ_helper. When is this guy used?
         0.0,                           # sum(Vk .^ 2). What is this used for?  
-        (-Nω:Nω),                      # fft_range. No idea how this is supposed to be set...
+        freq_r,                      # fft_range. No idea how this is supposed to be set...
         NaN,                           # usable_prct_reduction. No idea what this is...
         full_EoM_omega                 # A debug flag I guess...
     )

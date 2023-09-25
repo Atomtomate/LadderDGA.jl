@@ -15,7 +15,7 @@ module LadderDGA
     export gen_kGrid, kintegrate
 
     # Types
-    export ModelParameters, SimulationParameters, EnvironmentVars, lDΓAHelper
+    export ModelParameters, SimulationParameters, EnvironmentVars, lDΓAHelper, RunHelper
     export ΓT, FT, χ₀T, χT, γT, GνqT
     export RPAHelper
     

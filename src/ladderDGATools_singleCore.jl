@@ -10,6 +10,53 @@
 
 
 # ======================================== LadderDGA Functions =======================================
+
+# ========================================== Correction Term =========================================
+"""
+    calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
+    calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
+    calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
+
+Correction term, TODO: documentation
+"""
+function calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
+    F_m   = F_from_χ(:m, h);
+    calc_λ0(χ₀, F_m, h)
+end
+
+function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
+    calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP)
+end
+
+function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters; improved_sums::Bool=true)
+    #TODO: store nu grid in sP?
+    Niν = size(Fr,1)
+    Nq  = size(χ₀.data, χ₀.axis_types[:q])
+    ω_range = 1:size(χ₀.data, χ₀.axis_types[:ω])
+    λ0 = Array{ComplexF64,3}(undef,size(χ₀.data, χ₀.axis_types[:q]),Niν,length(ω_range))
+
+    if improved_sums && typeof(sP.χ_helper) <: BSE_Asym_Helpers
+       λ0[:] = calc_λ0_impr(:m, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
+                            mP.U, mP.β, sP.χ_helper)
+    else
+        #TODO: this is not well optimized, but also not often executed
+        @warn "Using plain summation for λ₀, check Σ_ladder tails!"
+        fill!(λ0, 0.0)
+        for ωi in ω_range
+            for νi in 1:Niν
+                #TODO: export realview functions?
+                v1 = view(Fr,νi,:,ωi)
+                for qi in 1:Nq
+                    v2 = view(χ₀.data,qi,(sP.n_iν_shell+1):(size(χ₀.data,2)-sP.n_iν_shell),ωi)
+                    λ0[qi,:,ωi] = λ0[qi,:,ωi] .+ v1 .* v2 ./ mP.β^2
+                end
+            end
+        end
+    end
+    return λ0
+end
+
+
 """
     calc_bubble(type::Symbol, h <: RunHelper, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
     calc_bubble(type::Symbol, Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
@@ -159,7 +206,7 @@ Calculates the self-energy from ladder quantities.
 This is the single core variant, see [`calc_Σ_par`](@ref calc_Σ_par) for the parallel version.
 """
 function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, 
-                λ₀::AbstractArray{_eltype,3}, h::lDΓAHelper;
+                λ₀::AbstractArray{_eltype,3}, h::RunHelper;
                 νmax::Int = h.sP.n_iν, λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm=λm, λd=λd, tc=tc)
 end

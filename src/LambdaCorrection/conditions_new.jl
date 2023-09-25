@@ -57,7 +57,7 @@ function Base.show(io::IO, m::λ_result)
     end
 end
 
-function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ₀, h::lDΓAHelper; 
+function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ₀, h::RunHelper; 
                       # λm related:
                       λm_rhs_type::Symbol=:native,
                       # λdm related:
@@ -172,7 +172,7 @@ function λm_correction(χm::χT, rhs::Float64, kG::KGrid, mP::ModelParameters, 
     return λm, validation
 end
 
-function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::RunHelper;
                             νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false, verbose::Bool=false,
     fit_μ::Bool=true, validate_threshold::Float64=1e-8)
 
@@ -216,7 +216,7 @@ end
 # =============================================== λm =================================================
 
 """
-    λdm_correction(χm, γm, χd, γd, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::lDΓAHelper, λ₀];
+    λdm_correction(χm, γm, χd, γd, [Σ_loc, gLoc_rfft, λ₀, kG, mP, sP] OR [h::RunHelper, λ₀];
         maxit_root = 100, atol_root = 1e-8, λd_min_δ = 0.1, λd_max = 500,
         maxit::Int = 50, update_χ_tail=false, mixing=0.2, conv_abs=1e-8, par=false)
 
@@ -228,7 +228,7 @@ Returns:
 -------------
     λdm: `Vector`, containing `λm` and `λd`.
 """
-function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::RunHelper;
                         νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false,
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false, fit_μ::Bool=true, μ::Float64=h.mP.μ,
@@ -350,7 +350,7 @@ end
 # =============================================== sc =================================================
 #
 """
-function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
+function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::RunHelper;
                 type::Symbol=:fix, par::Bool=false, λ_min_δ::Float64 = 0.15, νmax::Int=-1,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
                 tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
@@ -363,7 +363,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
     - :m       : Same as `:fix`, but initial values are obtained from lDΓA_m condition.
 """
 
-function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
+function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::RunHelper;
                 par::Bool=false, λ_min_δ::Float64 = 0.0001, νmax::Int=-1,
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, trace=false, verbose::Bool=false, update_χ_tail::Bool=false, fit_μ::Bool=true,
                 tc::Bool=true, type=:fix, λm::Float64=0.0, λd::Float64=0.0)
@@ -428,7 +428,7 @@ end
 #TODO: docu, :m, :dm, :pre, :fix
 function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetMatrix{ComplexF64}, 
                  Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
-                 χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
+                 χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::RunHelper;
                  maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, fit_μ::Bool=true,
                  par::Bool=false, type::Symbol=:fix)
     it      = 1

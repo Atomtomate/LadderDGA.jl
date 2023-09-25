@@ -98,50 +98,6 @@ function F_from_χ_star_gen(χ₀::χ₀T, χstar_r::Array{ComplexF64,4}, χr::�
     return F
 end
 
-# ========================================== Correction Term =========================================
-"""
-    calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
-    calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
-    calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters)
-
-Correction term, TODO: documentation
-"""
-function calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
-    F_m   = F_from_χ(:m, h);
-    calc_λ0(χ₀, F_m, h)
-end
-
-function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
-    calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP)
-end
-
-function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters; improved_sums::Bool=true)
-    #TODO: store nu grid in sP?
-    Niν = size(Fr,1)
-    Nq  = size(χ₀.data, χ₀.axis_types[:q])
-    ω_range = 1:size(χ₀.data, χ₀.axis_types[:ω])
-    λ0 = Array{ComplexF64,3}(undef,size(χ₀.data, χ₀.axis_types[:q]),Niν,length(ω_range))
-
-    if improved_sums && typeof(sP.χ_helper) <: BSE_Asym_Helpers
-       λ0[:] = calc_λ0_impr(:m, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data,1,:,:), view(χ.data,1,:),
-                            mP.U, mP.β, sP.χ_helper)
-    else
-        #TODO: this is not well optimized, but also not often executed
-        @warn "Using plain summation for λ₀, check Σ_ladder tails!"
-        fill!(λ0, 0.0)
-        for ωi in ω_range
-            for νi in 1:Niν
-                #TODO: export realview functions?
-                v1 = view(Fr,νi,:,ωi)
-                for qi in 1:Nq
-                    v2 = view(χ₀.data,qi,(sP.n_iν_shell+1):(size(χ₀.data,2)-sP.n_iν_shell),ωi)
-                    λ0[qi,:,ωi] = λ0[qi,:,ωi] .+ v1 .* v2 ./ mP.β^2
-                end
-            end
-        end
-    end
-    return λ0
-end
 
 """
     calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)

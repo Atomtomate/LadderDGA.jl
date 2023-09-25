@@ -71,6 +71,8 @@ mutable struct RPAHelper <: RunHelper
     gLoc::GνqT
     gLoc_fft::GνqT
     gLoc_rfft::GνqT
+    Σ_loc::OffsetVector
+    χloc_m_sum::Float64
 end
 
 
@@ -207,12 +209,9 @@ Computes all needed objects for RPA calculations.
 
 Returns: [`RPAHelper`](@ref RPAHelper)
 """
-function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool=false)
+function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm::χT; silent::Bool=false)
 
-    !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
-    @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
-
-    # TODO: refactor this as a function
+    # # TODO: refactor this as a function
 
     @timeit to "Compute GLoc" begin
         gs = gridshape(kG)
@@ -232,5 +231,17 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
         end
     end
 
-    return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft)
+    @warn "Proper implementation of Σ_loc needed!"
+    Σ_loc = OffsetVector(repeat([mP.U * mP.n/2 + 0im], 5001), 0:5000)
+    @warn "Proper implementation of χloc_m_sum needed!"
+    χloc_m_sum = sum_kω(kG, χm)
+
+    # @warn "Proper implementation of gLoc needed!"
+    # gLoc = []
+    # @warn "Proper implementation of gLoc_fft needed!"
+    # gLoc_fft = []
+    # @warn "Proper implementation of gLoc_rfft needed!"
+    # gLoc_rfft = []
+
+    return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end

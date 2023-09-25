@@ -16,13 +16,11 @@ if length(LadderDGA.gridPoints(kG)) ≠ size(χ₀.data)[χ₀.axis_types[:q]]
 end
 # ---------------------------------------
 
-gLoc      = []
-gLoc_fft  = []
-gLoc_rfft = [] 
-helper = RPAHelper(sP, mP, kG, gLoc,gLoc_fft, gLoc_rfft)
-
 χm, γm = calc_χγ(:m, χ₀, mP, sP);
 χd, γd = calc_χγ(:d, χ₀, mP, sP);
+
+helper = setup_RPA(kG, mP, sP, χm; silent=false)
+
 # ---------- pull into a test -----------
 println( all(γm .== 1) )               # triangular vertex is identity
 println( all(γd .== 1) )               # triangular vertex is identity
@@ -39,5 +37,9 @@ println( maximum(real.(-λ₀[begin, begin, :])) / mP.U ≈ χ₀[begin, LadderD
 println( count(abs.(λ₀[begin, begin, :]) ≠ 0) == 1 )                                          # check that for ω=0 and at the Γ-point only one contribution does not vanish 
 # ---------------------------------------
 
-println("done.")
 λ_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)
+println("done.")
+
+
+res_dm = λdm_correction(χm, γm, χd, γd, helper.Σ_loc, helper.gLoc_rfft, helper.χloc_m_sum, λ₀, kG, mP, sP; fit_μ=true)
+
