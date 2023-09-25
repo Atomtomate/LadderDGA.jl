@@ -232,9 +232,9 @@ function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm
     end
 
     @warn "Proper implementation of Σ_loc needed!"
-    Σ_loc = OffsetVector(repeat([mP.U * mP.n/2 + 0im], 5001), 0:5000)
+    Σ_loc = OffsetVector(repeat([0.0 + 0im], 5001), 0:5000) # mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
     @warn "Proper implementation of χloc_m_sum needed!"
-    χloc_m_sum = sum_kω(kG, χm)
+    χloc_m_sum = sum_kω(kG, χm) # No idea what how this is supposed to be set... I need Julian to explain this to me.
 
     return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end
