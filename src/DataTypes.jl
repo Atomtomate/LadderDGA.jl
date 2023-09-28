@@ -76,7 +76,7 @@ end
 Select core region (without asymptotic shell) from bubble term.
 """
 function core(χ₀::χ₀T)
-    view(χ₀.data, :,χ₀.ν_shell_size+1:size(χ₀.data,2)-χ₀.ν_shell_size,:)
+    view(χ₀.data,:, χ₀.ν_shell_size+1:size(χ₀.data,2)-χ₀.ν_shell_size,:)
 end
 
 
@@ -275,8 +275,6 @@ function sum_ωk(kG::KGrid, χ::χT; force_full_range=false, λ::Float64=NaN)::F
     λ_check && reset!(χ)
     return res
 end
-
-
 
 
 
