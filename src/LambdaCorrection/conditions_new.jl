@@ -280,6 +280,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         else
             calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
         end
+        #!!!!!!! auf korrektheit pruefen
         μ = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=fit_μ, μ=μ)
         E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, kG, mP)
         n = filling_pos(view(G_ladder, :, 0:νmax-1), kG, mP.U, μ, mP.β)

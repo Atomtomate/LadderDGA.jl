@@ -211,6 +211,7 @@ function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT,
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm=λm, λd=λd, tc=tc)
 end
 
+# self energy
 function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,

@@ -1,5 +1,5 @@
 [Model]
-U         = 0.2 # Hubbard on-site interaction parameter
+U         = 0.4 # Hubbard on-site interaction parameter
 mu        = 0.0 # chemical potential
 n_density = 1.0 # number density/ filling
 EPot_DMFT = 0.0 # EPot_DMFT - what is this used for? How can I substitute this in RPA?

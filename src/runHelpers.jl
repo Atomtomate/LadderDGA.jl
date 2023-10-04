@@ -224,7 +224,7 @@ function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm
         gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νn in sP.fft_range
-            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, mP.U*mP.n/2+0.0im), ϵk_full), gridshape(kG))
+            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, 0.0im), ϵk_full), gridshape(kG)) # mP.U * mP.n / 2 +
             gLoc[:, νn] = reduceKArr(kG, gLoc_i)
             selectdim(gLoc_fft, νdim, νn) .= fft(gLoc_i)
             selectdim(gLoc_rfft, νdim, νn) .= fft(reverse(gLoc_i))
@@ -232,7 +232,7 @@ function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm
     end
 
     @warn "Proper implementation of Σ_loc needed!"
-    Σ_loc = OffsetVector(repeat([0.0 + 0im], 5001), 0:5000) # mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
+    Σ_loc = OffsetVector(repeat([0.0im], 5001), 0:5000) # Wird nur zum Verlaengern der Selbstenergie verwendet. An dieser Stelle kann ich optimieren. Diese Stelle ist der Grund dafuer, dass die Selbenergie einen Knick bekommt.  mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
     @warn "Proper implementation of χloc_m_sum needed!"
     χloc_m_sum = sum_kω(kG, χm) # No idea what how this is supposed to be set... I need Julian to explain this to me.
 

@@ -147,7 +147,7 @@ end
     G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
     G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
 
-Computes Green's function from lDΓA self-energy.
+Computes Green's function from lDΓA self-energy. This is the Greensfunction used in eq. (8) of Stobbe, J., & Rohringer, G. (2022). Consistency of potential energy in the dynamical vertex approximation. Physical Review B, 106(20), 205101.
 
 The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 """
@@ -159,6 +159,7 @@ function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVec
     return μ, G_new
 end
 
+# hier ....
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
                         fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)::Float64
     νRange = 0:last(axes(G_new, 2))
@@ -359,6 +360,7 @@ end
 Estimate fermi surface of `Σ_ladder`, using extrapolation to ``\\nu = 0`` with the function `ν0_estimator` and the condition ``\\lim_{\\nu \\to 0} \\Sigma (\\nu, k_f) = \\mu - \\epsilon_{k_f}``.
 
 """
+# fermi fleache
 function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, mP::ModelParameters; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
     νGrid = [1im * (2*n+1)*π/mP.β for n in 0:1];
     s_r0 = [ν0_estimator(imag(νGrid), real.(Σ_ladder[i,0:2])) for i in 1:size(Σ_ladder,1)];

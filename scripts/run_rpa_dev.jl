@@ -1,4 +1,5 @@
 using Pkg
+using Plots
 using TimerOutputs
 path = joinpath(abspath(@__DIR__), "..")
 println("activating: ", path)
@@ -7,6 +8,10 @@ Pkg.instantiate()
 using LadderDGA
 
 χ₀, wP, mP, sP, env, kGridStr = readConfig_RPA("/home/coding/LadderDGA.jl/test/test_data/config_rpa_example.toml");
+
+mP.U = 1.2
+mP.μ = mP.U * mP.n / 2 # enforce half filling
+mP.n = 1.0
 
 # --------- pull into setup_RPA --------- 
 kG = gen_kGrid(kGridStr, χ₀.Nq)
@@ -39,11 +44,11 @@ println(count(abs.(λ₀[begin, begin, :]) ≠ 0) == 1)                         
 # λ_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)
 
 # Σ_tc_true  = calc_Σ(χm, γm, χd, γd, sum_kω(kG, χm), λ₀, helper.gLoc_fft, kG, mP, sP; νmax=sP.n_iν, λm=0.0, λd=0.0, tc=true)
-# Σ_tc_false = calc_Σ(χm, γm, χd, γd, sum_kω(kG, χm), λ₀, helper.gLoc_fft, kG, mP, sP; νmax=sP.n_iν, λm=0.0, λd=0.0, tc=false)
-
+Σ_tc_false = calc_Σ(χm, γm, χd, γd, sum_kω(kG, χm), λ₀, helper.gLoc_fft, kG, mP, sP; νmax=sP.n_iν, λm=0.0, λd=0.0, tc=false)
 
 
 println("done.")
+plot(imag.(Σ_tc_false[begin,begin+5:end]), marker=:circle) # for mP.U = 1.2 mP.μ = mP.U * mP.n / 2 # enforce half filling mP.n = 1.0
 
 res_dm = λdm_correction(χm, γm, χd, γd, helper.Σ_loc, helper.gLoc_rfft, helper.χloc_m_sum, λ₀, kG, mP, sP; fit_μ=true, tc=false, verbose=true)
 
