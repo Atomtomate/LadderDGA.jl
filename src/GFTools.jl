@@ -218,7 +218,7 @@ end
 
 Computes filling of (non-) local Green's function.
 
-If `U`, `μ` and `β` are provided, asymptotic corrections are used. The shell sum can be precomputed using [`G_shell_sum`](@ref G_shell_sum)
+If `U`, `μ` and `β` are provided, asymptotic corrections are used. The shell sum can be precomputed using [`shell_sum_fermionic`](@ref shell_sum_fermionic)
 If `G` is defined only over positive Matsubara frequencies [`filling_pos`](@ref filling_pos) can be used.
 """
 function filling(G::AbstractVector{ComplexF64}, β::Float64)
@@ -239,7 +239,7 @@ end
 
 function filling(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64)
     N = floor(Int, length(G)/2)
-    shell = G_shell_sum(N, β)
+    shell = 2*real(shell_sum_fermionic(N, β, 2)/β)
     filling(G, U, μ, β, shell)
 end
 
@@ -263,8 +263,8 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
         sG = sum(G)
         2*real(sG + conj(sG))/β + 1
     else
-        N = floor(Int, length(G))
-        shell = G_shell_sum(N+1, β)
+        N = floor(Int, length(G)/2)
+        shell = 2*real(shell_sum_fermionic(N, β, 2)/β)
         filling_pos(G, U, μ, β, shell)
     end
 end
@@ -274,15 +274,26 @@ function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::F
 end
 
 """
-    G_shell_sum(N::Int, β::Float64)::Float64
+    shell_sum_fermionic(N::Int, β::Float64, power::Int)::Float64
 
-Calculate ``\\frac{1}{\\beta} \\sum_{n \\in \\Omega_\\mathrm{shell}} \\frac{1}{(i \\nu_n)^2}``
-`N` should be the index of the largest frequency + 1, NOT the total lenth of the array, i.e. `50` for `indices = 0:49`.
+Calculate ``\\frac{1}{\\beta} \\sum_{n \\in \\Omega_\\mathrm{shell}} \\frac{1}{(i \\nu_n)^power}``
+`N-1` is the largest frequency index (i.e. ``\\sum_{n=-N}^(N-1) \nu_n`` is in the core region)
 """
-function G_shell_sum(N::Int, β::Float64)::Float64
-    (polygamma(1, N + 1/2) - polygamma(1, 1/2 - N)) * β / (4*π^2) + β/4
-end
+shell_sum_fermionic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * zeta(power, N + 0.5)
 
+"""
+    core_sum_fermionic(N::Int, β::Float64, power::Int) 
+
+Fast evaluation of ``\\sum_{n=0}^N \\frac{1}{(\\pi i (2n+1) / \\beta)^l}``
+"""
+core_sum_fermionic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * (zeta(power, 0.5) - zeta(power, N+1.5))
+
+"""
+    core_sum_bosonic(N::Int, β::Float64, power::Int) 
+
+Fast evaluation of ``\\sum_{n=1}^N \\frac{1}{(\\pi i (2n) / \\beta)^l}``
+"""
+core_sum_bosonic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * (zeta(power) - zeta(power, N+1.0))
 
 # =============================== Frequency Tail Modification Helpers ================================
 
