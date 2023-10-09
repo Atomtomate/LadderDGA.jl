@@ -224,6 +224,8 @@ Calculates ``\\lambda_\\mathrm{dm}`` and associated quantities like the self-ene
 
 TODO: full documentation. Pack results into struct
 
+tc::Bool Whether to use tail-correction during the calculation of the self energy calculation or not.
+
 Returns: 
 -------------
     λdm: `Vector`, containing `λm` and `λd`.

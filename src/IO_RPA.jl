@@ -41,7 +41,6 @@ function read_χ₀_RPA(file::String)
     n_bz_k = attr_dict["n_cubes"]            # number of sample points per dimension to sample the first brillouin zone
     n_bz_q = 2 * (attr_dict["n_samples"] - 1)     # number of sample points per dimension to sample the first brillouin zone
     e_kin = attr_dict["e_kin"]
-    e_kin_q = attr_dict["tail_coeff_q_indep"]
 
     # datasets
     ω_integers = read(chi0_group["omega_integers"])
@@ -67,7 +66,6 @@ function read_χ₀_RPA(file::String)
     println("\t... using $(n_bz_k) gauss legendre sample points to perform the integration over the first brillouin zone")
     println("\nTail coefficients")
     println("\t... kinetic energy is $(e_kin)")
-    println("\t... tail coeff e_kin_q is $(e_kin_q)")
     println("\nIformations about the data array")
     println("\t...Array χ₀qω has size $(size(χ₀qω))")
     close(f)
@@ -75,7 +73,7 @@ function read_χ₀_RPA(file::String)
 
     data = expand_ω(χ₀qω)
     ωnGrid = (convert(Int64, -maximum(ω_integers)):convert(Int64, maximum(ω_integers)))
-    return χ₀RPA_T(data, ωnGrid, β, e_kin, e_kin_q, n_bz_q)
+    return χ₀RPA_T(data, ωnGrid, β, e_kin, n_bz_q)
 end
 
 """
@@ -122,14 +120,18 @@ function readConfig_RPA(cfg_in::String)
     tml_debug = tml["Debug"]
 
     # read section Model
-    @warn "The parameter μ should be read from the χ₀-file and not passed via the configuration file!"
-    @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
-    @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
     U = tml_model["U"]
+    @warn "The parameter μ should be read from the χ₀-file and not passed via the configuration file!"
     μ = tml_model["mu"]
+    @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
     n_density = tml_model["n_density"]
+    @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
     EPot_DMFT = tml_model["EPot_DMFT"]
     kGridStr = tml_model["kGrid"]
+
+    if μ ≠ U * n_density / 2
+        error("So far only half filling is implemented! Please choose μ=U*n/2.")
+    end
 
     # read section Debug
     full_EoM_omega = tml_debug["full_EoM_omega"]
@@ -142,10 +144,10 @@ function readConfig_RPA(cfg_in::String)
     omega_smoothing = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
-    inputDir = tml_enviroment["inputDir"]
+    inputDir  = tml_enviroment["inputDir"]
     inputVars = tml_enviroment["inputVars"]
-    logfile = tml_enviroment["logfile"]
-    loglevel = tml_enviroment["loglevel"]
+    logfile   = tml_enviroment["logfile"]
+    loglevel  = tml_enviroment["loglevel"]
 
     # collect EnvironmentVars
     input_dir = isabspath(inputDir) ? inputDir : abspath(joinpath(dirname(cfg_in), inputDir))
@@ -166,15 +168,15 @@ function readConfig_RPA(cfg_in::String)
     freq_r = 2 * (Nν + Nω)
     freq_r = -freq_r:freq_r
     sP = SimulationParameters(
-        Nω,                            # number of positive bosonic matsubara frequencies
-        Nν,                            # number of positive fermionic matsubara frequencies | Set this such that the program crashes whenever this is used...
-        -1,                            # number of fermionic frequencies used for asymptotic sum improvement | Set this such that the program crashes whenever this is used...
-        false,                         # since there are no fermionic frequencies there is no need for the shift | Is this save?
-        undef,                         # χ_helper. When is this guy used?
-        0.0,                           # sum(Vk .^ 2). What is this used for?  
-        freq_r,                      # fft_range. No idea how this is supposed to be set...
-        NaN,                           # usable_prct_reduction. No idea what this is...
-        full_EoM_omega                 # A debug flag I guess...
+        Nω,                            # (n_iω::Int64) number of positive bosonic matsubara frequencies
+        Nν,                            # (n_iν::Int64) number of positive fermionic matsubara frequencies
+        -1,                            # (n_iν_shell::Int64) number of fermionic frequencies used for asymptotic sum improvement | Set this such that the program crashes whenever this is used...
+        true,                          # (shift::Bool) since there are no fermionic frequencies there is no need for the shift | code with option "false" is not tested since 1.5 years => always use the shifted version!
+        undef,                         # (χ_helper # Helper) χ_helper. When is this guy used?
+        0.0,                           # (sVk::Float64) sum(Vk .^ 2). What is this used for?  
+        freq_r,                        # (fft_range::AbstractArray) fft_range. No idea how this is supposed to be set...
+        NaN,                           # (usable_prct_reduction::Float64) usable_prct_reduction. No idea what this is...
+        full_EoM_omega                 # (dbg_full_eom_omega::Bool) A debug flag I guess...
     )
 
     # build workerpool

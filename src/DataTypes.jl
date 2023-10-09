@@ -156,7 +156,6 @@ Fields
 - **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
 - **`β`**            : `Float64`, inverse temperature.
 - **`e_kin`**        : `Float64`, kinetic energy.
-- **`e_kin_q`**      : `Float64`, so called 'q-dependent kinetic energy'
 - **`Nq`**           : `Int`, Number of points per dimension that are used to sample the reciprocal space
 """
 struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
@@ -165,11 +164,10 @@ struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     indices_ω::Vector{Int}
     β::Float64
     e_kin::Float64
-    e_kin_q::Float64        # q-independent part of the so called 'q-dependent RPA kinetic energy' which correpsonds to lim_{ω→∞} (iω)²⋅χ₀(q, ω)
     Nq::Int
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, e_kin_q::Float64, Nq::Int)
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, Nq::Int)
         indices_ω = [i for i in ωnGrid];
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, e_kin_q, Nq)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, Nq)
     end
 end
 # ------------------------------------------------- χ ------------------------------------------------
@@ -231,7 +229,7 @@ TODO: for now this is only implemented for tail correction in the ``1 / \\omega^
 Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the reverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
-function sum_kω(kG::KGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
+function sum_kω(kG::KGrid, χ::Union{χT, χ₀RPA_T}; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
     χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
     !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
     !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
