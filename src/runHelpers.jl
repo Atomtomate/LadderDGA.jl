@@ -209,7 +209,7 @@ Computes all needed objects for RPA calculations.
 
 Returns: [`RPAHelper`](@ref RPAHelper)
 """
-function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm::χT; silent::Bool=false)
+function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χ₀::χ₀RPA_T)
 
     # TODO: refactor this as a function
 
@@ -233,8 +233,12 @@ function setup_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, χm
 
     @warn "Proper implementation of Σ_loc needed!"
     Σ_loc = OffsetVector(repeat([0.0im], 5001), 0:5000) # Wird nur zum Verlaengern der Selbstenergie verwendet. An dieser Stelle kann ich optimieren. Diese Stelle ist der Grund dafuer, dass die Selbenergie einen Knick bekommt.  mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
-    @warn "Proper implementation of χloc_m_sum needed!"
-    χloc_m_sum = 0.25 #sum_kω(kG, χm) # No idea what how this is supposed to be set... I need Julian to explain this to me.
-
+    @warn "χloc_m_sum is currently hardcoded to 0.25! This value should be given via the chi0-file!"
+    if mP.μ ≈ mP.U * mP.n / 2
+        χloc_m_sum = 0.25
+    else
+        χloc_m_sum = sum_kω(kG, χ₀) #this is used for the tail correction term of the self energy
+    end
+    println("sum_kω(χ₀)=$(χloc_m_sum)")
     return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end

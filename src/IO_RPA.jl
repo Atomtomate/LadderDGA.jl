@@ -66,7 +66,7 @@ function read_χ₀_RPA(file::String)
     println("\t... using $(n_bz_k) gauss legendre sample points to perform the integration over the first brillouin zone")
     println("\nTail coefficients")
     println("\t... kinetic energy is $(e_kin)")
-    println("\nIformations about the data array")
+    println("\nInformations about the data array")
     println("\t...Array χ₀qω has size $(size(χ₀qω))")
     close(f)
     println("--------------------------------------------------------")
@@ -114,10 +114,10 @@ function readConfig_RPA(cfg_in::String)
     end
 
     # sections
-    tml_model = tml["Model"]
+    tml_model      = tml["Model"]
     tml_simulation = tml["Simulation"]
     tml_enviroment = tml["Environment"]
-    tml_debug = tml["Debug"]
+    tml_debug      = tml["Debug"]
 
     # read section Model
     U = tml_model["U"]
@@ -126,7 +126,7 @@ function readConfig_RPA(cfg_in::String)
     @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
     n_density = tml_model["n_density"]
     @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
-    EPot_DMFT = tml_model["EPot_DMFT"]
+    EPot_DMFT = tml_model["EPot_DMFT"] # after inspecting the code: EPot_DMFT is actually never used during the standard-λdm-calculation... 
     kGridStr = tml_model["kGrid"]
 
     if μ ≠ U * n_density / 2
@@ -137,11 +137,11 @@ function readConfig_RPA(cfg_in::String)
     full_EoM_omega = tml_debug["full_EoM_omega"]
 
     # read section Simulation
-    Nν = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
-    chi_asympt_method = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
-    chi_asympt_shell = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
+    Nν                    = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
+    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
     usable_prct_reduction = tml_simulation["usable_prct_reduction"] # what is this used for? First guess ν-Asymptotics...
-    omega_smoothing = tml_simulation["omega_smoothing"]       # what is this used for?
+    omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
     inputDir  = tml_enviroment["inputDir"]

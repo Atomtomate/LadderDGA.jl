@@ -215,7 +215,7 @@ end
 
 Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 """
-ωn_grid(χ::χT) = 2im .* π .* χ.indices_ω ./ χ.β
+ωn_grid(χ::Union{χT, χ₀RPA_T}) = 2im .* π .* χ.indices_ω ./ χ.β
 
 
 """
@@ -230,17 +230,23 @@ Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_k�
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
 function sum_kω(kG::KGrid, χ::Union{χT, χ₀RPA_T}; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
-    χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
-    !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
-    !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
-    !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
+    if typeof(χ) == χT
+        χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
+        !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
+        !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
+        !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
+        tail_c = χ.tail_c[3]
+    elseif typeof(χ) == χ₀RPA_T
+        tail_c = χ.e_kin
+        force_full_range = true
+    end
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
 
-    ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
+    ωn2_tail = real(tail_c ./ ωn_arr .^ 2)
     zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
     ωn2_tail[zero_ind] = 0.0
-    res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform=transform) 
+    res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, tail_c, ωn2_tail, transform=transform) 
     return res
 end
 
