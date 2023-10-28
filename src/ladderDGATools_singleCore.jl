@@ -5,12 +5,37 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   ladder DΓA related functions                                                                       #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Cleanup, reduce code duplicates (tail correcion term!)                                             #
+#   Cleanup                                                                                            #
 # ==================================================================================================== #
 
 
 
 # ========================================== Correction Term =========================================
+
+"""
+    correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
+
+Calculates the so called tail correcion term of the ladder self energy. The purpose of this term is to enforce the limit
+
+`\\lim_{n\\rightarrow\\infty}i\\nu_n\\Sigma_{\\mathbf{q}}^{\\nu_n}=U^2\\frac{n}{2}\\left(1-\\frac{n}{2} \\right )`.
+
+This can be archived by adding the term
+    * RPA: `-\\frac{U^2}{i\\nu}\\sum_{\\omega,\\mathbf{q}}\\left( \\chi_{m,\\mathbf{q}}^{\\omega}-\\chi_{0,\\mathbf{q}}^{\\omega}\\right )`
+    * ladder-DGA: `-\\frac{U^2}{i\\nu}\\left(\\sum_{\\omega,\\mathbf{q}}\\chi_{m,\\mathbf{q}}^{\\omega}-\\chi_{m,loc} \\right )`
+from the ladder self energy.
+
+Arguments
+-------------
+- **`mP`**         : ModelParameters
+- **`kG`**         : KGrid
+- **`χm`**         : χT
+- **`χ_m_sum`**    : Union{Float64,ComplexF64}. RPA: `\\sum_{\\omega,\\mathbf{q}}\\chi_{0,\\mathbf{q}}^{\\omega}`, lDGA: 'χ_m_sum'.
+- **`grid`**       : AbstractArray{Int64,1}
+"""
+function correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
+    tail_correction = - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
+end
+
 """
     calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
     calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
@@ -123,7 +148,7 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
                 mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
     Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    tail_correction = (tc ? - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
+    tail_correction = (tc ? correction_term(mP, kG, χm, χ_m_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
     Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
     return nothing
 end
@@ -137,7 +162,7 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
     Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
-    tail_correction = (tc ? - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
+    tail_correction = (tc ? correction_term(mP, kG, χm, χ_m_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
     Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
     return nothing
 end
@@ -215,7 +240,8 @@ function calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
 
-    tail_correction = (tc ? - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) : 0) ./ iν_array(mP.β, collect(axes(Σ_ladder)[2]))
+    tail_correction = (tc ? correction_term(mP, kG, χm, χ_m_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
+    
     calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
     calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
