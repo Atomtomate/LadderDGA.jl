@@ -13,6 +13,25 @@
 # ========================================== Correction Term =========================================
 
 """
+    Σ_hartree(mP::ModelParameters)
+
+Calculates the hartree term of the self energy
+
+`\\Sigma_{hartree}=\\frac{U\cdot n}{2}`.
+
+Arguments
+-------------
+- **`mP`** : ModelParameters
+
+Returns
+-------
+Float64 : Hartree term 
+"""
+function Σ_hartree(mP::ModelParameters)
+    return mP.n * mP.U/2.0
+end
+
+"""
     correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
 
 Calculates the so called tail correcion term of the ladder self energy. The purpose of this term is to enforce the limit
@@ -33,7 +52,7 @@ Arguments
 - **`grid`**       : AbstractArray{Int64,1}
 """
 function correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
-    tail_correction = - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
+    return - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
 end
 
 """
@@ -146,10 +165,9 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
-    Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     tail_correction = (tc ? correction_term(mP, kG, χm, χ_m_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
-    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree(mP)
     return nothing
 end
 
@@ -159,11 +177,10 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray
                 Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
 
-    Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
     tail_correction = (tc ? correction_term(mP, kG, χm, χ_m_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
-    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree(mP)
     return nothing
 end
 
@@ -227,7 +244,6 @@ end
 function calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float64,ComplexF64},λ₀::AbstractArray{_eltype,3},
                       Gνω::GνqT, kG::KGrid,mP::ModelParameters, sP::SimulationParameters;
                       tc::Bool=true,λm::Float64=0.0, λd::Float64=0.0)
-    Σ_hartree = mP.n * mP.U/2.0;
     Nq, Nω = size(χm)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
     ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χm.usable_ω, χd.usable_ω)
@@ -253,7 +269,7 @@ function calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float
     calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:,:,5] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
     calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
+    Σ_ladder.parent[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree(mP)
     for qi in 1:size(Σ_ladder,1)
         Σ_ladder.parent[qi,:,7] .= tail_correction 
     end
