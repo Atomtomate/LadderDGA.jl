@@ -19,10 +19,6 @@ function calc_bubble(type::Symbol, h::RPAHelper)
     end
 end
 
-function calc_bubble_RPA(kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    #kG.kGrid .*
-end
-
 function calc_χγ(type::Symbol, h::RPAHelper, χ₀::χ₀T)
     calc_χγ(type, χ₀, h.kG, h.mP, h.sP)
 end
@@ -41,6 +37,7 @@ function calc_χγ(type::Symbol, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, 
     Nν = 2 * sP.n_iν + 1
     γ = ones(ComplexF64, Nq, Nν, Nω)
     χ = real(χ₀_qω ./ (1 .+ s * mP.U .* χ₀_qω))
+    @warn "Set kinetic energy to zero. You should implement the kinetic energy in the rpa case to enable asymptotic sums!"
     return χT(χ, mP.β, full_range=true; tail_c=[0.0, 0.0, 0.0]), γT(γ)
 end
 
