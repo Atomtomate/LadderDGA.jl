@@ -17,7 +17,7 @@
 
 Calculates the hartree term of the self energy
 
-`\\Sigma_{hartree}=\\frac{U\cdot n}{2}`.
+`\\Sigma_{hartree}=\\frac{U\\cdot n}{2}`.
 
 Arguments
 -------------
