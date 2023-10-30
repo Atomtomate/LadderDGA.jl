@@ -38,8 +38,8 @@ function read_χ₀_RPA(file::String)
     # attributes
     attr_dict = attrs(chi0_group)
     β = attr_dict["beta"]               # inverse temperature
-    n_bz_k = attr_dict["n_cubes"]            # number of sample points per dimension to sample the first brillouin zone
-    n_bz_q = 2 * (attr_dict["n_samples"] - 1)     # number of sample points per dimension to sample the first brillouin zone
+    n_bz_k = attr_dict["n_k"]            # number of sample points per dimension to sample the first brillouin zone
+    n_bz_q = 2 * (attr_dict["n_q"] - 1)     # number of sample points per dimension to sample the first brillouin zone
     e_kin = attr_dict["e_kin"]
 
     # datasets
