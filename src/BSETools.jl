@@ -95,31 +95,19 @@ For a version using the physical susceptibilities see [`F_from_χ_gen`](@ref F_f
 """
 function F_from_χ_star_gen(χ₀::χ₀T, χstar_r::Array{ComplexF64,4}, χr::χT, γr::γT, Ur::Float64)
     F = similar(χstar_r)
-    for ωi in 1:size(χstar_r,4)
-        for qi in 1:size(χstar_r,3)
-            F[:,:,qi,ωi] = Diagonal(χ₀.β^2 ./ core(χ₀)[qi,:,ωi]) .- χ₀.β^2 .* χstar_r[:,:,qi,ωi] ./ (core(χ₀)[qi,:,ωi] .* transpose(core(χ₀)[qi,:,ωi]))
-            F[:,:,qi,ωi] +=  Ur * (1 - Ur * χr[qi,ωi]) .* (γr[qi,:,ωi] .* transpose(γr[qi,:,ωi]))
-        end
-    end
-    return F
-end
-
-function calc_Γpp(Fm, Fd, Fud_loc, Φpp_loc, shift::Int, ωn::Int, Nω::Int, Nν::Int)
-    Fpp_lDGA = fill!(similar(Fd), NaN)
-
-    for νn in ((-Nν:Nν-1) .- shift*trunc(Int, ωn/2))
-        for νpn in ((-Nν:Nν-1) .- shift*trunc(Int, ωn/2))
-            ωi,νi,νpi = Freq_to_OneToIndex(ωn, νn, νpn, shift, Nω, Nν)
-            ωi_ph,νi_ph,νpi_ph = Freq_to_OneToIndex(ωn - νn - νpn - 1, νn, νpn, shift, Nω, Nν)
-            ωi_ph_2,νi_ph_2,νpi_ph_2 = Freq_to_OneToIndex(νn - νpn - 1, νn, ωn - νpn - 1, shift, Nω, Nν)
-            if !(any((ωi,νi,νpi) .< 1) || any((ωi_ph,νi_ph,νpi_ph) .< 1) || any((ωi,νi,νpi) .> (2*nBose,2*nFermi-1,2*nFermi-1)) || any((ωi_ph,νi_ph,νpi_ph) .> (2*nBose,2*nFermi-1,2*nFermi-1)))
-                Fpp_lDGA[νi,νpi,ωi] = [νi_ph,νpi_ph,ωi_ph]
+    for ωi in axes(χstar_r,4)
+        for qi in axes(χstar_r,3)
+            pre_factor = Ur * (1 - Ur * χr[qi,ωi])
+            for νpi in axes(χstar_r,2)
+                @simd for νi in axes(χstar_r,1)
+                    @inbounds F[νi,νpi,qi,ωi]  = -χ₀.β^2 * χstar_r[νi,νpi,qi,ωi] / (core(χ₀)[qi,νi,ωi] * core(χ₀)[qi,νpi,ωi])
+                    @inbounds F[νi,νpi,qi,ωi] +=  pre_factor * γr[qi,νi,ωi] * γr[qi,νpi,ωi]
+                end
+                F[νpi,νpi,qi,ωi] += χ₀.β^2 / core(χ₀)[qi,νpi,ωi]
             end
         end
     end
-    Γpp_lDGA = Fpp_lDGA .- Φpp_loc
-    #TODO: check _2 indices
-    #TODO: cut NaN
+    return F
 end
 
 # ========================================= Bubble Calculation =======================================
