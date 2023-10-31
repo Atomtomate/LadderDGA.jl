@@ -65,7 +65,7 @@ Calculates largest and smallest (real) eigen value of ``\\Gamma_{\\mathrm{s},\\u
 TODO: fix version, either calculate version1 or 2!!!
 TODO: TeX/DOCU..Ca
 """
-function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, γd::γT, h::lDΓAHelper, env)
+function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, γd::γT, h::lDΓAHelper, env; GF=h.gLoc)
     ϕs, ϕt = jldopen(joinpath(env.inputDir, "DMFT_out.jld2"),"r") do f
         f["Φpp_s"], f["Φpp_t"]
     end;
@@ -81,7 +81,7 @@ function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, 
 
     Fm = F_from_χ_star_gen(bubble, χm_star_gen, χm, γm, -h.mP.U);
     Fd = F_from_χ_star_gen(bubble, χd_star_gen, χd, γd,  h.mP.U);
-    Γs1, Γs2 = calc_Γs_ud(Fm, Fd, Phi_ud, h)
+    Γs1, Γs2 = calc_Γs_ud(Fm, Fd, Phi_ud, h, GF)
     λ1L, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
     λ1S, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
     λ2L, _, _, _, _, _ = eigs(Γs2; nev=1, which=:SR, tol=1e-18);
@@ -94,7 +94,7 @@ end
 
 Calculates the Γs in particle-particle notation from the ladder vertices.  
 """
-function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper)
+function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
     cut_to_non_nan = true
     max_ν  = cut_to_non_nan ? trunc(Int, h.sP.n_iν/2) : h.sP.n_iν
     νnGrid = -(max_ν-1):(max_ν-2) #-1:0 #-
@@ -108,8 +108,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper)
 
     Fm_loc = F_from_χ(:m, h);
     Fd_loc = F_from_χ(:d, h);
-    @warn "TODO: building Γs with local Green's function!!!"
-    Gνk_Gmνmk = build_GG(kG, h.gLoc, νnGrid, k_vecs[:])
+    Gνk_Gmνmk = build_GG(kG, GF, νnGrid, k_vecs[:])
     qi_access = build_q_access(kG, k_vecs[:]);
 
     @warn "TODO: currently calculating two versions of Γ_pp, until Fm_{k'-k} question is resolved"

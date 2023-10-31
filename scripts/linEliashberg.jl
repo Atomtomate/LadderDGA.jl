@@ -44,21 +44,21 @@ println("TODO: λ-correction for χ!!!!")
 λ_list = calc_λmax_linEliashberg(bubble, χm, χd, γm, γd, lDGAhelper, env)
 λ_m_list = calc_λmax_linEliashberg(bubble, χ_λ(χm, res_m.λm), χ_λ(χd,res_m.λd), γm, γd, lDGAhelper, env)
 λ_dm_list = calc_λmax_linEliashberg(bubble, χ_λ(χm, res_dm.λm), χ_λ(χd,res_dm.λd), γm, γd, lDGAhelper, env)
-λ_dm_sc_list = calc_λmax_linEliashberg(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env)
+λ_dm_sc_gLoc_list = calc_λmax_linEliashberg(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env)
+λ_dm_sc_list = calc_λmax_linEliashberg(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_dm_sc.G_ladder)
 
-if isfinite(res_dm.λm) && isfinite(res_dm.λd)
-    jldopen(joinpath(out_dir,file_name), "w") do f
-        f["lDGAHelper"] = lDGAhelper
-        f["χ0"] = bubble
-        f["χm"] = χm
-        f["χd"] = χd
-        f["res_m"] = res_m
-        f["res_dm"] = res_dm
-        f["res_dm_sc"] = res_dm_sc
-        f["λ_list_DMFT"] = map(x->x[1], λ_list)
-        f["λ_list_lDGA_m"] = map(x->x[1], λ_m_list)
-        f["λ_list_lDGA_dm"] = map(x->x[1], λ_dm_list)
-        f["λ_list_lDGA_dm_sc"] = map(x->x[1], λ_dm_sc_list)
-    end
+jldopen(joinpath(out_dir,file_name), "w") do f
+    f["lDGAHelper"] = lDGAhelper
+    f["χ0"] = bubble
+    f["χm"] = χm
+    f["χd"] = χd
+    f["res_m"] = res_m
+    f["res_dm"] = res_dm
+    f["res_dm_sc"] = res_dm_sc
+    f["λ_list_DMFT"] = map(x->x[1], λ_list)
+    f["λ_list_lDGA_m"] = map(x->x[1], λ_m_list)
+    f["λ_list_lDGA_dm"] = map(x->x[1], λ_dm_list)
+    f["λ_list_lDGA_dm_sc_gLoc"] = map(x->x[1], λ_dm_sc_gLoc_list)
+    f["λ_list_lDGA_dm_sc"] = map(x->x[1], λ_dm_sc_list)
 end
 
