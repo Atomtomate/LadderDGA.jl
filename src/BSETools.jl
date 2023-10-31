@@ -33,8 +33,14 @@ end
 TODO: documentation
 """
 function F_from_χ(type::Symbol, h::lDΓAHelper; diag_term=true)
-    type != :m && error("only F_m tested!")
-    F_from_χ(h.χDMFT_m, h.gImp[1,:], h.sP, h.mP.β; diag_term=diag_term)
+    χDMFT = if type == :m
+        h.χDMFT_m
+    elseif type == :d
+        h.χDMFT_d
+    else
+        error("Unkown channel `$type`!")
+    end
+    F_from_χ(χDMFT, h.gImp[1,:], h.sP, h.mP.β; diag_term=diag_term)
 end
 
 function F_from_χ(χ::AbstractArray{ComplexF64,3}, G::AbstractVector{ComplexF64}, sP::SimulationParameters, β::Float64; diag_term=true)
@@ -118,11 +124,8 @@ end
 
 # ========================================= Bubble Calculation =======================================
 """
-    calc_bubble(type::Symbol, h <: RunHelper, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-    calc_bubble(type::Symbol, Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-
-    calc_bubble(type::Symbol, h::RPAHelper)
-    calc_bubble(type::Symbol, β::Float64, kG::KGrid, sP::SimulationParameters)
+    calc_bubble(type::Symbol, h <: RunHelper; mode=:ph)
+    calc_bubble(type::Symbol, Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; mode=:ph)
 
 Calculates bubble term.
 
@@ -146,20 +149,35 @@ Arguments
 - **`β`**         : `Float64`, Inverse temperature in natural units
 - **`kG`**        : `KGrid`,   The k-grid on which to perform the calculation
 - **`sP`**        : `SimulationParameters`, (to construct a frequency range)
+- **`mode`**      : selects particle-hole (`:ph`, default) or particle-particle (`:pp`) notation 
 """
-function calc_bubble(type::Symbol, h::RunHelper)
-    calc_bubble(type, h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP)
+function calc_bubble(type::Symbol, h::RunHelper; mode=:ph)
+    calc_bubble(type, h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP; mode=mode)
 end
 
-function calc_bubble(type::Symbol, Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_bubble(type::Symbol, Gνω::GνqT, Gνω_r::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; mode=:ph)
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2*(sP.n_iν+sP.n_iν_shell), 2*sP.n_iω+1)
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gImp
+    function conv_function!(νi::Int, νn::Int, ωi::Int, ωn::Int)
+        if mode == :ph
+            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim,ωn+νn))
+        elseif mode == :pp
+            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω  ,νdim,ωn-νn); crosscorrelation=false)
+        else
+            error("Unkown mode $mode for bubble calculation. Options are :ph and :pp.")
+        end
+    end
+        #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim, ωn+νn))
+        # elseif mode == :pp
+        #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω  ,νdim, ωn-νn); crosscorrelation=false)
+        
+
     for (ωi,ωn) in enumerate(-sP.n_iω:sP.n_iω)
         νrange = ((-(sP.n_iν+sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int,sP.shift*ωn/2)
         #TODO: fix the offset (BSE_SC inconsistency)
         for (νi,νn) in enumerate(νrange)
-            conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim,νn+ωn))
+            conv_function!(νi, νn, ωi, ωn)
             data[:,νi,ωi] .*= -mP.β
         end
     end

@@ -52,9 +52,9 @@ end
     U = 1.0
     kG_1 = gen_kGrid("2dsc-1.0",10)
     νnGrid = LadderDGA.iν_array(β, -N:(N-1))
-    μ = 0.0 
+    μ = 0.5 
     mP_3 = ModelParameters(U, μ, β, 1.4, 1.6, 1.7)
-    G = G_from_Σ(OffsetVector(zeros(ComplexF64,length(νnGrid)),-N:(N-1)), LadderDGA.dispersion(kG_1), 0:(N-1), mP_3)
+    G = G_from_Σ(OffsetVector((U/2) .* ones(ComplexF64,length(νnGrid)),-N:(N-1)), LadderDGA.dispersion(kG_1), 0:(N-1), mP_3)
     @test filling_pos(G, kG_1, U, μ, β, improved_sum=false) ≈ 1.0 atol = 1e-1
     t1 = filling(G, kG_1, U, μ, β)
     t2 = filling_pos(G, kG_1, U, μ, β)

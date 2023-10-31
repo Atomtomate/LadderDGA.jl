@@ -113,7 +113,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "Compute GLoc" begin
         rm = maximum(abs.(sP.fft_range))
         gs = gridshape(kG)
-        kGdims = length(gs)
+        kGdims = grid_dimension(kG)
         νdim = kGdims + 1
         gLoc = OffsetArray(Array{ComplexF64,2}(undef, length(kG.kMult), length(sP.fft_range)), 1:length(kG.kMult), sP.fft_range)
         gLoc_i = Array{ComplexF64,kGdims}(undef, gs...)

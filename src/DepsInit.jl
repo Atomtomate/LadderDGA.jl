@@ -53,6 +53,9 @@ include("RPATools_singleCore.jl")
 include("thermodynamics.jl")
 include("LambdaCorrection/LambdaCorrection.jl")
 
+include("LinearizedEliashberg.jl")
+
+
 # ======================================== Internal Packages =========================================
 using .LapackWrapper
 using .LambdaCorrection

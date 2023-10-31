@@ -50,6 +50,10 @@ end
     include("thermodynamics.jl")
 end
 
+@testset "BSE Tools" begin
+    include("BSETools.jl")
+end
+
 @testset "ladderDGATools" begin
     include("ladderDGATools.jl")
 end
@@ -62,7 +66,13 @@ end
     include("parallelization_helpers.jl")
 end
 
-include("LambdaCorrection/runtests.jl")
+@testset "LambdaCorrections" begin
+    include("LambdaCorrection/runtests.jl")
+end
+
+@testset "LinearizedEliashberg.jl" begin
+    include("LinearizedEliashberg.jl")
+end
 
 @testset "full run" begin
     include("full_run.jl")
