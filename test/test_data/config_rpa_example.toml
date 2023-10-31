@@ -17,7 +17,7 @@ omega_smoothing       = "nothing"             # nothing, range, full. Smoothes d
 
 [Environment]
 inputDir  = "/home/coding/LadderDGA.jl/test/test_data/"                  # path to input dir. Make this a relative path...
-inputVars = "rpa_test_chi0_5.h5"
+inputVars = "chi0_nq_16_nk_40_nomega_100.h5"
 logfile   = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!

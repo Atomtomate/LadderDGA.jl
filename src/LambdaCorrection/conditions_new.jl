@@ -209,7 +209,6 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{Co
                    update_χ_tail=update_χ_tail, fit_μ=fit_μ, μ=μ,
                    validate_threshold=validate_threshold, par=par, verbose=verbose, tc=tc)
 end
-
 function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetVector{ComplexF64},
                         gLoc_rfft::GνqT, χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3},
                         kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
@@ -217,7 +216,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
                         sc_max_it::Int = 0, sc_mixing::Float64=0.2, sc_conv::Float64=1e-8,
                         update_χ_tail::Bool=false, fit_μ::Bool=true, μ::Float64=mP.μ, 
                         λinit::Vector{Float64}=[0.0,0.0],
-                        validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true)
+                        validate_threshold::Float64=1e-8, par::Bool=false, verbose::Bool=false, tc::Bool=true, rpa=false)
 
     (χm.λ != 0 || χd.λ != 0) && error("λ parameter already set. Aborting λdm calculation")    
     ωindices, νGrid, iωn_f = gen_νω_indices(χm, χd, mP, sP)
@@ -228,6 +227,9 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     end
 
     # --- Preallocations ---
+    if rpa
+        work_kG_exp = similar(kG.cache1)
+    end
     par && initialize_EoM(gLoc_rfft, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
     fft_νGrid = sP.fft_range
     Nq::Int   = length(kG.kMult)
@@ -248,7 +250,11 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         if par
             calc_Σ_par!(Σ_ladder, λm=λ[1], λd=λ[2], tc=tc)
         else
-            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
+            if rpa
+                calc_Σ_rpa!(Σ_ladder, Kνωq_pre, work_kG_exp, χm, χd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
+            else
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
+            end
         end
         #!!!!!!! auf korrektheit pruefen
         μ = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=fit_μ, μ=μ)
