@@ -2,17 +2,18 @@
 U         = 0.5 # Hubbard on-site interaction parameter
 n_density = 1.0 # number density/ filling
 mu        = 0.25 # chemical potential: so far half filling only
-EPot_DMFT = 0.0 # EPot_DMFT - what is this used for? How can I substitute this in RPA?
+EPot_DMFT = 0.0 # EPot_DMFT - is never used inside the code...
 kGrid     = "3Dsc-0.2041241452319315081831070062254909493304956233880558440360577139"
 
 [Simulation]
-n_pos_fermi_freqs = 100         #  Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+n_pos_fermi_freqs = 25         #  Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+n_pos_bose_freqs  = 25         #  Number of positive bosonic   matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
 
 # WARNING: DO NOT TOUCH ANY SIMULATION PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!
-chi_asympt_method     = "nothing"   # direct/sc/nothing, see BSE_SC module for more
-chi_asympt_shell      = 0          # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
-usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
-omega_smoothing       = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
+# chi_asympt_method     = "nothing"   # direct/sc/nothing, see BSE_SC module for more
+# chi_asympt_shell      = 0          # Integer >0 improves nu,nu' asymptotics of the generalized susceptibilityself consistently. Physical susceptibilities must be given in the input file. 0 deactivates this.
+# usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+# omega_smoothing       = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
 
 
 [Environment]

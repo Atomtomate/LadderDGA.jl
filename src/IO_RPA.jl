@@ -24,9 +24,9 @@ end
 """
     read_χ₀_RPA(file::String)
 
-TBW
+    Nω :: Int, Number of positive bosonic frequencies to be used. Make sure that the given χ₀-file has at least this many bosonic frequencies!  
 """
-function read_χ₀_RPA(file::String)
+function read_χ₀_RPA(file::String, Nω::Int)
     if !HDF5.ishdf5(file)
         throw(ArgumentError("The given file is not a valid hdf5 file!\ngiven path is: '$(file)'"))
     end
@@ -37,17 +37,23 @@ function read_χ₀_RPA(file::String)
 
     # attributes
     attr_dict = attrs(chi0_group)
-    β = attr_dict["beta"]               # inverse temperature
-    n_bz_k = attr_dict["n_k"]            # number of sample points per dimension to sample the first brillouin zone
-    n_bz_q = 2 * (attr_dict["n_q"] - 1)     # number of sample points per dimension to sample the first brillouin zone
-    e_kin = attr_dict["e_kin"]
+    β         = attr_dict["beta"]           # inverse temperature
+    n_bz_k    = attr_dict["n_k"]            # number of gauß-legendre sample points that were used to calculate χ₀
+    n_bz_q    = 2 * (attr_dict["n_q"] - 1)  # number of sample points per dimension to sample the first brillouin zone
+    e_kin     = attr_dict["e_kin"]
 
     # datasets
     ω_integers = read(chi0_group["omega_integers"])
-    if ω_integers ≠ collect(0:maximum(ω_integers))
-        throw(ArgumentError("ω-integers are distict from (0:$(maximum(ω_integers)))!"))
+    max_ω_index = indexin(Nω, ω_integers)[1]
+    if size(ω_integers,1) > Nω
+        ω_integers = ω_integers[begin:max_ω_index]
+    elseif size(ω_integers,1) < Nω
+        error("Number of bosonic frequencies in the χ₀ file is smaller than n_pos_bose_freqs from the configuration file!") 
     end
-    χ₀qω = read(chi0_group["values"])
+    if ω_integers ≠ collect(0:Nω)
+        throw(ArgumentError("ω-integers are distict from (0:$(Nω))!"))
+    end
+    χ₀qω = read(chi0_group["values"])[:,begin:max_ω_index]
 
     # consistency checks
     if β ≤ 0.0
@@ -137,11 +143,17 @@ function readConfig_RPA(cfg_in::String)
     full_EoM_omega = tml_debug["full_EoM_omega"]
 
     # read section Simulation
-    Nν                    = tml_simulation["n_pos_fermi_freqs"]     # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
-    chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
-    chi_asympt_shell      = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
-    usable_prct_reduction = tml_simulation["usable_prct_reduction"] # what is this used for? First guess ν-Asymptotics...
-    omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
+    Nν = tml_simulation["n_pos_fermi_freqs"]       # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    Nω = tml_simulation["n_pos_bose_freqs"]        # Number of positive bosonic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+
+    if Nν ≠ Nω
+        # Julian: strange things might happen if Nν ≠ Nω... So:
+        error("Please use same number of bosonic and fermionic frequencies!")
+    end
+    # chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
+    # chi_asympt_shell      = tml_simulation["chi_asympt_shell"]      # what is this used for? First guess ν-Asymptotics...
+    # usable_prct_reduction = tml_simulation["usable_prct_reduction"] # what is this used for? First guess ν-Asymptotics...
+    # omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
     inputDir  = tml_enviroment["inputDir"]
@@ -158,13 +170,13 @@ function readConfig_RPA(cfg_in::String)
         lowercase(logfile))
 
     # read RPA χ₀ from hdf5 file
-    χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars)
+    χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars, Nω)
 
     # collect ModelParameters
     mP = ModelParameters(U, μ, χ₀.β, n_density, EPot_DMFT, χ₀.e_kin)
 
     # collect SimulationParameters
-    Nω = trunc(Int, (length(χ₀.indices_ω) - 1) / 2) # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
+    # Nω = trunc(Int, (length(χ₀.indices_ω) - 1) / 2) # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
     freq_r = 2 * (Nν + Nω)
     freq_r = -freq_r:freq_r
     sP = SimulationParameters(
