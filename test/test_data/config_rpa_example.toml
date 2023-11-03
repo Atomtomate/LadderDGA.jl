@@ -1,8 +1,8 @@
 [Model]
 U         = 0.5 # Hubbard on-site interaction parameter
-n_density = 1.0 # number density/ filling
-mu        = 0.25 # chemical potential: so far half filling only
-EPot_DMFT = 0.0 # EPot_DMFT - is never used inside the code...
+# n_density = 1.0 # number density/ filling
+# mu        = 0.25 # chemical potential: so far half filling only
+# EPot_DMFT = 0.0 # EPot_DMFT - is never used inside the code...
 kGrid     = "3Dsc-0.2041241452319315081831070062254909493304956233880558440360577139"
 
 [Simulation]

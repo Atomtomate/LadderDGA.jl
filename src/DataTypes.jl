@@ -157,6 +157,7 @@ Fields
 - **`β`**            : `Float64`, inverse temperature.
 - **`e_kin`**        : `Float64`, kinetic energy.
 - **`Nq`**           : `Int`, Number of points per dimension that are used to sample the reciprocal space
+- **`Ngl`**           : `Int`, Number of gauß-legendre sample points per dimension that where used to calculate each element
 """
 struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     data::Array{_eltype_RPA,2}
@@ -164,10 +165,11 @@ struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     indices_ω::Vector{Int}
     β::Float64
     e_kin::Float64
-    Nq::Int
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, Nq::Int)
+    Nq::Int64
+    Ngl::Int64
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, Nq::Int64, Ngl::Int64)
         indices_ω = [i for i in ωnGrid];
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, Nq)
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, Nq, Ngl)
     end
 end
 # ------------------------------------------------- χ ------------------------------------------------

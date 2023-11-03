@@ -37,10 +37,10 @@ function read_χ₀_RPA(file::String, Nω::Int)
 
     # attributes
     attr_dict = attrs(chi0_group)
-    β         = attr_dict["beta"]           # inverse temperature
-    n_bz_k    = attr_dict["n_k"]            # number of gauß-legendre sample points that were used to calculate χ₀
-    n_bz_q    = 2 * (attr_dict["n_q"] - 1)  # number of sample points per dimension to sample the first brillouin zone
-    e_kin     = attr_dict["e_kin"]
+    β      :: Float64 = attr_dict["beta"]           # inverse temperature
+    n_bz_k :: Int64   = attr_dict["n_k"]            # number of gauß-legendre sample points that were used to calculate χ₀
+    n_bz_q :: Int64   = 2 * (attr_dict["n_q"] - 1)  # number of sample points per dimension to sample the first brillouin zone
+    e_kin  :: Float64 = attr_dict["e_kin"]
 
     # datasets
     ω_integers = read(chi0_group["omega_integers"])
@@ -79,7 +79,7 @@ function read_χ₀_RPA(file::String, Nω::Int)
 
     data = expand_ω(χ₀qω)
     ωnGrid = (convert(Int64, -maximum(ω_integers)):convert(Int64, maximum(ω_integers)))
-    return χ₀RPA_T(data, ωnGrid, β, e_kin, n_bz_q)
+    return χ₀RPA_T(data, ωnGrid, β, e_kin, n_bz_q, n_bz_k)
 end
 
 """
@@ -126,18 +126,15 @@ function readConfig_RPA(cfg_in::String)
     tml_debug      = tml["Debug"]
 
     # read section Model
-    U = tml_model["U"]
-    @warn "The parameter μ should be read from the χ₀-file and not passed via the configuration file!"
-    μ = tml_model["mu"]
-    @warn "The parameter n should be read from the χ₀-file and not passed via the configuration file!"
-    n_density = tml_model["n_density"]
-    @warn "The parameter EPot_DMFT should be read from the χ₀-file and not passed via the configuration file!"
-    EPot_DMFT = tml_model["EPot_DMFT"] # after inspecting the code: EPot_DMFT is actually never used during the standard-λdm-calculation... 
+    U        = tml_model["U"]
     kGridStr = tml_model["kGrid"]
-
-    if μ ≠ U * n_density / 2
-        error("So far only half filling is implemented! Please choose μ=U*n/2.")
-    end
+    
+    @warn "The filling is set to ome!"
+    n_density = 1.0 # tml_model["n_density"]
+    @warn "The parameter μ is set to Un/2!"
+    μ = U * n_density / 2
+    @warn "The parameter EPot_DMFT is set to zero!"
+    EPot_DMFT = 0.0 # tml_model["EPot_DMFT"] # after inspecting the code: EPot_DMFT is actually never used during the standard-λdm-calculation... 
 
     # read section Debug
     full_EoM_omega = tml_debug["full_EoM_omega"]
