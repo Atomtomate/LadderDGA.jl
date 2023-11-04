@@ -81,12 +81,10 @@ function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, 
 
     Fm = F_from_χ_star_gen(bubble, χm_star_gen, χm, γm, -h.mP.U);
     Fd = F_from_χ_star_gen(bubble, χd_star_gen, χd, γd,  h.mP.U);
-    Γs1, Γs2 = calc_Γs_ud(Fm, Fd, Phi_ud, h, GF)
+    Γs1 = calc_Γs_ud(Fm, Fd, Phi_ud, h, GF)
     λ1L, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
     λ1S, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
-    λ2L, _, _, _, _, _ = eigs(Γs2; nev=1, which=:SR, tol=1e-18);
-    λ2S, _, _, _, _, _ = eigs(Γs2; nev=1, which=:SR, tol=1e-18);
-    return λ1L,λ1S,λ2L,λ2S
+    return λ1L,λ1S
 end
 
 """
@@ -100,7 +98,6 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
     νnGrid = -(max_ν-1):(max_ν-2) #-1:0 #-
     kG = h.kG
     k_vecs = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
-    v_full = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
 
     νlen = length(νnGrid)
     klen = length(k_vecs)
@@ -115,34 +112,28 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
     Γs_ladder1 = Array{ComplexF64, 2}(undef, length(k_vecs)*length(νnGrid), length(k_vecs)*length(νnGrid));
     fill!(Γs_ladder1, NaN + 1im * NaN)
 
-    Γs_ladder2 = Array{ComplexF64, 2}(undef, length(k_vecs)*length(νnGrid), length(k_vecs)*length(νnGrid));
-    fill!(Γs_ladder2, NaN + 1im * NaN)
 
     Fph_ladder_updo  = permutedims(0.5 .* Fd .- 1.5 .* Fm,[3,1,2,4]) .- reshape(0.5 .* Fd_loc .- 0.5 .* Fm_loc, 1, size(Fd_loc)...)
-    Fph_ladder_updo2 = permutedims(0.5 .* Fd .- 0.5 .* Fm,[3,1,2,4]) .- reshape(0.5 .* Fd_loc .- 0.5 .* Fm_loc, 1, size(Fd_loc)...)
-
 
     for (νi,νn) in enumerate(νnGrid)
         for (νpi,νpn) in enumerate(νnGrid)      
-            ωn_ν_minus_νp = trunc(Int, (2*νn+1 - (2*νpn+1))/2)   
-            minus_ν       = trunc(Int, -(2*νn+1)/2 - 1)
-            ωi_ladder, νi_ladder, νpi_ladder  = Freq_to_OneToIndex(ωn_ν_minus_νp, νpn, minus_ν, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
-            ν_plus_νp  = νn + νpn + 1
-            ωi_ladder2,νi_ladder2,νpi_ladder2 = Freq_to_OneToIndex(-ν_plus_νp, νpn,  νn, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
-            νi_pp  = νn  + h.sP.n_iν+1; νpi_pp  = νpn + h.sP.n_iν+1; ωi_pp  = ωn  + h.sP.n_iω+1
+
+            minus_ν_minus_νp = trunc(Int, (-(2*νn+1) - (2*νpn+1))/2)   # - νn - νpn
+            νi_pp  = νn + h.sP.n_iν+1; νpi_pp  = νpn + h.sP.n_iν+1; ωi_pp  = ωn  + h.sP.n_iω+1
+
+            ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(minus_ν_minus_νp, νn, νpn, lDGAhelper.sP.shift, lDGAhelper.sP.n_iω, lDGAhelper.sP.n_iν)
 
             if freq_inbounds(ωi_ladder,νi_ladder,νpi_ladder,h.sP)
                 for (ki,k_vec) in enumerate(k_vecs)
                     for (kpi,kp_vec) in enumerate(k_vecs)
                         G_mG = Gνk_Gmνmk[νpi, kpi]
                         qi = qi_access[ki,kpi]
-                        qi2 = qi_access[kpi,ki]
-                        Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- Phi_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * h.mP.β)
-                        Γs_ladder2[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo2[qi,νi_ladder,νpi_ladder,ωi_ladder] .- Fm[νi_ladder2,νpi_ladder2,qi2,ωi_ladder2] .- Phi_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * h.mP.β)    
+
+                        Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- ϕ_pp_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * lDGAhelper.mP.β)
                     end
                 end
             end 
         end
     end
-    return Γs_ladder1, Γs_ladder2
+    return Γs_ladder1
 end
