@@ -2,7 +2,7 @@ using Pkg
 using TimerOutputs
 using DataFrames
 using CSV
-path = "/home/coding/LadderDGA.jl/" # joinpath(abspath(@__DIR__),"..")
+path = "/afs/physnet.uni-hamburg.de/users/AU/fweissle/Masterarbeit/LadderDGA.jl"
 println("activating: ", path)
 Pkg.activate(path)
 # Pkg.instantiate()
@@ -92,7 +92,6 @@ chid = χd[r_point, ω_0]
 λm_converged = λm_result.converged
 
 λm_m = λm_result.λm
-λd_m = 0.0
 
 χm_λm = χ_λ(χm, λm_m)[r_point, ω_0]
 χd_λm = χd[r_point, ω_0]
@@ -135,7 +134,6 @@ df = DataFrame(
     # λm-correction
     "m_converged"    => λm_converged,
     "lambda_m_m"     => λm_m,
-    "lambda_d_m"     => λd_m,
     "chi_m_lambda_m" => χm_λm,
     "chi_d_lambda_m" => χd_λm,
     # λdm-correction
