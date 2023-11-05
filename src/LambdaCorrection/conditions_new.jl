@@ -145,7 +145,14 @@ function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Arra
     fit_μ::Bool=true, validate_threshold::Float64=1e-8)
 
     νmax = νmax < 0 ? floor(Int, size(γm, γm.axis_types[:ν]) / 2) : νmax
-    rhs = λm_rhs(χm, χd, h; λ_rhs=:native)
+    if typeof(h) === RPAHelper
+        λ_rhs =:fixed
+    elseif typeof(h) === lDΓAHelper
+        λ_rhs =:native
+    else
+        error("RunHelper type not implemented!")
+    end
+    rhs = λm_rhs(χm, χd, h; λ_rhs=λ_rhs)
     λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
     Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm)
     μnew, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n=fit_μ)

@@ -220,15 +220,23 @@ function get_λ_min(χr::AbstractArray{Float64,2})::Float64
 end
 
 """
-    λm_rhs(χ_m::χT, χ_d::χT, λd::Float64, h::lDΓAHelper; λ_rhs = :native, verbose=false)
+    λm_rhs(χ_m::χT, χ_d::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
     λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
 
 Helper function for the right hand side of the Pauli principle conditions (λm correction).
 `imp_density` can be set to `NaN`, if the rhs (``\\frac{n}{2}(1-\\frac{n}{2})``) should not be error-corrected (not ncessary or usefull when asymptotic improvement are active).
 TODO: write down formula, explain imp_density as compensation to DMFT.
 """
-function λm_rhs(χ_m::χT, χ_d::χT, h::lDΓAHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
-    λm_rhs(h.imp_density, χ_m, χ_d, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, verbose=verbose)
+function λm_rhs(χ_m::χT, χ_d::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
+    imp_density::Float64 = 0.0
+    if typeof(h) === RPAHelper
+        imp_density = NaN64
+    elseif typeof(h) === lDΓAHelper
+        imp_density = h.imp_density
+    else
+        error("RunHelper type not implemented!")
+    end
+    λm_rhs(imp_density, χ_m, χ_d, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, verbose=verbose)
 end
 
 function λm_rhs(imp_density::Float64, χ_m::χT, χ_d::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64=NaN, λ_rhs = :native, verbose=false)

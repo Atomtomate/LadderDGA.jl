@@ -2,7 +2,7 @@ using Pkg
 using TimerOutputs
 using DataFrames
 using CSV
-path = "/afs/physnet.uni-hamburg.de/users/AU/fweissle/Masterarbeit/LadderDGA.jl"
+path = "/afs/physnet.uni-hamburg.de/users/th1_ro/fweissle/Masterarbeit/LadderDGA.jl"
 println("activating: ", path)
 Pkg.activate(path)
 # Pkg.instantiate()
@@ -66,7 +66,7 @@ flush(stdout)
 
 λ₀ = calc_λ0(χ₀, helper)
 
-λm_result = LadderDGA.λm_correction_full_RPA(χm, χd, helper; verbose=true, validate_threshold=1e-8)
+λm_result  = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, helper)
 λdm_result = λdm_correction(χm, γm, χd, γd, helper.Σ_loc, helper.gLoc_rfft, helper.χloc_m_sum, λ₀, kG, mP, sP; fit_μ=true , tc=true , verbose=true, rpa=true)
 
 # helper
@@ -128,6 +128,7 @@ df = DataFrame(
     "μ" => μ,
     "n" => n,
     # rpa
+    "u"    => mP.U,
     "chi0" => chi0,
     "chim" => chim,
     "chid" => chid,
