@@ -65,7 +65,7 @@ Calculates largest and smallest (real) eigen value of ``\\Gamma_{\\mathrm{s},\\u
 TODO: fix version, either calculate version1 or 2!!!
 TODO: TeX/DOCU..Ca
 """
-function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, γd::γT, h::lDΓAHelper, env; GF=h.gLoc)
+function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, γd::γT, h::lDΓAHelper, env; GF=h.gLoc, max_Nk::Int=h.kG.Ns)
     ϕs, ϕt = jldopen(joinpath(env.inputDir, "DMFT_out.jld2"),"r") do f
         f["Φpp_s"], f["Φpp_t"]
     end;
@@ -81,9 +81,9 @@ function calc_λmax_linEliashberg(bubble::χ₀T, χm::χT, χd::χT, γm::γT, 
 
     Fm = F_from_χ_star_gen(bubble, χm_star_gen, χm, γm, -h.mP.U);
     Fd = F_from_χ_star_gen(bubble, χd_star_gen, χd, γd,  h.mP.U);
-    Γs1 = calc_Γs_ud(Fm, Fd, Phi_ud, h, GF)
+    Γs1 = calc_Γs_ud(Fm, Fd, Phi_ud, h, GF; max_Nk=max_Nk)
     λ1L, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
-    λ1S, _, _, _, _, _ = eigs(Γs1; nev=1, which=:LR, tol=1e-18);
+    λ1S, _, _, _, _, _ = eigs(Γs1; nev=1, which=:SR, tol=1e-18);
     return λ1L,λ1S
 end
 
@@ -92,11 +92,11 @@ end
 
 Calculates the Γs in particle-particle notation from the ladder vertices.  
 """
-function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
+function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix; max_Nk::Int=h.kG.Ns)
     cut_to_non_nan = true
     max_ν  = cut_to_non_nan ? trunc(Int, h.sP.n_iν/2) : h.sP.n_iν
     νnGrid = -(max_ν-1):(max_ν-2) #-1:0 #-
-    kG = h.kG
+    kG, sub_i = build_kGrid_subsample(h.kG, max_Nk)
     k_vecs = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
 
     νlen = length(νnGrid)
@@ -105,7 +105,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
 
     Fm_loc = F_from_χ(:m, h);
     Fd_loc = F_from_χ(:d, h);
-    Gνk_Gmνmk = build_GG(kG, GF, νnGrid, k_vecs[:])
+    Gνk_Gmνmk = build_GG(kG, GF[sub_i,:], νnGrid, k_vecs[:])
     qi_access = build_q_access(kG, k_vecs[:]);
 
     @warn "TODO: currently calculating two versions of Γ_pp, until Fm_{k'-k} question is resolved"
@@ -113,7 +113,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
     fill!(Γs_ladder1, NaN + 1im * NaN)
 
 
-    Fph_ladder_updo  = permutedims(0.5 .* Fd .- 1.5 .* Fm,[3,1,2,4]) .- reshape(0.5 .* Fd_loc .- 0.5 .* Fm_loc, 1, size(Fd_loc)...)
+    Fph_ladder_updo  = permutedims(0.5 .* Fd[:,:,sub_i,:] .- 1.5 .* Fm[:,:,sub_i,:],[3,1,2,4]) .- reshape(0.5 .* Fd_loc .- 0.5 .* Fm_loc, 1, size(Fd_loc)...)
 
     for (νi,νn) in enumerate(νnGrid)
         for (νpi,νpn) in enumerate(νnGrid)      
@@ -121,7 +121,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
             minus_ν_minus_νp = trunc(Int, (-(2*νn+1) - (2*νpn+1))/2)   # - νn - νpn
             νi_pp  = νn + h.sP.n_iν+1; νpi_pp  = νpn + h.sP.n_iν+1; ωi_pp  = ωn  + h.sP.n_iω+1
 
-            ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(minus_ν_minus_νp, νn, νpn, lDGAhelper.sP.shift, lDGAhelper.sP.n_iω, lDGAhelper.sP.n_iν)
+            ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(minus_ν_minus_νp, νn, νpn, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
 
             if freq_inbounds(ωi_ladder,νi_ladder,νpi_ladder,h.sP)
                 for (ki,k_vec) in enumerate(k_vecs)
@@ -129,7 +129,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix)
                         G_mG = Gνk_Gmνmk[νpi, kpi]
                         qi = qi_access[ki,kpi]
 
-                        Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- ϕ_pp_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * lDGAhelper.mP.β)
+                        Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- Phi_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * h.mP.β)
                     end
                 end
             end 
