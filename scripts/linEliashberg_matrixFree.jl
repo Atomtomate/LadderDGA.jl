@@ -19,7 +19,7 @@ lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
 
-file_name = "run1_subSample_LinEliashberg_NK$(Nk)_Nw$(Nω).jld2"
+file_name = "memTest4_subSample_LinEliashberg_NK$(Nk)_Nw$(Nω).jld2"
 output_file = joinpath(out_dir,file_name)
 
 lDGA_fname = "lDGA_NK$(Nk)_Nw$(Nω)_res.jld"
@@ -72,8 +72,8 @@ else
     end
 end
 
+flush(stdout)
 # =========== Calculation of F_ladder pp ============
-
 lDGAhelper_Ur = deepcopy(lDGAhelper)
 lDGAhelper_Ur.Γ_m[:,:,:] = lDGAhelper_Ur.Γ_m[:,:,:] .- (-lDGAhelper_Ur.mP.U / lDGAhelper_Ur.mP.β^2)
 lDGAhelper_Ur.Γ_d[:,:,:] = lDGAhelper_Ur.Γ_d[:,:,:] .- ( lDGAhelper_Ur.mP.U / lDGAhelper_Ur.mP.β^2)
@@ -85,44 +85,45 @@ flush(stdout)
 
 println(" ========== Step 01 ========== ")
 meminfo_julia()
+flush(stdout)
 #meminfo_procfs()
-λ_list = calc_λmax_linEliashberg(bubble, χm, χd, γm, γd, lDGAhelper, env; max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_list = calc_λmax_linEliashberg_MatrixFree(bubble, χm, χd, γm, γd, lDGAhelper, env; max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 02 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_m_gLoc_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_m.λm), χ_λ(χd,res_m.λd), γm, γd, lDGAhelper, env; max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_m_gLoc_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_m.λm), χ_λ(χd,res_m.λd), γm, γd, lDGAhelper, env; max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 03 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_m_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_m.G_ladder, max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_m_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_m.G_ladder, max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 04 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_dm_gLoc_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_dm.λm), χ_λ(χd,res_dm.λd), γm, γd, lDGAhelper, env; max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_dm_gLoc_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_dm.λm), χ_λ(χd,res_dm.λd), γm, γd, lDGAhelper, env; max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 05 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_dm_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_dm.G_ladder, max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_dm_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_dm.G_ladder, max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 06 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_dm_sc_gLoc_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_dm_sc_gLoc_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 07 ========== ")
 meminfo_julia()
 flush(stdout)
 #meminfo_procfs()
-λ_dm_sc_list = calc_λmax_linEliashber(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_dm_sc.G_ladder, max_Nk=10, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
+λ_dm_sc_list = calc_λmax_linEliashberg_MatrixFree(bubble, χ_λ(χm, res_dm_sc.λm), χ_λ(χd,res_dm_sc.λd), γm, γd, lDGAhelper, env; GF=res_dm_sc.G_ladder, max_Nk=2, χm_star_gen=χm_star_gen, χd_star_gen=χd_star_gen)
 GC.gc()
 println(" ========== Step 08 ========== ")
 meminfo_julia()
