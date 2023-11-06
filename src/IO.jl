@@ -29,18 +29,7 @@ Reads a config.toml file either as string or from a file and returns
 function readConfig(cfg_in::String)
     @info "Reading Inputs..."
 
-    cfg_is_file = true
-    try 
-        cfg_is_file = isfile(cfg_in)
-    catch e
-        @warn "cfg_file not found as file. Trying to parse as config string."
-        cfg_is_file = false
-    end
-    tml = if cfg_is_file
-        TOML.parsefile(cfg_in)
-    else
-        TOML.parse(cfg_in)
-    end
+    tml = TOML.parsefile(cfg_in)
     sim = tml["Simulation"]
     smoothing = Symbol(lowercase(sim["omega_smoothing"]))
     if !(smoothing in [:nothing, :range, :full])

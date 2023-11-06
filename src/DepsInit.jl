@@ -22,7 +22,7 @@ using SpecialFunctions  # e.g. PolyLog in filling
 using TOML              # input configuration
 using JLD2, FileIO      # input/output files
 using LinearAlgebra
-using Arpack            # for lin. Eliashberg eq. (largest/smallest EV)
+using LinearMaps, Arpack            # for lin. Eliashberg eq. (largest/smallest EV)
 
 # Fortran compatibility
 using Printf, DelimitedFiles

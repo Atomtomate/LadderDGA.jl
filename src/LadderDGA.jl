@@ -45,8 +45,8 @@ module LadderDGA
     export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result 
 
     # Postprocessing and Linearized Eliashberg stuff
-    export calc_λmax_linEliashberg, calc_Γs_ud, calc_gen_χ, F_from_χ_star_gen
+    export calc_λmax_linEliashberg_MatrixFree, calc_λmax_linEliashberg, calc_Γs_ud, calc_gen_χ, F_from_χ_star_gen
 
     # Additional functionality
-    estimate_ef, fermi_surface_connected, estimate_connected_ef
+    export estimate_ef, fermi_surface_connected, estimate_connected_ef
 end
