@@ -43,12 +43,25 @@ end
 Builds helper array `A`, defined as: ``A^{\\nu}_{k} = G^\\nu_{k} G^{-\\nu}_{-k}``.
 Used, for example, by [`build_Γs`](@ref build_Γs).
 """
-function build_q_access(kG::KGrid, k_vecs::AbstractVector)::Array{Int,2}
+function build_q_access_G(kG::KGrid, k_vecs::AbstractVector)::Array{Int,2}
     q_lookup = build_q_lookup(kG)
     qi_access = Array{Int,2}(undef, length(k_vecs), length(k_vecs))
     for (ki,k_vec) in enumerate(k_vecs)
         for (kpi,kp_vec) in enumerate(k_vecs)
             q_vec = round.(Dispersions.transform_to_first_BZ(kG, -1 .* k_vec .- kp_vec), digits=6) 
+            q_vec = map(x-> x ≈ 0 ? 0.0 : x, q_vec)
+            qi_access[ki,kpi] = q_lookup[q_vec]
+        end
+    end
+    return qi_access
+end
+
+function build_q_access(kG::KGrid, k_vecs::AbstractVector)::Array{Int,2}
+    q_lookup = Dispersions.build_q_lookup(kG)
+    qi_access = Array{Int,2}(undef, length(k_vecs), length(k_vecs))
+    for (ki,k_vec) in enumerate(k_vecs)
+        for (kpi,kp_vec) in enumerate(k_vecs)
+            q_vec = round.(Dispersions.transform_to_first_BZ(kG, k_vec .- kp_vec), digits=6) 
             q_vec = map(x-> x ≈ 0 ? 0.0 : x, q_vec)
             qi_access[ki,kpi] = q_lookup[q_vec]
         end
@@ -123,17 +136,28 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix; max_Nk::I
     for (νi,νn) in enumerate(νnGrid)
         νi_pp  = νn + h.sP.n_iν+1;
         for (νpi,νpn) in enumerate(νnGrid)      
-            minus_ν_minus_νp = -νn -νpn - 1   # - νn - νpn
+            #minus_ν_minus_νp = -νn -νpn - 1   # - νn - νpn
+            ν_minus_νp = trunc(Int, (2*νn+1 - (2*νpn+1))/2)            # νn - νpn
+            νp_minus_ν = trunc(Int, (2*νpn+1 - (2*νn+1))/2)            # νpn - νn
+            minus_ν_minus_νp = - νn - νpn - 1# trunc(Int, (-(2*νn+1) - (2*νpn+1))/2)   # - νn - νpn
+            minus_ν       = trunc(Int, -(2*νn+1)/2 - 1*(νn >= 0))
+            minus_νp      = trunc(Int, -(2*νpn+1)/2 - 1*(νpn >= 0))
+            ν_plus_νp  = νn + νpn + 1
             νpi_pp  = νpn + h.sP.n_iν+1;
 
-            ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(minus_ν_minus_νp, νn, νpn, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
+            #ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(minus_ν_minus_νp, νn, νpn, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
+            ωi_ladder, νi_ladder, νpi_ladder = Freq_to_OneToIndex(ν_minus_νp, νpn, minus_ν, h.sP.shift, h.sP.n_iω, h.sP.n_iν)
 
             if freq_inbounds(ωi_ladder,νi_ladder,νpi_ladder,h.sP)
                 for (kpi,kp_vec) in enumerate(k_vecs)
                     G_mG = Gνk_Gmνmk[νpi, kpi]
                     for (ki,k_vec) in enumerate(k_vecs)
                         qi = qi_access[ki,kpi]
-                        Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- Phi_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * h.mP.β)
+                        #Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] = -(Fph_ladder_updo[qi,νi_ladder,νpi_ladder,ωi_ladder]  .- Phi_ud[νi_pp,νpi_pp,ωi_pp]) * G_mG  / (2 * kG.Nk * h.mP.β)
+                        #
+                                    Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] =   -(   Fph_ladder_updo[qi, νi_ladder,νpi_ladder,ωi_ladder]  
+                                                                                  .- Phi_ud[νi_pp,νpi_pp,ωi_pp]
+                                                                                 ) * G_mG  / (2 * kG.Nk * lDGAhelper.mP.β)
                     end
                 end
             end 
