@@ -157,7 +157,7 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix; max_Nk::I
                         #
                                     Γs_ladder1[ki+length(k_vecs)*(νi-1),kpi+length(k_vecs)*(νpi-1)] =   -(   Fph_ladder_updo[qi, νi_ladder,νpi_ladder,ωi_ladder]  
                                                                                   .- Phi_ud[νi_pp,νpi_pp,ωi_pp]
-                                                                                 ) * G_mG  / (2 * kG.Nk * lDGAhelper.mP.β)
+                                                                                 ) * G_mG  / (2 * kG.Nk * h.mP.β)
                     end
                 end
             end 
