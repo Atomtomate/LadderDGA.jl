@@ -115,7 +115,8 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix; max_Nk::I
     kG, sub_i = build_kGrid_subsample(h.kG, max_Nk)
     println("lDΓA k-grid: ", h.kG, "linearized Eliashberg Eq. k-grid: ", kG)
     
-    k_vecs = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
+    k_vecs      = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
+    k_vecs_full = collect(Dispersions.gen_sampling(grid_type(h.kG), grid_dimension(h.kG), h.kG.Ns))
 
     νlen = length(νnGrid)
     klen = length(k_vecs)
@@ -124,9 +125,8 @@ function calc_Γs_ud(Fm, Fd, Phi_ud, h::lDΓAHelper, GF::OffsetMatrix; max_Nk::I
     Fm_loc = F_from_χ(:m, h);
     Fd_loc = F_from_χ(:d, h);
     Gνk_Gmνmk = build_GG(kG, GF[sub_i,:], νnGrid, k_vecs[:])
-    qi_access = build_q_access(kG, k_vecs[:]);
+    qi_access = build_q_access(h.kG, k_vecs_full[:]);
 
-    @warn "TODO: currently calculating two versions of Γ_pp, until Fm_{k'-k} question is resolved"
     Γs_ladder1 = Array{ComplexF64, 2}(undef, length(k_vecs)*length(νnGrid), length(k_vecs)*length(νnGrid));
     fill!(Γs_ladder1, NaN + 1im * NaN)
 
@@ -206,11 +206,12 @@ function calc_λmax_linEliashberg_MatrixFree(bubble::χ₀T, χm::χT, χd::χT,
     flush(stdout)
     
     k_vecs = collect(Dispersions.gen_sampling(grid_type(kG), grid_dimension(kG), kG.Ns))
+    k_vecs_full = collect(Dispersions.gen_sampling(grid_type(h.kG), grid_dimension(h.kG), h.kG.Ns))
 
     Fm_loc = F_from_χ(:m, h);
     Fd_loc = F_from_χ(:d, h);
     Gνk_Gmνmk = build_GG(kG, GF[sub_i,:], νnGrid, k_vecs[:])
-    qi_access = build_q_access(kG, k_vecs[:]);
+    qi_access = build_q_access(h.kG, k_vecs_full[:]);
 
     ωi_pp::Int = h.sP.n_iω+1
     n_iν::Int  = h.sP.n_iν

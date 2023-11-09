@@ -261,17 +261,23 @@ See [`calc_χγ`](@ref calc_χγ) for direct (and more efficient) calculation of
 Returns: ``\\chi^{\\nu\\nu'\\omega}_q`` as 4-dim array with axis: `νi, νpi, qi, ωi`.
 """
 function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
-    χννpω = similar(Γr, size(Γr,1), size(Γr,2), size(kG.kMult,1), size(Γr,3))
-    ipiv = Vector{Int}(undef, size(Γr,1))
-    work = _gen_inv_work_arr(χννpω[:,:,1,1], ipiv)
+
+    Nν = size(Γr,1)
+    χννpω = similar(Γr, Nν, Nν, size(kG.kMult,1), size(Γr,3))
+    χννpω_work = Matrix{ComplexF64}(undef, Nν, Nν)
+    ipiv = Vector{Int}(undef, Nν)
+    work = _gen_inv_work_arr(χννpω_work, ipiv)
+    νi_range = 1:Nν
     
     for ωi in 1:size(Γr,3)
         for qi in 1:length(kG.kMult)
-            χννpω[:,:,qi,ωi] = inv(deepcopy(Γr[:,:,ωi]) + 
-                                    Diagonal(1.0 ./ χ₀.data[qi,
-                                                                χ₀.ν_shell_size+1:end-χ₀.ν_shell_size,
-                                                                ωi]
-                                            ))
+
+            χννpω_work[:,:] = deepcopy(Γr[:,:,ωi])
+            for l in 1:size(Γr,1)
+                χννpω_work[l,l] += 1.0/χ₀.data[qi,χ₀.ν_shell_size+l,ωi]
+            end
+            inv!(χννpω_work, ipiv, work)
+            χννpω[:,:,qi,ωi] =  χννpω_work
         end
     end
 
