@@ -59,7 +59,7 @@ end
 
 function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ₀, h::lDΓAHelper; 
                       # λm related:
-                      λm_rhs_type::Symbol=:native,
+                      λm_rhs_type::Symbol=:native, fit_μ::Bool=true, 
                       # λdm related:
                       νmax::Int=-1, λ_min_δ::Float64 = 0.0001,
                       # sc_X r, delete_G_Σ::Bool=trueelated:
@@ -68,12 +68,15 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
                       par::Bool=false, λ_val_only::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
     if type == :m
         λm_correction_full(χm, γm, χd, γd, λ₀, h;
+                           fit_μ=fit_μ,  
                            νmax=νmax, λ_min_δ=λ_min_δ, verbose=verbose,
-                           validate_threshold=validate_threshold)
+                           validate_threshold=validate_threshold, tc=tc)
     elseif type == :dm
-        λdm_correction(χm, γm, χd, γd, λ₀, h; νmax=νmax, λ_min_δ=λ_min_δ,
+        λdm_correction(χm, γm, χd, γd, λ₀, h; 
+                       fit_μ=fit_μ,  
+                       νmax=νmax, λ_min_δ=λ_min_δ,
                        validate_threshold=validate_threshold, par=par, 
-                       verbose=verbose, tc=tc, λ_val_only=λ_val_only)
+                       verbose=verbose, λ_val_only=λ_val_only, tc=tc)
     elseif type == :sc
         run_sc(χm, γm, χd, γd, λ₀, h; maxit=maxit, mixing=mixing, conv_abs=conv_abs, trace=trace)
     elseif type == :sc_m
@@ -254,7 +257,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         if par
             calc_Σ_par!(Σ_ladder, λm=λ[1], λd=λ[2], tc=tc)
         else
-            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP; tc=tc)
+            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP; tc=tc)
         end
         μ = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=fit_μ, μ=μ)
         E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, kG, mP)
@@ -476,7 +479,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
             else
                 (λm != 0) && χ_λ!(χm, λm)
                 (λd != 0) && χ_λ!(χd, λd)
-                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, tc=tc)
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, tc=tc)
                 (λm != 0) && reset!(χm)
                 (λd != 0) && reset!(χd)
             end

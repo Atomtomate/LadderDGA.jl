@@ -126,8 +126,8 @@ end
 
 Returns kinetic and potential energies from given self-energy `Σ`.
 """
-function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
-    Σ_ladder = LadderDGA.calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG, mP, sP);
+function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
+    Σ_ladder = calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP);
     E_kin, E_pot = calc_E(Σ_ladder, kG, mP, νmax = νmax)
     return E_kin, E_pot
 end

@@ -141,7 +141,7 @@ function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Uni
         copy!(Σ_ladder_old, Σ_ladder)
         E_pot_bak  = E_pot; 
         lhs_c1_bak = lhs_c1
-        Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
+        Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP, νmax=last(νGrid)+1, λm=λm,λd=λd);
         mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n=false)
         isnan(μnew) && break

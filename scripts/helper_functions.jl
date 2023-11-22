@@ -22,7 +22,7 @@ function check_conditions(λGrid, μ::Float64, sc_it::Int, χm, χd, γm, γd, �
         
         Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h);
 
-        LadderDGA.calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP; tc=true)
+        LadderDGA.calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP; tc=true)
         μ_new = LadderDGA.G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
         E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, h.kG, h.mP)
 
