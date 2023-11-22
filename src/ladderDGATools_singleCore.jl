@@ -128,7 +128,7 @@ TODO: move DMFT_dff to `lDGAHelper`?
 """
 function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64,
                               Σ_dmft::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
-                              δ::Real=10.0*length(iν))
+                              δ::Real=minium(0.001, 1 ./ 10.0*length(iν)))
 
     Σlim = U^2 * n/2 * (1 - n/2)
     DMFT_dff =  -imag(Σ_dmft[0:length(iν)-1]) .* imag(iν) .- Σlim
