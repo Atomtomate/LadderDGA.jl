@@ -12,7 +12,7 @@ using LadderDGA
 using JLD2
 
 force_new=true
-max_Nk=10
+max_Nk=4
 
 cfg = ARGS[1]
 out_dir = splitdir(cfg)[1]

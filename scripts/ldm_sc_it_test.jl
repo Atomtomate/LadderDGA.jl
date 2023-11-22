@@ -51,7 +51,7 @@ end
 if isfinite(res_dm.λm) && isfinite(res_dm.λd)
     jldopen(joinpath(out_dir,file_name), "w") do f
         f["lDGAHelper"] = lDGAhelper
-        f["χ0"] = bubble
+        #f["χ0"] = bubble
         f["χm"] = χm
         f["χd"] = χd
         f["res_m"] = res_m

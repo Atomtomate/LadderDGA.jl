@@ -17,12 +17,12 @@ lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
 Nk = lDGAhelper.kG.Ns
 Nω = 2*lDGAhelper.sP.n_iω
 
-file_name = "res_ldga_ntc_NK$(Nk)_Nw$(Nω).jld2"
+file_name = "ldga_NK$(Nk)_Nw$(Nω).jld2"
 output_file = joinpath(out_dir,file_name)
-# if isfile(output_file)
-#     println("Output file exists, aborting.")
-#     exit(1)
-# end
+if isfile(output_file)
+    println("Output file exists, aborting.")
+    exit(1)
+end
 println("output file location: ", output_file)
 flush(stdout)
 
@@ -39,23 +39,17 @@ bubble     = calc_bubble(:DMFT, lDGAhelper);
 
 
 # ==================== Results =====================
-# res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
-# res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
-# res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-6, trace=true);
-# res_m_ntc = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper, tc=false)
-# res_dm_ntc = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true, tc=false)
-res_dm_sc_ntc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-6, tc=false, trace=true);
+res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
+res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
+res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true);
 if isfinite(res_dm.λm) && isfinite(res_dm.λd)
     jldopen(joinpath(out_dir,file_name), "w") do f
         f["lDGAHelper"] = lDGAhelper
-        #f["χ0"] = bubble
         f["χm"] = χm
         f["χd"] = χd
         f["res_m"] = res_m
         f["res_dm"] = res_dm
         f["res_dm_sc"] = res_dm_sc
-        f["res_m_ntc"] = res_m_ntc
-        f["res_dm_ntc"] = res_dm_ntc
-        f["res_dm_sc_ntc"] = res_dm_sc_ntc
     end
 end
+

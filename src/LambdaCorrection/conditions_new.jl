@@ -173,12 +173,12 @@ end
 
 function λm_correction_full(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
                             νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false, verbose::Bool=false,
-                            fit_μ::Bool=true, validate_threshold::Float64=1e-8)
+                            fit_μ::Bool=true, validate_threshold::Float64=1e-8, tc=true)
 
         νmax = νmax < 0 ? floor(Int, size(γm, γm.axis_types[:ν])/2) : νmax
         rhs = λm_rhs(χm, χd, h; λ_rhs = :native)
         λm, validation = λm_correction(χm, rhs, h, verbose=verbose, validate_threshold=validate_threshold)
-        Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm);
+        Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h, νmax=νmax, λm=λm, tc=tc);
         μnew, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n=fit_μ)
         EKin1, EPot1 = calc_E(G_ladder, Σ_ladder, μnew, h.kG, h.mP)
         rhs_c1  = h.mP.n/2 * (1-h.mP.n/2)
@@ -385,7 +385,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,
         λm_int, λd_int, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged = run_sc!(iωn_f, deepcopy(h.gLoc_rfft), 
                     G_ladder, Σ_ladder, Σ_work, Kνωq_pre, Ref(traceDF), χm, γm, χd, γd, λ₀, μ, h;
                     maxit=maxit, mixing=mixing, conv_abs=conv_abs, update_χ_tail=update_χ_tail, 
-                    fit_μ=fit_μ, par=par, type=type)
+                    fit_μ=fit_μ, par=par, type=type, tc=tc)
         reset!(χm)
         reset!(χd)
         λm_int, λd_int, rhs_c1, lhs_c1, E_pot_1, E_pot_2, E_kin, n, μ, sc_converged 
@@ -406,7 +406,7 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
                  Σ_ladder::OffsetMatrix{ComplexF64}, Σ_work::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, trace::Ref,
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ::Float64, h::lDΓAHelper;
                  maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, update_χ_tail::Bool=false, fit_μ::Bool=true,
-                 par::Bool=false, type::Symbol=:fix)
+                 par::Bool=false, type::Symbol=:fix, tc::Bool=tc)
     it      = 1
     χTail_sc = 1
     done    = false
@@ -472,11 +472,11 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
 
             copy!(Σ_work, Σ_ladder)
             if par
-                calc_Σ_par!(Σ_ladder_inplace, λm=λm, λd=λd)
+                calc_Σ_par!(Σ_ladder_inplace, λm=λm, λd=λd, tc=tc)
             else
                 (λm != 0) && χ_λ!(χm, λm)
                 (λd != 0) && χ_λ!(χd, λd)
-                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, tc=tc)
                 (λm != 0) && reset!(χm)
                 (λd != 0) && reset!(χd)
             end
