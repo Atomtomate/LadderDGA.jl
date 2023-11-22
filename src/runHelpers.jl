@@ -46,6 +46,7 @@ mutable struct lDΓAHelper <: RunHelper
     γ_d_loc::γT
     χ₀Loc::χ₀T
     gImp::OffsetArray
+    # Σ_tail_factor::OffsetVector{ComplexF64} 
 end
 
 
@@ -196,6 +197,10 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             @async remotecall_fetch(LadderDGA.update_wcache!, w, :sP, sP; override=true)
         end
     end
+
+    # Σlim = U^2 * n/2 * (1 - n/2)
+    # DMFT_dff =  -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
+    # tail_factor = - 2*U .* exp.(-(DMFT_dff).^2 ./ δ) ./ iν
 
     return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, real(sum_ω(χ_m_loc)[1]), χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
 end

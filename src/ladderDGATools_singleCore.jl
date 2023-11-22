@@ -116,34 +116,14 @@ function calc_Σ_ω!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq
     end
 end
 
-"""
-    tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64,
-                              Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
-                              δ::Real=10.0*length(iν))
-
-Calculates correction term for high frequency behavior of self energy.
-
-``w_\\nu = e^{(-\\Delta^2_{\\nu}/\\delta)}`` with ``\\Delta_{\\nu} = \\nu \\cdot \\Sigma^\\nu_\\mathrm{DMFT} - U^2 \\frac{n}{2} (1 - \\frac{n}{2})``.
-TODO: move DMFT_dff to `lDGAHelper`?
-"""
-function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64,
-                              Σ_dmft::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
-                              δ::Real=min(0.001, 1 ./ 10.0*length(iν)))
-
-    Σlim = U^2 * n/2 * (1 - n/2)
-    DMFT_dff =  -imag(Σ_dmft[0:length(iν)-1]) .* imag(iν) .- Σlim
-    return reshape(- 2*U .* (χm_nl - χm_loc) .* exp.(-(DMFT_dff).^2 ./ δ) ./ iν, 1, length(iν))
-end
-
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                 χm::χT, γm::γT, χd::χT, γd::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
-                Σ_loc::OffsetVector, Gνω::GνqT, kG::KGrid,
+                tc_factor::Vector, Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
     Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    iν = iν_array(mP.β, collect(axes(Σ_ladder)[2]))
-    tail_correction = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc,  iν) : 0.0 )
+    tail_correction = (tc ? tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor) : 0.0 )
     Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ tail_correction .+ Σ_hartree
     return nothing
 end
@@ -151,13 +131,13 @@ end
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
                 χm::χT, γm::γT, χd::χT, γd::γT, 
                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
-                Σ_loc::OffsetVector, Gνω::GνqT, kG::KGrid,
+                tc_factor::Vector, Gνω::GνqT, kG::KGrid,
                 mP::ModelParameters, sP::SimulationParameters; tc::Bool=true)::Nothing
 
     Σ_hartree = mP.n * mP.U/2.0;
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
-    tail_correction = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc,  iν) : 0.0 )
+    tail_correction = (tc ? tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor) : 0.0 )
     Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree
     return nothing
 end
@@ -196,7 +176,9 @@ function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT,
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
 
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χ_m_sum, λ₀, Σ_loc, Gνω, kG, mP, sP, tc=tc)
+    iν = iν_array(mP.β, collect(axes(Σ_ladder,2)))
+    tc_factor_term = (tc ? tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν) : 0.0 ./ iν)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χ_m_sum, λ₀, tc_factor_term, Gνω, kG, mP, sP, tc=tc)
 
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
@@ -234,7 +216,8 @@ function calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
 
-    tail_correction = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc,  iν) : 0.0 )
+    iν = iν_array(mP.β, collect(axes(Σ_ladder,2)))
+    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc,  iν) : 0.0 ./ iν)
     calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:,:,1] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β
     calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
@@ -248,10 +231,49 @@ function calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float
     calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:,:,6] = dropdims(sum(Σ_ladder_ω, dims=[3]),dims=3) ./ mP.β .+ Σ_hartree
     for qi in 1:size(Σ_ladder,1)
-        Σ_ladder.parent[qi,:,7] .= tail_correction 
+        Σ_ladder.parent[qi,:,7] .= tc_term 
     end
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
 
     return  Σ_ladder
+end
+
+
+# ==================================== Self energy Tail Correction ===================================
+"""
+    tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              δ::Real=min(0.01, 1 ./ length(iν)))
+
+Calculates the tail factor for [`tail_correction_term`](@ref tail_correction_term).
+"""
+function tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              δ::Real=min(0.001, 1 ./ length(iν)))
+    Σlim = U^2 * n/2 * (1 - n/2)
+    DMFT_dff =  -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
+    return - 2*U .* exp.(-(DMFT_dff).^2 ./ δ) ./ iν
+end
+
+"""
+    tail_correction_term(χm_nl::Float64, χm_loc::Float64, tail_factor::Vector{ComplexF64})
+
+    tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64,
+                              Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              δ::Real=10.0*length(iν))
+
+Calculates correction term for high frequency behavior of self energy.
+
+``w_\\nu = e^{(-\\Delta^2_{\\nu}/\\delta)}`` with ``\\Delta_{\\nu} = \\nu \\cdot \\Sigma^\\nu_\\mathrm{DMFT} - U^2 \\frac{n}{2} (1 - \\frac{n}{2})``.
+See also [`tail_factor`](@ref tail_factor).
+"""
+function tail_correction_term(χm_nl::Float64, χm_loc::Float64, tail_factor::Vector{ComplexF64})
+    return reshape((χm_nl - χm_loc) .* tail_factor, 1, length(tail_factor))
+end
+
+function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64,
+                              Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              δ::Real=min(0.001, 1 ./ 10.0*length(iν)))
+
+    tail_factor = tail_factor(U,β,n,Σ_loc,iν, δ=δ)
+    return tail_correction_term(χm_nl, χm_loc, tail_factor)
 end

@@ -9,6 +9,7 @@ function check_conditions(λGrid, μ::Float64, sc_it::Int, χm, χd, γm, γd, �
     Σ_ladder::OffsetMatrix{ComplexF64, Matrix{ComplexF64}}      = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(νGrid)), 1:Nq, νGrid)
     Kνωq_pre = Vector{ComplexF64}(undef, Nq)
     PP_λdm_list = Matrix{Float64}(undef, size(λGrid)); PP_1_list = Matrix{Float64}(undef, size(λGrid)); EPot2_list = Matrix{Float64}(undef, size(λGrid)); EPot1_list = Matrix{Float64}(undef, size(λGrid))
+    tail_factor = tail_factor(h.mP.U,h.mP.β,h.mP.n,h.Σ_loc,iν)
 
     @showprogress for (λi,λ) in enumerate(λGrid)
         λm, λd = λ
@@ -22,7 +23,8 @@ function check_conditions(λGrid, μ::Float64, sc_it::Int, χm, χd, γm, γd, �
         
         Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, h);
 
-        LadderDGA.calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP; tc=true)
+
+        LadderDGA.calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, tail_factor, h.gLoc_rfft, h.kG, h.mP, h.sP; tc=true)
         μ_new = LadderDGA.G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
         E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, h.kG, h.mP)
 

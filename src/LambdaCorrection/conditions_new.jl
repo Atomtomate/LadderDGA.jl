@@ -236,6 +236,7 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         νGrid = νGrid[1:min(length(νGrid),νmax)]
     end
 
+
     # --- Preallocations ---
     par && initialize_EoM(gLoc_rfft, χloc_m_sum, λ₀, νGrid, kG, mP, sP, χ_m = χm, γ_m = γm, χ_d = χd, γ_d = γd)
     fft_νGrid = sP.fft_range
@@ -248,6 +249,8 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
     traceDF = verbose ? DataFrame(it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], n = Float64[], EKin = Float64[], EPot = Float64[], 
         lhs_c1 = Float64[], EPot_c2 = Float64[], cs_m = Float64[], cs_m2 = Float64[],
         cs_d = Float64[], cs_d2 = Float64[], cs_Σ = Float64[], cs_G = Float64[]) : nothing
+    iν = iν_array(mP.β, collect(axes(Σ_ladder,2)))
+    tc_factor = tail_factor(mP.U,mP.β,mP.n,Σ_loc,iν)
 
     # --- Internal root finding function ---
     function residual_vals(λ::MVector{2,Float64})
@@ -257,9 +260,9 @@ function λdm_correction(χm::χT, γm::γT, χd::χT, γd::γT, Σ_loc::OffsetV
         if par
             calc_Σ_par!(Σ_ladder, λm=λ[1], λd=λ[2], tc=tc)
         else
-            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP; tc=tc)
+            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χloc_m_sum, λ₀, tc_factor, gLoc_rfft, kG, mP, sP; tc=tc)
         end
-        μ = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=fit_μ, μ=μ)
+        μ = G_from_Σladder!(G_ladder, Σ_ladder, Σ_loc, kG, mP; fix_n=fit_μ, μ=μ, improved_sum_filling=tc)
         E_kin_1, E_pot_1 = calc_E(G_ladder, Σ_ladder, μ, kG, mP)
         n = filling_pos(view(G_ladder, :, 0:νmax-1), kG, mP.U, μ, mP.β)
         χ_m_sum    = sum_kω(kG, χm)
@@ -428,6 +431,9 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
     λd      = 0.0
     Nd = 4
 
+    iν = iν_array(h.mP.β, collect(axes(Σ_ladder,2)))
+    tc_factor = tail_factor(h.mP.U,h.mP.β,h.mP.n,h.Σ_loc,iν)
+
 
     while !χTail_sc_done
         while !done
@@ -479,13 +485,13 @@ function run_sc!(iωn_f::Vector{ComplexF64}, gLoc_rfft::GνqT, G_ladder::OffsetM
             else
                 (λm != 0) && χ_λ!(χm, λm)
                 (λd != 0) && χ_λ!(χd, λd)
-                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, tc=tc)
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, tc_factor, gLoc_rfft, h.kG, h.mP, h.sP, tc=tc)
                 (λm != 0) && reset!(χm)
                 (λd != 0) && reset!(χd)
             end
 
             mixing != 0 && it > 1 && (Σ_ladder[:,:] = (1-mixing) .* Σ_ladder .+ mixing .* Σ_work)
-            μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ)
+            μ = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n=fit_μ, μ=μ, improved_sum_filling=tc)
             if isnan(μ) 
                 break
             end
