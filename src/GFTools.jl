@@ -162,17 +162,29 @@ end
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
                         fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)::Float64
     νRange = 0:last(axes(G_new, 2))
-    length(νRange) < 10 && println("WARNING: fixing ν range with only $(length(νRange)) frequencies!")
+    length(νRange) < 10 && @warn "fixing ν range with only $(length(νRange)) frequencies!"
     function fμ(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
         filling_pos(view(G_new, :, 0:last(axes(Σ_ladder,2))), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
     end
+
+    function fμ_fallback(μ::Float64)
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
+        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder,2))), kG, mP.U, μ, mP.β; improved_sum=false) - mP.n
+    end
+
+    μ_bak = μ  
     μ = if fix_n
         try 
-            find_zero(fμ, μ, atol=1e-8) #nlsolve(fμ, [last_μ])
+            find_zero(fμ, μ_bak, atol=1e-8) #nlsolve(fμ, [last_μ])
         catch e
-            @warn "μ determination failed with: $e"
-            return NaN
+            @warn "improved ($improved_sum_filling) μ determination failed. Falling back to naive summation!"
+            try
+                find_zero(fμ_fallback, μ_bak, atol=1e-8) #nlsolve(fμ, [last_μ])
+            catch e_int
+                @warn "μ determination failed with: $e, fallback failed with $e_int"
+                return NaN
+            end
         end
     else
         μ

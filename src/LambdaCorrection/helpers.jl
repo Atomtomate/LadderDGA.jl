@@ -140,9 +140,10 @@ Base.@assume_effects :total function newton_right(f::Function, df::Function, sta
         fi = f(xi)
         dfii = 1 / df(xi)
         xi = x0 - dfii * fi
-        (norm(fi) < atol) && break
-        if xi < min                           # only ever search to the right!
-            x0 = min + δ + abs(min - x0)/2  # do bisection instead
+        # Found solution in the correct interval
+        (norm(fi) < atol) && (xi > min) && break
+        if xi < min                              # only ever search to the right!
+            x0 = min + δ + abs(min - x0)/2       # do bisection instead
         else
             x0 = xi
         end

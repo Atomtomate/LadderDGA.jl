@@ -47,17 +47,17 @@ end
 
 
 # ==================== Results =====================
-println("RUNNING lDGA_m")
-res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
+# println("RUNNING lDGA_m")
+# res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
 println("RUNNING lDGA_dm")
-res_dm = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
-println("RUNNING lDGA_dm_sc")
-res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-4, trace=true);
-println("RUNNING lDGA_m (no tail corrections)")
-res_m_ntc = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper, tc=false)
-println("RUNNING lDGA_dm (no tail corrections)")
-res_dm_ntc = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true, tc=false)
-println("RUNNING lDGA_dm (no tail corrections, no μ fit)")
-res_dm_ntc_no_mu_fit  = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=false, tc=false)
-println("RUNNING lDGA_dm_sc (no tail corrections)")
-res_dm_sc_ntc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-4, tc=false, trace=true);
+res_dm = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true, verbose=true)
+# println("RUNNING lDGA_dm_sc")
+# res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-4, trace=true);
+# println("RUNNING lDGA_m (no tail corrections)")
+# res_m_ntc = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper, tc=false)
+# println("RUNNING lDGA_dm (no tail corrections)")
+# res_dm_ntc = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true, tc=false)
+# println("RUNNING lDGA_dm (no tail corrections, no μ fit)")
+# res_dm_ntc_no_mu_fit  = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=false, tc=false)
+# println("RUNNING lDGA_dm_sc (no tail corrections)")
+# res_dm_sc_ntc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-4, tc=false, trace=true);
