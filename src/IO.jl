@@ -40,14 +40,15 @@ function readConfig(cfg_in::String)
     input_dir = if isabspath(tml["Environment"]["inputDir"])
         tml["Environment"]["inputDir"]
     else
-        abspath(joinpath(dirname(cfg_in),tml["Environment"]["inputDir"]))
+        abspath(joinpath(dirname(cfg_in), tml["Environment"]["inputDir"]))
     end
 
-    env = EnvironmentVars(input_dir,
-                          joinpath(input_dir,tml["Environment"]["inputVars"]),
-                          String([(i == 1) ? uppercase(c) : lowercase(c)
-                                  for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
-                          lowercase(tml["Environment"]["logfile"]))
+    env = EnvironmentVars(
+        input_dir,
+        joinpath(input_dir, tml["Environment"]["inputVars"]),
+        String([(i == 1) ? uppercase(c) : lowercase(c) for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
+        lowercase(tml["Environment"]["logfile"]),
+    )
 
     if !isfile(env.inputVars)
         @error "ERROR: input file at location $(env.inputVars) not found!"
@@ -68,47 +69,53 @@ function readConfig(cfg_in::String)
             @warn "Reading Hubbard Parameters from config. These should be supplied through the input jld2!"
             tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"], f["Vₖ"]
         end
-        return f["grid_nBose"], f["grid_nFermi"], f["grid_shift"], 
-               ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT), 
-               f["χ_sp_asympt"] ./ β^2, 
-               f["χ_ch_asympt"] ./ β^2, 
-               f["χ_pp_asympt"] ./ β^2,
-               Vk
+        return f["grid_nBose"],
+        f["grid_nFermi"],
+        f["grid_shift"],
+        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT),
+        f["χ_sp_asympt"] ./ β^2,
+        f["χ_ch_asympt"] ./ β^2,
+        f["χ_pp_asympt"] ./ β^2,
+        Vk
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0
-    Nν_shell  = sim["chi_asympt_shell"]
-    Nν_full = nFermi + asympt_sc*Nν_shell
-    freq_r = 2*(Nν_full+nBose)#+shift*ceil(Int, nBose)
+    Nν_shell = sim["chi_asympt_shell"]
+    Nν_full = nFermi + asympt_sc * Nν_shell
+    freq_r = 2 * (Nν_full + nBose)#+shift*ceil(Int, nBose)
     fft_range = -freq_r:freq_r
 
     # chi asymptotics
 
     χ_helper = if lowercase(sim["chi_asympt_method"]) == "asympt"
-                    BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2*Nν_full, Nν_shell, nBose, Nν_full, shift)
-                elseif lowercase(sim["chi_asympt_method"]) == "direct"
-                    BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
-                elseif lowercase(sim["chi_asympt_method"]) == "direct_approx2"
-                    BSE_Asym_Helper_Approx2(Nν_shell)
-                elseif lowercase(sim["chi_asympt_method"]) == "nothing"
-                    nothing
-                else
-                    @error "could not parse chi_asympt_method $(sim["chi_asympt_method"]). Options are: asympt/direct/nothing"
-                    nothing
-                end
+        BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2 * Nν_full, Nν_shell, nBose, Nν_full, shift)
+    elseif lowercase(sim["chi_asympt_method"]) == "direct"
+        BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
+    elseif lowercase(sim["chi_asympt_method"]) == "direct_approx2"
+        BSE_Asym_Helper_Approx2(Nν_shell)
+    elseif lowercase(sim["chi_asympt_method"]) == "nothing"
+        nothing
+    else
+        @error "could not parse chi_asympt_method $(sim["chi_asympt_method"]). Options are: asympt/direct/nothing"
+        nothing
+    end
 
-    sP = SimulationParameters(nBose,nFermi,Nν_shell,shift,
-                              χ_helper,
-                              sum(Vk .^ 2), 
-                              fft_range,
-                              sim["usable_prct_reduction"],
-                              dbg_full_eom_omega
+    sP = SimulationParameters(
+        nBose,
+        nFermi,
+        Nν_shell,
+        shift,
+        χ_helper,
+        sum(Vk .^ 2),
+        fft_range,
+        sim["usable_prct_reduction"],
+        dbg_full_eom_omega,
     )
-    kGrids = Array{Tuple{String,Int}, 1}(undef, length(sim["Nk"]))
+    kGrids = Array{Tuple{String,Int},1}(undef, length(sim["Nk"]))
     if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"
         kGrids = [(tml["Model"]["kGrid"], 0)]
     else
-        for i in 1:length(sim["Nk"])
+        for i = 1:length(sim["Nk"])
             Nk = sim["Nk"][i]
             kGrids[i] = (tml["Model"]["kGrid"], Nk)
         end
@@ -140,8 +147,8 @@ end
 
 prints 4 digits of (the real part of) `x`
 """
-printr_s(x::ComplexF64) = round(real(x), digits=4)
-printr_s(x::Float64) = round(x, digits=4)
+printr_s(x::ComplexF64) = round(real(x), digits = 4)
+printr_s(x::Float64) = round(x, digits = 4)
 
 
 # ====================================== Custom Type Custum IO =======================================
@@ -154,10 +161,16 @@ Custom output for SimulationParameters
 function Base.show(io::IO, m::SimulationParameters)
     compact = get(io, :compact, false)
     if !compact
-        println(io, "Bosonic/Fermionic range: $(m.n_iω)/$(m.n_iν), $(m.shift ? "with" : "without") shifted fermionic frequencies")
+        println(
+            io,
+            "Bosonic/Fermionic range: $(m.n_iω)/$(m.n_iν), $(m.shift ? "with" : "without") shifted fermionic frequencies",
+        )
         println(io, "   ($(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM).")
         println(io, "Asymptotic correction : $(typeof(m.χ_helper))")
-        println(io, "   $(100*m.usable_prct_reduction)% reduction of usable range and ω smoothing $(m.usable_prct_reduction)")
+        println(
+            io,
+            "   $(100*m.usable_prct_reduction)% reduction of usable range and ω smoothing $(m.usable_prct_reduction)",
+        )
     else
         print(io, "SimulationParams[nB=$(m.n_iω), nF=$(m.n_iν), shift=$(m.shift)]")
     end

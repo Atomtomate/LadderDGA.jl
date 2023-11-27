@@ -1,14 +1,16 @@
 name = "LadderDGA"
 uuid = "78e40beb-bf89-4c0e-9d2b-bee278912f2b"
 authors = ["Julian Stobbe <Atomtomate@gmx.de> and contributors"]
-version = "0.16.4"
+version = "0.16.5"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
 BSE_Asymptotics = "646ec391-26e4-4808-a965-02314d3a2269"
+BenchmarkTools = "6e4b80f9-dd63-53aa-95a3-0cdb28fa8baf"
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 Dispersions = "9451dd48-6b2a-4bde-a443-9ec270a37806"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"

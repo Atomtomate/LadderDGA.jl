@@ -1,4 +1,8 @@
 @testset "LambdaCorrection" begin
+    @testset "Types" begin
+        include("Types.jl")
+    end
+
     @testset "helpers" begin
         include("helpers.jl")
     end

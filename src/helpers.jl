@@ -67,7 +67,7 @@ function OneToIndex_to_Freq(ωi::Int, νpi::Int, νi::Int, sP::SimulationParamet
 end
 
 function Freq_to_OneToIndex(ωn::Int, νn::Int, νpn::Int, shift::Union{Bool,Int}, nBose::Int, nFermi::Int)
-    (ωn+nBose+1,νn+nFermi+1+trunc(Int, shift*ωn/2), νpn+nFermi+1+trunc(Int, shift*ωn/2))
+    (ωn + nBose + 1, νn + nFermi + 1 + trunc(Int, shift * ωn / 2), νpn + nFermi + 1 + trunc(Int, shift * ωn / 2))
 end
 
 """
@@ -120,7 +120,7 @@ Iterated moving average noise filter for inut data. See also [`filter_MA`](@ref 
 """
 function filter_KZ(m::Int, k::Int, X::AbstractArray{T,1}) where {T<:Number}
     res = filter_MA(m, X)
-    for ki in 2:k
+    for ki = 2:k
         res = filter_MA!(res, m, res)
     end
     return res

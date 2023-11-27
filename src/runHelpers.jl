@@ -83,7 +83,7 @@ Computes all needed objects for DΓA calculations.
 
 Returns: [`lDΓAHelper`](@ref lDΓAHelper)
 """
-function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; silent::Bool=false)
+function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; silent::Bool = false)
 
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
@@ -133,7 +133,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     @timeit to "local correction" begin
         #TODO: unify checks
         kGridLoc = gen_kGrid(kGridStr[1], 1)
-        t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims=1)
+        t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims = 1)
         gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
         F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
         χ₀Loc = calc_bubble(:local, gImp, gImp, kGridLoc, mP, sP)
@@ -141,7 +141,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP)
         λ₀Loc = calc_λ0(χ₀Loc, F_m, χ_m_loc, γ_m_loc, mP, sP)
         χloc_m_sum = real(sum_ω(χ_m_loc)[1])
-        Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χloc_m_sum, λ₀Loc, Σ_loc, gImp, kGridLoc, mP, sP, tc=false)
+        Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χloc_m_sum, λ₀Loc, Σ_loc, gImp, kGridLoc, mP, sP, tc = false)
         any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
         χLoc_m_ω = similar(χDMFT_m, size(χDMFT_m, 3))
@@ -164,8 +164,8 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     @timeit to "ranges/imp. dens." begin
-        usable_loc_m = find_usable_χ_interval(real(χLoc_m_ω), reduce_range_prct=sP.usable_prct_reduction)
-        usable_loc_d = find_usable_χ_interval(real(χLoc_d_ω), reduce_range_prct=sP.usable_prct_reduction)
+        usable_loc_m = find_usable_χ_interval(real(χLoc_m_ω), reduce_range_prct = sP.usable_prct_reduction)
+        usable_loc_d = find_usable_χ_interval(real(χLoc_d_ω), reduce_range_prct = sP.usable_prct_reduction)
         loc_range = intersect(usable_loc_m, usable_loc_d)
 
         iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
@@ -190,11 +190,11 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     workerpool = get_workerpool()
     @sync begin
         for w in workers()
-            @async remotecall_fetch(LadderDGA.update_wcache!, w, :G_fft, gLoc_fft; override=true)
-            @async remotecall_fetch(LadderDGA.update_wcache!, w, :G_fft_reverse, gLoc_rfft; override=true)
-            @async remotecall_fetch(LadderDGA.update_wcache!, w, :kG, kGridStr; override=true)
-            @async remotecall_fetch(LadderDGA.update_wcache!, w, :mP, mP; override=true)
-            @async remotecall_fetch(LadderDGA.update_wcache!, w, :sP, sP; override=true)
+            @async remotecall_fetch(LadderDGA.update_wcache!, w, :G_fft, gLoc_fft; override = true)
+            @async remotecall_fetch(LadderDGA.update_wcache!, w, :G_fft_reverse, gLoc_rfft; override = true)
+            @async remotecall_fetch(LadderDGA.update_wcache!, w, :kG, kGridStr; override = true)
+            @async remotecall_fetch(LadderDGA.update_wcache!, w, :mP, mP; override = true)
+            @async remotecall_fetch(LadderDGA.update_wcache!, w, :sP, sP; override = true)
         end
     end
 
@@ -212,7 +212,7 @@ Computes all needed objects for RPA calculations.
 
 Returns: [`RPAHelper`](@ref RPAHelper)
 """
-function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool=false)
+function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool = false)
 
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
@@ -230,7 +230,7 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
         gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νn in sP.fft_range
-            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, mP.U*mP.n/2+0.0im), ϵk_full), gridshape(kG))
+            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, mP.U * mP.n / 2 + 0.0im), ϵk_full), gridshape(kG))
             gLoc[:, νn] = reduceKArr(kG, gLoc_i)
             selectdim(gLoc_fft, νdim, νn) .= fft(gLoc_i)
             selectdim(gLoc_rfft, νdim, νn) .= fft(reverse(gLoc_i))

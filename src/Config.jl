@@ -67,7 +67,7 @@ struct SimulationParameters <: ConfigStruct
     n_iν::Int64             # number of fermionic frequencies
     n_iν_shell::Int64
     shift::Bool             # shift of center for interval of bosonic frequencies
-    χ_helper # Helper for χ asymptotics improvement
+    χ_helper::Any # Helper for χ asymptotics improvement
     sVk::Float64            # ∑_k Vₖ^2, TODO: this should be moved somewhere else
     fft_range::AbstractArray
     usable_prct_reduction::Float64      # safety cutoff for usable ranges

@@ -28,7 +28,8 @@ Returns:
 -------------
 Vector of fermionic Matsubara frequencies, given either a list of indices or a length. 
 """
-iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} = ComplexF64[1.0im*((2.0 *el + 1)* π/β) for el in grid]
+iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} =
+    ComplexF64[1.0im * ((2.0 * el + 1) * π / β) for el in grid]
 iν_array(β::Real, size::Int)::Vector{ComplexF64} = iν_array(β, 0:(size-1))
 
 """
@@ -43,7 +44,8 @@ Returns:
 -------------
 Vector of bosonic Matsubara frequencies, given either a list of indices or a length. 
 """
-iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}  = ComplexF64[1.0im*((2.0 *el)* π/β) for el in grid]
+iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} =
+    ComplexF64[1.0im * ((2.0 * el) * π / β) for el in grid]
 iω_array(β::Real, size::Int)::Vector{ComplexF64} = iω_array(β, 0:(size-1))
 
 # =================================== Anderson Parameters Helpers ====================================
@@ -63,7 +65,8 @@ Arguments:
 - **`νₙ`** : Vector of fermionic Matsubara frequencies, see also: [`iν_array`](@ref iν_array).
 
 """
-Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64} = [sum((Vₖ .* conj.(Vₖ)) ./ (ν .- ϵₖ)) for ν in νₙ]
+Δ(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, νₙ::Vector{ComplexF64})::Vector{ComplexF64} =
+    [sum((Vₖ .* conj.(Vₖ)) ./ (ν .- ϵₖ)) for ν in νₙ]
 
 # ===================================== Dyson Equations Helpers ======================================
 
@@ -82,9 +85,10 @@ Arguments:
 - **`ϵₖ`**  : Dispersion relation at fixed `k`, see below for convenience wrappers.
 - **`Σ`**   : Self energy at fixed frequency (and potentially fixed `k`), see below for convenience wrappers.
 """
-G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = G_from_Σ(1im*(2*ind + 1)*π/β, μ, ϵₖ, Σ)
-G_from_Σ(mf::ComplexF64        , μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = 1/(mf + μ - ϵₖ - Σ)
-                    
+G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 =
+    G_from_Σ(1im * (2 * ind + 1) * π / β, μ, ϵₖ, Σ)
+G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = 1 / (mf + μ - ϵₖ - Σ)
+
 
 """
     G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractArray = nothing) 
@@ -97,29 +101,52 @@ attaching the tail of the local self energy in the high frequency regime. This i
 `range` larger than the array size of `Σ` and in addition setting `Σloc` (the size of `Σloc` must be as large or larger than `range`). 
 The inplace version stores the result in `res`.
 """
-function G_from_Σ(Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1)) 
+function G_from_Σ(
+    Σ::OffsetVector{ComplexF64},
+    ϵkGrid::Vector{Float64},
+    range::UnitRange{Int},
+    mP::ModelParameters;
+    μ = mP.μ,
+    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+)
     res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, length(ϵkGrid), length(range)), 1:length(ϵkGrid), range)
-    G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ,  Σloc = Σloc)
+    G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ, Σloc = Σloc)
     return res
 end
 
-function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1))::Nothing
+function G_from_Σ!(
+    res::OffsetMatrix{ComplexF64},
+    Σ::OffsetVector{ComplexF64},
+    ϵkGrid::Vector{Float64},
+    range::UnitRange{Int},
+    mP::ModelParameters;
+    μ = mP.μ,
+    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+)::Nothing
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for ind in range
-        Σi = ind ∈ axes(Σ,1) ? Σ[ind] : Σloc[ind]
+        Σi = ind ∈ axes(Σ, 1) ? Σ[ind] : Σloc[ind]
         for (ki, ϵk) in enumerate(ϵkGrid)
-            @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+            @inbounds res[ki, ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
 end
 
-function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[],0:-1))::Nothing
+function G_from_Σ!(
+    res::OffsetMatrix{ComplexF64},
+    Σ::OffsetMatrix{ComplexF64},
+    ϵkGrid::Vector{Float64},
+    range::UnitRange{Int},
+    mP::ModelParameters;
+    μ = mP.μ,
+    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+)::Nothing
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for ind in range
         for (ki, ϵk) in enumerate(ϵkGrid)
-            Σi = ind ∈ axes(Σ,2) ? Σ[ki, ind] : Σloc[ind]
-            @inbounds res[ki,ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
+            Σi = ind ∈ axes(Σ, 2) ? Σ[ki, ind] : Σloc[ind]
+            @inbounds res[ki, ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
@@ -133,10 +160,10 @@ function Σ_from_Gladder(Gladder::AbstractMatrix{ComplexF64}, kG::KGrid, μ::Flo
 end
 
 function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64)
-    νn_list = axes(Gladder,2)
+    νn_list = axes(Gladder, 2)
     for νn in νn_list
-        for ki in axes(Gladder,1)
-            res[ki,νn] = μ + 1im*(2*νn+1)*π/β - kG.ϵkGrid[ki] - 1 / Gladder[ki,νn]
+        for ki in axes(Gladder, 1)
+            res[ki, νn] = μ + 1im * (2 * νn + 1) * π / β - kG.ϵkGrid[ki] - 1 / Gladder[ki, νn]
         end
     end
 end
@@ -151,36 +178,63 @@ Computes Green's function from lDΓA self-energy.
 
 The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 """
-function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                        fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
+function G_from_Σladder(
+    Σ_ladder::AbstractMatrix{ComplexF64},
+    Σloc::OffsetVector{ComplexF64},
+    kG::KGrid,
+    mP::ModelParameters,
+    sP::SimulationParameters;
+    fix_n::Bool = false,
+    μ = mP.μ,
+    improved_sum_filling::Bool = true,
+)
     νRange = sP.fft_range
-    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder,1), length(νRange)), 1:size(Σ_ladder,1), sP.fft_range)
-    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP, fix_n=fix_n, μ=μ, improved_sum_filling=improved_sum_filling)
+    G_new =
+        OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), sP.fft_range)
+    μ = G_from_Σladder!(
+        G_new,
+        Σ_ladder,
+        OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)),
+        kG,
+        mP,
+        fix_n = fix_n,
+        μ = μ,
+        improved_sum_filling = improved_sum_filling,
+    )
     return μ, G_new
 end
 
-function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                        fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)::Float64
+function G_from_Σladder!(
+    G_new::OffsetMatrix{ComplexF64},
+    Σ_ladder::OffsetMatrix{ComplexF64},
+    Σloc::OffsetVector{ComplexF64},
+    kG::KGrid,
+    mP::ModelParameters;
+    fix_n::Bool = false,
+    μ = mP.μ,
+    improved_sum_filling::Bool = true,
+)::Float64
     νRange = 0:last(axes(G_new, 2))
     length(νRange) < 10 && @warn "fixing ν range with only $(length(νRange)) frequencies!"
     function fμ(μ::Float64)
-        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder,2))), kG, mP.U, μ, mP.β; improved_sum=improved_sum_filling) - mP.n
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
+        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder, 2))), kG, mP.U, μ, mP.β; improved_sum = improved_sum_filling) -
+        mP.n
     end
 
     function fμ_fallback(μ::Float64)
-        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder,2))), kG, mP.U, μ, mP.β; improved_sum=false) - mP.n
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
+        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder, 2))), kG, mP.U, μ, mP.β; improved_sum = false) - mP.n
     end
 
-    μ_bak = μ  
+    μ_bak = μ
     μ = if fix_n
-        try 
-            find_zero(fμ, μ_bak, atol=1e-8) #nlsolve(fμ, [last_μ])
+        try
+            find_zero(fμ, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
         catch e
             @warn "improved ($improved_sum_filling) μ determination failed. Falling back to naive summation!"
             try
-                find_zero(fμ_fallback, μ_bak, atol=1e-8) #nlsolve(fμ, [last_μ])
+                find_zero(fμ_fallback, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
             catch e_int
                 @warn "μ determination failed with: $e, fallback failed with $e_int"
                 return NaN
@@ -190,10 +244,10 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
         μ
     end
     if !isnan(μ)
-        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ=μ, Σloc = Σloc)
+        G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
     end
-    ind_neg = first(axes(G_new,2)):-1
-    G_new[:,ind_neg] = conj.(view(G_new,:, last(axes(G_new,2))-1:-1:0))
+    ind_neg = first(axes(G_new, 2)):-1
+    G_new[:, ind_neg] = conj.(view(G_new, :, last(axes(G_new, 2))-1:-1:0))
     return μ
 end
 
@@ -207,17 +261,17 @@ Calculates ``\\Sigma = 1 / G_\\text{bath} - 1 / G_\\text{imp}``.
 function Σ_Dyson(GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
     Σ = similar(GImp)
     Σ_Dyson!(Σ, GBath, GImp)
-    return Σ 
+    return Σ
 end
 
 function Σ_Dyson(GBath::OffsetVector{ComplexF64}, GImp::Vector{ComplexF64})::Vector{ComplexF64}
     Σ = similar(GImp)
     Σ_Dyson!(Σ, GBath.parent, GImp)
-    return Σ 
+    return Σ
 end
-    
+
 function Σ_Dyson!(Σ::AbstractVector{ComplexF64}, GBath::Vector{ComplexF64}, GImp::Vector{ComplexF64})
-    Σ[:] =  1 ./ GBath .- 1 ./ GImp
+    Σ[:] = 1 ./ GBath .- 1 ./ GImp
     return nothing
 end
 
@@ -233,29 +287,29 @@ If `U`, `μ` and `β` are provided, asymptotic corrections are used. The shell s
 If `G` is defined only over positive Matsubara frequencies [`filling_pos`](@ref filling_pos) can be used.
 """
 function filling(G::AbstractVector{ComplexF64}, β::Float64)
-    n = 2*sum(G)/β + 1
+    n = 2 * sum(G) / β + 1
     imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
     return real(n)
 end
 
 function filling(G::AbstractMatrix{ComplexF64}, kG::KGrid, β::Float64)
-    n = 2*sum(kintegrate(kG, G, 1))/β + 1
+    n = 2 * sum(kintegrate(kG, G, 1)) / β + 1
     imag(n) > 1e-8 && throw("Error: Imaginary part of filling is larger than 10^-8")
     return real(n)
 end
 
 function filling(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
-    2*(real(sum(G))/β + 0.5 + μ * shell) / (1 + U * shell)
+    2 * (real(sum(G)) / β + 0.5 + μ * shell) / (1 + U * shell)
 end
 
 function filling(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64)
-    N = floor(Int, length(G)/2)
-    shell = 2*real(shell_sum_fermionic(N, β, 2)/β)
+    N = floor(Int, length(G) / 2)
+    shell = 2 * real(shell_sum_fermionic(N, β, 2) / β)
     filling(G, U, μ, β, shell)
 end
 
 function filling(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
-    filling(kintegrate(kG,G,1)[1,:], U, μ, β)
+    filling(kintegrate(kG, G, 1)[1, :], U, μ, β)
 end
 
 """
@@ -266,22 +320,35 @@ See [`filling`](@ref filling) for further documentation.
 """
 function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64, shell::Float64)::Float64
     sG = sum(G)
-    2*(real(sG + conj(sG))/β + 0.5 + μ * shell) / (1 + U * shell)
+    2 * (real(sG + conj(sG)) / β + 0.5 + μ * shell) / (1 + U * shell)
 end
 
-function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64; improved_sum::Bool=true)::Float64
+function filling_pos(
+    G::AbstractVector{ComplexF64},
+    U::Float64,
+    μ::Float64,
+    β::Float64;
+    improved_sum::Bool = true,
+)::Float64
     if !improved_sum
         sG = sum(G)
-        2*real(sG + conj(sG))/β + 1
+        2 * real(sG + conj(sG)) / β + 1
     else
-        N = floor(Int, length(G)/2)
-        shell = 2*real(shell_sum_fermionic(N, β, 2)/β)
+        N = floor(Int, length(G) / 2)
+        shell = 2 * real(shell_sum_fermionic(N, β, 2) / β)
         filling_pos(G, U, μ, β, shell)
     end
 end
 
-function filling_pos(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64; improved_sum::Bool=true)::Float64
-    filling_pos(view(kintegrate(kG,G,1),1,:), U, μ, β, improved_sum=improved_sum)
+function filling_pos(
+    G::AbstractMatrix{ComplexF64},
+    kG::KGrid,
+    U::Float64,
+    μ::Float64,
+    β::Float64;
+    improved_sum::Bool = true,
+)::Float64
+    filling_pos(view(kintegrate(kG, G, 1), 1, :), U, μ, β, improved_sum = improved_sum)
 end
 
 """
@@ -290,21 +357,22 @@ end
 Calculate ``\\frac{1}{\\beta} \\sum_{n \\in \\Omega_\\mathrm{shell}} \\frac{1}{(i \\nu_n)^power}``
 `N-1` is the largest frequency index (i.e. ``\\sum_{n=-N}^(N-1) \nu_n`` is in the core region)
 """
-shell_sum_fermionic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * zeta(power, N + 0.5)
+shell_sum_fermionic(N::Int, β::Float64, power::Int) = (β / (2 * π * 1im))^(power) * zeta(power, N + 0.5)
 
 """
     core_sum_fermionic(N::Int, β::Float64, power::Int) 
 
 Fast evaluation of ``\\sum_{n=0}^N \\frac{1}{(\\pi i (2n+1) / \\beta)^l}``
 """
-core_sum_fermionic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * (zeta(power, 0.5) - zeta(power, N+1.5))
+core_sum_fermionic(N::Int, β::Float64, power::Int) =
+    (β / (2 * π * 1im))^(power) * (zeta(power, 0.5) - zeta(power, N + 1.5))
 
 """
     core_sum_bosonic(N::Int, β::Float64, power::Int) 
 
 Fast evaluation of ``\\sum_{n=1}^N \\frac{1}{(\\pi i (2n) / \\beta)^l}``
 """
-core_sum_bosonic(N::Int, β::Float64, power::Int) = (β/(2*π*1im))^(power) * (zeta(power) - zeta(power, N+1.0))
+core_sum_bosonic(N::Int, β::Float64, power::Int) = (β / (2 * π * 1im))^(power) * (zeta(power) - zeta(power, N + 1.0))
 
 # =============================== Frequency Tail Modification Helpers ================================
 
@@ -325,9 +393,9 @@ end
 subtract the c/(iω)^power high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
 """
 function subtract_tail!(outp::AbstractVector, inp::AbstractVector, c::Float64, iω::Vector{ComplexF64}, power::Int)
-    for n in 1:length(inp)
+    for n = 1:length(inp)
         if iω[n] != 0
-            outp[n] = inp[n] - (c/(iω[n]^power))
+            outp[n] = inp[n] - (c / (iω[n]^power))
         else
             outp[n] = inp[n]
         end
@@ -340,21 +408,21 @@ end
 
 
 """
-function ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ,2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-    ω_tail(ωindices, coeffs, sP) 
+function ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ, 2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ω_tail(ωindices, coeffs, sP)
 end
-function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters)
     iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
-    iωn[findfirst(x->x ≈ 0, iωn)] = Inf
-    for (i,ci) in enumerate(coeffs)
-        χ_tail::Vector{Float64} = real.(ci ./ (iωn.^i))
+    iωn[findfirst(x -> x ≈ 0, iωn)] = Inf
+    for (i, ci) in enumerate(coeffs)
+        χ_tail::Vector{Float64} = real.(ci ./ (iωn .^ i))
     end
 end
 
 # ==================================== Fermi Surface Estimation ======================================
 function lin_fit(ν::Vector{Float64}, Σ::Vector{Float64})
-    m = (Σ[2] - Σ[1])/(ν[2] - ν[1])
+    m = (Σ[2] - Σ[1]) / (ν[2] - ν[1])
     return Σ[1] - m * ν[1]
 end
 
@@ -370,8 +438,8 @@ Returns `< 0` if fermi surface is not connected, `== 0` if it is exactly a line,
 """
 function fermi_surface_connected(ef_ind::BitVector, kG::KGrid)
     D = typeof(kG).parameters[2]
-    shift_indices = filter(x->!all(iszero.(x)), collect(Base.product([[xi for xi in [-1,0,1]] for Di = 1:D]...))[:])
-    ef_ind_exp = convert.(Bool, LadderDGA.expandKArr(kG, convert.(Float64,ef_ind)))
+    shift_indices = filter(x -> !all(iszero.(x)), collect(Base.product([[xi for xi in [-1, 0, 1]] for Di = 1:D]...))[:])
+    ef_ind_exp = convert.(Bool, LadderDGA.expandKArr(kG, convert.(Float64, ef_ind)))
     kernel = sum([circshift(ef_ind_exp, s) for s in shift_indices])[ef_ind_exp]
     sum(kernel .- 2)
 end
@@ -383,13 +451,20 @@ end
 Estimate fermi surface of `Σ_ladder`, using extrapolation to ``\\nu = 0`` with the function `ν0_estimator` and the condition ``\\lim_{\\nu \\to 0} \\Sigma (\\nu, k_f) = \\mu - \\epsilon_{k_f}``.
 
 """
-function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64; ν0_estimator::Function=lin_fit, relax_zero_condition::Float64=10.0)
-    νGrid = [(2*n+1)*π/β for n in 0:1]
-    s_r0 = [ν0_estimator(νGrid, real.(Σ_ladder[i,0:1])) for i in 1:size(Σ_ladder,1)];
+function estimate_ef(
+    Σ_ladder::OffsetMatrix,
+    kG::KGrid,
+    μ::Float64,
+    β::Float64;
+    ν0_estimator::Function = lin_fit,
+    relax_zero_condition::Float64 = 10.0,
+)
+    νGrid = [(2 * n + 1) * π / β for n = 0:1]
+    s_r0 = [ν0_estimator(νGrid, real.(Σ_ladder[i, 0:1])) for i = 1:size(Σ_ladder, 1)]
     ekf = μ .- kG.ϵkGrid
     ek_diff = ekf .- s_r0
     min_diff = minimum(abs.(ekf .- s_r0))
-    return abs.(ek_diff) .< relax_zero_condition*kG.Ns*min_diff
+    return abs.(ek_diff) .< relax_zero_condition * kG.Ns * min_diff
 end
 
 """
@@ -398,11 +473,17 @@ end
 Estimates connected fermi surface. See also [`estimate_ef`](@ref estimate_ef) and [`fermi_surface_connected`](@ref fermi_surface_connected).
 Returns fermi surface indices and `relax_zero_condition` (values substantially larger than `1` indicate appearance of fermi arcs).
 """
-function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64; ν0_estimator::Function=lin_fit)
+function estimate_connected_ef(
+    Σ_ladder::OffsetMatrix,
+    kG::KGrid,
+    μ::Float64,
+    β::Float64;
+    ν0_estimator::Function = lin_fit,
+)
     ef = nothing
     rc_res = 0.0
-    for rc in 0.1:0.1:20.0
-        ef = estimate_ef(Σ_ladder, kG, μ, β; ν0_estimator=ν0_estimator, relax_zero_condition=rc)
+    for rc = 0.1:0.1:20.0
+        ef = estimate_ef(Σ_ladder, kG, μ, β; ν0_estimator = ν0_estimator, relax_zero_condition = rc)
         conn = fermi_surface_connected(ef, kG)
         rc_res = rc
         conn >= 0 && break

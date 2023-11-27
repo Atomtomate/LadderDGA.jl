@@ -78,14 +78,20 @@ function __init__()
     s = ArgParseSettings()
     @add_arg_table! s begin
         "--config", "-c"
-            help = "configuration file, default `config.toml`"
-            arg_type = String
-            default = "config.toml"
+        help = "configuration file, default `config.toml`"
+        arg_type = String
+        default = "config.toml"
     end
 
     args = parse_args([], s)
     io = stdout
-    global logger_console = ConsoleLogger(io, Logging.Info, meta_formatter=Logging.default_metafmt, show_limited=true, right_justify=0)
+    global logger_console = ConsoleLogger(
+        io,
+        Logging.Info,
+        meta_formatter = Logging.default_metafmt,
+        show_limited = true,
+        right_justify = 0,
+    )
     global logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
-    global logger = global_logger(TeeLogger(logger_console,logger_file))
+    global logger = global_logger(TeeLogger(logger_console, logger_file))
 end

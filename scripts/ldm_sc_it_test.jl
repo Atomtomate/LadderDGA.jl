@@ -27,9 +27,6 @@ println("output file location: ", output_file)
 flush(stdout)
 
 
-gen_EPot_diff(result::λ_result) = result.EPot_p1 - result.EPot_p2
-gen_PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
-
 
 # ====================== lDGA ======================
 bubble     = calc_bubble(:DMFT, lDGAhelper);
