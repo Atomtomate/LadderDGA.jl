@@ -44,7 +44,7 @@ end
     @test LadderDGA.LambdaCorrection.newton_right(f4,1.2,-1.0) ≈ 2.0/1.1
 
     res_t1 = 11.569472045821662
-    @test LadderDGA.LambdaCorrection.newton_secular(f1,df1,2.2+1e-7) ≈ res_t1
+    @test LadderDGA.LambdaCorrection.newton_secular(f1,df1,2.2) ≈ res_t1
     @test LadderDGA.LambdaCorrection.newton_right(f1,df1,2.3,2.2) ≈ res_t1
     @test LadderDGA.LambdaCorrection.newton_secular(f1,2.2) ≈ res_t1
     @test LadderDGA.LambdaCorrection.newton_right(f1,2.3,2.2) ≈ res_t1
