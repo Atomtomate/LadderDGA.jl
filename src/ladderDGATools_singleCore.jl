@@ -54,7 +54,6 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
     return λ0
 end
 
-
 #TODO: THIS NEEDS CLEANUP!
 function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
     if Nk(kG) == 1
@@ -71,21 +70,8 @@ function conv_tmp!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{Comp
     return nothing
 end
 
-
-function calc_Σ_ω!(
-    eomf::Function,
-    Σ_ω::OffsetArray{ComplexF64,3},
-    Kνωq_pre::Vector{ComplexF64},
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    Gνω::GνqT,
-    λ₀::AbstractArray{ComplexF64,3},
-    U::Float64,
-    kG::KGrid,
-    sP::SimulationParameters,
-)
+function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64}, χm::χT, γm::γT, χd::χT, γd::γT, 
+                  Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid, sP::SimulationParameters)
 
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gIm
     fill!(Σ_ω, zero(ComplexF64))
@@ -103,21 +89,9 @@ function calc_Σ_ω!(
     end
 end
 
-function calc_Σ_ω!(
-    eomf::Function,
-    Σ_ladder::OffsetMatrix{ComplexF64},
-    Kνωq_pre::Vector{ComplexF64},
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    Gνω::GνqT,
-    λ₀::AbstractArray{ComplexF64,3},
-    U::Float64,
-    kG::KGrid,
-    sP::SimulationParameters,
-)
-
+function calc_Σ_ω!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, 
+                   χm::χT, γm::γT, χd::χT, γd::γT, Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64,
+                   kG::KGrid, sP::SimulationParameters)
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gIm
     fill!(Σ_ladder, zero(ComplexF64))
     ω_axis = χm.indices_ω
@@ -135,22 +109,9 @@ function calc_Σ_ω!(
     end
 end
 
-function calc_Σ!(
-    Σ_ladder::OffsetMatrix{ComplexF64},
-    Kνωq_pre::Vector{ComplexF64},
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    χ_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{_eltype,3},
-    tc_factor::Vector,
-    Gνω::GνqT,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    tc::Bool = true,
-)::Nothing
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, χm::χT, γm::γT, χd::χT, γd::γT, 
+                 χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3}, tc_factor::Vector, Gνω::GνqT, 
+                 kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true)::Nothing
     Σ_hartree = mP.n * mP.U / 2.0
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     tail_correction = (tc ? tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor) : 0.0)
@@ -158,22 +119,9 @@ function calc_Σ!(
     return nothing
 end
 
-function calc_Σ!(
-    Σ_ladder::OffsetMatrix{ComplexF64},
-    Σ_ladder_ω::OffsetArray{ComplexF64,3},
-    Kνωq_pre::Vector{ComplexF64},
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    χ_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{_eltype,3},
-    tc_factor::Vector,
-    Gνω::GνqT,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    tc::Bool = true,
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64},
+                χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                tc_factor::Vector, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
 )::Nothing
 
     Σ_hartree = mP.n * mP.U / 2.0
@@ -199,23 +147,9 @@ function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{_e
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax = νmax, λm = λm, λd = λd, tc = tc)
 end
 
-function calc_Σ(
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    χ_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{_eltype,3},
-    Σ_loc::OffsetVector{ComplexF64},
-    Gνω::GνqT,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    νmax::Int = sP.n_iν,
-    λm::Float64 = 0.0,
-    λd::Float64 = 0.0,
-    tc::Bool = true,
-)
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                νmax::Int = sP.n_iν, λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true)
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     Nq, Nω = size(χm)
@@ -237,6 +171,9 @@ function calc_Σ(
 end
 
 
+
+
+
 """
     calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,h::lDΓAHelper,λ₀::AbstractArray{ComplexF64,3};λm::Float64=0.0, λd::Float64=0.0)
     calc_Σ_parts(χm::χT,γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
@@ -247,25 +184,14 @@ Calculates the ``lD\\GammaA`` self-energy (see also [`calc_Σ`](@ref calc_Σ)),
 but split into `7` contributions from: `χm`, `γm`, `χd`, `γd`, `U`, `Fm` + `Σ_hartree`, `tail_correction`.
 
 """
-function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, h::lDΓAHelper; tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
-    calc_Σ_parts(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP; tc = tc, λm = λm, λd = λd)
+function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{_eltype,3}, h::lDΓAHelper; 
+                      tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
+    calc_Σ_parts(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP; tc = tc, λm = λm, λd = λd)
 end
 
-function calc_Σ_parts(
-    χm::χT,
-    γm::γT,
-    χd::χT,
-    γd::γT,
-    χ_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{_eltype,3},
-    Gνω::GνqT,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    tc::Bool = true,
-    λm::Float64 = 0.0,
-    λd::Float64 = 0.0,
-)
+function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                      Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                      tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
     Σ_hartree = mP.n * mP.U / 2.0
     Nq, Nω = size(χm)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
@@ -293,7 +219,7 @@ function calc_Σ_parts(
     calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 6] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β .+ Σ_hartree
     for qi = 1:size(Σ_ladder, 1)
-        Σ_ladder.parent[qi, :, 7] .= tc_term
+        Σ_ladder.parent[qi, :, 7] .= tc_term[1,:]
     end
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
@@ -331,17 +257,10 @@ function tail_correction_term(χm_nl::Float64, χm_loc::Float64, tail_factor::Ve
     return reshape((χm_nl - χm_loc) .* tail_factor, 1, length(tail_factor))
 end
 
-function tail_correction_term(
-    U::Float64,
-    β::Float64,
-    n::Float64,
-    χm_nl::Float64,
-    χm_loc::Float64,
-    Σ_loc::OffsetVector{ComplexF64},
-    iν::Vector{ComplexF64};
-    δ::Real = min(0.001, 1 ./ 10.0 * length(iν)),
-)
+function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64, 
+                              Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              δ::Real = min(0.001, 1 ./ 10.0 * length(iν)))
 
-    tail_factor = tail_factor(U, β, n, Σ_loc, iν, δ = δ)
-    return tail_correction_term(χm_nl, χm_loc, tail_factor)
+    tf = tail_factor(U, β, n, Σ_loc, iν, δ = δ)
+    return tail_correction_term(χm_nl, χm_loc, tf)
 end

@@ -67,41 +67,11 @@ mutable struct λ_result{T<:CorrectionMethod}
     μ::Float64
     n::Float64
 
-    function λ_result(
-        λm::Float64,
-        λd::Float64,
-        type::Type{T},
-        sc_converged::Bool,
-        eps_abs::Float64,
-        sc_eps_abs::Float64,
-        EKin::Float64,
-        EPot_p1::Float64,
-        EPot_p2::Float64,
-        PP_p1::Float64,
-        PP_p2::Float64,
-        trace::Union{DataFrame,Nothing},
-        G_ladder::Union{Nothing,OffsetMatrix},
-        Σ_ladder::Union{Nothing,OffsetMatrix},
-        μ::Float64,
-        n::Float64,
+    function λ_result(λm::Float64, λd::Float64, type::Type{T}, sc_converged::Bool, eps_abs::Float64, sc_eps_abs::Float64,
+        EKin::Float64, EPot_p1::Float64,EPot_p2::Float64, PP_p1::Float64,PP_p2::Float64, trace::Union{DataFrame,Nothing},
+        G_ladder::Union{Nothing,OffsetMatrix}, Σ_ladder::Union{Nothing,OffsetMatrix}, μ::Float64, n::Float64,
     ) where {T<:CorrectionMethod}
-        new{T}(
-            λm,
-            λd,
-            sc_converged,
-            eps_abs,
-            sc_eps_abs,
-            EKin,
-            EPot_p1,
-            EPot_p2,
-            PP_p1,
-            PP_p2,
-            trace,
-            G_ladder,
-            Σ_ladder,
-            μ,
-            n,
-        )
+        new{T}(λm, λd, sc_converged,  eps_abs, sc_eps_abs, EKin, EPot_p1, EPot_p2, PP_p1, PP_p2, trace, G_ladder, Σ_ladder, μ, n)
     end
 end
 

@@ -111,7 +111,6 @@ function sample_f(f::Function, xmin::T, xmax::T; feps_abs::Float64=1e-8, xeps_ab
         # TODO: this needs to be replaced by popfirst! for future versions of DataStructures
         x1, f1, x2, f2 = dequeue!(todo)
 
-       
         if it == maxit
             push!(done, (x1,f1))
         else

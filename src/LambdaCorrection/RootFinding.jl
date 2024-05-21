@@ -81,7 +81,8 @@ Base.@assume_effects :total function newton_right(f::Function, df::Function, sta
         xi = xlast - dfii * fi
         # Found solution in the correct interval
         (norm(fi) < atol) && (xi > min) && break
-        if xi < min                              # only ever search to the right!
+        # only ever search to the right!
+        if xi < min
             done = true
             xi = NaN
         else
@@ -102,20 +103,17 @@ end
 
 # ------------------------------------------------ 2D  -----------------------------------------------
 #
-Base.@assume_effects :total function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps = 500, atol = 1e-8, δ::Float64=1e-4)::Vector{Float64}
+Base.@assume_effects :total function newton_right(
+    f::Function, start::Vector{Float64}, min::Vector{Float64}; 
+    nsteps = 500, atol = 1e-8, δ::Float64=1e-4
+)::Vector{Float64}
     N = length(start)
     newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps = nsteps, atol = atol, reset_backoff=δ)
 end
 
 Base.@assume_effects :total function newton_right(
-    f::Function,
-    start::MVector{N,Float64},
-    min::MVector{N,Float64};
-    nsteps::Int = 500,
-    atol::Float64 = 1e-8,
-    verbose::Bool = false,
-    max_reset::Int = 5,
-    reset_backoff::Float64 = 1.0,
+    f::Function, start::MVector{N,Float64}, min::MVector{N,Float64};
+    nsteps::Int = 500, atol::Float64 = 1e-8, verbose::Bool = false, max_reset::Int = 5, reset_backoff::Float64 = 1.0,
 )::Vector{Float64} where {N}
     done = false
     xi_last::MVector{N,Float64} = deepcopy(start)
@@ -168,7 +166,10 @@ Normal Newton method, used for example by [`newton_transformed`](@ref newton_tra
 
 `xi` is the initial guess, for functions with multiple roots, the result will depend on this guess.
 """
-Base.@assume_effects :total function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+Base.@assume_effects :total function newton(
+    f::Function, df::Function, xi::Float64; 
+    nsteps::Int = 500, atol::Float64 = 1e-10
+)::Float64
     done  = false
     i     = 1
     while !done
@@ -204,7 +205,10 @@ Arguments:
 - **`nsteps`** : maximum number of steps
 - **`atol`**   : convergence criterion, i.e. ``|f(x_0)| < `` `atol` will return root `x0`.
 """
-Base.@assume_effects :total function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+Base.@assume_effects :total function newton_secular(
+    f::Function, df::Function, xp::Float64; 
+    nsteps::Int = 500, atol::Float64 = 1e-10
+)::Float64
     done  = false
     xi    = 1.0
     xi_tf = NaN
@@ -222,7 +226,10 @@ Base.@assume_effects :total function newton_secular(f::Function, df::Function, x
     return xi_tf#inv_newton_secular_transform(xi,xp)
 end
 
-Base.@assume_effects :total function newton_secular(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+Base.@assume_effects :total function newton_secular(
+    f::Function, xp::Float64; 
+    nsteps::Int = 500, atol::Float64 = 1e-10
+)::Float64
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_secular(f, df, xp; nsteps = nsteps, atol = atol)
 end
