@@ -9,13 +9,13 @@
 # ==================================================================================================== #
 
 """
-    λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
-                       νmax::Int=-1, λ_min_δ::Float64 = 0.0001, λ_val_only::Bool=false, verbose::Bool=false,
-                       fit_μ::Bool=true, validation_threshold::Float64=1e-8, tc=true)
-
+    λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::Array{ComplexF64,3},h::lDΓAHelper;
+                       νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, 
+                       validation_threshold::Float64 = 1e-8, log_io = devnull
 """
 function λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::Array{ComplexF64,3},h::lDΓAHelper;
-                       νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, validation_threshold::Float64 = 1e-8, verbose::Bool = false
+                       νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, 
+                       validation_threshold::Float64 = 1e-8, log_io = devnull
 )
     rhs  = λm_rhs(χm, χd, h; λ_rhs = :native)
     λm   = λm_correction_val(χm, rhs, h)
@@ -29,15 +29,15 @@ function λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::Array{Complex
     EPot_p2 = (h.mP.U / 2) * real(χ_d_sum - χ_m_sum) + h.mP.U * (h.mP.n / 2 * h.mP.n / 2)
     ndens       = filling_pos(G_ladder[:,0:h.sP.n_iν], h.kG, h.mP.U, μnew, h.mP.β, improved_sum=true)
     res = λ_result(λm, χd.λ, mCorrection, true, validation_threshold, NaN, EKin_p1, EPot_p1, EPot_p2, PP_p1, PP_p2, nothing, G_ladder, Σ_ladder, μnew, ndens, h.mP.n)
-    if verbose
+    if log_io != devnull
         n_check, pp_check, epot_check = validate(res)
         ndens_check = filling_pos(G_ladder[:,0:h.sP.n_iν], h.kG, h.mP.U, μnew, h.mP.β, improved_sum=false)
-        println("Checking λm correction. Sums check χm: ", round(validate_sums(h.kG, χm, λm),digits=6), ", χd: ", round(validate_sums(h.kG,χd),digits=6))
-        println("   density p2 = ", round(ndens,digits=6), "(impr.), " , round(ndens_check,digits=6), "(naive), p1 = ", round(h.mP.n,digits=6), " (check = $n_check)")
-        println("   Pauli-Principle p1  = $(round(PP_p1,digits=6))")
-        println("   Pauli-Principle p2  = $(round(PP_p2,digits=6))", " (check = $pp_check)")
-        println("   Potential Energy p1 = $(round(EPot_p1,digits=6))")
-        println("   Potential Energy p2 = $(round(EPot_p2,digits=6))", " (check = $epot_check)")
+        println(log_io, "Checking λm correction. Sums check χm: ", round(validate_sums(h.kG, χm, λm),digits=6), ", χd: ", round(validate_sums(h.kG,χd),digits=6))
+        println(log_io, "   density p2 = ", round(ndens,digits=6), "(impr.), " , round(ndens_check,digits=6), "(naive), p1 = ", round(h.mP.n,digits=6), " (check = $n_check)")
+        println(log_io, "   Pauli-Principle p1  = $(round(PP_p1,digits=6))")
+        println(log_io, "   Pauli-Principle p2  = $(round(PP_p2,digits=6))", " (check = $pp_check)")
+        println(log_io, "   Potential Energy p1 = $(round(EPot_p1,digits=6))")
+        println(log_io, "   Potential Energy p2 = $(round(EPot_p2,digits=6))", " (check = $epot_check)")
     end
     return res
 end

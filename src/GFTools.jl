@@ -133,7 +133,7 @@ function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64},
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for (ki, ϵk) in enumerate(ϵkGrid)
         for ind in range
-            Σi = ind ∈ axes(Σ,1) ? Σ[ki,ind] : Σloc[ind]
+            Σi = ind ∈ axes(Σ,2) ? Σ[ki,ind] : Σloc[ind]
             @inbounds res[ki, ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
@@ -230,11 +230,13 @@ function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVec
         try
             find_zero(fμ, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
         catch e
-            @warn "improved ($improved_sum_filling) μ determination failed. Falling back to naive summation!"
+            @warn "improved ($improved_sum_filling) μ determination failed with $(typeof(e)). Falling back to naive summation!"
             try
                 find_zero(fμ_fallback, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
             catch e_int
-                @warn "μ determination failed with: $e, fallback failed with $e_int"
+                G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
+                filling_pos(view(G_new, :, νFitRange), kG, mP.U, μ, mP.β; improved_sum = false) - n
+                @warn "μ determination failed with: $(typeof(e)), fallback failed with $(typeof(e_int))"
                 return NaN
             end
         end

@@ -21,7 +21,7 @@ export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
 export λ_correction, λm_correction, λdm_correction, λ_result
-export newton_secular, sample_f
+export newton_right, newton_secular, sample_f
 export run_sc
 
 export EPot_diff, PP_diff, n_diff, validate, converged, sc_converged
@@ -33,7 +33,7 @@ include("Types.jl")
 include("conditions_singleCore.jl")
 include("conditionsRPA_singleCore.jl")
 # include("conditions_new_mu_test.jl")
-# include("conditions_dbg.jl")
+include("conditions_dbg.jl")
 
 
 end

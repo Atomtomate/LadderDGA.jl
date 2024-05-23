@@ -17,10 +17,10 @@ end
     df(x) = 6x^2 + 1 
     f2(x) = [2x[1]^3 + x[1] - 3,x[2]]  # real root at x = [1,0]
     df2(x) = [6x^2 + 1, 1] 
-    @test newton_right(f, df, 0.0, -1.0) ≈ 1.0
-    @test newton_right(f, 0.0, -1.0) ≈ 1.0
-    @test newton_right(f, df, -0.9, -1.0) ≈ 1.0
-    @test all(newton_right(f2, [0.0, 0.0], [-1.0, -1.0]) .≈ [1.0, 0.0])
+    @test LadderDGA.LambdaCorrection.newton_right(f, df, 0.0, -1.0) ≈ 1.0
+    @test LadderDGA.LambdaCorrection.newton_right(f, 0.0, -1.0) ≈ 1.0
+    @test LadderDGA.LambdaCorrection.newton_right(f, df, -0.9, -1.0) ≈ 1.0
+    @test all(LadderDGA.LambdaCorrection.newton_right(f2, [0.0, 0.0], [-1.0, -1.0]) .≈ [1.0, 0.0])
 end
 
 @testset "sample f" begin

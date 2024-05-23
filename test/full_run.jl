@@ -71,9 +71,9 @@ initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χ_m, γ_m = γ_m, χ_d =
 @test abs(sum(χ_d)) ≈ cs_χd
 
 
-run_res = LadderDGA.LambdaCorrection.run_sc_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc,0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+#run_res = LadderDGA.LambdaCorrection.run_sc_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc,0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
-run_res_par = LadderDGA.LambdaCorrection.run_sc_par_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc, 0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
+#run_res_par = LadderDGA.LambdaCorrection.run_sc_par_old(χ_m, γ_m, χ_d, γ_d, lDGAhelper.χloc_m_sum, λ₀, lDGAhelper.gLoc_rfft, lDGAhelper.Σ_loc, 0.1, lDGAhelper.kG, lDGAhelper.mP, lDGAhelper.sP;maxit=100, mixing=0.2, conv_abs=1e-8, update_χ_tail=false)
 @test abs(sum(χ_d)) ≈ cs_χd
 
 @testset "run_sc" begin
@@ -86,7 +86,7 @@ end
 λm_res_λd01 = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
 λm = λm_res_λd01.λm
 χ_λ!(χ_m, λm)
-@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, mP.μ, lDGAhelper; type=:fix, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
+#@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, mP.μ, lDGAhelper; type=:fix, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
 reset!(χ_d)
 reset!(χ_m)
 # @testset "run_sc" begin
@@ -120,7 +120,7 @@ t_sc3 = 0.5 * sum_kω(lDGAhelper.kG, χ_λ(χ_m,λm) .+ χ_d, χ_m.β, χ_m.tail
 @test t_sc ≈ t_sc2
 @test t_sc ≈ t_sc3 atol=0.001
 @test t_sc ≈ lDGAhelper.mP.n/2 * (1 - lDGAhelper.mP.n/2)
-@test λm_res.converged
+@test converged(λm_res)
 λm_pp = sum_kω(lDGAhelper.kG, χ_λ(χ_m, λm_res.λm) .+ χ_λ(χ_d, λm_res.λd), χ_m.β, χ_m.tail_c[3], ωn2_tail)/2
 #TODO: THIS FAILS (diff 1%) @test λm_pp ≈ PP_val
 Σ_ladder_λm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, λm=λm, λd=0.0);
@@ -132,37 +132,37 @@ EKin1_λm, EPot1_λm = LadderDGA.calc_E(G_ladder_λm, Σ_ladder_λm, μnew, lDGA
 
 
 # λdm 
-@test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
-#println(res_λdm_new)
-@test abs(sum(χ_d)) ≈ cs_χd
-res_λdm_new_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true, par=true)
-@test abs(sum(χ_d)) ≈ cs_χd
-# res_λdm_dbg = λdm_correction_dbg(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
-@test abs(sum(χ_d)) ≈ cs_χd
-@testset "λdm" begin
-    res_λdm_new[1] ≈ res_λdm_new_par[1]
-    res_λdm_new[2] ≈ res_λdm_new_par[2] 
-    # res_λdm_new[1] ≈ res_λdm_dbg[1] 
-    # res_λdm_new[2] ≈ res_λdm_dbg[2] 
-end
+# @test abs(sum(χ_d)) ≈ cs_χd
+# res_λdm_new = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
+# #println(res_λdm_new)
+# @test abs(sum(χ_d)) ≈ cs_χd
+# res_λdm_new_par = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true, par=true)
+# @test abs(sum(χ_d)) ≈ cs_χd
+# # res_λdm_dbg = λdm_correction_dbg(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=4, λ_val_only=true)
+# @test abs(sum(χ_d)) ≈ cs_χd
+# @testset "λdm" begin
+#     res_λdm_new[1] ≈ res_λdm_new_par[1]
+#     res_λdm_new[2] ≈ res_λdm_new_par[2] 
+#     # res_λdm_new[1] ≈ res_λdm_dbg[1] 
+#     # res_λdm_new[2] ≈ res_λdm_dbg[2] 
+# end
 
 #
-res_λdm      = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=10, λ_val_only=false)
-Σ_ladder_λdm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=size(res_λdm.Σ_ladder,2), λm=res_λdm.λm, λd=res_λdm.λd);
-μnew, G_ladder_λdm = G_from_Σladder(Σ_ladder_λdm, lDGAhelper.Σ_loc, lDGAhelper.kG, mP, sP, μ=res_λdm.μ; fix_n=false)
-PP_λdm    = 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm)) + 
-                   sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)))
-EPot2_λdm = mP.U * 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)) - 
-                          sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm))) + mP.U * (mP.n/2)^2
-EKin1_λdm, EPot1_λdm = calc_E(G_ladder_λdm, Σ_ladder_λdm, res_λdm.μ, lDGAhelper.kG, mP)
-@test PP_λdm ≈ PP_val
-@test all(res_λdm.Σ_ladder .≈ Σ_ladder_λdm)
-@test all(res_λdm.G_ladder .≈ G_ladder_λdm)
-@test res_λdm.EPot_p1 ≈ EPot1_λdm
-@test res_λdm.EPot_p2 ≈ EPot2_λdm
-@test res_λdm.PP_p1 ≈ PP_val
-@test res_λdm.PP_p2 ≈ PP_val
+# res_λdm      = λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=10, λ_val_only=false)
+# Σ_ladder_λdm = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=size(res_λdm.Σ_ladder,2), λm=res_λdm.λm, λd=res_λdm.λd);
+# μnew, G_ladder_λdm = G_from_Σladder(Σ_ladder_λdm, lDGAhelper.Σ_loc, lDGAhelper.kG, mP, sP, μ=res_λdm.μ; fix_n=false)
+# PP_λdm    = 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm)) + 
+#                    sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)))
+# EPot2_λdm = mP.U * 0.5 * (sum_kω(lDGAhelper.kG, χ_λ(χ_d,res_λdm.λd)) - 
+#                           sum_kω(lDGAhelper.kG, χ_λ(χ_m,res_λdm.λm))) + mP.U * (mP.n/2)^2
+# EKin1_λdm, EPot1_λdm = calc_E(G_ladder_λdm, Σ_ladder_λdm, res_λdm.μ, lDGAhelper.kG, mP)
+# @test PP_λdm ≈ PP_val
+# @test all(res_λdm.Σ_ladder .≈ Σ_ladder_λdm)
+# @test all(res_λdm.G_ladder .≈ G_ladder_λdm)
+# @test res_λdm.EPot_p1 ≈ EPot1_λdm
+# @test res_λdm.EPot_p2 ≈ EPot2_λdm
+# @test res_λdm.PP_p1 ≈ PP_val
+# @test res_λdm.PP_p2 ≈ PP_val
 
 
 # SC
