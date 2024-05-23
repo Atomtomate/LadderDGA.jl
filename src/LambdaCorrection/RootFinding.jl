@@ -81,7 +81,8 @@ function newton_right(f::Function, df::Function, start::Float64, min::Float64; n
         xi = xlast - dfii * fi
         # Found solution in the correct interval
         (norm(fi) < atol) && (xi > min) && break
-        if xi < min                              # only ever search to the right!
+        # only ever search to the right!
+        if xi < min
             done = true
             xi = NaN
         else
