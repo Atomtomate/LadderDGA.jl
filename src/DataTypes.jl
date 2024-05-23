@@ -161,6 +161,9 @@ end
 
 Struct for the RPA bubble term.
 
+TODO: this does not use the χ₀Asym function and mixes thermodynamic quantities (kinetic energy) with
+      tail coefficients (they are the same, but should not be stored this way here).
+
 Constructor
 ------------
 χ₀RPA_T(data::Array{_eltype,2}, ωnGrid::AbstractVector{Int}, νnGrid::UnitRange{Int64}, β::Float64)
@@ -174,15 +177,21 @@ Fields
 - **`axis_types`**   : `Dict{Symbol,Int}`, Dictionary mapping `:q, :ω` to the axis indices.
 - **`indices_ω`**    : `Vector{Int}`, `m` indices m of bosonic ``\\omega_m`` Matsubara frequencies.
 - **`β`**            : `Float64`, inverse temperature.
+- **`e_kin`**        : `Float64`, kinetic energy.
+- **`Nq`**           : `Int`, Number of points per dimension that are used to sample the reciprocal space
+- **`Ngl`**           : `Int`, Number of gauß-legendre sample points per dimension that where used to calculate each element
 """
 struct χ₀RPA_T <: MatsubaraFunction{_eltype_RPA,2}
     data::Array{_eltype_RPA,2}
     axis_types::Dict{Symbol,Int}
     indices_ω::Vector{Int}
     β::Float64
-    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64)
-        indices_ω = [i for i in ωnGrid]
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, β)
+    e_kin::Float64
+    Nq::Int64
+    Ngl::Int64
+    function χ₀RPA_T(data::Array{_eltype_RPA,2}, ωnGrid::UnitRange{Int}, β::Float64, e_kin::Float64, Nq::Int64, Ngl::Int64)
+        indices_ω = [i for i in ωnGrid];
+        new(data, Dict(:q => 1, :ω => 2), indices_ω, β, e_kin, Nq, Ngl)
     end
 end
 # ------------------------------------------------- χ ------------------------------------------------
@@ -235,7 +244,7 @@ end
 
 Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 """
-ωn_grid(χ::χT) = 2im .* π .* χ.indices_ω ./ χ.β
+ωn_grid(χ::Union{χT, χ₀RPA_T}) = 2im .* π .* χ.indices_ω ./ χ.β
 
 
 """
@@ -246,24 +255,27 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 Returns ``\\int_\\mathrm{BZ} dk \\sum_\\omega \\chi^\\omega_k``. The bosonic Matsubara grid can be precomputed and given with `ωn_arr` to increase performance.
 
 TODO: for now this is only implemented for tail correction in the ``1 / \\omega^2_n`` term!
-Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the rverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
+Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the reverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
-function sum_kω(kG::KGrid, χ::χT;
-                ωn_arr = ωn_grid(χ),force_full_range = false, transform = nothing, λ::Float64 = NaN
-)::Float64
-    λ ≈ 0 && (λ = NaN)
-    χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
-    !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!")
-    !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
-    !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
+function sum_kω(kG::KGrid, χ::Union{χT, χ₀RPA_T}; ωn_arr=ωn_grid(χ), force_full_range=false, transform=nothing, λ::Float64=NaN)::Float64
+    if typeof(χ) == χT
+        χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
+        !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!") 
+        !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
+        !isnan(λ) && (transform = (f(x::Float64)::Float64 = χ_λ(x, λ)))
+        tail_c = χ.tail_c[3]
+    elseif typeof(χ) == χ₀RPA_T
+        tail_c = χ.e_kin
+        force_full_range = true
+    end
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
 
-    ωn2_tail = real(χ.tail_c[3] ./ ωn_arr .^ 2)
-    zero_ind = findfirst(x -> !isfinite(x), ωn2_tail)
+    ωn2_tail = real(tail_c ./ ωn_arr .^ 2)
+    zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
     ωn2_tail[zero_ind] = 0.0
-    res = sum_kω(kG, view(χ.data, :, ω_slice), χ.β, χ.tail_c[3], ωn2_tail, transform = transform)
+    res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, tail_c, ωn2_tail, transform=transform) 
     return res
 end
 
@@ -295,6 +307,8 @@ end
 
 WARNING: This function is a non optimized debugging function! See [`sum_kω`](@ref sum_kω), which should return the same result if the asymptotics are captured correctly.
 Optional function `f` transforms `χ` before summation.
+
+WARNING: This function might be buggy!
 """
 function sum_ωk(kG::KGrid, χ::χT; force_full_range = false, λ::Float64 = NaN)::Float64
     λ_check = !isnan(λ) && λ != 0
@@ -312,10 +326,19 @@ end
     sum_ω!(res::Vector{ComplexF64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range=false)::Nothing
     sum_ω!(ωn_arr::Vector{T}, χ::AbstractVector{T}, tail_c::Vector{Float64}, β::Float64; force_full_range=false)::T where T <: Union{Float64,ComplexF64}
 
-Sums the physical susceptibility over all usable (if `force_full_range` is not set to `true`) bosonic frequencies, including improvd tail summation, if `χ.tail_c` is set.
+    Sums the physical susceptibility over all usable (if `force_full_range` is not set to `true`) bosonic frequencies, including improvd tail summation, if `χ.tail_c` is set.
+
+    WARNING: This function might be buggy!
 """
 function sum_ω(χ::χT; force_full_range = false)
-    res = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:q]))
+    # TODO: FREDDI:
+    # If I understand the implementation correctly, then this type of calculation is wrong.
+    # If the summation over the bosonic frequencies is carried out first, then a function of
+    # the points in the reciprocal space results for the tail coefficient. However, in the
+    # function that performs the summation over the bosonic frequency, it uses the kinetic 
+    # energy as the tail coefficient. This seems strange to me. I suspect that this is the
+    # reason why the results of the functions sum_ωk and sum_kω do not match.
+    res  = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:q]))
     ωn_arr = ωn_grid(χ)
     sum_ω!(res, ωn_arr, χ; force_full_range = force_full_range)
     return res
@@ -326,7 +349,7 @@ function sum_ω!(res::Vector{Float64}, ωn_arr::Vector{ComplexF64}, χ::χT; for
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
     for qi in eachindex(res)
-        res[qi] = sum_ω(ωn_arr, view(χ, qi, ω_slice), χ.tail_c, χ.β::Float64)
+        res[qi] = sum_ω(ωn_arr, view(χ, qi, ω_slice), χ.tail_c, χ.β)
     end
     return nothing
 end

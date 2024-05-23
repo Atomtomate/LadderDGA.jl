@@ -72,6 +72,8 @@ mutable struct RPAHelper <: RunHelper
     gLoc::GνqT
     gLoc_fft::GνqT
     gLoc_rfft::GνqT
+    Σ_loc::OffsetVector
+    χloc_m_sum::Float64
 end
 
 
@@ -84,7 +86,6 @@ Computes all needed objects for DΓA calculations.
 Returns: [`lDΓAHelper`](@ref lDΓAHelper)
 """
 function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; silent::Bool = false)
-
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
     @timeit to "load f" χDMFT_m, χDMFT_d, Γ_m, Γ_d, gImp_in, Σ_loc = jldopen(env.inputVars, "r") do f
@@ -212,13 +213,11 @@ Computes all needed objects for RPA calculations.
 
 Returns: [`RPAHelper`](@ref RPAHelper)
 """
-function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool = false)
 
+function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool = false)
+    # TODO: refactor this as a function
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
-
-    # TODO: refactor this as a function
-
     @timeit to "Compute GLoc" begin
         gs = gridshape(kG)
         kGdims = length(gs)
@@ -230,12 +229,22 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
         gLoc_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
         ϵk_full = expandKArr(kG, kG.ϵkGrid)[:]
         for νn in sP.fft_range
-            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, mP.U * mP.n / 2 + 0.0im), ϵk_full), gridshape(kG))
+            gLoc_i = reshape(map(ϵk -> G_from_Σ(νn, mP.β, mP.μ, ϵk, 0.0im), ϵk_full), gridshape(kG))
             gLoc[:, νn] = reduceKArr(kG, gLoc_i)
             selectdim(gLoc_fft, νdim, νn) .= fft(gLoc_i)
             selectdim(gLoc_rfft, νdim, νn) .= fft(reverse(gLoc_i))
         end
     end
 
-    return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft)
+    @warn "Proper implementation of Σ_loc needed!"
+    Σ_loc = OffsetVector(repeat([0.0im], 5001), 0:5000) # Wird nur zum Verlaengern der Selbstenergie verwendet. An dieser Stelle kann ich optimieren. Diese Stelle ist der Grund dafuer, dass die Selbenergie einen Knick bekommt.  mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
+    @warn "χloc_m_sum is currently hardcoded to 0.25! This value should be given via the chi0-file!"
+    χloc_m_sum = 0.25
+    #if mP.μ ≈ mP.U * mP.n / 2
+    #    χloc_m_sum = 0.25
+    #else
+    #    χloc_m_sum = sum_kω(kG, χ₀) #this is used for the tail correction term of the self energy
+    #end
+    println("sum_kω(χ₀)=$(χloc_m_sum)")
+    return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end

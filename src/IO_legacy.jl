@@ -387,26 +387,13 @@ function writeFortranχ(dirName::String, χ, χ_λ, qGrid, usable_ω)
                 res = ωi in usable_ω ? χ_λ[ωi-first(usable_ω)+1, 1] : 0.0
                 if length(qGrid[1]) == 3
                     @printf(
-                        f,
-                        "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
-                        qGrid[qi][1],
-                        qGrid[qi][2],
-                        qGrid[qi][3],
-                        real(χ[ωi, qi]),
-                        imag(χ[ωi, qi]),
-                        real(res),
-                        imag(res)
+                        f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                        qGrid[qi][1], qGrid[qi][2], qGrid[qi][3], real(χ[ωi, qi]), imag(χ[ωi, qi]), real(res), imag(res)
                     )
                 else
                     @printf(
-                        f,
-                        "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
-                        qGrid[qi][1],
-                        qGrid[qi][2],
-                        real(χ[ωi, qi]),
-                        imag(χ[ωi, qi]),
-                        real(res),
-                        imag(res)
+                        f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                        qGrid[qi][1], qGrid[qi][2], real(χ[ωi, qi]), imag(χ[ωi, qi]), real(res), imag(res)
                     )
                 end
             end
@@ -453,17 +440,8 @@ function writeFortranEnergies(E_Kin, E_Pot, E_Kin_ED, E_Pot_ED, β, dirName::Str
     open(fn_DMFT, "w") do f
         for i = 1:length(E_Kin)
             @printf(
-                f,
-                "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
-                imag(iν_n[i]),
-                0.0,
-                0.0,
-                real(E_Kin_ED[i]),
-                0.0,
-                0.0,
-                0.0,
-                real(E_Pot_ED[i]),
-                0.0
+                f, "  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f  %18.10f\n",
+                imag(iν_n[i]), 0.0, 0.0, real(E_Kin_ED[i]), 0.0, 0.0, 0.0, real(E_Pot_ED[i]), 0.0
             )
         end
     end

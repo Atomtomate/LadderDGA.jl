@@ -93,6 +93,15 @@ G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF
 
 
 """
+    G_from_Σ(Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters;
+                  μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+            )
+    G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int},
+                mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+            )::Nothing
+
+    mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+
     G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractArray = nothing) 
     G_from_Σ!(res::Matrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector = nothing) 
 
@@ -178,7 +187,7 @@ end
 
 function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64)
     νn_list = axes(Gladder, 2)
-    length(ϵkGrid) != size(Σ,2)
+    length(kG.ϵkGrid) != size(res,2)
     for νn in νn_list
         for ki in axes(Gladder, 1)
             res[ki, νn] = μ + 1im * (2 * νn + 1) * π / β - kG.ϵkGrid[ki] - 1 / Gladder[ki, νn]
@@ -193,14 +202,14 @@ end
     G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; 
                     fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2)) )
 
-Computes Green's function from lDΓA self-energy.
+Computes Green's function from lDΓA self-energy. This is the Greensfunction used in eq. (8) of Stobbe, J., & Rohringer, G. (2022). Consistency of potential energy in the dynamical vertex approximation. Physical Review B, 106(20), 205101.
 
 The resulting frequency range is given by default as `νRange = sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
 TODO: documentation for arguments
 TODO: fit function computes loads of unnecessary frequencies
 """
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                            fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
+                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
     )
         
         G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), νRange)
@@ -394,7 +403,7 @@ end
 subtract the c/(iω)^power high frequency tail from `inp` and store in `outp`. See also [`subtract_tail`](@ref subtract_tail)
 """
 function subtract_tail!(outp::AbstractVector, inp::AbstractVector, c::Float64, iω::Vector{ComplexF64}, power::Int)
-    for n = 1:length(inp)
+    for n = eachindex(inp)
         if iω[n] != 0
             outp[n] = inp[n] - (c / (iω[n]^power))
         else
@@ -405,16 +414,17 @@ end
 
 """
     ω_tail(ωindices::AbstractVector{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
-    ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters) 
+    ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, β::Float64, sP::SimulationParameters) 
 
-
+    
 """
 function ω_tail(χ_sp::χT, χ_ch::χT, coeffs::AbstractVector{Float64}, sP::SimulationParameters)
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ, 2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-    ω_tail(ωindices, coeffs, sP)
+    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ_sp, 2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
+    ω_tail(ωindices, coeffs, χ_sp.β, sP)
 end
-function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64}, sP::SimulationParameters)
-    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
+
+function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64}, β::Float64, sP::SimulationParameters)
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ β)
     iωn[findfirst(x -> x ≈ 0, iωn)] = Inf
     for (i, ci) in enumerate(coeffs)
         χ_tail::Vector{Float64} = real.(ci ./ (iωn .^ i))
@@ -456,7 +466,7 @@ function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float6
                      ν0_estimator::Function = lin_fit, relax_zero_condition::Float64 = 10.0,
 )
     νGrid = [(2 * n + 1) * π / β for n = 0:1]
-    s_r0 = [ν0_estimator(νGrid, real.(Σ_ladder[i, 0:1])) for i = 1:size(Σ_ladder, 1)]
+    s_r0 = [ν0_estimator(νGrid, real.(Σ_ladder[i, 0:1])) for i = axes(Σ_ladder, 1)]
     ekf = μ .- kG.ϵkGrid
     ek_diff = ekf .- s_r0
     min_diff = minimum(abs.(ekf .- s_r0))

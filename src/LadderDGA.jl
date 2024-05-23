@@ -34,7 +34,7 @@ export collect_χ₀, collect_χ, collect_γ, collect_Σ
 export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder, attach_Σloc
 
 # RPA main functions
-export setup_RPA, χ₀RPA_T
+export setup_RPA, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA
 
 # Thermodynamics
 export EPot_p1, EPot_p2, PP_p1, PP_p1, EKin_p2, EKin_p1
@@ -43,6 +43,7 @@ export calc_E_ED, calc_E, calc_Epot2
 
 # LambdaCorrection
 export χ_λ, χ_λ!, reset!
+export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
 export sample_f
 
 #TODO: check interface after refactoring

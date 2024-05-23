@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                        thermodynamics.jl                                             #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Author          : Julian Stobbe, Jan Frederik Weissler                                             #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Thermodynamic quantities from impurity and lDΓA GFs.                                               #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -160,7 +160,9 @@ calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft,
         νmax::Int = eom_ν_cutoff(sP), tc::Bool=true)
 calc_E([G::Array{ComplexF64,2},] Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; trace::Bool=false)
 
-Returns kinetic and potential energies from given self-energy `Σ`.
+Returns kinetic and potential energies from given 
+    * self-energy `Σ` or
+    * the ingredients of the equation of motion: the physical susceptibilies as well as the triangular vertices in spin and charge channel, the correction term and the greensfunction to be used.
 """
 function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax::Int = eom_ν_cutoff(sP), tc::Bool=true)
     Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP, νmax=νmax, tc=tc)

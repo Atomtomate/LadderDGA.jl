@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                        ladderDGATools.jl                                             #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Author          : Julian Stobbe, Jan Frederik Weißler                                              #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   ladder DΓA related functions                                                                       #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -11,6 +11,50 @@
 
 
 # ========================================== Correction Term =========================================
+
+"""
+    Σ_hartree(mP::ModelParameters)
+
+Calculates the hartree term of the self energy
+
+`\\Sigma_{hartree}=\\frac{U\\cdot n}{2}`.
+
+Arguments
+-------------
+- **`mP`** : ModelParameters
+
+Returns
+-------
+Float64 : Hartree term 
+"""
+function Σ_hartree(mP::ModelParameters)
+    return mP.n * mP.U/2.0
+end
+
+"""
+    correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
+
+Calculates the so called tail correcion term of the ladder self energy. The purpose of this term is to enforce the limit
+
+`\\lim_{n\\rightarrow\\infty}i\\nu_n\\Sigma_{\\mathbf{q}}^{\\nu_n}=U^2\\frac{n}{2}\\left(1-\\frac{n}{2} \\right )`.
+
+This can be archived by adding the term
+    * RPA: `-\\frac{U^2}{i\\nu}\\sum_{\\omega,\\mathbf{q}}\\left( \\chi_{m,\\mathbf{q}}^{\\omega}-\\chi_{0,\\mathbf{q}}^{\\omega}\\right )`
+    * ladder-DGA: `-\\frac{U^2}{i\\nu}\\left(\\sum_{\\omega,\\mathbf{q}}\\chi_{m,\\mathbf{q}}^{\\omega}-\\chi_{m,loc} \\right )`
+from the ladder self energy.
+
+Arguments
+-------------
+- **`mP`**         : ModelParameters
+- **`kG`**         : KGrid
+- **`χm`**         : χT
+- **`χ_m_sum`**    : Union{Float64,ComplexF64}. RPA: `\\sum_{\\omega,\\mathbf{q}}\\chi_{0,\\mathbf{q}}^{\\omega}`, lDGA: 'χ_m_sum'.
+- **`grid`**       : AbstractArray{Int64,1}
+"""
+function correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
+    return - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
+end
+
 """
     calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
     calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)
@@ -110,6 +154,35 @@ function calc_Σ_ω!(eomf::Function,Σ_ladder::OffsetMatrix{ComplexF64},Kνωq_p
     end
 end
 
+function calc_Σ_ω_rpa!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, work_kG_exp::Array{ComplexF64,N},
+                       χm::χT, χd::χT,
+                       Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid,
+                       sP::SimulationParameters) where N
+
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gIm. RPA: ndims(Gνω) > 2 is expected, todo: remove inline if.
+    fill!(Σ_ladder, zero(ComplexF64))
+    ω_axis = χm.indices_ω
+    for (ωi,ωn) in enumerate(ω_axis)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        νlist = νZero:(sP.n_iν*2)
+        length(νlist) > size(Σ_ladder,2) && (νlist = νlist[1:size(Σ_ladder,2)])
+        
+        # evaluate EoM for each element of the brillouin zone
+        for qi in 1:size(Σ_ladder,1)
+            Kνωq_pre[qi] = eomf(U, χm[qi,ωi], χd[qi,ωi], λ₀[qi,begin,ωi]) # note: independent of ν
+        end
+        expandKArr!(kG, work_kG_exp, Kνωq_pre)
+        kG.fftw_plan * work_kG_exp # apply fourier transform to real/position space. technical: kG.fftw_plan is inplace plan!
+
+        # evaluate cross correlation / perform q-integration for each fermionic matsubara frequency
+        for (νii,νi) in enumerate(νlist)
+            #TODO: find a way to not unroll this!
+            copy!(kG.cache1, work_kG_exp)
+            conv_tmp_add_rpa!(view(Σ_ladder,:,νii-1), kG, selectdim(Gνω,νdim,(νii-1) + ωn))
+        end
+    end
+end
+
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                  χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                  tc_factor::Vector, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
@@ -121,11 +194,11 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
     return nothing
 end
 
+
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64},Σ_ladder_ω::OffsetArray{ComplexF64,3},Kνωq_pre::Vector{ComplexF64}, 
                  χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
                  tc_factor::Vector, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
 )::Nothing
-
     Σ_hartree = mP.n * mP.U / 2.0
     calc_Σ_ω!(eom, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     sum!(Σ_ladder, Σ_ladder_ω)
@@ -205,7 +278,7 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc, iν) : 0.0 ./ iν)
+    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc, iν) : 0.0 ./ iν)rpa-eom
     calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
     calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)

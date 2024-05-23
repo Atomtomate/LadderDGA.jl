@@ -1,7 +1,7 @@
 # ==================================================================================================== #
 #                                        ladderDGATools.jl                                             #
 # ---------------------------------------------------------------------------------------------------- #
-#   Author          : Julian Stobbe                                                                    #
+#   Author          : Julian Stobbe, Jan Frederik Weißler                                              #
 # ----------------------------------------- Description ---------------------------------------------- #
 #   ladder DΓA related functions                                                                       #
 # -------------------------------------------- TODO -------------------------------------------------- #
@@ -146,7 +146,25 @@ function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{
         res[:] += arr1 .* GView
     else
         expandKArr!(kG, kG.cache1, arr1)
-        mul!(kG.cache1, kG.fftw_plan, kG.cache1)
+        mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
+        for i in eachindex(kG.cache1)
+            kG.cache1[i] *= GView[i]
+        end
+        kG.fftw_plan \ kG.cache1
+        Dispersions.conv_post_add!(kG, res, kG.cache1)
+    end
+    return nothing
+end
+
+"""
+    conv_tmp_add_rpa!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+
+Expect both input arrays already in fouriertransformed.
+"""
+function conv_tmp_add_rpa!(res::AbstractVector{ComplexF64}, kG::KGrid, GView::AbstractArray{ComplexF64,N})::Nothing where N
+    if Nk(kG) == 1 
+        error("Nk(kG) == 1. That was unexpected!")
+    else
         for i in eachindex(kG.cache1)
             kG.cache1[i] *= GView[i]
         end
@@ -252,12 +270,14 @@ function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::
 end
 
 # -------------------------------------------- EoM: Defs ---------------------------------------------
+@inline eom_rpa(U::Float64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = 0.5 * (U^2.0) * ( χ_d + 3.0 * χ_m) + U * λ₀
 @inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
 @inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
 @inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
 @inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
 @inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
 @inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
+
 
 @inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
 @inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
