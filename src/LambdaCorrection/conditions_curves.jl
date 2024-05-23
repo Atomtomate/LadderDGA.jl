@@ -10,8 +10,7 @@ function curve_λd_of_λm(
     λm_rhs_type::Symbol = :native,
     fit_μ::Bool = true,
     # λdm related:
-    νmax::Int = -1,
-    λ_min_δ::Float64 = 0.0001,
+    νmax::Int = eom_ν_cutoff(h),
     # common options
     λ_val_only::Bool = false,
     verbose::Bool = false,

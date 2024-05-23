@@ -249,14 +249,10 @@ TODO: for now this is only implemented for tail correction in the ``1 / \\omega^
 Sums first over k, then over ω (see also [`sum_ω`](@ref sum_ω)), see [`sum_kω`](@ref sum_kω) for the rverse order (results can differ, due to inaccuracies in the asymptotic tail treatment).
 The transform function needs to have the signature `f(in::Float64)::Float64` and will be applied before summation. Alternatively, `λ` can be given directly as `Float64`, if the usual [`λ-correction`](@ref χ_λ) should be applied.
 """
-function sum_kω(
-    kG::KGrid,
-    χ::χT;
-    ωn_arr = ωn_grid(χ),
-    force_full_range = false,
-    transform = nothing,
-    λ::Float64 = NaN,
+function sum_kω(kG::KGrid, χ::χT;
+                ωn_arr = ωn_grid(χ),force_full_range = false, transform = nothing, λ::Float64 = NaN
 )::Float64
+    λ ≈ 0 && (λ = NaN)
     χ.λ != 0 && !isnan(λ) && error("χ already λ-corrected, but external λ provided!")
     !all(χ.tail_c[1:2] .== [0, 0]) && length(χ.tail_c) == 3 && error("sum_kω only implemented for ω^2 tail!")
     !isnan(λ) && !isnothing(transform) && error("Only transformation OR λ value should be given!")
@@ -271,13 +267,8 @@ function sum_kω(
     return res
 end
 
-function sum_kω(
-    kG::KGrid,
-    χ::AbstractMatrix{Float64},
-    β::Float64,
-    c2::Float64,
-    ωn2_tail::Vector{Float64};
-    transform = nothing,
+function sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, c2::Float64, ωn2_tail::Vector{Float64}; 
+                transform = nothing,
 )::Float64
     res::Float64 = 0.0
     norm::Float64 = sum(kG.kMult)

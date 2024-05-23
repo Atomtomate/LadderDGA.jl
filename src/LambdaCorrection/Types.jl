@@ -48,7 +48,8 @@ Fields
 - **`G_ladder`**     : `Nothing/OffsetMatrix`, Green's function after covnergence of λ-correction 
 - **`Σ_ladder`**     : `Nothing/OffsetMatrix`, self-energy after λ-correction 
 - **`μ`**            : `Float64`, chemical potential after λ-correction
-- **`n`**            : `Float64`, electron density. This is used as check, μ should have been internally adjustet to keep this value fixed  
+- **`n`**            : `Float64`, electron density. This is used as check, μ should have been internally adjustet to keep this value fixed (i.e. `n ≈ n_dmft`)
+- **`n_dmft`**       : `Float64`, input electron density
 """
 mutable struct λ_result{T<:CorrectionMethod}
     λm::Float64
@@ -66,41 +67,16 @@ mutable struct λ_result{T<:CorrectionMethod}
     Σ_ladder::Union{Nothing,OffsetMatrix}
     μ::Float64
     n::Float64
+    n_dmft::Float64
 
-    function λ_result(
-        λm::Float64,
-        λd::Float64,
-        type::Type{T},
-        sc_converged::Bool,
-        eps_abs::Float64,
-        sc_eps_abs::Float64,
-        EKin::Float64,
-        EPot_p1::Float64,
-        EPot_p2::Float64,
-        PP_p1::Float64,
-        PP_p2::Float64,
-        trace::Union{DataFrame,Nothing},
-        G_ladder::Union{Nothing,OffsetMatrix},
-        Σ_ladder::Union{Nothing,OffsetMatrix},
-        μ::Float64,
-        n::Float64,
+    # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
+    function λ_result(λm::Float64,λd::Float64,type::Type{T},
+                      sc_converged::Bool,eps_abs::Float64,sc_eps_abs::Float64,
+                      EKin::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
+                      trace::Union{DataFrame,Nothing},
+                      G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64
     ) where {T<:CorrectionMethod}
-        new{T}(
-            λm,
-            λd,
-            sc_converged,
-            eps_abs,
-            sc_eps_abs,
-            EKin,
-            EPot_p1,
-            EPot_p2,
-            PP_p1,
-            PP_p2,
-            trace,
-            G_ladder,
-            Σ_ladder,
-            μ,
-            n,
+        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft
         )
     end
 end
@@ -109,16 +85,23 @@ end
 """
     EPot_diff(result::λ_result)
 
-Difference between potential energies on one- and two particle level.
+Difference between potential energies on one- and two particle level (may be negative if `EPot_p2 > EPot_p1`).
 """
 EPot_diff(result::λ_result) = result.EPot_p1 - result.EPot_p2
 
 """
     PP_diff(result::λ_result)
 
-Difference between Pauli principle on one- and two particle level.
+Difference between Pauli principle on one- and two particle level (may be negative if `PP_p2 > PP_p1`).
 """
-PP_diff(result::λ_result) = result.PP_p1 - result.EPot_p2
+PP_diff(result::λ_result) = result.PP_p1 - result.PP_p2
+
+"""
+    n_diff(result::λ_result)
+
+Difference between density before and after λ-correction (this should always be close to 0!) 
+"""
+n_diff(result::λ_result) = result.n_dmft - result.n
 
 """
     converged(r::λ_result, eps_abs::Float64=1e-6)
@@ -133,6 +116,18 @@ function converged(r::λ_result{T}, eps_abs::Float64 = 1e-6) where {T}
     else
         error("Unrecognized λ-correction type!")
     end
+end
+
+"""
+    validation(r::λ_result)
+
+Returns `Tuple` with check for (density, Pauli-principle, potential energy), both checked between one- and two-particle level against `λ_result.eps_abs`.
+"""
+function validate(r::λ_result)
+    n_check    = abs(n_diff(r))    < r.eps_abs
+    PP_check   = abs(PP_diff(r))   < r.eps_abs
+    EPot_check = abs(EPot_diff(r)) < r.eps_abs
+    n_check, PP_check, EPot_check
 end
 
 """

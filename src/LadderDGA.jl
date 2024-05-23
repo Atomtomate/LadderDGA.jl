@@ -28,19 +28,22 @@ export addprocs
 # LadderDGA main functions
 export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk, core
 export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
-export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
+# TODO: parallel version needs refactor and tests
+#export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
 export collect_χ₀, collect_χ, collect_γ, collect_Σ
-export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder
+export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder, attach_Σloc
 
 # RPA main functions
 export setup_RPA, χ₀RPA_T
 
 # Thermodynamics
+export EPot_p1, EPot_p2, PP_p1, PP_p1, EKin_p2, EKin_p1
+# TODO: remove old interface in favor of EPot_p1,... etc
 export calc_E_ED, calc_E, calc_Epot2
 
 # LambdaCorrection
 export χ_λ, χ_λ!, reset!
-export newton_right, sample_f
+export sample_f
 
 #TODO: check interface after refactoring
 export λ_correction, λ_result, converged, sc_converged, PP_diff, EPot_diff

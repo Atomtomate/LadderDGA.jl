@@ -6,6 +6,8 @@
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   Documentation                                                                                      #
+#   unify G_from_Σ APU                                                                                 #
+#   come up with a type for MatsubraraFreuqncies                                                       #
 #   This file could be a separate module                                                               #
 #   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
@@ -94,6 +96,8 @@ G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF
     G_from_Σ(Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractArray = nothing) 
     G_from_Σ!(res::Matrix{ComplexF64}, Σ::AbstractVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::AbstractVector{Int}, mP::ModelParameters; μ = mP.μ,  Σloc::AbstractVector = nothing) 
 
+#TODO: unify API, redo documentation
+
 Computes Green's function from self energy `Σ` and dispersion `ϵkGrid` over given frequency indices `range`.
 Optionally, a different chemical potential `μ` can be provided.
 When the non-local self energy is used, one typically wants to extend the usefull range of frequencies by
@@ -101,27 +105,16 @@ attaching the tail of the local self energy in the high frequency regime. This i
 `range` larger than the array size of `Σ` and in addition setting `Σloc` (the size of `Σloc` must be as large or larger than `range`). 
 The inplace version stores the result in `res`.
 """
-function G_from_Σ(
-    Σ::OffsetVector{ComplexF64},
-    ϵkGrid::Vector{Float64},
-    range::UnitRange{Int},
-    mP::ModelParameters;
-    μ = mP.μ,
-    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+function G_from_Σ(Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int}, mP::ModelParameters;
+                  μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
 )
     res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, length(ϵkGrid), length(range)), 1:length(ϵkGrid), range)
     G_from_Σ!(res, Σ, ϵkGrid, range, mP, μ = μ, Σloc = Σloc)
     return res
 end
 
-function G_from_Σ!(
-    res::OffsetMatrix{ComplexF64},
-    Σ::OffsetVector{ComplexF64},
-    ϵkGrid::Vector{Float64},
-    range::UnitRange{Int},
-    mP::ModelParameters;
-    μ = mP.μ,
-    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetVector{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int},
+                   mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
 )::Nothing
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
     for ind in range
@@ -133,25 +126,49 @@ function G_from_Σ!(
     return nothing
 end
 
-function G_from_Σ!(
-    res::OffsetMatrix{ComplexF64},
-    Σ::OffsetMatrix{ComplexF64},
-    ϵkGrid::Vector{Float64},
-    range::UnitRange{Int},
-    mP::ModelParameters;
-    μ = mP.μ,
-    Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+function G_from_Σ!(res::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int},
+                   mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
 )::Nothing
+    length(ϵkGrid) != size(Σ,1)
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
-    for ind in range
-        for (ki, ϵk) in enumerate(ϵkGrid)
-            Σi = ind ∈ axes(Σ, 2) ? Σ[ki, ind] : Σloc[ind]
+    for (ki, ϵk) in enumerate(ϵkGrid)
+        for ind in range
+            Σi = ind ∈ axes(Σ,1) ? Σ[ki,ind] : Σloc[ind]
             @inbounds res[ki, ind] = G_from_Σ(ind, mP.β, μ, ϵk, Σi)
         end
     end
     return nothing
 end
 
+function G_from_Σ(Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range::UnitRange{Int},
+                      mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
+)
+    first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
+    res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, 1:size(Σ,1), length(range)), 1:size(Σ,1), range)
+    G_from_Σ!(res, Σ, ϵkGrid, range, mP; μ=μ, Σloc=Σloc)
+    return res
+end
+
+
+# ======================================= Self Energy helpers ========================================
+"""
+    attach_Σloc(Σ_ladder::OffsetMatrix, Σ_loc::OffsetVector; 
+                ν_first::Int=last(axis(Σ_ladder,2))+1, ν_last::Int=last(axes(Σloc,1)))
+
+Attach the local self energy tail, starting at `ν_first` up to `ν_last` to the ladder self energy.
+#TODO: attach this smoothely by also considering derivatives
+"""
+function attach_Σloc(Σ_ladder::OffsetMatrix, Σ_loc::OffsetVector; 
+                    ν_first::Int=last(axes(Σ_ladder,2))+1, ν_last::Int=last(axes(Σ_loc,1)))
+    Nk = size(Σ_ladder,1)
+    new_ν_grid = first(axes(Σ_ladder,2)):ν_last 
+    res = OffsetMatrix{ComplexF64}(Matrix{ComplexF64}(undef, Nk, length(new_ν_grid)), 1:Nk, new_ν_grid)
+    for ki in axes(Σ_ladder,1)
+        res[ki,begin:ν_first-1] = Σ_ladder[ki,begin:ν_first-1]
+        res[ki,ν_first:ν_last] = Σ_loc[ν_first:ν_last]
+    end
+    return res
+end
 
 function Σ_from_Gladder(Gladder::AbstractMatrix{ComplexF64}, kG::KGrid, μ::Float64, β::Float64)
     res = similar(Gladder)
@@ -161,6 +178,7 @@ end
 
 function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64)
     νn_list = axes(Gladder, 2)
+    length(ϵkGrid) != size(Σ,2)
     for νn in νn_list
         for ki in axes(Gladder, 1)
             res[ki, νn] = μ + 1im * (2 * νn + 1) * π / β - kG.ϵkGrid[ki] - 1 / Gladder[ki, νn]
@@ -169,62 +187,42 @@ function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid,
 end
 
 # =============================================== GLoc ===============================================
-#TODO: docs, test, cleanup, consistency with G_from_Σ 
 """
-    G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
-    G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true)
+    G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+                   fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true, νRange = sP.fft_range, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2)) )
+    G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::AbstractVector{ComplexF64}, kG::KGrid, mP::ModelParameters; 
+                    fix_n::Bool=false, μ=mP.μ, improved_sum_filling::Bool=true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2)) )
 
 Computes Green's function from lDΓA self-energy.
 
-The resulting frequency range is given by `sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
+The resulting frequency range is given by default as `νRange = sP.fft_range`, if less frequencies are available from `Σ_ladder`, `Σloc` is used instead.
+TODO: documentation for arguments
+TODO: fit function computes loads of unnecessary frequencies
 """
-function G_from_Σladder(
-    Σ_ladder::AbstractMatrix{ComplexF64},
-    Σloc::OffsetVector{ComplexF64},
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    fix_n::Bool = false,
-    μ = mP.μ,
-    improved_sum_filling::Bool = true,
-)
-    νRange = sP.fft_range
-    G_new =
-        OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), sP.fft_range)
-    μ = G_from_Σladder!(
-        G_new,
-        Σ_ladder,
-        OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)),
-        kG,
-        mP,
-        fix_n = fix_n,
-        μ = μ,
-        improved_sum_filling = improved_sum_filling,
+function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                            fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
     )
-    return μ, G_new
-end
+        
+        G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), νRange)
+        μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP,
+                fix_n = fix_n, μ = μ, improved_sum_filling = improved_sum_filling, νFitRange=νFitRange   
+            )
+        return μ, G_new
+    end
 
-function G_from_Σladder!(
-    G_new::OffsetMatrix{ComplexF64},
-    Σ_ladder::OffsetMatrix{ComplexF64},
-    Σloc::OffsetVector{ComplexF64},
-    kG::KGrid,
-    mP::ModelParameters;
-    fix_n::Bool = false,
-    μ = mP.μ,
-    improved_sum_filling::Bool = true,
+    function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
+                            fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2))
 )::Float64
     νRange = 0:last(axes(G_new, 2))
     length(νRange) < 10 && @warn "fixing ν range with only $(length(νRange)) frequencies!"
     function fμ(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder, 2))), kG, mP.U, μ, mP.β; improved_sum = improved_sum_filling) -
-        mP.n
+        filling_pos(view(G_new, :, νFitRange), kG, mP.U, μ, mP.β; improved_sum = improved_sum_filling) -  n
     end
 
     function fμ_fallback(μ::Float64)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
-        filling_pos(view(G_new, :, 0:last(axes(Σ_ladder, 2))), kG, mP.U, μ, mP.β; improved_sum = false) - mP.n
+        filling_pos(view(G_new, :, νFitRange), kG, mP.U, μ, mP.β; improved_sum = false) - n
     end
 
     μ_bak = μ
@@ -247,7 +245,8 @@ function G_from_Σladder!(
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
     end
     ind_neg = first(axes(G_new, 2)):-1
-    G_new[:, ind_neg] = conj.(view(G_new, :, last(axes(G_new, 2))-1:-1:0))
+    ind = -1 .* reverse(ind_neg) .- 1
+    G_new[:, ind_neg] = conj.(view(G_new, :, ind))
     return μ
 end
 
@@ -309,11 +308,14 @@ function filling(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Flo
 end
 
 function filling(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
+    first(axes(G,2)) >= 0 && @warn "executing filling over unkown ν-axis. Assuming -ν:ν (use fillin_pos instead)"
     filling(kintegrate(kG, G, 1)[1, :], U, μ, β)
 end
 
 """
     filling_pos(G::Vector, U::Float64, μ::Float64, β::Float64[, shell::Float64, improved_sum::Bool=true])::Float64
+    filling_pos(G::AbstractMatrix{ComplexF64},kG::KGrid,U::Float64,μ::Float64,β::Float64; improved_sum::Bool = true)::Float64
+    filling_pos(G::AbstractMatrix{ComplexF64},kG::KGrid,)::Float64
 
 Returns filling from `G` only defined over positive Matsubara frequencies. 
 See [`filling`](@ref filling) for further documentation.
@@ -323,13 +325,7 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
     2 * (real(sG + conj(sG)) / β + 0.5 + μ * shell) / (1 + U * shell)
 end
 
-function filling_pos(
-    G::AbstractVector{ComplexF64},
-    U::Float64,
-    μ::Float64,
-    β::Float64;
-    improved_sum::Bool = true,
-)::Float64
+function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64; improved_sum::Bool = true)::Float64
     if !improved_sum
         sG = sum(G)
         2 * real(sG + conj(sG)) / β + 1
@@ -340,15 +336,18 @@ function filling_pos(
     end
 end
 
-function filling_pos(
-    G::AbstractMatrix{ComplexF64},
-    kG::KGrid,
-    U::Float64,
-    μ::Float64,
-    β::Float64;
-    improved_sum::Bool = true,
-)::Float64
-    filling_pos(view(kintegrate(kG, G, 1), 1, :), U, μ, β, improved_sum = improved_sum)
+function filling_pos(G::AbstractMatrix{ComplexF64},kG::KGrid,U::Float64,μ::Float64,β::Float64; improved_sum::Bool = true)::Float64
+    if improved_sum
+        filling_pos(view(kintegrate(kG, G, 1), 1, :), U, μ, β, improved_sum = improved_sum)
+    else
+        filling_pos(G ,kG, β)
+    end
+end
+
+function filling_pos(G::AbstractMatrix{ComplexF64},kG::KGrid, β::Float64)::Float64
+    GInt = view(kintegrate(kG, G, 1), 1, :)
+    sG = sum(GInt)
+    2 * real(sG + conj(sG)) / β + 1
 end
 
 """
@@ -451,13 +450,8 @@ end
 Estimate fermi surface of `Σ_ladder`, using extrapolation to ``\\nu = 0`` with the function `ν0_estimator` and the condition ``\\lim_{\\nu \\to 0} \\Sigma (\\nu, k_f) = \\mu - \\epsilon_{k_f}``.
 
 """
-function estimate_ef(
-    Σ_ladder::OffsetMatrix,
-    kG::KGrid,
-    μ::Float64,
-    β::Float64;
-    ν0_estimator::Function = lin_fit,
-    relax_zero_condition::Float64 = 10.0,
+function estimate_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64; 
+                     ν0_estimator::Function = lin_fit, relax_zero_condition::Float64 = 10.0,
 )
     νGrid = [(2 * n + 1) * π / β for n = 0:1]
     s_r0 = [ν0_estimator(νGrid, real.(Σ_ladder[i, 0:1])) for i = 1:size(Σ_ladder, 1)]
@@ -473,12 +467,8 @@ end
 Estimates connected fermi surface. See also [`estimate_ef`](@ref estimate_ef) and [`fermi_surface_connected`](@ref fermi_surface_connected).
 Returns fermi surface indices and `relax_zero_condition` (values substantially larger than `1` indicate appearance of fermi arcs).
 """
-function estimate_connected_ef(
-    Σ_ladder::OffsetMatrix,
-    kG::KGrid,
-    μ::Float64,
-    β::Float64;
-    ν0_estimator::Function = lin_fit,
+function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, β::Float64;
+                               ν0_estimator::Function = lin_fit,
 )
     ef = nothing
     rc_res = 0.0

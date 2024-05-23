@@ -112,7 +112,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     @timeit to "Compute GLoc" begin
-        rm = maximum(abs.(sP.fft_range))
+        rm = min(length(gImp_in), max(2048,maximum(abs.(sP.fft_range))))
         gs = gridshape(kG)
         kGdims = grid_dimension(kG)
         νdim = kGdims + 1

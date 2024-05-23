@@ -70,7 +70,7 @@ This algorithm also assumes, that `f` is stricly monotonically decreasing in eac
 
 This is a legacy methods. For better convergence performance and reliability please consider using [`newton_secular`](@ref newton_secular).
 """
-Base.@assume_effects :total function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int = 500, atol::Float64 = 1e-10, δ::Float64=1e-4)::Float64
+function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int = 500, atol::Float64 = 1e-10, δ::Float64=1e-4)::Float64
     done  = false
     xlast = start + δ
     xi    = xlast
@@ -94,7 +94,7 @@ Base.@assume_effects :total function newton_right(f::Function, df::Function, sta
     return xi
 end
 
-Base.@assume_effects :total function newton_right(f::Function, start::Float64, min::Float64; nsteps::Int = 100, atol::Float64 = 1e-13, δ::Float64 = 1e-4)::Float64
+function newton_right(f::Function, start::Float64, min::Float64; nsteps::Int = 100, atol::Float64 = 1e-13, δ::Float64 = 1e-4)::Float64
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_right(f, df, start, min; nsteps = nsteps, atol = atol, δ = δ)
 end
@@ -102,12 +102,12 @@ end
 
 # ------------------------------------------------ 2D  -----------------------------------------------
 #
-Base.@assume_effects :total function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps = 500, atol = 1e-8, δ::Float64=1e-4)::Vector{Float64}
+function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps = 500, atol = 1e-8, δ::Float64=1e-4)::Vector{Float64}
     N = length(start)
     newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps = nsteps, atol = atol, reset_backoff=δ)
 end
 
-Base.@assume_effects :total function newton_right(
+function newton_right(
     f::Function,
     start::MVector{N,Float64},
     min::MVector{N,Float64};
@@ -168,7 +168,7 @@ Normal Newton method, used for example by [`newton_transformed`](@ref newton_tra
 
 `xi` is the initial guess, for functions with multiple roots, the result will depend on this guess.
 """
-Base.@assume_effects :total function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
     done  = false
     i     = 1
     while !done
@@ -195,6 +195,8 @@ procede with the modified Newton algorithm (using the chain rule):
 x_{(n+1)} = x_{(n)} + f(w(x_i)) \\cdot  (f'(w(x_i)))^{-1} (w'(x_i))^{-1}
 ``
 
+For debugging purposes, there are also [`newton_secular_trace`](@ref newton_secular_trace) and [`trace_f`](@ref trace_f) available.
+
  
 Arguments:
 -------------
@@ -204,9 +206,9 @@ Arguments:
 - **`nsteps`** : maximum number of steps
 - **`atol`**   : convergence criterion, i.e. ``|f(x_0)| < `` `atol` will return root `x0`.
 """
-Base.@assume_effects :total function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
     done  = false
-    xi    = 1.0
+    xi    = xp + 1.0
     xi_tf = NaN
     i     = 1
     while !done
@@ -214,7 +216,6 @@ Base.@assume_effects :total function newton_secular(f::Function, df::Function, x
         fi = f(xi_tf)
         dfii = 1 / (df(xi_tf)*newton_secular_transform_df(xi, xp))
         xi = xi - dfii * fi
-        # Found solution in the correct interval
         (norm(fi) < atol || i >= nsteps) && (done = true)
 
         i += 1
@@ -222,7 +223,36 @@ Base.@assume_effects :total function newton_secular(f::Function, df::Function, x
     return xi_tf#inv_newton_secular_transform(xi,xp)
 end
 
-Base.@assume_effects :total function newton_secular(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_secular(f, df, xp; nsteps = nsteps, atol = atol)
+end
+
+"""
+    newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+
+This is the same as [`newton_secular`](@ref newton_secular), but also returns a trace of the intermediate values `(xi,xi_tf,fi,dfii)`.
+
+"""
+function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+    done  = false
+    xi    = xp + 1.0
+    xi_tf = NaN
+    trace = Array{Float64,2}(undef, 4, 0)
+    i     = 1
+    while !done
+        xi_tf = newton_secular_transform(xi,xp)
+        fi = f(xi_tf)
+        dfii = 1 / (df(xi_tf)*newton_secular_transform_df(xi, xp))
+        xi = xi - dfii * fi
+        push!(trace[:,i], [xi, xi_tf, fi, dfii])
+        (norm(fi) < atol || i >= nsteps) && (done = true)
+        i += 1
+    end
+    return xi_tf, trace
+end
+
+function newton_secular_trace(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+    df(x) = FiniteDiff.finite_difference_derivative(f, x)
+    newton_secular_trace(f, df, xp; nsteps = nsteps, atol = atol)
 end

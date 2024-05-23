@@ -5,10 +5,55 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Thermodynamic quantities from impurity and lDΓA GFs.                                               #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Finish cleanup and documentation                                                                   #
+#   Refactor, cleanup interface                                                                        #
+#   Move to common interface (i.e. only PP_p1/p2)                                                      #
+#   Some of these functions are performance cirtical, benchmark those                                  #
 # ==================================================================================================== #
 
 # ================================================ ED ================================================
+
+"""
+    PP_p1(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+
+Pauli-Principle on 1-particle level: ``n/2 (1-n/2)``.
+"""
+function PP_p1(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+    return n/2 * 1-n/2
+end
+
+"""
+    PP_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+
+Pauli-Principle on 2-particle level: ``(\\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{m,k} + \\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{d,k})/2``.
+"""
+function PP_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64, kG::KGrid)::Float64
+    return real(sum_kω(h.kG, χm, λ = λm) + sum_kω(h.kG, χd, λ = λd))/2
+end
+
+"""
+    EPot_p1(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+
+Pauli-Principle on 2-particle level: ``\\sum_{k,\\nu} G^{\\lambda,\\nu}_{k} \\Sigma^{\\lambda,\\nu}_{k}``.
+"""
+function EPot_p1(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+    error("Not implemented yet, use the legacy calc_E instead!")
+end
+
+"""
+    EPot_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64)::Float64
+
+Pauli-Principle on 2-particle level: ``U(\\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{m,k} - \\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{d,k})/2 + U n^2/4``.
+"""
+function EPot_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64, kG::KGrid)::Float64
+    return (U/2)*real(sum_kω(h.kG, χm, λ = λm) - sum_kω(h.kG, χd, λ = λd))/2 + U * (n/2)^2
+end
+
+function EKin_p1()
+    error("Not implemented yet, use the legacy calc_E instead!")
+end
+function EKin_p2()
+    error("Not implemented yet, use the legacy calc_E instead!")
+end
 
 """
     calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{ComplexF64}, U, n, μ, β)
@@ -66,13 +111,6 @@ end
 
 # ========================================== lDΓA Energies ===========================================
 # ----------------------------------------------- EPot -----------------------------------------------
-function calc_EPot2(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, kG::KGrid, sP::SimulationParameters, mP::ModelParameters)
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:size(χ, 2)) : intersect(χ_sp.usable_ω, χ_ch.usable_ω)
-    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[ωindices] .* π ./ mP.β)
-    iωn[findfirst(x -> x ≈ 0, iωn)] = Inf
-    Epot2 = mP.U * calc_EPot2_int(χ_sp, χ_ch, kG.kMult, Nk(kG), mP.β)
-end
-
 function calc_EPot2(χ_sp::χT, χ_ch::χT, kMult::Vector{Float64}, k_norm::Int, β::Float64)
     lhs_c2 = 0.0
     for ωi = 1:size(χ_sp, 2)
@@ -118,28 +156,29 @@ end
 # ---------------------------------------------- Common ----------------------------------------------
 
 """
-    calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax=sP.n_iν)
-    calc_E([G::Array{ComplexF64,2},] Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int,3*size(Σ,2)/8),  trace::Bool=false)
+calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+        νmax::Int = eom_ν_cutoff(sP), tc::Bool=true)
+calc_E([G::Array{ComplexF64,2},] Σ::AbstractArray{ComplexF64,2}, kG::KGrid, mP::ModelParameters; trace::Bool=false)
 
 Returns kinetic and potential energies from given self-energy `Σ`.
 """
-function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax = sP.n_iν)
-    Σ_ladder = calc_Σ(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP)
-    E_kin, E_pot = calc_E(Σ_ladder, kG, mP, νmax = νmax)
+function calc_E(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT, λ₀, Σ_loc, gLoc_rfft, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; νmax::Int = eom_ν_cutoff(sP), tc::Bool=true)
+    Σ_ladder = calc_Σ(χ_sp, γ_sp, χ_ch, γ_ch, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP, νmax=νmax, tc=tc)
+    E_kin, E_pot = calc_E(Σ_ladder, kG, mP)
     return E_kin, E_pot
 end
 
 
-function calc_E(Σ::OffsetMatrix{ComplexF64}, kG::KGrid, mP::ModelParameters; νmax::Int = floor(Int, 3 * size(Σ, 2) / 8), trace::Bool = false)
-    νGrid = 0:(νmax-1)
+function calc_E(Σ::OffsetMatrix{ComplexF64}, kG::KGrid, mP::ModelParameters; trace::Bool = false)
+    νGrid = 0:last(axes(Σ,2))
     G = G_from_Σ(Σ, kG.ϵkGrid, νGrid, mP)
-    return calc_E(G, Σ, mP.μ, kG, mP; νmax = νmax, trace = trace)
+    return calc_E(G, Σ, mP.μ, kG, mP; trace = trace)
 end
 
-function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::Float64, kG::KGrid, mP::ModelParameters; trace::Bool = false, νmax::Int = min(last(axes(G, 2)), last(axes(Σ, 2))))
+function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::Float64, kG::KGrid, mP::ModelParameters; trace::Bool = false)
     #println("TODO: make frequency summation with sum_freq optional")
     first(axes(Σ, 2)) != 0 && println("WARNING: Calc_E assumes a ν grid starting at 0! check G axes.")
-    νGrid = 0:νmax
+    νGrid = 0:last(axes(Σ,2))
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U / 2
 

@@ -42,7 +42,7 @@ function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool = fa
         zeros(Float64, length(χd.usable_ω));
         transform = (f(x::Float64)::Float64 = dχ_λ(x, λint)),
     )
-    λm = newton_right(f_c1, df_c1, 0.0, λm_min)
+    λm = newton_secular(f_c1, df_c1, λm_min)
 
     check, check2 = if isfinite(validate_threshold) || verbose
         χ_λ!(χm, λm)
