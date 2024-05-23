@@ -34,10 +34,10 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
              λ_val_only::Bool=false, verbose::Bool=false, validate_threshold::Float64=1e-8, tc::Bool=true)
 
     if type == :m
-        λm_correction_full(χm, γm, χd, γd, λ₀, h;
-                           fit_μ=fit_μ,  
-                           νmax=νmax, λ_min_δ=λ_min_δ, verbose=verbose,
-                           validate_threshold=validate_threshold, tc=tc)
+        λm_correction(χm, γm, χd, γd, λ₀, h;
+            νmax = νmax, λ_min_δ = λ_min_δ, λ_val_only = λ_val_only, verbose = verbose, 
+            fit_μ = fit_μ, validate_threshold = validate_threshold, tc = tc
+        )
     elseif type == :dm
         λdm_correction(χm, γm, χd, γd, λ₀, h; 
                        fit_μ=fit_μ,  

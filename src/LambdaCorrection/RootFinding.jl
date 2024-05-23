@@ -68,7 +68,7 @@ This algorithm also assumes, that `f` is stricly monotonically decreasing in eac
 `nsteps` sets the maximum number of newton-steps, `atol` sets the convergence tolerance.
 `df` can be omitted. In this case it is approximated using finite differences.
 
-This is a legacy methods. For better convergence performance and reliability please consider using [`newton_secular`](@ref newton_secular).
+This is a legacy method. For better convergence performance and reliability please consider using [`newton_secular`](@ref newton_secular).
 """
 function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int = 500, atol::Float64 = 1e-10, δ::Float64=1e-4)::Float64
     done  = false
@@ -107,15 +107,9 @@ function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64};
     newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps = nsteps, atol = atol, reset_backoff=δ)
 end
 
-function newton_right(
-    f::Function,
-    start::MVector{N,Float64},
-    min::MVector{N,Float64};
-    nsteps::Int = 500,
-    atol::Float64 = 1e-8,
-    verbose::Bool = false,
-    max_reset::Int = 5,
-    reset_backoff::Float64 = 1.0,
+Base.@assume_effects :total function newton_right(
+    f::Function, start::MVector{N,Float64}, min::MVector{N,Float64};
+    nsteps::Int = 500, atol::Float64 = 1e-8, verbose::Bool = false, max_reset::Int = 5, reset_backoff::Float64 = 1.0,
 )::Vector{Float64} where {N}
     done = false
     xi_last::MVector{N,Float64} = deepcopy(start)
@@ -216,6 +210,7 @@ function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 50
         fi = f(xi_tf)
         dfii = 1 / (df(xi_tf)*newton_secular_transform_df(xi, xp))
         xi = xi - dfii * fi
+        # Found solution in the correct interval
         (norm(fi) < atol || i >= nsteps) && (done = true)
 
         i += 1

@@ -22,74 +22,24 @@ Returns:
     converged: error flag. False if no `λd` was found. 
     λd       : λ-correction for the density channel.
 """
-function λdm_correction_old(
-    χ_m::χT,
-    γ_m::γT,
-    χ_d::χT,
-    γ_d::γT,
-    λ₀::Array{ComplexF64,3},
-    h::lDΓAHelper;
-    maxit_root = 50,
-    atol_root = 1e-8,
-    νmax::Int = -1,
-    λd_min_δ = 0.05,
-    λd_max = 500,
-    maxit::Int = 50,
-    update_χ_tail = false,
-    mixing = 0.2,
-    conv_abs = 1e-8,
-    par = false,
-    with_trace = false,
+function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                            maxit_root = 50, atol_root = 1e-8, νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
+                            maxit::Int = 50, update_χ_tail = false, mixing = 0.2, conv_abs = 1e-8, par = false,
+                            with_trace = false,
 )
-    λdm_correction_old(
-        χ_m,
-        γ_m,
-        χ_d,
-        γ_d,
-        h.Σ_loc,
-        h.gLoc_rfft,
-        h.χloc_m_sum,
-        λ₀,
-        h.kG,
-        h.mP,
-        h.sP;
-        maxit_root = maxit_root,
-        atol_root = atol_root,
-        νmax = νmax,
-        λd_min_δ = λd_min_δ,
-        λd_max = λd_max,
-        maxit = maxit,
-        update_χ_tail = update_χ_tail,
-        mixing = mixing,
-        conv_abs = conv_abs,
-        par = par,
-        with_trace = with_trace,
+    λdm_correction_old(χ_m, γ_m, χ_d, γ_d, h.Σ_loc, h.gLoc_rfft, h.χloc_m_sum, λ₀, h.kG, h.mP, h.sP;
+                       maxit_root = maxit_root, atol_root = atol_root, νmax = νmax, λd_min_δ = λd_min_δ,
+                       λd_max = λd_max, maxit = maxit, update_χ_tail = update_χ_tail, mixing = mixing,
+                       conv_abs = conv_abs, par = par, with_trace = with_trace,
     )
 end
 
-function λdm_correction_old(
-    χ_m::χT,
-    γ_m::γT,
-    χ_d::χT,
-    γ_d::γT,
-    Σ_loc::OffsetVector{ComplexF64},
-    gLoc_rfft::GνqT,
-    χloc_m_sum::Union{Float64,ComplexF64},
-    λ₀::Array{ComplexF64,3},
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    maxit_root = 50,
-    atol_root = 1e-8,
-    νmax::Int = -1,
-    λd_min_δ = 0.05,
-    λd_max = 500,
-    maxit::Int = 50,
-    update_χ_tail = false,
-    mixing = 0.2,
-    conv_abs = 1e-8,
-    par = false,
-    with_trace = false,
+function λdm_correction_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, Σ_loc::OffsetVector{ComplexF64}, gLoc_rfft::GνqT,
+                            χloc_m_sum::Union{Float64,ComplexF64}, λ₀::Array{ComplexF64,3}, kG::KGrid,
+                            mP::ModelParameters, sP::SimulationParameters;
+                            maxit_root = 50, atol_root = 1e-8, νmax::Int = -1, λd_min_δ = 0.05, λd_max = 500,
+                            maxit::Int = 50, update_χ_tail = false, mixing = 0.2, conv_abs = 1e-8, par = false,
+                            with_trace = false,
 )
 
     ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP, full = true)
@@ -106,46 +56,18 @@ function λdm_correction_old(
     Σ_ladder::OffsetMatrix{ComplexF64,Matrix{ComplexF64}} =
         OffsetArray(Matrix{ComplexF64}(undef, length(kG.kMult), length(νGrid)), 1:length(kG.kMult), νGrid)
 
-
-
-    trace =
-        with_trace ?
-        Ref(
-            DataFrame(
-                it = Int[],
-                λm = Float64[],
-                λd = Float64[],
-                μ = Float64[],
-                EKin = Float64[],
-                EPot = Float64[],
-                lhs_c1 = Float64[],
-                EPot_c2 = Float64[],
-                cs_d = Float64[],
-                cs_m = Float64[],
-                cs_Σ = Float64[],
-                cs_G = Float64[],
+    trace =  with_trace ?  Ref(DataFrame(
+        it = Int[], λm = Float64[], λd = Float64[], μ = Float64[], EKin = Float64[], EPot = Float64[],
+        lhs_c1 = Float64[], EPot_c2 = Float64[], cs_d = Float64[], cs_m = Float64[], cs_Σ = Float64[], cs_G = Float64[],
             ),
         ) : Ref(nothing)
     function ff_seq(λd_i::Float64)
         copy!(gLoc_rfft_init, gLoc_rfft)
         _, _, _, _, E_pot, _, _, _, E_pot_2, _ = run_sc_old(
-            χ_m,
-            γ_m,
-            χ_d,
-            γ_d,
-            χloc_m_sum,
-            λ₀,
-            gLoc_rfft,
-            Σ_loc,
-            λd_i,
-            kG,
-            mP,
-            sP,
-            maxit = maxit,
-            mixing = mixing,
-            conv_abs = conv_abs,
-            update_χ_tail = update_χ_tail,
-            trace = trace,
+            χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft,
+            Σ_loc, λd_i, kG, mP, sP;
+            maxit = maxit, mixing = mixing, conv_abs = conv_abs,
+            update_χ_tail = update_χ_tail, trace = trace,
         )
         return E_pot - E_pot_2
     end
@@ -154,26 +76,10 @@ function λdm_correction_old(
     function ff_par(λd_i::Float64)
         copy!(gLoc_rfft_init, gLoc_rfft)
         _, E_pot, _, _, _, E_pot_2, _ = run_sc_old!(
-            G_ladder,
-            Σ_ladder_work,
-            Σ_ladder,
-            gLoc_rfft_init,
-            νGrid,
-            iωn_f,
-            iωn_m2,
-            χ_m,
-            χ_d,
-            Σ_loc,
-            λd_i,
-            kG,
-            mP,
-            sP;
-            maxit = maxit,
-            mixing = mixing,
-            conv_abs = conv_abs,
-            update_χ_tail = update_χ_tail,
-            par = true,
-            trace = trace,
+            G_ladder, Σ_ladder_work, Σ_ladder, gLoc_rfft_init,
+            νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
+            maxit = maxit, mixing = mixing, conv_abs = conv_abs,
+            update_χ_tail = update_χ_tail, par = true, trace = trace,
         )
         return E_pot - E_pot_2
     end
@@ -201,47 +107,18 @@ function λdm_correction_old(
         copy!(gLoc_rfft_init, gLoc_rfft)
         if par
             vars = run_sc_old!(
-                G_ladder,
-                Σ_ladder_work,
-                Σ_ladder,
-                gLoc_rfft_init,
-                νGrid,
-                iωn_f,
-                iωn_m2,
-                χ_m,
-                χ_d,
-                Σ_loc,
-                root,
-                kG,
-                mP,
-                sP;
-                maxit = maxit,
-                mixing = mixing,
-                conv_abs = conv_abs,
-                update_χ_tail = update_χ_tail,
-                par = true,
-                trace = trace,
-            )
+            G_ladder, Σ_ladder_work, Σ_ladder, gLoc_rfft_init,
+            νGrid, iωn_f, iωn_m2, χ_m, χ_d, Σ_loc, λd_i, kG, mP, sP;
+            maxit = maxit, mixing = mixing, conv_abs = conv_abs,
+            update_χ_tail = update_χ_tail, par = true, trace = trace,
+        )
             return trace, Σ_ladder, G_ladder, vars..., root
         else
             vars = run_sc_old(
-                χ_m,
-                γ_m,
-                χ_d,
-                γ_d,
-                χloc_m_sum,
-                λ₀,
-                gLoc_rfft_init,
-                Σ_loc,
-                root,
-                kG,
-                mP,
-                sP,
-                maxit = maxit,
-                mixing = mixing,
-                conv_abs = conv_abs,
-                update_χ_tail = update_χ_tail,
-                trace = trace,
+                χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, gLoc_rfft,
+                Σ_loc, λd_i, kG, mP, sP;
+                maxit = maxit, mixing = mixing, conv_abs = conv_abs,
+                update_χ_tail = update_χ_tail, trace = trace,
             )
             return trace, vars[2:end]..., root
         end
@@ -254,24 +131,11 @@ end
 """
 TODO: refactor (especially _par version)
 """
-function run_sc_old(
-    χ_m::χT,
-    γ_m::γT,
-    χ_d::χT,
-    γ_d::γT,
-    χloc_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{ComplexF64,3},
-    gLoc_rfft_init::GνqT,
-    Σ_loc::OffsetVector{ComplexF64},
-    λd::Float64,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    maxit::Int = 100,
-    mixing::Float64 = 0.2,
-    conv_abs::Float64 = 1e-8,
-    update_χ_tail::Bool = false,
-    trace::Ref = Ref(nothing),
+function run_sc_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64},
+    λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT,Σ_loc::OffsetVector{ComplexF64},
+    λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+    maxit::Int = 100, mixing::Float64 = 0.2, conv_abs::Float64 = 1e-8,
+    update_χ_tail::Bool = false, trace::Ref = Ref(nothing),
 )
     _, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
     gLoc_rfft = deepcopy(gLoc_rfft_init)
@@ -291,7 +155,9 @@ function run_sc_old(
 
 
     rhs_λsp = λm_rhs(NaN, χ_m, χ_d, kG, mP, sP; λd = λd)
-    λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
+    iωn = (1im .* 2 .* (-sP.n_iω:sP.n_iω)[χ_m.usable_ω] .* π ./ mP.β)
+    ωn2_tail::Vector{Float64} = real.(χ_m.tail_c[3] ./ (iωn .^ 2))
+    λm, val = λm_correction_val(χ_m, real(rhs_λsp), kG, ωn2_tail)
     if !isfinite(λm)
         @warn "no finite λm found!"
         cont = false
@@ -303,22 +169,7 @@ function run_sc_old(
         copy!(Σ_ladder_old, Σ_ladder)
         E_pot_bak = E_pot
         lhs_c1_bak = lhs_c1
-        Σ_ladder = calc_Σ(
-            χ_m,
-            γ_m,
-            χ_d,
-            γ_d,
-            χloc_m_sum,
-            λ₀,
-            Σ_loc,
-            gLoc_rfft,
-            kG,
-            mP,
-            sP,
-            νmax = last(νGrid) + 1,
-            λm = λm,
-            λd = λd,
-        )
+        Σ_ladder = calc_Σ(χ_m, γ_m, χ_d, γ_d, χloc_m_sum, λ₀, Σ_loc, gLoc_rfft, kG, mP, sP, νmax = last(νGrid) + 1, λm = λm, λd = λd)
         mixing != 0 && it > 1 && (Σ_ladder[:, :] = (1 - mixing) .* Σ_ladder .+ mixing .* Σ_ladder_old)
         μnew, G_ladder = G_from_Σladder(Σ_ladder, Σ_loc, kG, mP, sP; fix_n = false)
         isnan(μnew) && break
@@ -329,7 +180,7 @@ function run_sc_old(
                 update_tail!(χ_m, [0, 0, E_kin], iωn_f)
                 update_tail!(χ_d, [0, 0, E_kin], iωn_f)
                 rhs_λsp = λm_rhs(NaN, χ_m, χ_d, kG, mP, sP, λd = λd)
-                λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
+                λm, val = λm_correction_val(χ_m, real(rhs_λsp), kG, mP, sP)
             else
                 println("Warning: unable to update χ tail: E_kin not finite")
             end
@@ -346,20 +197,7 @@ function run_sc_old(
         (it >= maxit) && (cont = false)
 
         if !isnothing(trace[])
-            row = [
-                it,
-                λm,
-                λd,
-                μnew,
-                E_kin,
-                E_pot,
-                lhs_c1,
-                E_pot_2,
-                abs(χ_d_sum),
-                abs(χ_m_sum),
-                abs(sum(Σ_ladder)),
-                abs(sum(G_ladder)),
-            ]
+            row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(χ_d_sum), abs(χ_m_sum), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
         it += 1
@@ -373,24 +211,10 @@ function run_sc_old(
     return trace, Σ_ladder, G_ladder, E_kin, E_pot, μnew, λm, lhs_c1, E_pot_2, converged
 end
 
-function run_sc_par_old(
-    χ_m::χT,
-    γ_m::γT,
-    χ_d::χT,
-    γ_d::γT,
-    χloc_m_sum::Union{Float64,ComplexF64},
-    λ₀::AbstractArray{ComplexF64,3},
-    gLoc_rfft_init::GνqT,
-    Σ_loc::OffsetVector{ComplexF64},
-    λd::Float64,
-    kG::KGrid,
-    mP::ModelParameters,
-    sP::SimulationParameters;
-    maxit::Int = 100,
-    mixing::Float64 = 0.2,
-    conv_abs::Float64 = 1e-8,
-    update_χ_tail::Bool = false,
-    par = true,
+function run_sc_par_old(χ_m::χT, γ_m::γT, χ_d::χT, γ_d::γT, χloc_m_sum::Union{Float64,ComplexF64},
+    λ₀::AbstractArray{ComplexF64,3}, gLoc_rfft_init::GνqT, Σ_loc::OffsetVector{ComplexF64},
+    λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+    maxit::Int = 100, mixing::Float64 = 0.2, conv_abs::Float64 = 1e-8, update_χ_tail::Bool = false, par = true,
 )
     ωindices, νGrid, iωn_f = gen_νω_indices(χ_m, χ_d, mP, sP)
     iωn = iωn_f[ωindices]
@@ -481,7 +305,7 @@ function run_sc_old!(
 
     λd != 0 && χ_λ!(χ_d, λd)
     rhs_λsp = λm_rhs(NaN, χ_m, χ_d, kG, mP, sP)
-    λm, val = λm_correction(χ_m, real(rhs_λsp), kG, mP, sP)
+    λm, val = λm_correction_val(χ_m, real(rhs_λsp), kG, mP, sP)
     if !isfinite(λm)
         @warn "no finite λm found!"
         cont = false
@@ -522,20 +346,7 @@ function run_sc_old!(
         end
         (it >= maxit) && (cont = false)
         if !isnothing(trace[])
-            row = [
-                it,
-                λm,
-                λd,
-                μnew,
-                E_kin,
-                E_pot,
-                lhs_c1,
-                E_pot_2,
-                abs(sum(χ_d)),
-                abs(sum(χ_m)),
-                abs(sum(Σ_ladder)),
-                abs(sum(G_ladder)),
-            ]
+            row = [it, λm, λd, μnew, E_kin, E_pot, lhs_c1, E_pot_2, abs(sum(χ_d)), abs(sum(χ_m)), abs(sum(Σ_ladder)), abs(sum(G_ladder))]
             push!(trace[], row)
         end
 

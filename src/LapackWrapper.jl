@@ -1,12 +1,13 @@
 module LapackWrapper
-using LinearAlgebra
 import LinearAlgebra.BLAS.@blasfunc
 import LinearAlgebra.LAPACK.getrf!
 import LinearAlgebra.LAPACK.getri!
-import LinearAlgebra.require_one_based_indexing
-import LinearAlgebra.chkstride1
 import LinearAlgebra.checksquare
-const libblastrampoline = "libblastrampoline"
+import LinearAlgebra.chkstride1
+import LinearAlgebra.require_one_based_indexing
+
+using LinearAlgebra
+const libblastrampoline =  "libblastrampoline" * (Sys.iswindows() ? "-5" : "")
 
 export getrf!, getri!
 export inv!, _gen_inv_work_arr
