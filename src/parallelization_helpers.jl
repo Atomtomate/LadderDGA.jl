@@ -409,7 +409,7 @@ function collect_χ(type::Symbol, kG::KGrid, mP::ModelParameters, sP::Simulation
             end
         end
         log_q0_χ_check(kG, sP, χ_data, type)
-        res = χT(χ_data, mP.β, tail_c = [0, 0, mP.Ekin_DMFT])
+        res = χT(χ_data, mP.β, tail_c = [0, 0, mP.Ekin_1Pt])
     end
     return res
 end

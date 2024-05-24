@@ -6,6 +6,7 @@
 #   Functions for reading and writing RPA specific data.                                               #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   Unit tests                                                                                         #
+#   This only works for local parameters as for now, since I don't have any input files                #
 # ==================================================================================================== #
 """
 is_okay(χ₀qω)
@@ -30,8 +31,8 @@ function read_χ₀_RPA(file::String, Nω::Int)
     if !HDF5.ishdf5(file)
         throw(ArgumentError("The given file is not a valid hdf5 file!\ngiven path is: '$(file)'"))
     end
-    println("--------------------------------------------------------")
-    println("Read RPA input from file $(file)\n")
+    @info "--------------------------------------------------------"
+    @info "Read RPA input from file $(file)\n"
     f = h5open(file, "r")
     chi0_group = f["chi0"]
 
@@ -66,16 +67,16 @@ function read_χ₀_RPA(file::String, Nω::Int)
         throw(ArgumentError("The given array for χ₀qω violates at least one of the expected relations."))
     end
 
-    println("χ₀: (1:$(n_bz_q))³ x (0:$(maximum(ω_integers))) → R, indices(q,ω)↦χ₀(q,ω)")
-    println("was evaluated ...")
-    println("\t... for the inverse temperature $(β)")
-    println("\t... using $(n_bz_k) gauss legendre sample points to perform the integration over the first brillouin zone")
-    println("\nTail coefficients")
-    println("\t... kinetic energy is $(e_kin)")
-    println("\nInformations about the data array")
-    println("\t...Array χ₀qω has size $(size(χ₀qω))")
+    @info "χ₀: (1:$(n_bz_q))³ x (0:$(maximum(ω_integers))) → R, indices(q,ω)↦χ₀(q,ω)"
+    @info "was evaluated ..."
+    @info "\t... for the inverse temperature $(β)"
+    @info "\t... using $(n_bz_k) gauss legendre sample points to perform the integration over the first brillouin zone"
+    @info "\nTail coefficients"
+    @info "\t... kinetic energy is $(e_kin)"
+    @info "\nInformations about the data array"
+    @info "\t...Array χ₀qω has size $(size(χ₀qω))"
     close(f)
-    println("--------------------------------------------------------")
+    @info "--------------------------------------------------------"
 
     data = expand_ω(χ₀qω)
     ωnGrid = (convert(Int64, -maximum(ω_integers)):convert(Int64, maximum(ω_integers)))
@@ -91,6 +92,27 @@ function expand_ω(χ₀qω)
     return cat(reverse(χ₀qω, dims=2)[:, begin:end-1], χ₀qω, dims=2)
 end
 
+"""
+    setupConfig_RPA(KGridStr, Nk::Int)
+
+Sets up RPA calculation directly.
+Usually one should use [`readConfig_RPA`](@ref readConfig_RPA) as entry point.
+"""
+function setupConfig_RPA(kGridStr::String, Nk::Int, U::Float64, β::Float64,
+                         n_1Pt::Float64, μ_1Pt::Float64, Epot_1Pt::Float64, Ekin_1Pt::Float64,
+                         Nω::Int, Nν::Int, N_iν_shell::Int, shift::Bool;
+                         inputDir::String  = "", inputVars::String = "", 
+                         loglevel::String = "debug", logfile = "stderr", full_EoM_omega::Bool = true)
+    inputVars_full = !isempty(inputDir) && !isempty(inputVars) ? joinpath(inputDir, inputVars) : ""
+    freq_r = 2 * (Nν + Nω)
+    freq_r = -freq_r:freq_r
+
+    wp = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi # No idea how this is used...
+    env = EnvironmentVars(inputDir, inputVars_full, lowercase(loglevel), lowercase(logfile))
+    mP = ModelParameters(U, μ_1Pt, β, n_1Pt, Epot_1Pt, Ekin_1Pt)
+    sP = SimulationParameters(Nω, Nν, N_iν_shell, shift, undef, NaN, freq_r, 0.0, full_EoM_omega)
+    return wp, mP, sP, env, (kGridStr, Nk)
+end
 
 """
     readConfig_RPA(cfg_in::String)
@@ -124,27 +146,23 @@ function readConfig_RPA(cfg_in::String)
     tml_simulation = tml["Simulation"]
     tml_enviroment = tml["Environment"]
     tml_debug      = tml["Debug"]
+    tml_parameters = haskey(tml, "Parameters") ? tml["Parameters"] : nothing
 
     # read section Model
-    U        = tml_model["U"]
     kGridStr = tml_model["kGrid"]
-    
-    @warn "The filling is set to ome!"
-    n_density = 1.0 # tml_model["n_density"]
-    @warn "The parameter μ is set to Un/2!"
-    μ = U * n_density / 2
-    @warn "The parameter EPot_DMFT is set to zero!"
-    EPot_DMFT = 0.0 # tml_model["EPot_DMFT"] # after inspecting the code: EPot_DMFT is actually never used during the standard-λdm-calculation... 
 
     # read section Debug
     full_EoM_omega = tml_debug["full_EoM_omega"]
 
     # read section Simulation
-    Nν = tml_simulation["n_pos_fermi_freqs"]       # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
-    Nω = tml_simulation["n_pos_bose_freqs"]        # Number of positive bosonic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    Nk = tml_simulation["Nk"]
+    Nω = tml_simulation["NBose"]        # Number of positive bosonic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    Nν = tml_simulation["NFermi"]       # Number of positive fermionic matsubara frequencies. The matsubara frequency will be sampled symmetrically around zero. So the space of fermionic matsubara frequencies will be sampled by 2Nν elements in total. Will be used for the triangular vertex as well as the self energy
+    N_iν_shell = 0 
+    shift = true
 
+    # Julian: strange things might happen if Nν ≠ Nω... So:
     if Nν ≠ Nω
-        # Julian: strange things might happen if Nν ≠ Nω... So:
         error("Please use same number of bosonic and fermionic frequencies!")
     end
     # chi_asympt_method     = tml_simulation["chi_asympt_method"]     # what is this used for? First guess ν-Asymptotics...
@@ -153,42 +171,35 @@ function readConfig_RPA(cfg_in::String)
     # omega_smoothing       = tml_simulation["omega_smoothing"]       # what is this used for?
 
     # read section Environment
-    inputDir  = tml_enviroment["inputDir"]
-    inputVars = tml_enviroment["inputVars"]
     logfile   = tml_enviroment["logfile"]
     loglevel  = tml_enviroment["loglevel"]
 
     # collect EnvironmentVars
-    input_dir = isabspath(inputDir) ? inputDir : abspath(joinpath(dirname(cfg_in), inputDir))
-    env = EnvironmentVars(input_dir,
-        joinpath(input_dir, inputVars),
-        String([(i == 1) ? uppercase(c) : lowercase(c)
-                for (i, c) in enumerate(loglevel)]),
-        lowercase(logfile))
+    inputDir  = haskey(tml_enviroment,"inputDir") ? tml_enviroment["inputDir"] : ""
+    inputVars = haskey(tml_enviroment,"input_vars") ? tml["inputVars"] : ""
+    has_input_file = !isempty(inputDir) && !isempty(inputVars)
+    has_parameters_section = haskey(tml_model, "U") && haskey(tml_model, "beta")
+    if has_parameters_section
+        @info "Found parameters section in config, starting new computation"
+        # TODO: this should be read from the input file, if one is provided
+        U        = tml_model["U"]
+        β        = tml_model["beta"]
+        @warn "The filling is set to ome!"
+        n_1Pt = 1.0 # tml_model["n_density"]
+        @warn "The parameter μ is set to Un/2!"
+        μ_1Pt = U * n_1Pt / 2
+        @warn "The parameter EPot_DMFT is set to zero!"
+        Epot_1Pt = NaN
+        Ekin_1Pt = NaN
+    else
+        if !has_input_file
+            error("No input file or explicit parameter section defined!")
+        end
+    end
 
-    # read RPA χ₀ from hdf5 file
-    χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars, Nω)
-
-    # collect ModelParameters
-    mP = ModelParameters(U, μ, χ₀.β, n_density, EPot_DMFT, χ₀.e_kin)
-
-    # collect SimulationParameters
-    # Nω = trunc(Int, (length(χ₀.indices_ω) - 1) / 2) # number of positive bosonic matsubara frequencies. Is there a particular reason for this choice ?
-    freq_r = 2 * (Nν + Nω)
-    freq_r = -freq_r:freq_r
-    sP = SimulationParameters(
-        Nω,                            # (n_iω::Int64) number of positive bosonic matsubara frequencies
-        Nν,                            # (n_iν::Int64) number of positive fermionic matsubara frequencies
-        -1,                            # (n_iν_shell::Int64) number of fermionic frequencies used for asymptotic sum improvement | Set this such that the program crashes whenever this is used...
-        true,                          # (shift::Bool) since there are no fermionic frequencies there is no need for the shift | code with option "false" is not tested since 1.5 years => always use the shifted version!
-        undef,                         # (χ_helper # Helper) χ_helper. When is this guy used?
-        0.0,                           # (sVk::Float64) sum(Vk .^ 2). What is this used for?  
-        freq_r,                        # (fft_range::AbstractArray) fft_range. No idea how this is supposed to be set...
-        NaN,                           # (usable_prct_reduction::Float64) usable_prct_reduction. No idea what this is...
-        full_EoM_omega                 # (dbg_full_eom_omega::Bool) A debug flag I guess...
-    )
-
-    # build workerpool
-    wP = get_workerpool() #TODO setup reasonable pool with clusterManager/Workerconfi # No idea how this is used...
-    return χ₀, wP, mP, sP, env, kGridStr
+    setupConfig_RPA(kGridStr, Nk, U, β,
+                    n_1Pt, μ_1Pt, Epot_1Pt, Ekin_1Pt,
+                    Nω, Nν, N_iν_shell, shift;
+                    inputDir  = inputDir, inputVars = inputVars, 
+                    loglevel = loglevel, logfile = logfile, full_EoM_omega = full_EoM_omega)
 end

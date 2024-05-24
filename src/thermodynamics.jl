@@ -179,7 +179,7 @@ end
 
 function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::Float64, kG::KGrid, mP::ModelParameters; trace::Bool = false)
     #println("TODO: make frequency summation with sum_freq optional")
-    first(axes(Σ, 2)) != 0 && println("WARNING: Calc_E assumes a ν grid starting at 0! check G axes.")
+    first(axes(Σ, 2)) != 0 && error("Calc_E assumes a ν grid starting at 0! check G and Σ axes.")
     νGrid = 0:last(axes(Σ,2))
     iν_n = iν_array(mP.β, νGrid)
     Σ_hartree = mP.n * mP.U / 2

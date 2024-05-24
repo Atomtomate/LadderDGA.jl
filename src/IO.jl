@@ -43,23 +43,20 @@ function readConfig(cfg_in::String)
         abspath(joinpath(dirname(cfg_in), tml["Environment"]["inputDir"]))
     end
 
-    env = EnvironmentVars(
-        input_dir,
-        joinpath(input_dir, tml["Environment"]["inputVars"]),
-        String([(i == 1) ? uppercase(c) : lowercase(c) for (i, c) in enumerate(tml["Environment"]["loglevel"])]),
-        lowercase(tml["Environment"]["logfile"]),
-    )
-
+    inputVars = tml["Environment"]["inputVars"]
+    logfile   = tml_enviroment["logfile"]
+        
+    env = EnvironmentVars(input_dir, joinpath(input_dir, inputVars), lowercase(loglevel), lowercase(logfile))
     if !isfile(env.inputVars)
         @error "ERROR: input file at location $(env.inputVars) not found!"
         Base.exit(2)
     end
     nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt, Vk = jldopen(env.inputVars, "r") do f
-        EPot_DMFT = 0.0
-        EKin_DMFT = 0.0
+        Epot_1Pt = 0.0
+        Ekin_1Pt = 0.0
         if haskey(f, "E_kin_DMFT")
-            EPot_DMFT = f["E_pot_DMFT"]
-            EKin_DMFT = f["E_kin_DMFT"]
+            Epot_1Pt = f["E_pot_DMFT"]
+            Ekin_1Pt = f["E_kin_DMFT"]
         else
             @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
         end
@@ -72,7 +69,7 @@ function readConfig(cfg_in::String)
         return f["grid_nBose"],
         f["grid_nFermi"],
         f["grid_shift"],
-        ModelParameters(U, μ, β, nden, EPot_DMFT, EKin_DMFT),
+        ModelParameters(U, μ, β, nden, Epot_1Pt, Ekin_1Pt),
         f["χ_sp_asympt"] ./ β^2,
         f["χ_ch_asympt"] ./ β^2,
         f["χ_pp_asympt"] ./ β^2,
@@ -100,17 +97,7 @@ function readConfig(cfg_in::String)
         nothing
     end
 
-    sP = SimulationParameters(
-        nBose,
-        nFermi,
-        Nν_shell,
-        shift,
-        χ_helper,
-        sum(Vk .^ 2),
-        fft_range,
-        sim["usable_prct_reduction"],
-        dbg_full_eom_omega,
-    )
+    sP = SimulationParameters(nBose, nFermi, Nν_shell, shift, χ_helper, sum(Vk .^ 2), fft_range, sim["usable_prct_reduction"], dbg_full_eom_omega)
     kGrids = Array{Tuple{String,Int},1}(undef, length(sim["Nk"]))
     if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"
         kGrids = [(tml["Model"]["kGrid"], 0)]
@@ -186,7 +173,7 @@ function Base.show(io::IO, m::ModelParameters)
 
     if !compact
         println(io, "U=$(m.U), β=$(m.β), n=$(m.n), μ=$(m.μ)")
-        println(io, "DMFT Energies: T=$(m.Ekin_DMFT), V=$(m.Epot_DMFT)")
+        println(io, "DMFT Energies: T=$(m.Ekin_1Pt), V=$(m.Epot_1Pt)")
     else
         print(io, "ModelParams[U=$(m.U), β=$(m.β), μ=$(m.μ), n=$(m.n)]")
     end

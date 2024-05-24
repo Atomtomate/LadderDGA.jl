@@ -171,14 +171,14 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
         iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β
 
-        χLoc_m = sum(subtract_tail(χLoc_m_ω[usable_loc_m], mP.Ekin_DMFT, iωn[usable_loc_m], 2)) / mP.β - mP.Ekin_DMFT * mP.β / 12
-        χLoc_d = sum(subtract_tail(χLoc_d_ω[usable_loc_d], mP.Ekin_DMFT, iωn[usable_loc_d], 2)) / mP.β - mP.Ekin_DMFT * mP.β / 12
+        χLoc_m = sum(subtract_tail(χLoc_m_ω[usable_loc_m], mP.Ekin_1Pt, iωn[usable_loc_m], 2)) / mP.β - mP.Ekin_1Pt * mP.β / 12
+        χLoc_d = sum(subtract_tail(χLoc_d_ω[usable_loc_d], mP.Ekin_1Pt, iωn[usable_loc_d], 2)) / mP.β - mP.Ekin_1Pt * mP.β / 12
 
         χupup_DMFT_ω = 0.5 * (χLoc_m_ω+χLoc_d_ω)[loc_range]
-        χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_DMFT, iωn[loc_range], 2)
+        χupup_DMFT_ω_sub = subtract_tail(χupup_DMFT_ω, mP.Ekin_1Pt, iωn[loc_range], 2)
 
         imp_density_ntc = real(sum(χupup_DMFT_ω)) / mP.β
-        imp_density = real(sum(χupup_DMFT_ω_sub)) / mP.β - mP.Ekin_DMFT * mP.β / 12
+        imp_density = real(sum(χupup_DMFT_ω_sub)) / mP.β - mP.Ekin_1Pt * mP.β / 12
 
         #TODO: update output
         !silent && @info """Inputs Read. Starting Computation.
@@ -210,12 +210,12 @@ end
     setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; [silent=false])
 
 Computes all needed objects for RPA calculations.
+This also updates the kinetic and potential energies in `ModelParameters` if the have not been set before.
 
 Returns: [`RPAHelper`](@ref RPAHelper)
 """
 
-function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool = false)
-    # TODO: refactor this as a function
+function setup_RPA!(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters; silent::Bool = false)
     !silent && @info "Setting up calculation for kGrid $(kGridStr[1]) of size $(kGridStr[2])"
     @timeit to "gen kGrid" kG = gen_kGrid(kGridStr[1], kGridStr[2])
     @timeit to "Compute GLoc" begin
@@ -236,15 +236,30 @@ function setup_RPA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simulat
         end
     end
 
-    @warn "Proper implementation of Σ_loc needed!"
-    Σ_loc = OffsetVector(repeat([0.0im], 5001), 0:5000) # Wird nur zum Verlaengern der Selbstenergie verwendet. An dieser Stelle kann ich optimieren. Diese Stelle ist der Grund dafuer, dass die Selbenergie einen Knick bekommt.  mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
+    # read RPA χ₀ from hdf5 file
+    # χ₀::χ₀RPA_T = read_χ₀_RPA(env.inputVars, Nω)
+    # @warn "Proper implementation of Σ_loc needed!"
+    # Wird nur zum Verlaengern der Selbstenergie verwendet. An dieser Stelle kann ich optimieren. 
+    # Diese Stelle ist der Grund dafuer, dass die Selbenergie einen Knick bekommt.  mP.U * mP.n/2 + 0im Set this based on my understanding of Julians explaination... 
+    # I am not sure about this, so far I have not fully understood the implementation of the second lambda correction
+    Σ_loc = OffsetVector(repeat([0.0im], 2*sP.n_iν + 2*sP.n_iω), 0:(2*sP.n_iν + 2*sP.n_iω - 1)) 
     @warn "χloc_m_sum is currently hardcoded to 0.25! This value should be given via the chi0-file!"
     χloc_m_sum = 0.25
+
+    if isnan(mP.Ekin_1Pt) || isnan(mP.Epot_1Pt)
+        Σ0 = similar(gLoc); 
+        Σ0 = OffsetArrays.Origin(1,0)(Σ0[:,0:end]);
+        fill!(Σ0, 0.0);
+        Ekin, Epot = calc_E(Σ0, kG, mP)
+        isnan(mP.Ekin_1Pt) && (mP.Ekin_1Pt = Ekin)
+        isnan(mP.Epot_1Pt) && (mP.Epot_1Pt = Epot)
+    end
+
     #if mP.μ ≈ mP.U * mP.n / 2
     #    χloc_m_sum = 0.25
     #else
     #    χloc_m_sum = sum_kω(kG, χ₀) #this is used for the tail correction term of the self energy
     #end
-    println("sum_kω(χ₀)=$(χloc_m_sum)")
+    @info "sum_kω(χ₀)=$(χloc_m_sum)"
     return RPAHelper(sP, mP, kG, gLoc, gLoc_fft, gLoc_rfft, Σ_loc, χloc_m_sum)
 end

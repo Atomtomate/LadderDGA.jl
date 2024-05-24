@@ -153,7 +153,8 @@ function G_from_Σ(Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range
                       mP::ModelParameters; μ = mP.μ, Σloc::OffsetVector{ComplexF64} = OffsetVector(ComplexF64[], 0:-1),
 )
     first(range) != 0 && error("G_from_Σ only implemented for range == 0:νmax!")
-    res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, 1:size(Σ,1), length(range)), 1:size(Σ,1), range)
+    last(range) > last(axes(Σloc,1)) && last(range) > last(axes(Σ,2)) && error("ν-range = $(range) is larger than non-local and local self-energy ranges")
+    res = OffsetMatrix{ComplexF64}(Array{ComplexF64,2}(undef, size(Σ,1), length(range)), 1:size(Σ,1), range)
     G_from_Σ!(res, Σ, ϵkGrid, range, mP; μ=μ, Σloc=Σloc)
     return res
 end

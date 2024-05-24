@@ -32,16 +32,16 @@ Fields
 - **`μ`**         : `Float64`, chemical potential
 - **`β`**         : `Float64`, inverse temperature
 - **`n`**         : `Float64`, filling
-- **`Epot_DMFT`** : `Float64`, DMFT potential energy
-- **`Ekin_DMFT`** : `Float64`, DMFT kinetic energy
+- **`Epot_1Pt`** : `Float64`, DMFT potential energy
+- **`Ekin_1Pt`** : `Float64`, DMFT kinetic energy
 """
 mutable struct ModelParameters <: ConfigStruct
     U::Float64              # Hubbard U
     μ::Float64              # chemical potential
     β::Float64              # inverse temperature
     n::Float64              # number density
-    Epot_DMFT::Float64
-    Ekin_DMFT::Float64
+    Epot_1Pt::Float64
+    Ekin_1Pt::Float64
 end
 
 """

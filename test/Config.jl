@@ -3,8 +3,8 @@
     @test mP_1.μ ≈ 1.2
     @test mP_1.β ≈ 1.3
     @test mP_1.n ≈ 1.4
-    @test mP_1.Epot_DMFT ≈ 1.6 
-    @test mP_1.Ekin_DMFT ≈ 1.7
+    @test mP_1.Epot_1Pt ≈ 1.6 
+    @test mP_1.Ekin_1Pt ≈ 1.7
 end
 
 @testset "SimulationParameters" begin

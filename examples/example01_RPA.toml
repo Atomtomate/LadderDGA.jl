@@ -1,0 +1,18 @@
+[Model]
+kGrid = "3Dsc-0.2041241452319315"
+U = 1.0
+beta = 1.0 
+
+[Simulation]
+Nk                    = 10            # number of k points in each dimension
+NBose                 = 100
+NFermi                = 100
+usable_prct_reduction = 0.0             # safety cutoff for usable ranges, 0.0 means all values where chi is positive and strictly decreasing
+omega_smoothing = "nothing"             # nothing, range, full. Smoothes data after nu, nu' sums. Set range to only use smoothing in order to find the usable range (default)
+
+[Environment]
+logfile = "stderr"                      # STDOUT, STDERR, filename
+loglevel = "debug"                      # error, warn, info, debug
+
+[Debug]
+full_EoM_omega = true                  # compatibility flag for fortran code

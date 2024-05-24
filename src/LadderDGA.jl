@@ -34,7 +34,7 @@ export collect_χ₀, collect_χ, collect_γ, collect_Σ
 export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder, attach_Σloc
 
 # RPA main functions
-export setup_RPA, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA
+export setup_RPA!, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA, setupConfig_RPA
 
 # Thermodynamics
 export EPot_p1, EPot_p2, PP_p1, PP_p1, EKin_p2, EKin_p1
