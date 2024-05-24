@@ -188,7 +188,6 @@ function readConfig_RPA(cfg_in::String)
         n_1Pt = 1.0 # tml_model["n_density"]
         @warn "The parameter μ is set to Un/2!"
         μ_1Pt = U * n_1Pt / 2
-        @warn "The parameter EPot_DMFT is set to zero!"
         Epot_1Pt = NaN
         Ekin_1Pt = NaN
     else

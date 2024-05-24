@@ -17,23 +17,17 @@ end
 function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool = false, validate_threshold::Float64 = 1e-8)
 
     kG::KGrid = h.kG
-    rhs =
-        h.mP.n * (1 - 0.5 * h.mP.n) -
-        sum_kω(kG, χd, χd.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform = nothing)
+    rhs = h.mP.n * (1 - 0.5 * h.mP.n) - sum_kω(
+            kG, χd, χd.β, 0.0, zeros(Float64, length(χd.usable_ω)); transform = nothing)
 
     λm_min = get_λ_min(χm)
     χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
     iωn = (1im .* 2 .* (-h.sP.n_iω:h.sP.n_iω)[χm.usable_ω] .* π ./ h.mP.β)
 
     f_c1(λint::Float64)::Float64 =
-        sum_kω(
-            kG,
-            χr,
-            χm.β,
-            0.0,
-            zeros(Float64, length(χd.usable_ω));
-            transform = (f(x::Float64)::Float64 = χ_λ(x, λint)),
-        ) - rhs
+        sum_kω(kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω)); 
+                transform = (f(x::Float64)::Float64 = χ_λ(x, λint)),
+               ) - rhs
     df_c1(λint::Float64)::Float64 = sum_kω(
         kG,
         χr,

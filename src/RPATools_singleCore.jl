@@ -102,9 +102,18 @@ function calc_λ0(χ₀::χ₀RPA_T, sP::SimulationParameters, mP::ModelParamete
     Nq = size(χ₀.data, χ₀.axis_types[:q])   # number of sample points in the sampled reduced reciprocal lattice space
     
     λ0 = zeros(ComplexF64, Nq, Nν, Nω)
-    for νi in 1 : Nν
-        λ0[ :, νi, :] = -mP.U * χ₀
+    for νi in 1:Nν
+        λ0[:,νi,:] = -mP.U * χ₀
     end
+    return λ0
+end
+
+function calc_λ0(χ₀::χ₀T, helper::RPAHelper)
+    calc_λ0(χ₀, helper.sP, helper.mP)
+end
+
+function calc_λ0(χ₀::χ₀T, sP::SimulationParameters, mP::ModelParameters)
+    λ0 = -mP.U .* deepcopy(χ₀.data)
     return λ0
 end
 
