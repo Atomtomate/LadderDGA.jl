@@ -8,7 +8,7 @@ using Roots
 using DataFrames
 using TimerOutputs
 using FiniteDifferences
-using Printf
+using Printf, Term
 
 
 import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..eom_ν_cutoff

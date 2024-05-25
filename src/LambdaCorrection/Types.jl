@@ -168,17 +168,16 @@ sc_converged(r::λ_result) = r.sc_converged
 function Base.show(io::IO, m::λ_result{T}) where {T}
     width = 80
     compact = get(io, :compact, false)
-    cc = converged(m) ? "converged" : "NOT converged"
+    cc = converged(m) ? @green("converged") : @red("NOT converged")
     if !compact
-        println(io, "| " * repeat("=", width) * " |")
-        println(io, "| " * rpad("λ-correction (type: $(T)), $cc", width) * " |")
-        println(io, "| " * rpad(@sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f", m.λm, m.λd, m.μ), width) * " |")
-        println(io, "| " * repeat("-", width) * " |")
-        println(io, "| " * rpad(@sprintf("PP_1   =  %3.8f, PP_2   = %3.8f", m.PP_p1, m.PP_p2), width) * " |")
-        println(io, "| " * rpad(@sprintf("Epot_1 =  %3.8f, Epot_2 = %3.8f", m.EPot_p1, m.EPot_p2), width) * " |")
-        println(io, "| " * rpad(@sprintf("Ekin   =  %3.8f", m.EKin), width) * " |")
+        tprint(Panel(
+            @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f\n", m.λm, m.λd, m.μ) * 
+            @sprintf("PP_1   =  %3.8f, PP_2   = %3.8f\n", m.PP_p1, m.PP_p2) *
+            @sprintf("Epot_1 =  %3.8f, Epot_2 = %3.8f\n", m.EPot_p1, m.EPot_p2) *
+            @sprintf("Ekin   =  %3.8f\n", m.EKin),
+            title="λ-correction (type: $(T)), $cc"
+        ))
         !isnothing(m.trace) && println(io, "trace: \n", m.trace)
-        println(io, "| " * repeat("=", width) * " |")
     else
         print(io, "λ-correction (type: $cc) result, λm = $(m.λm), λd = $(m.λd), μ = $(m.μ) // $converged")
     end
