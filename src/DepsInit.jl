@@ -13,7 +13,6 @@
 
 # ========================================== Dependencies ============================================
 using ArgParse
-using Logging, LoggingExtras
 using OffsetArrays
 using Distributed
 using FFTW                # used for convolutions
@@ -24,6 +23,11 @@ using JLD2, FileIO        # input/output files
 using LinearAlgebra
 using LinearMaps, Arpack            # for lin. Eliashberg eq. (largest/smallest EV)
 
+# UI 
+using Logging, LoggingExtras, Suppressor
+using Term
+import Term: install_term_logger
+
 # Fortran compatibility
 using Printf, DelimitedFiles
 
@@ -33,6 +37,7 @@ using Roots # Roots.jl for μ determination for now, may be replaced by NLsolve
 using Dispersions
 using BSE_Asymptotics
 
+# For debugging, drags a timing object along through the code
 using TimerOutputs
 
 using Base.Iterators, Base
@@ -76,6 +81,13 @@ function __init__()
 
     global to = TimerOutput()
     global LOG_BUFFER = IOBuffer()
+    
+    global MAIN_PANEL = Panel(
+        "Test Output";
+        width=min(Term.console_width(),200), justify=:center, style="blue", box=:DOUBLE, title="LadderDGA.jl", title_style="white"
+    )
+    print(MAIN_PANEL)
+
     global LOG = ""
     s = ArgParseSettings()
     @add_arg_table! s begin
@@ -96,4 +108,5 @@ function __init__()
     )
     global logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
     global logger = global_logger(TeeLogger(logger_console, logger_file))
+    install_term_logger()
 end

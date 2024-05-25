@@ -43,7 +43,7 @@ export calc_E_ED, calc_E, calc_Epot2
 
 # LambdaCorrection
 export χ_λ, χ_λ!, reset!
-export λdm_correction, λdm_correction_dbg, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
+export λdm_sc_correction, λdm_correction, λm_correction, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
 export sample_f
 
 #TODO: check interface after refactoring

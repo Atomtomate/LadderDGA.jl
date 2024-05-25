@@ -172,7 +172,6 @@ end
 Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
 """
 function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
-
     gs = gridshape(kG)
     kGdims = length(gs)
     G_fft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
@@ -182,6 +181,12 @@ function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
     return G_fft, G_rfft
 end
 
+"""
+    G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
+
+Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
+Inplace version of [`G_fft`](@ref G_fft).
+"""
 function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
     νdim = length(gridshape(kG)) + 1
     for νn in fft_range

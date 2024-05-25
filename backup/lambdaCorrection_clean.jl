@@ -73,6 +73,7 @@ function extended_λ_clean(χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
     χ_ch.data = χch_bak
     return res_nls
 end
+
 function cond_both_int_clean(
         χ_sp::χT, γ_sp::γT, χ_ch::χT, γ_ch::γT,
         ωindices::UnitRange{Int}, Σ_ladder_ω::OffsetArray{ComplexF64,3,Array{ComplexF64,3}}, 

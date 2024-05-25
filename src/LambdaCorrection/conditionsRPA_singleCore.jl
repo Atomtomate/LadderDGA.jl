@@ -29,11 +29,7 @@ function λm_correction_RPA(χm::χT, χd::χT, h::RPAHelper; verbose::Bool = fa
                 transform = (f(x::Float64)::Float64 = χ_λ(x, λint)),
                ) - rhs
     df_c1(λint::Float64)::Float64 = sum_kω(
-        kG,
-        χr,
-        χm.β,
-        0.0,
-        zeros(Float64, length(χd.usable_ω));
+        kG, χr, χm.β, 0.0, zeros(Float64, length(χd.usable_ω));
         transform = (f(x::Float64)::Float64 = dχ_λ(x, λint)),
     )
     λm = newton_secular(f_c1, df_c1, λm_min)

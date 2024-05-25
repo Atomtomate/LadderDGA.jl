@@ -64,10 +64,13 @@ include("lambda_m_correction.jl")
 # ============================================== λdm =================================================
 include("lambda_dm_correction.jl")
 # ============================================= λdmsc ================================================
+include("lambda_dm_sc_correction.jl")
+# ============================================= λdmtsc ===============================================
+include("lambda_dm_tsc_correction.jl")
 
 # ====================================== Results Validation ==========================================
 function validation_to_string(PP_p1, PP_p2, EPot_p1, EPot_p2, sums_check)
-
+    error("Not implemented yet.")
 end
 
 """
@@ -91,7 +94,7 @@ end
 """
     validate_PP(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64)
 
-Returns ``\\sum_k \\sum_\\omega \\chi^{\\lambda_r,\\omega}_{r,q} - \\sum_\\omega \\sum_k \\chi^{\\lambda_r,\\omega}_{r,q}``.
+Returns .
 """
 function validate_PP(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64)
     error("not implemented yet")
@@ -100,7 +103,7 @@ end
 """
     validate_EPot(χm::χT, χd::χT, λm::Float64, n::Float64)
 
-Returns ``\\sum_k \\sum_\\omega \\chi^{\\lambda_r,\\omega}_{r,q} - \\sum_\\omega \\sum_k \\chi^{\\lambda_r,\\omega}_{r,q}``.
+Returns .
 """
 function validate_EPot(EPot_P1::Float64, χm::χT, χd::χT, λm::Float64, n::Float64)
     error("not implemented yet")

@@ -117,13 +117,42 @@ function calc_λ0(χ₀::χ₀T, sP::SimulationParameters, mP::ModelParameters)
     return λ0
 end
 
-
 function calc_Σ_rpa!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, work_kG_exp::Array{ComplexF64,N},
-    χm::χT, χd::χT, χ_0_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
-    Gνω::GνqT, kG::KGrid,
-    mP::ModelParameters, sP::SimulationParameters; tc::Bool=true) ::Nothing where N
-calc_Σ_ω_rpa!(eom_rpa, Σ_ladder, Kνωq_pre, work_kG_exp, χm, χd, Gνω, λ₀, mP.U, kG, sP)
-tail_correction = (tc ? correction_term(mP, kG, χm, χ_0_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
-Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree(mP)
-return nothing
+                     χm::χT, χd::χT, χ_0_sum::Union{Float64,ComplexF64}, λ₀::AbstractArray{_eltype,3},
+                     Gνω::GνqT, kG::KGrid,
+                     mP::ModelParameters, sP::SimulationParameters; tc::Bool=true
+) ::Nothing where N
+    calc_Σ_ω_rpa!(eom_rpa, Σ_ladder, Kνωq_pre, work_kG_exp, χm, χd, Gνω, λ₀, mP.U, kG, sP)
+    tail_correction = (tc ? correction_term(mP, kG, χm, χ_0_sum, collect(axes(Σ_ladder)[2])) : zero(iν_array(mP.β, collect(axes(Σ_ladder)[2]))))
+    Σ_ladder.parent[:,:] = Σ_ladder.parent[:,:] ./ mP.β .+ reshape(tail_correction, 1, length(tail_correction)) .+ Σ_hartree(mP)
+    return nothing
+end
+
+function calc_Σ_ω_rpa!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64}, work_kG_exp::Array{ComplexF64,N},
+                       χm::χT, χd::χT,
+                       Gνω::GνqT, λ₀::AbstractArray{ComplexF64,3}, U::Float64, kG::KGrid,
+                       sP::SimulationParameters) where N
+
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG))+1 : 2 # TODO: this is a fallback for gIm. RPA: ndims(Gνω) > 2 is expected, todo: remove inline if.
+    fill!(Σ_ladder, zero(ComplexF64))
+    ω_axis = χm.indices_ω
+    for (ωi,ωn) in enumerate(ω_axis)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        νlist = νZero:(sP.n_iν*2)
+        length(νlist) > size(Σ_ladder,2) && (νlist = νlist[1:size(Σ_ladder,2)])
+        
+        # evaluate EoM for each element of the brillouin zone
+        for qi in 1:size(Σ_ladder,1)
+            Kνωq_pre[qi] = eomf(U, χm[qi,ωi], χd[qi,ωi], λ₀[qi,begin,ωi]) # note: independent of ν
+        end
+        expandKArr!(kG, work_kG_exp, Kνωq_pre)
+        kG.fftw_plan * work_kG_exp # apply fourier transform to real/position space. technical: kG.fftw_plan is inplace plan!
+
+        # evaluate cross correlation / perform q-integration for each fermionic matsubara frequency
+        for (νii,νi) in enumerate(νlist)
+            #TODO: find a way to not unroll this!
+            copy!(kG.cache1, work_kG_exp)
+            conv_tmp_add_rpa!(view(Σ_ladder,:,νii-1), kG, selectdim(Gνω,νdim,(νii-1) + ωn))
+        end
+    end
 end

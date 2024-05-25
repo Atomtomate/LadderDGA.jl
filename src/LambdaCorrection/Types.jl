@@ -70,7 +70,7 @@ mutable struct λ_result{T<:CorrectionMethod}
     n_dmft::Float64
 
     # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
-    function λ_result(λm::Float64,λd::Float64,type::Type{T},
+    function λ_result(λm::Float64,λd::Float64, type::Type{T},
                       sc_converged::Bool,eps_abs::Float64,sc_eps_abs::Float64,
                       EKin::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
                       trace::Union{DataFrame,Nothing},
@@ -79,6 +79,34 @@ mutable struct λ_result{T<:CorrectionMethod}
         new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft
         )
     end
+end
+
+"""
+    λ_result(χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, λm, λd, h; 
+                  validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
+    λ_result(χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, μ_new, G_ladder, Σ_ladder, λm, λd, h; 
+                  validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
+                  
+Constructs λ_result object, runs all checks and stores them.
+"""
+function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
+                  λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
+                  validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
+    μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = true, fix_n = true)
+    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+end
+
+function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladder, 
+                  λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
+                  validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
+    χm_sum = sum_kω(h.kG, χm, λ = λm)
+    χd_sum = sum_kω(h.kG, χd, λ = λd)
+    PP_p1  = h.mP.n / 2 * (1 - h.mP.n / 2)
+    PP_p2  = real(χd_sum + χm_sum) / 2
+    Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
+    Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
+    ndens = filling_pos(G_ladder[:,0:h.sP.n_iν], h.kG, h.mP.U, μ_new, h.mP.β, improved_sum=true)
+    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Epot_p1, Epot_p2, PP_p1, PP_p2, nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n)
 end
 
 # ---------------------------------------- IO and Helpers --------------------------------------------
@@ -108,7 +136,7 @@ n_diff(result::λ_result) = result.n_dmft - result.n
 
 Checks convergences for appropriate parameters of method.
 """
-function converged(r::λ_result{T}, eps_abs::Float64 = 1e-6) where {T}
+function converged(r::λ_result{T}) where {T}
     if T in [mCorrection, m_scCorrection, m_tscCorrection]
         abs(PP_diff(r)) <= r.eps_abs
     elseif T in [dmCorrection, dm_scCorrection, dm_tscCorrection]
@@ -138,14 +166,20 @@ Checks for self-consistency convergence. Returns `true` if method does not invlo
 sc_converged(r::λ_result) = r.sc_converged
 
 function Base.show(io::IO, m::λ_result{T}) where {T}
+    width = 80
     compact = get(io, :compact, false)
     cc = converged(m) ? "converged" : "NOT converged"
     if !compact
-        println(io, "λ-correction (type: $(T)), $cc")
-        println(io, "λm = $(m.λm), λd = $(m.λd), μ = $(m.μ)")
-        println(io, "Epot_1 = $(m.EPot_p1), Epot_2 = $(m.EPot_p2)")
+        println(io, "| " * repeat("=", width) * " |")
+        println(io, "| " * rpad("λ-correction (type: $(T)), $cc", width) * " |")
+        println(io, "| " * rpad(@sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f", m.λm, m.λd, m.μ), width) * " |")
+        println(io, "| " * repeat("-", width) * " |")
+        println(io, "| " * rpad(@sprintf("PP_1   =  %3.8f, PP_2   = %3.8f", m.PP_p1, m.PP_p2), width) * " |")
+        println(io, "| " * rpad(@sprintf("Epot_1 =  %3.8f, Epot_2 = %3.8f", m.EPot_p1, m.EPot_p2), width) * " |")
+        println(io, "| " * rpad(@sprintf("Ekin   =  %3.8f", m.EKin), width) * " |")
         !isnothing(m.trace) && println(io, "trace: \n", m.trace)
+        println(io, "| " * repeat("=", width) * " |")
     else
-        print(io, "λ-correction (type: $type) result, λm = $(m.λm), λd = $(m.λd), μ = $(m.μ) // $converged")
+        print(io, "λ-correction (type: $cc) result, λm = $(m.λm), λd = $(m.λd), μ = $(m.μ) // $converged")
     end
 end

@@ -210,18 +210,18 @@ TODO: documentation for arguments
 TODO: fit function computes loads of unnecessary frequencies
 """
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
+                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
     )
         
         G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), νRange)
         μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP,
-                fix_n = fix_n, μ = μ, improved_sum_filling = improved_sum_filling, νFitRange=νFitRange   
+                fix_n = fix_n, μ = μ, improved_sum_filling = improved_sum_filling, n = n, νFitRange=νFitRange   
             )
         return μ, G_new
     end
 
-    function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                            fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2))
+function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
+                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2))
 )::Float64
     νRange = 0:last(axes(G_new, 2))
     length(νRange) < 10 && @warn "fixing ν range with only $(length(νRange)) frequencies!"
@@ -431,6 +431,7 @@ function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64},
         χ_tail::Vector{Float64} = real.(ci ./ (iωn .^ i))
     end
 end
+
 
 # ==================================== Fermi Surface Estimation ======================================
 function lin_fit(ν::Vector{Float64}, Σ::Vector{Float64})

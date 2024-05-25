@@ -44,8 +44,8 @@ function readConfig(cfg_in::String)
     end
 
     inputVars = tml["Environment"]["inputVars"]
-    logfile   = tml_enviroment["logfile"]
-        
+    logfile   = tml["Environment"]["logfile"]
+    loglevel  = tml["Environment"]["loglevel"]
     env = EnvironmentVars(input_dir, joinpath(input_dir, inputVars), lowercase(loglevel), lowercase(logfile))
     if !isfile(env.inputVars)
         @error "ERROR: input file at location $(env.inputVars) not found!"
@@ -83,13 +83,13 @@ function readConfig(cfg_in::String)
     fft_range = -freq_r:freq_r
 
     # chi asymptotics
-
+    
     χ_helper = if lowercase(sim["chi_asympt_method"]) == "asympt"
         BSE_SC_Helper(χsp_asympt, χch_asympt, χpp_asympt, 2 * Nν_full, Nν_shell, nBose, Nν_full, shift)
     elseif lowercase(sim["chi_asympt_method"]) == "direct"
-        BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
+            BSE_Asym_Helper(χsp_asympt, χch_asympt, χpp_asympt, Nν_shell, mP.U, mP.β, nBose, nFermi, shift)
     elseif lowercase(sim["chi_asympt_method"]) == "direct_approx2"
-        BSE_Asym_Helper_Approx2(Nν_shell)
+            BSE_Asym_Helper_Approx2(Nν_shell)
     elseif lowercase(sim["chi_asympt_method"]) == "nothing"
         nothing
     else
@@ -189,3 +189,6 @@ function Base.show(io::IO, ::MIME"text/plain", m::ModelParameters)
     println(io, "LadderDGA.jl ModelParameters:")
     show(io, m)
 end
+
+
+# ========================================== Term Related ============================================

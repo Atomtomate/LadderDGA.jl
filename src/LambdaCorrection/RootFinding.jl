@@ -213,9 +213,9 @@ function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 50
         xi = xi - dfii * fi
         # Found solution in the correct interval
         (norm(fi) < atol || i >= nsteps) && (done = true)
-
         i += 1
     end
+    i >= nsteps && !done && @warn "Newton did not converge!"
     return xi_tf#inv_newton_secular_transform(xi,xp)
 end
 

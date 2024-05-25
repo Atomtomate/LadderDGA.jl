@@ -20,6 +20,7 @@ const _eltype = ComplexF64
 const ΓT = Array{_eltype,3}
 const FT = Array{_eltype,3}
 const GνqT = OffsetArray
+const λ₀T = Array{_eltype,3}
 
 const _eltype_RPA = Float64
 
@@ -248,6 +249,24 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
 
 
 """
+    ω2_tail(χ, h)
+
+
+Computes bosonic frequency tail for `χ`: ``\\mathrm{tail}(n) = \\frac{1}{(2 i \\pi n / \\beta)^2}``.
+Sets ``\\mathrm{tail}(n) = 0``.
+"""
+function ω2_tail(χ::χT; force_full::Bool = false)
+    indices = force_full ? χ.indices_ω : χ.indices_ω[χ.usable_ω]
+    iωn = (1im .* 2 .* indices .* π ./ χ.β)
+    ωn2_tail::Vector{Float64} = real.(χ.tail_c[3] ./ (iωn .^ 2))
+    # exclude 0-frequency
+    zi = findfirst(x -> abs(x) < 1e-10, iωn)
+    ωn2_tail[zi] = 0.0
+    return ωn2_tail
+end
+
+
+"""
     sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, [transform::Function])
     sum_kω(kG::kGrid, χ::χT; ωn_arr=ωn_grid(χ), force_full_range=false, [λ::Float64])
     sum_kω(kG::KGrid, χ::AbstractMatrix{Float64}, β::Float64, ωn2_tail::Vector{Float64}; transform=nothing)::Float64
@@ -272,9 +291,7 @@ function sum_kω(kG::KGrid, χ::Union{χT, χ₀RPA_T}; ωn_arr=ωn_grid(χ), fo
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
 
-    ωn2_tail = real(tail_c ./ ωn_arr .^ 2)
-    zero_ind = findfirst(x->!isfinite(x), ωn2_tail)
-    ωn2_tail[zero_ind] = 0.0
+    ωn2_tail = ω2_tail(χ)
     res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, tail_c, ωn2_tail, transform=transform) 
     return res
 end
@@ -374,6 +391,7 @@ end
     update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
 
 Updates the ``\\frac{c_i}{\\omega_n^i}`` tail for all coefficients given in `new_tail_c` (index 1 corresponds to ``i=0``).
+#TODO: ONLY UPDATES 1/w^2 AT THE MOMENT!!!
 """
 function update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
     length(new_tail_c) != length(χ.tail_c) && throw(
