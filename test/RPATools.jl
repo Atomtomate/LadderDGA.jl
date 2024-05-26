@@ -1,6 +1,6 @@
 @testset "RPA" begin
 
-    RPAHelper_1 = setup_RPA(("2dsc-1.0",1), mP_2, sP_2)
+    RPAHelper_1 = setup_RPA!(("2dsc-1.0",1), mP_2, sP_2)
     @test typeof(RPAHelper_1) === RPAHelper
     @testset "bubble" begin
         bubble_RPA = calc_bubble(:RPA, RPAHelper_1)
