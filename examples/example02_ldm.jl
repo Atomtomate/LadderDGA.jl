@@ -18,4 +18,5 @@ res_m      = LadderDGA.LambdaCorrection.λm_correction(χm, γm, χd, γd, λ₀
 res_dm     = LadderDGA.LambdaCorrection.λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_dm)
 res_m_sc   = LadderDGA.LambdaCorrection.λm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_m_sc)
 res_dm_sc  = LadderDGA.LambdaCorrection.λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_dm_sc)
+res_m_tsc  = LadderDGA.LambdaCorrection.λm_tsc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc = 200); print(res_m_tsc)
 res_dm_tsc = LadderDGA.LambdaCorrection.λdm_tsc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc = 200); print(res_dm_tsc)

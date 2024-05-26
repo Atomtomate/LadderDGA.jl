@@ -9,6 +9,24 @@
 # ==================================================================================================== #
 
 """
+    λm_tsc_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h, sP, mP;
+                        validation_threshold::Float64 = 1e-8, log_io = devnull
+    )
+
+
+"""
+function λm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
+                           validation_threshold::Float64 = 1e-8,
+                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
+                           log_io = devnull, tc = true)       
+
+    λd = 0.0
+    converged, μ_new, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
+    return λ_result(m_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+end
+
+
+"""
     λdm_tsc_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h, sP, mP;
                         validation_threshold::Float64 = 1e-8, log_io = devnull
     )
