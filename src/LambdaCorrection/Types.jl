@@ -57,7 +57,8 @@ mutable struct λ_result{T<:CorrectionMethod}
     sc_converged::Bool
     eps_abs::Float64
     sc_eps_abs::Float64
-    EKin::Float64
+    EKin_p1::Float64
+    EKin_p2::Float64
     EPot_p1::Float64
     EPot_p2::Float64
     PP_p1::Float64
@@ -72,11 +73,11 @@ mutable struct λ_result{T<:CorrectionMethod}
     # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
     function λ_result(λm::Float64,λd::Float64, type::Type{T},
                       sc_converged::Bool,eps_abs::Float64,sc_eps_abs::Float64,
-                      EKin::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
+                      EKin_p1::Float64,EKin_p2::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
                       trace::Union{DataFrame,Nothing},
                       G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64
     ) where {T<:CorrectionMethod}
-        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft
+        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft
         )
     end
 end
@@ -103,10 +104,11 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
     χd_sum = sum_kω(h.kG, χd, λ = λd)
     PP_p1  = h.mP.n / 2 * (1 - h.mP.n / 2)
     PP_p2  = real(χd_sum + χm_sum) / 2
+    Ekin_p2 = χm.tail_c[3]
     Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
     Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
     ndens = filling_pos(G_ladder[:,0:h.sP.n_iν], h.kG, h.mP.U, μ_new, h.mP.β, improved_sum=true)
-    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Epot_p1, Epot_p2, PP_p1, PP_p2, nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n)
+    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1, PP_p2, nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n)
 end
 
 # ---------------------------------------- IO and Helpers --------------------------------------------
@@ -170,11 +172,17 @@ function Base.show(io::IO, m::λ_result{T}) where {T}
     compact = get(io, :compact, false)
     cc = converged(m) ? @green("converged") : @red("NOT converged")
     if !compact
+        rdiff_pp = 100 * abs(m.PP_p1 -  m.PP_p2)/abs(m.PP_p1 + m.PP_p2)
+        rdiff_Ep = 100 * abs(m.EPot_p1 - m.EPot_p2)/abs(m.EPot_p1 + m.EPot_p2)
+        rdiff_Ek = 100 * abs(m.EKin_p1 - m.EKin_p2)/abs(m.EKin_p1 + m.EKin_p2)
+        rdiff_pp_s = rdiff_pp < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_pp)) : @red(@sprintf("Δ = %2.4f%%",rdiff_pp)) 
+        rdiff_Ep_s = rdiff_Ep < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ep)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ep))
+        rdiff_Ek_s = rdiff_Ek < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ek)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ek))
         tprint(Panel(
             @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f\n", m.λm, m.λd, m.μ) * 
-            @sprintf("PP_1   =  %3.8f, PP_2   = %3.8f\n", m.PP_p1, m.PP_p2) *
-            @sprintf("Epot_1 =  %3.8f, Epot_2 = %3.8f\n", m.EPot_p1, m.EPot_p2) *
-            @sprintf("Ekin   =  %3.8f\n", m.EKin),
+            @sprintf("PP_1   =  %3.8f,  PP_2   =  %3.8f,  %s\n", m.PP_p1, m.PP_p2, rdiff_pp_s) *
+            @sprintf("Epot_1 =  %3.8f,  Epot_2 =  %3.8f,  %s\n", m.EPot_p1, m.EPot_p2, rdiff_Ep_s) *
+            @sprintf("Ekin_1 = %3.8f,  Ekin_2 = %3.8f,  %s\n", m.EKin_p1 , m.EKin_p2, rdiff_Ek_s),
             title="λ-correction (type: $(T)), $cc"
         ))
         !isnothing(m.trace) && println(io, "trace: \n", m.trace)
