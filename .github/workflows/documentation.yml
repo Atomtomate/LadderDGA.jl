@@ -18,8 +18,9 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@latest
         with:
-          version: '1.9'
-      - run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry"))'
+          version: '1.10'
+      - name: Install dependencies
+        run: julia -e 'using Pkg; Pkg.Registry.add(RegistrySpec(url = "https://github.com/JuliaRegistries/General")); Pkg.Registry.add(RegistrySpec(url = "https://github.com/Atomtomate/JuliaRegistry")); Pkg.activate("."); Pkg.instantiate(); Pkg.activate("docs"); Pkg.instantiate();'
         shell: bash
       - uses: actions/cache@v1
         env:
@@ -31,7 +32,7 @@ jobs:
             ${{ runner.os }}-test-${{ env.cache-name }}-
             ${{ runner.os }}-test-
             ${{ runner.os }}-
-      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-buildpkg@master
       - name: Build and deploy
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -82,11 +82,11 @@ function __init__()
     global to = TimerOutput()
     global LOG_BUFFER = IOBuffer()
     
-    global MAIN_PANEL = Panel(
-        "Test Output";
-        width=min(Term.console_width(),200), justify=:center, style="blue", box=:DOUBLE, title="LadderDGA.jl", title_style="white"
-    )
-    print(MAIN_PANEL)
+    #global MAIN_PANEL = Panel(
+    #    "Test Output";
+    #    width=min(Term.console_width(),200), justify=:center, style="blue", box=:DOUBLE, title="LadderDGA.jl", title_style="white"
+    #)
+    #print(MAIN_PANEL)
 
     global LOG = ""
     s = ArgParseSettings()

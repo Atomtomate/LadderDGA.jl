@@ -4,6 +4,8 @@ using OffsetArrays
 
 rmprocs(workers(default_worker_pool()))
 addprocs(2, exeflags="--project=$(Base.active_project())")
+
+
 @everywhere using LadderDGA
 
 dir = dirname(@__FILE__)
@@ -17,6 +19,8 @@ lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=true);
 bubble     = calc_bubble(:DMFT, lDGAhelper);
 bubble_par = calc_bubble_par(lDGAhelper);
 calc_bubble_par(lDGAhelper, collect_data=false);
+
+
 @test all(bubble.data .≈ bubble_par.data)
 @test all(bubble.asym .≈ bubble_par.asym)
 
@@ -82,13 +86,16 @@ initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χ_m, γ_m = γ_m, χ_d =
 # end
 end
 
-χ_λ!(χ_d, 0.1)
 λm_res_λd01 = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
+res_m      = LadderDGA.LambdaCorrection.λm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m)
+res_dm     = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm)
+res_m_sc   = LadderDGA.LambdaCorrection.λm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m_sc)
+res_dm_sc  = LadderDGA.LambdaCorrection.λdm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm_sc)
+res_dm_tsc = LadderDGA.LambdaCorrection.λdm_tsc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper; max_steps_sc = 200); print(res_dm_tsc)
 λm = λm_res_λd01.λm
-χ_λ!(χ_m, λm)
+@test λm_res_λd01.λm ≈ res_m.λm
 #@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, mP.μ, lDGAhelper; type=:fix, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
-reset!(χ_d)
-reset!(χ_m)
+
 # @testset "run_sc" begin
 #     @test run_res[4] .≈ run_res_new.EKin
 #     @test run_res[5] .≈ run_res_new.EPot_p1

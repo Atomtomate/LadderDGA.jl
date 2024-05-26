@@ -135,7 +135,7 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
 end
 
 
-function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3},Kνωq_pre::Vector{ComplexF64}, 
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Σ_ladder_ω::OffsetArray{ComplexF64,3}, Kνωq_pre::Vector{ComplexF64}, 
                  χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
                  tc_factor::Vector, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
 )::Nothing
@@ -212,32 +212,30 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
                       Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
                       tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
     Σ_hartree = mP.n * mP.U / 2.0
-    Nq, Nω = size(χm)
-    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
-    ωindices::UnitRange{Int} = (sP.dbg_full_eom_omega) ? (1:Nω) : intersect(χm.usable_ω, χd.usable_ω)
+    Nq = size(χm, χm.axis_types[:q])
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    Σ_ladder_ω = OffsetArray(Array{Complex{Float64},3}(undef, Nq, sP.n_iν, length(ωrange)), 1:Nq, 0:sP.n_iν-1, ωrange)
+    Σ_ladder_i = OffsetArray(Array{Complex{Float64},2}(undef, Nq, sP.n_iν), 1:Nq, 0:sP.n_iν-1)
     Σ_ladder = OffsetArray(Array{Complex{Float64},3}(undef, Nq, sP.n_iν, 7), 1:Nq, 0:sP.n_iν-1, 1:7)
 
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc, iν) : 0.0 ./ iν)rpa-eom
-    calc_Σ_ω!(eom_χ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 1] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
-    calc_Σ_ω!(eom_γ_m, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 2] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
-    calc_Σ_ω!(eom_χ_d, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 3] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
-    calc_Σ_ω!(eom_γ_d, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 4] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
-    calc_Σ_ω!(eom_rest_01, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 5] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β
-    calc_Σ_ω!(eom_rest, Σ_ladder_ω, Kνωq_pre, χm, γm, χd, γd, Gνω, λ₀, mP.U, kG, sP)
-    Σ_ladder.parent[:, :, 6] = dropdims(sum(Σ_ladder_ω, dims = [3]), dims = 3) ./ mP.β .+ Σ_hartree
-    for qi = 1:size(Σ_ladder, 1)
+    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc, iν) : 0.0 ./ iν)
+    calc_Σ_ω!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
+    calc_Σ_ω!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 2] = Σ_ladder_i ./ mP.β
+    calc_Σ_ω!(eom_χ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 3] = Σ_ladder_i ./ mP.β
+    calc_Σ_ω!(eom_γ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 4] = Σ_ladder_i ./ mP.β
+    calc_Σ_ω!(eom_rest_01, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 5] = Σ_ladder_i ./ mP.β
+    calc_Σ_ω!(eom_rest, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    Σ_ladder.parent[:, :, 6] = Σ_ladder_i ./ mP.β .+ Σ_hartree
+    for qi in axes(Σ_ladder, 1)
         Σ_ladder.parent[qi, :, 7] .= tc_term[1,:]
     end
     λm != 0.0 && reset!(χm)

@@ -1,6 +1,10 @@
 using LadderDGA
 using Test
 using OffsetArrays
+using Logging
+
+#Logging.LogLevel(10000)
+Logging.disable_logging(Logging.Warn)
 
 mP_1 = ModelParameters(1.1, 1.2, 1.3, 1.4, 1.6, 1.7)
 mP_2 = ModelParameters(1.3, 1.3/2, 5.0, 1.0, 1.6, 1.7)
@@ -70,9 +74,9 @@ end
     include("LinearizedEliashberg.jl")
 end
 
-# @testset "full run" begin
-#     include("full_run.jl")
-# end
+@testset "full run" begin
+    include("full_run.jl")
+end
 
 @testset "LambdaCorrections" begin
     include("LambdaCorrection/runtests.jl")
