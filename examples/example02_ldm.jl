@@ -6,7 +6,7 @@ using LadderDGA
 cfg_file_3Dsc = joinpath(dir, "../test/test_data/config_b1u2.toml")
 cfg_file_2Dsc = joinpath(dir, "../test/test_data/config_2D.toml")
 
-wp, mP, sP, env, kGridsStr = readConfig(cfg_file_2Dsc);
+wp, mP, sP, env, kGridsStr = readConfig(cfg_file_3Dsc);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=true);
 bubble     = calc_bubble(:DMFT, lDGAhelper);
 χm, γm = calc_χγ(:m, lDGAhelper, bubble);

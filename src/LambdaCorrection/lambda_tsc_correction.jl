@@ -208,6 +208,7 @@ function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor_term,
         end
         it += 1
     end
-
+    update_tail!(χm_it, [0, 0, h.mP.EKin], iωn_grid)
+    update_tail!(χd_it, [0, 0, h.mP.EKin], iωn_grid)
     return converged, μ_it, λm
 end
