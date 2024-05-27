@@ -33,3 +33,4 @@ Roots NLSolve_files
 .vscode
 
 test/test_data/*
+!test/test_data/2Dsc_U2B8.jld2
