@@ -21,11 +21,12 @@ import ..RPAHelper, ..lDΓAHelper, ..RunHelper
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
 
-export λ_correction, λm_correction, λdm_correction, λ_result
+export λ_correction, λ_result
 export newton_right, newton_secular, sample_f
 export run_sc
 
 export EPot_diff, PP_diff, n_diff, validate, converged, sc_converged
+export λm_correction, λdm_correction, λm_sc_correction, λdm_sc_correction, λdm_sc_correction_clean, λm_tsc_correction, λdm_tsc_correction, λdm_tsc_correction_clean
 
 include("common.jl")
 include("helpers.jl")

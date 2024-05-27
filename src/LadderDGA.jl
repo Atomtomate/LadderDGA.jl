@@ -43,6 +43,7 @@ export calc_E_ED, calc_E, calc_Epot2
 
 # LambdaCorrection
 export χ_λ, χ_λ!, reset!
+export λm_correction, λdm_correction, λm_sc_correction, λdm_sc_correction, λm_tsc_correction, λdm_tsc_correction
 export λdm_sc_correction, λdm_correction, λm_correction, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
 export sample_f
 

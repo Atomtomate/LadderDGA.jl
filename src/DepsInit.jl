@@ -108,5 +108,5 @@ function __init__()
     )
     global logger_file = SimpleLogger(LOG_BUFFER, Logging.Info)
     global logger = global_logger(TeeLogger(logger_console, logger_file))
-    install_term_logger()
+    #install_term_logger()
 end
