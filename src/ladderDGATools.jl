@@ -20,7 +20,7 @@ function χ₀_conv(ωi_range::Vector{NTuple{2,Int}})
     data::Array{ComplexF64,3} = Array{ComplexF64,3}(undef, length(kG.kMult), n_iν, length(ωi_range))
     for (iω, ωnR) in enumerate(ωi_range)
         _, ωn = ωnR
-        νGrid = νnGrid(ωn, sP)
+        νGrid = νnGrid_shell(ωn, sP)
         for (iν, νn) in enumerate(νGrid)
             conv_fft_noPlan!(kG, view(data, :, iν, iω), selectdim(wcache[].G_fft, νdim, νn), selectdim(wcache[].G_fft_reverse, νdim, νn + ωn))
         end

@@ -33,6 +33,10 @@ export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache
 export collect_χ₀, collect_χ, collect_γ, collect_Σ
 export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder, attach_Σloc
 
+# Asymptotic lDGA
+export setup_ALDGA
+export update_ΓAsym!
+
 # RPA main functions
 export setup_RPA!, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA, setupConfig_RPA
 
