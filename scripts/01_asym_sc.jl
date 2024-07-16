@@ -9,8 +9,8 @@ using Plots
 
 include("helper_functions.jl")
 
-cfg_test_01 = joinpath(@__DIR__, "../test/test_data/config_b1u2.toml")
-cfg_test_02 = joinpath(@__DIR__, "../test/test_data/config_AlDGA_example.toml")
+cfg_test_01 = "/home/julisn/Hamburg/ED_data/tsc_test/U2.0/U2.0_b20.0_mu1.0.toml" #joinpath(@__DIR__, "../test/test_data/config_b1u2.toml")
+cfg_test_02 = "/home/julisn/Hamburg/ED_data/tsc_test/U2.0/AlDGA_U2.0_b20.0_mu1.0.toml"#joinpath(@__DIR__, "../test/test_data/config_AlDGA_example.toml")
 
 wp, mP, sP, env, kGridsStr = readConfig(cfg_test_01);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
@@ -22,7 +22,7 @@ bubble     = calc_bubble(:DMFT, lDGAhelper);
 λ₀ = calc_λ0(bubble, lDGAhelper)
 
 # ===================== AlDGA ======================
-AlDGAhelper_01, χm_01, γm_01, χd_01, γd_01, G_ladder_01, Σ_ladder_01, converged_01, it_01, λm = run_AlDGA_convergence(cfg_test_01; eps=1e-12, maxit=100)
+# AlDGAhelper_01, χm_01, γm_01, χd_01, γd_01, G_ladder_01, Σ_ladder_01, converged_01, it_01, λm = run_AlDGA_convergence(cfg_test_01; eps=1e-12, maxit=100)
 AlDGAhelper_02, χm_02, γm_02, χd_02, γd_02, G_ladder_02, Σ_ladder_02, converged_02, it_02, λm = run_AlDGA_convergence(cfg_test_02; eps=1e-12, maxit=100)
 
 

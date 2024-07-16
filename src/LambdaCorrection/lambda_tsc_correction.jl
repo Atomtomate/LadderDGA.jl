@@ -77,6 +77,8 @@ function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, 
     χm_it = deepcopy(χm_bak)
     χd_it = deepcopy(χd_bak)
 
+    tail_bak_m = deepcopy(χm_it.tail_c)
+    tail_bak_d = deepcopy(χd_it.tail_c)
     while it <= maxit && !converged
         χd_sum   = sum_kω(h.kG, χd_it, λ = λd)
         rhs_c1   = h.mP.n * (1 - h.mP.n / 2) - χd_sum
@@ -110,6 +112,8 @@ function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, 
         end
         it += 1
     end
+    update_tail!(χm_it, tail_bak_m, iωn_grid)
+    update_tail!(χd_it, tail_bak_d, iωn_grid)
 
     return converged, μ_it, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it
 end
@@ -168,6 +172,8 @@ function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor_term,
     # internal λm-correction stuff
     PP_p1  = h.mP.n / 2 * (1 - h.mP.n / 2)
     
+    tail_bak_m = deepcopy(χm_it.tail_c)
+    tail_bak_d = deepcopy(χd_it.tail_c)
     # in case we encounter NaN/Inf in tail
     while it <= maxit && !converged
         χd_sum   = sum_kω(h.kG, χd_it, λ = λd)
@@ -208,7 +214,7 @@ function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor_term,
         end
         it += 1
     end
-    update_tail!(χm_it, [0, 0, h.mP.EKin], iωn_grid)
-    update_tail!(χd_it, [0, 0, h.mP.EKin], iωn_grid)
+    update_tail!(χm_it, tail_bak_m, iωn_grid)
+    update_tail!(χd_it, tail_bak_d, iωn_grid)
     return converged, μ_it, λm
 end

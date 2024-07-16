@@ -127,7 +127,7 @@ function run_AlDGA_convergence(cfg_file; eps=1e-12, maxit=100)
                             maxit=100, mixing=0.2, conv_abs=1e-8, tc=true)
             sum(abs.(χm.data .- χm_bak)) < eps && (converged = true)
             i += 1
-        @info "Error [$i]: " sum(abs.(χm.data .- χm_bak))
+        @info "Δ [it=$i]: " sum(abs.(χm.data .- χm_bak))
     end
     return AlDGAhelper_i, χm, γm, χd, γd, G_ladder_it, Σ_ladder_it, converged, i, λm  
 end
