@@ -78,7 +78,7 @@ function readConfig(cfg_in::String)
         U = modelVars["U"]
         β = modelVars["beta"]
         nden = modelVars["density"]
-        10, 10, true, ModelParameters(U, NaN, β, nden, NaN, NaN), [NaN], [NaN], [NaN], 0.5
+        50, 50, true, ModelParameters(U, NaN, β, nden, NaN, NaN), [NaN], [NaN], [NaN], 0.5
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0

@@ -5,17 +5,15 @@ path = joinpath(abspath(@__DIR__),"..")
 println("activating: ", path)
 Pkg.activate(path)
 using LadderDGA
-using JLD2
+using Plots
+
+include("helper_functions.jl")
 
 cfg_test_01 = joinpath(@__DIR__, "../test/test_data/config_b1u2.toml")
 cfg_test_02 = joinpath(@__DIR__, "../test/test_data/config_AlDGA_example.toml")
 
 wp, mP, sP, env, kGridsStr = readConfig(cfg_test_01);
-wp, mP_01, sP_01, env_01, kGridsStr = readConfig(cfg_test_01);
-wp, mP_02, sP_02, env_02, kGridsStr = readConfig(cfg_test_02);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env);
-AlDGAhelper_01 = setup_ALDGA(kGridsStr[1], mP_01, sP_01, env_01);
-AlDGAhelper_02 = setup_ALDGA(kGridsStr[1], mP_02, sP_02, env_02);
 
 # ====================== lDGA ======================
 bubble     = calc_bubble(:DMFT, lDGAhelper);
@@ -24,36 +22,26 @@ bubble     = calc_bubble(:DMFT, lDGAhelper);
 λ₀ = calc_λ0(bubble, lDGAhelper)
 
 # ===================== AlDGA ======================
-bubble_01     = calc_bubble(:DMFT, AlDGAhelper_01);
-χm_01, γm_01 = calc_χγ(:m, AlDGAhelper_01, bubble_01);
-χd_01, γd_01 = calc_χγ(:d, AlDGAhelper_01, bubble_01);
-# λ₀ = calc_λ0(bubble_01, AlDGAhelper_01)
-λ₀_01 = -AlDGAhelper_01.mP.U .* deepcopy(core(bubble_01));
+AlDGAhelper_01, χm_01, γm_01, χd_01, γd_01, G_ladder_01, Σ_ladder_01, converged_01, it_01, λm = run_AlDGA_convergence(cfg_test_01; eps=1e-12, maxit=100)
+AlDGAhelper_02, χm_02, γm_02, χd_02, γd_02, G_ladder_02, Σ_ladder_02, converged_02, it_02, λm = run_AlDGA_convergence(cfg_test_02; eps=1e-12, maxit=100)
 
-converged_01, μ_it_01, G_ladder_it_01, Σ_ladder_it_01 = LadderDGA.LambdaCorrection.run_sc(χm_01, γm_01, χd_01, γd_01, λ₀_01, 0.0, 0.0, AlDGAhelper_01;
-                maxit=100, mixing=0.2, conv_abs=1e-8, tc=true)
-
-
-AlDGAhelper_02_i = deepcopy(AlDGAhelper_02);
-χm_02, γm_02  = nothing, nothing
-χd_02, γd_02  = nothing, nothing
-bubble_02     = nothing;
-for i in 0:15
-    global bubble_02     = calc_bubble(:DMFT, AlDGAhelper_02_i);
-    global χm_02, γm_02 = calc_χγ(:m, AlDGAhelper_02_i, bubble_02);
-    global χd_02, γd_02 = calc_χγ(:d, AlDGAhelper_02_i, bubble_02);
-    # λ₀ = calc_λ0(bubble_01, AlDGAhelper_01)
-    λ₀_02 = -AlDGAhelper_02_i.mP.U .* deepcopy(core(bubble_02));
-
-    converged_02, μ_it_02, G_ladder_it_02, Σ_ladder_it_02 = LadderDGA.LambdaCorrection.run_sc(χm_02, γm_02, χd_02, γd_02, λ₀_02, 0.0, 0.0, AlDGAhelper_02;
-                    maxit=100, mixing=0.2, conv_abs=1e-8, tc=true)
-    update_ΓAsym!(χm_02, χd_02, χd_02, sP_02, mP_02, AlDGAhelper_02_i)
-end
 
 # ==================== Results =====================
-res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
-res_dm = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
-res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-6, trace=true);
-res_m_ntc = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper, tc=false)
-res_dm_ntc = λ_correction(:dm, χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true, tc=false)
-res_dm_sc_ntc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-6, tc=false, trace=true);
+res_m      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_m)
+res_dm     = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_dm)
+res_m_sc   = λm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_m_sc)
+res_dm_sc  = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; validation_threshold=1e-6); print(res_dm_sc)
+res_m_tsc  = λm_tsc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc = 200, validation_threshold=1e-6); print(res_m_tsc)
+res_dm_tsc = λdm_tsc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc = 200, validation_threshold=1e-6); print(res_dm_tsc)
+
+p_sigma = plot(- ((2 .* 0:(size(Σ_ladder_02,2)-2) .+ 1) .* π ./ AlDGAhelper_02.mP.β ) .* imag(kintegrate(AlDGAhelper_02.kG, Σ_ladder_02,1)[1,:]).parent)
+
+xr = -sP.n_iω:sP.n_iω
+p = plot(xr,real(kintegrate(AlDGAhelper_01.kG, χm_01, 1)[1,:]), ylabel="χ_m", xlims=(-10,10), markershape=:auto, label="AsymptlDGA", markersize=10)
+xr2 = -AlDGAhelper_02.sP.n_iω:AlDGAhelper_02.sP.n_iω
+plot!(xr2,real(kintegrate(AlDGAhelper_02.kG, χm_02, 1)[1,:]), markershape=:auto, label="AsymptlDGA (RPA start)", markersize=8)
+plot!(xr,real(kintegrate(lDGAhelper.kG, χm, 1)[1,:]), markershape=:auto, label="DMFT", markersize=6)
+χm_pl_val = chi_loc(χm, res_m_tsc, res_m_tsc.λm)
+χm_pl_val2 = chi_loc(χm, res_dm_tsc, res_dm_tsc.λm)
+plot!(xr,χm_pl_val, markershape=:auto, label="lDGA^tsc_m")
+plot!(xr,χm_pl_val2, markershape=:auto, label="lDGA^tsc_dm")

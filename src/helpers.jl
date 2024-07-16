@@ -143,12 +143,14 @@ end
 
 TODO: documentation
 """
-function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol)
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol; verbose=true)
     q0_ind = q0_index(kG)
     if q0_ind != nothing
         #TODO: adapt for arbitrary ω indices
         ω_ind = setdiff(1:size(χ, 2), sP.n_iω + 1)
-        @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+        if verbose
+            @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+        end
     end
 end
 

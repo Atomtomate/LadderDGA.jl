@@ -1,6 +1,6 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.10.3"
+julia_version = "1.10.4"
 manifest_format = "2.0"
 project_hash = "402b492b982087c8dc22adf81ad4c29b431ee098"
 
@@ -111,9 +111,7 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.BSE_Asymptotics]]
 deps = ["Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
-git-tree-sha1 = "8911db186c6b4e1f0993b175e44feab3b53ce64d"
-repo-rev = "master"
-repo-url = "https://github.com/Atomtomate/BSE_Asymptotics.jl"
+git-tree-sha1 = "007a9061eb1121f711900d7854c68e6ebf00af72"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
 version = "2.3.10"
 

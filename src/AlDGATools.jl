@@ -73,6 +73,11 @@ function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rff
     calc_Σ(χm, γm, χd, γd, 0.25, λ₀, Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
 end
 
+"""
+    update_ΓAsym!(χm::χT, χd::χT, χpp::χT, sP::SimulationParameters, mP::ModelParameters, h::AlDΓAHelper)
+
+Updates `Γm` and `Γd` with the lowest two asymptotic controbutions, given [`here`](https://doi.org/10.1103/PhysRevB.97.235140)
+"""
 function update_ΓAsym!(χm::χT, χd::χT, χpp::χT, sP::SimulationParameters, mP::ModelParameters, h::AlDΓAHelper)
     U = mP.U
     h.Γ_d .=  U
@@ -95,4 +100,34 @@ function update_ΓAsym!(χm::χT, χd::χT, χpp::χT, sP::SimulationParameters,
             end
         end
     end
+end
+
+function run_AlDGA_convergence(cfg_file; eps=1e-12, maxit=100)
+    wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
+    AlDGAhelper = setup_ALDGA(kGridsStr[1], mP, sP, env);
+    AlDGAhelper_i = deepcopy(AlDGAhelper);
+    bubble     = calc_bubble(:DMFT, AlDGAhelper_i);
+    χm, γm = calc_χγ(:m, AlDGAhelper_i, bubble);
+    χd, γd = calc_χγ(:d, AlDGAhelper_i, bubble);
+    λm = 0.0 
+    λd = 0.0
+    G_ladder_it = nothing
+    Σ_ladder_it = nothing
+    converged = false
+    i = 0
+    while i < maxit && !converged
+        χm_bak = deepcopy(χm.data) 
+            update_ΓAsym!(χm, χd, χd, sP, mP, AlDGAhelper_i)
+            bubble     = calc_bubble(:DMFT, AlDGAhelper_i);
+            χm, γm = calc_χγ(:m, AlDGAhelper_i, bubble; verbose=false);
+            χd, γd = calc_χγ(:d, AlDGAhelper_i, bubble; verbose=false);
+            # λ₀ = calc_λ0(bubble_01, AlDGAhelper_01)
+            λ₀ = -AlDGAhelper_i.mP.U .* deepcopy(core(bubble));
+            converged_internal, μ_it, G_ladder_it, Σ_ladder_it = LadderDGA.LambdaCorrection.run_sc(χm, γm, χd, γd, λ₀, 0.0, 0.0, AlDGAhelper;
+                            maxit=100, mixing=0.2, conv_abs=1e-8, tc=true)
+            sum(abs.(χm.data .- χm_bak)) < eps && (converged = true)
+            i += 1
+        @info "Error [$i]: " sum(abs.(χm.data .- χm_bak))
+    end
+    return AlDGAhelper_i, χm, γm, χd, γd, G_ladder_it, Σ_ladder_it, converged, i, λm  
 end

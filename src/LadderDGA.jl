@@ -35,7 +35,7 @@ export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from
 
 # Asymptotic lDGA
 export setup_ALDGA
-export update_ΓAsym!
+export update_ΓAsym!, run_AlDGA_convergence
 
 # RPA main functions
 export setup_RPA!, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA, setupConfig_RPA
