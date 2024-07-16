@@ -13,3 +13,5 @@ eom_ν_cutoff(Niν::Int, grid_shifted::Bool)::Int = trunc(Int, (2/3)* Niν)
 eom_ν_cutoff(sP::SimulationParameters)::Int = eom_ν_cutoff(sP.n_iν, sP.shift)
 
 eom_ν_cutoff(h::lDΓAHelper)::Int = eom_ν_cutoff(h.sP)
+
+eom_ν_cutoff(h::AlDΓAHelper)::Int = eom_ν_cutoff(h.sP)

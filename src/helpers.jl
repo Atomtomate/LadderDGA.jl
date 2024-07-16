@@ -17,7 +17,8 @@
 
 Calculates grid of fermionic Matsubara frequencies for given bosonic frequency `ωn` (including shift, if set through `sP`).
 """
-νnGrid(ωn::Int, sP::SimulationParameters) = ((-sP.n_iν-sP.n_iν_shell):(sP.n_iν+sP.n_iν_shell-1)) .- sP.shift * trunc(Int, ωn / 2)
+νnGrid_shell(ωn::Int, sP::SimulationParameters) = ((-sP.n_iν-sP.n_iν_shell):(sP.n_iν+sP.n_iν_shell-1)) .- sP.shift * trunc(Int, ωn / 2)
+νnGrid_noShell(ωn::Int, sP::SimulationParameters) = ((-sP.n_iν):(sP.n_iν-1)) .- sP.shift * trunc(Int, ωn / 2)
 
 """
     q0_index(kG::KGrid)   
@@ -87,6 +88,16 @@ function νi_νngrid_pos(ωi::Int, νmax::Int, sP::SimulationParameters)
     ν0Index_of_ωIndex(ωi, sP):νmax
 end
 
+
+"""
+    get_val_or_zero(arr::Vector{T}, ind::Int)::T where T
+
+Returns value at index, if index inside index range of `arr::Vector{T}`, `zero(T)` otherwise. 
+"""
+function get_val_or_zero(arr::Vector{T}, ind::Int)::T where T
+    return ind ∈ axes(arr,1) ? arr[ind] : zero(T) 
+end
+
 # =========================================== Noise Filter ===========================================
 """
     filter_MA(m::Int, X::AbstractArray{T,1}) where T <: Number
@@ -132,12 +143,14 @@ end
 
 TODO: documentation
 """
-function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol)
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol; verbose=true)
     q0_ind = q0_index(kG)
     if q0_ind != nothing
         #TODO: adapt for arbitrary ω indices
         ω_ind = setdiff(1:size(χ, 2), sP.n_iω + 1)
-        @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+        if verbose
+            @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(abs(sum(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
+        end
     end
 end
 

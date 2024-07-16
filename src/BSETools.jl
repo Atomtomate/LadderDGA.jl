@@ -213,11 +213,11 @@ This method solves the following equation:
 \\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
 ``
 """
-function calc_χγ(type::Symbol, h::lDΓAHelper, χ₀::χ₀T)
-    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP)
+function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true)
+    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose)
 end
 
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
     s = if type == :d
@@ -281,7 +281,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
         v = view(χ, :, ωi)
         χ_ω[ωi] = kintegrate(kG, v)
     end
-    log_q0_χ_check(kG, sP, χ, type)
+    log_q0_χ_check(kG, sP, χ, type; verbose=verbose)
 
     return χT(χ, mP.β, tail_c = [0, 0, mP.Ekin_1Pt]), γT(γ)
 end

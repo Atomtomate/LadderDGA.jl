@@ -1,5 +1,4 @@
 using OffsetArrays
-using ProgressMeter
 
 function check_conditions(λGrid, μ::Float64, sc_it::Int, χm, χd, γm, γd, λ₀, h; output=true, fit_μ::Bool=true)
     Nq = size(χm,1)
@@ -11,7 +10,7 @@ function check_conditions(λGrid, μ::Float64, sc_it::Int, χm, χd, γm, γd, �
     PP_λdm_list = Matrix{Float64}(undef, size(λGrid)); PP_1_list = Matrix{Float64}(undef, size(λGrid)); EPot2_list = Matrix{Float64}(undef, size(λGrid)); EPot1_list = Matrix{Float64}(undef, size(λGrid))
     tail_factor = tail_factor(h.mP.U,h.mP.β,h.mP.n,h.Σ_loc,iν)
 
-    @showprogress for (λi,λ) in enumerate(λGrid)
+    for (λi,λ) in enumerate(λGrid)
         λm, λd = λ
         χ_λ!(χm,λm)
         χ_λ!(χd,λd)
@@ -61,7 +60,7 @@ function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64}}; maxit::Int=100, wit
 
     total = length(λm_grid)*length(λd_grid)
     println("running for grid size $total = $(length(λm_grid)) * $(length(λd_grid)) // (λm * λd)")
-    @showprogress for λ in λ_grid
+    for λ in λ_grid
         λp = rpad.(lpad.(round.(λ,digits=1),4),4)
         #print("\r $(rpad(lpad(round(100.0*i/total,digits=2),5),8)) % done λ = $λp")
         res = gen_sc(λ, maxit=maxit, with_tsc=with_tsc)
@@ -71,3 +70,13 @@ function gen_sc_grid(λ_grid::Array{Tuple{Float64,Float64}}; maxit::Int=100, wit
     return results
 end
 
+function chi_loc(χr, res_λ, λ)
+    iωn_grid = ωn_grid(χr)
+    tb = deepcopy(χr.tail_c) 
+    LadderDGA.update_tail!(χr, [0, 0, res_λ.EKin_p1], iωn_grid)
+    χ_λ!(χr, λ)
+    χr_pl_val = kintegrate(lDGAhelper.kG, χr, 1)[1,:]
+    reset!(χr)
+    LadderDGA.update_tail!(χr, tb, iωn_grid)
+    return χr_pl_val
+end

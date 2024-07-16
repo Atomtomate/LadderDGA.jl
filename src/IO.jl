@@ -31,8 +31,8 @@ function readConfig(cfg_in::String)
 
     tml = TOML.parsefile(cfg_in)
     sim = tml["Simulation"]
-    smoothing = Symbol(lowercase(sim["omega_smoothing"]))
-    if !(smoothing in [:nothing, :range, :full])
+    smoothing = haskey(sim, "omega_smoothing") && Symbol(lowercase(sim["omega_smoothing"]))
+    if haskey(sim, "omega_smoothing") && !(smoothing in [:nothing, :range, :full])
         error("Unrecognized smoothing type \"$(smoothing)\"")
     end
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
@@ -44,36 +44,41 @@ function readConfig(cfg_in::String)
     end
 
     inputVars = tml["Environment"]["inputVars"]
+    modelVars = tml["Model"]
     logfile   = tml["Environment"]["logfile"]
     loglevel  = tml["Environment"]["loglevel"]
     env = EnvironmentVars(input_dir, joinpath(input_dir, inputVars), lowercase(loglevel), lowercase(logfile))
-    if !isfile(env.inputVars)
-        @error "ERROR: input file at location $(env.inputVars) not found!"
-        Base.exit(2)
-    end
-    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt, Vk = jldopen(env.inputVars, "r") do f
-        Epot_1Pt = 0.0
-        Ekin_1Pt = 0.0
-        if haskey(f, "E_kin_DMFT")
-            Epot_1Pt = f["E_pot_DMFT"]
-            Ekin_1Pt = f["E_kin_DMFT"]
-        else
-            @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
+    nBose, nFermi, shift, mP, χsp_asympt, χch_asympt, χpp_asympt, Vk = if isfile(env.inputVars)
+        jldopen(env.inputVars, "r") do f
+            Epot_1Pt = 0.0
+            Ekin_1Pt = 0.0
+            if haskey(f, "E_kin_DMFT")
+                Epot_1Pt = f["E_pot_DMFT"]
+                Ekin_1Pt = f["E_kin_DMFT"]
+            else
+                @warn "Could not find E_kin_DMFT, E_pot_DMFT key in input"
+            end
+            U, μ, β, nden, Vk = if haskey(f, "U")
+                f["U"], f["μ"], f["β"], f["nden"], f["Vₖ"]
+            else
+                @warn "Reading Hubbard Parameters from config. These should be supplied through the input jld2!"
+                modelVars["U"], modelVars["mu"], modelVars["beta"], modelVars["nden"], f["Vₖ"]
+            end
+            return f["grid_nBose"],
+            f["grid_nFermi"],
+            f["grid_shift"],
+            ModelParameters(U, μ, β, nden, Epot_1Pt, Ekin_1Pt),
+            f["χ_sp_asympt"] ./ β^2,
+            f["χ_ch_asympt"] ./ β^2,
+            f["χ_pp_asympt"] ./ β^2,
+            Vk
         end
-        U, μ, β, nden, Vk = if haskey(f, "U")
-            f["U"], f["μ"], f["β"], f["nden"], f["Vₖ"]
-        else
-            @warn "Reading Hubbard Parameters from config. These should be supplied through the input jld2!"
-            tml["Model"]["U"], tml["Model"]["mu"], tml["Model"]["beta"], tml["Model"]["nden"], f["Vₖ"]
-        end
-        return f["grid_nBose"],
-        f["grid_nFermi"],
-        f["grid_shift"],
-        ModelParameters(U, μ, β, nden, Epot_1Pt, Ekin_1Pt),
-        f["χ_sp_asympt"] ./ β^2,
-        f["χ_ch_asympt"] ./ β^2,
-        f["χ_pp_asympt"] ./ β^2,
-        Vk
+    else
+        @warn "No DMFT input file found. Proceeding from I/O without further input and hardocded 10 frequencies."
+        U = modelVars["U"]
+        β = modelVars["beta"]
+        nden = modelVars["density"]
+        50, 50, true, ModelParameters(U, NaN, β, nden, NaN, NaN), [NaN], [NaN], [NaN], 0.5
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0
@@ -100,11 +105,11 @@ function readConfig(cfg_in::String)
     sP = SimulationParameters(nBose, nFermi, Nν_shell, shift, χ_helper, sum(Vk .^ 2), fft_range, sim["usable_prct_reduction"], dbg_full_eom_omega)
     kGrids = Array{Tuple{String,Int},1}(undef, length(sim["Nk"]))
     if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"
-        kGrids = [(tml["Model"]["kGrid"], 0)]
+        kGrids = [(modelVars["kGrid"], 0)]
     else
         for i = 1:length(sim["Nk"])
             Nk = sim["Nk"][i]
-            kGrids[i] = (tml["Model"]["kGrid"], Nk)
+            kGrids[i] = (modelVars["kGrid"], Nk)
         end
     end
 
