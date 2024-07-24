@@ -42,6 +42,7 @@ bubble     = calc_bubble(lDGAhelper);
 res_m = LadderDGA.λ_correction(:m, χm, γm, χd, γd, λ₀, lDGAhelper)
 res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; fit_μ=true)
 res_dm_sc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true);
+res_dm_tsc = run_sc(χm, γm, χd, γd, λ₀, lDGAhelper.mP.μ, lDGAhelper; update_χ_tail=true, type=:pre_dm, fit_μ=true, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true);
 if isfinite(res_dm.λm) && isfinite(res_dm.λd)
     jldopen(joinpath(out_dir,file_name), "w") do f
         f["lDGAHelper"] = lDGAhelper
@@ -51,5 +52,6 @@ if isfinite(res_dm.λm) && isfinite(res_dm.λd)
         f["res_m"] = res_m
         f["res_dm"] = res_dm
         f["res_dm_sc"] = res_dm_sc
+        f["res_dm_tsc"] = res_dm_tsc
     end
 end
