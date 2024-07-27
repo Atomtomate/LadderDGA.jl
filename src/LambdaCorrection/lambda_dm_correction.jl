@@ -41,7 +41,7 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     ωn2_tail = ω2_tail(χm)
 
     function f_c2(λd_i::Float64)
-        rhs_c1 = λm_rhs(χm, χd, h; λd=λd_i)
+        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; tc = true, fix_n = true)
         #TODO: use Epot_1
@@ -51,7 +51,7 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     end
     
     λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
-    rhs = λm_rhs(χm, χd, h; λd=λd)
+    rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     return λm, λd
 end

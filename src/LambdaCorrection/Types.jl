@@ -92,17 +92,19 @@ Constructs λ_result object, runs all checks and stores them.
 """
 function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
+                  PP_p1 = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
     μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = true, fix_n = true)
-    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
 function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladder, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
+                  PP_p1 = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
     χm_sum = sum_kω(h.kG, χm, λ = λm)
     χd_sum = sum_kω(h.kG, χd, λ = λd)
-    PP_p1  = h.mP.n / 2 * (1 - h.mP.n / 2)
+    PP_p1  = isnan(PP_p1) ? h.mP.n / 2 * (1 - h.mP.n / 2) : PP_p1
     PP_p2  = real(χd_sum + χm_sum) / 2
     Ekin_p2 = χm.tail_c[3]
     Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
@@ -179,7 +181,7 @@ function Base.show(io::IO, m::λ_result{T}) where {T}
         rdiff_Ep_s = rdiff_Ep < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ep)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ep))
         rdiff_Ek_s = rdiff_Ek < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ek)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ek))
         tprint(Panel(
-            @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f\n", m.λm, m.λd, m.μ) * 
+            @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f, n = %3.8f\n", m.λm, m.λd, m.μ, m.n) * 
             @sprintf("PP_1   =  %3.8f,  PP_2   =  %3.8f,  %s\n", m.PP_p1, m.PP_p2, rdiff_pp_s) *
             @sprintf("Epot_1 =  %3.8f,  Epot_2 =  %3.8f,  %s\n", m.EPot_p1, m.EPot_p2, rdiff_Ep_s) *
             @sprintf("Ekin_1 = %3.8f,  Ekin_2 = %3.8f,  %s\n", m.EKin_p1 , m.EKin_p2, rdiff_Ek_s),

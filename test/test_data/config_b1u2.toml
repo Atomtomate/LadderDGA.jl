@@ -20,5 +20,5 @@ logfile = "stderr"                      # STDOUT, STDERR, filename
 loglevel = "debug"                      # error, warn, info, debug
 
 [Debug]
-full_chi_range = true                  # forces usable omega range to extend over all bosonic frequencies 
+full_chi_omega = false                 # forces usable omega range to extend over all bosonic frequencies 
 full_EoM_omega = true                  # compatibility flag for fortran code

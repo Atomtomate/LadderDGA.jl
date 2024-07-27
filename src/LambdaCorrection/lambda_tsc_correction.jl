@@ -16,7 +16,7 @@
 
 """
 function λm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           validation_threshold::Float64 = 1e-8,
+                           validation_threshold::Float64 = 1e-8, λ_rhs = :native,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
                            log_io = devnull, tc = true)       
 

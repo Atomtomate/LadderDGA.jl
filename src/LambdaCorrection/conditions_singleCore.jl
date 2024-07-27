@@ -35,7 +35,7 @@ function λ_correction(type::Symbol, χm::χT, γm::γT, χd::χT, γd::γT, λ�
 
     if type == :m
         if  λ_val_only 
-            rhs  = λm_rhs(χm, χd, h; λ_rhs = λm_rhs_type)
+            rhs, PP_p1  = λm_rhs(χm, χd, h; λ_rhs = λm_rhs_type)
             λm_correction_val(χm, rhs, h)
         else
             λm_correction(χm, γm, χd, γd, λ₀, h;

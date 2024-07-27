@@ -23,6 +23,7 @@ bubble_ntc     = calc_bubble(:DMFT, lDGAhelper_ntc);
 λ₀_ntc = calc_λ0(bubble_ntc, lDGAhelper_ntc);
 
 res_m_ntc      = λm_correction(χm_ntc, γm_ntc, χd_ntc, γd_ntc, λ₀_ntc, lDGAhelper_ntc, verbose=true); print(res_m_ntc)
+res_m_ntc_fix  = λm_correction(χm_ntc, γm_ntc, χd_ntc, γd_ntc, λ₀_ntc, lDGAhelper_ntc, λ_rhs=:fixed, verbose=true); print(res_m_ntc_fix)
 # res_dm     = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_dm)
 # res_m_sc   = λm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_m_sc)
 # res_dm_sc  = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; validation_threshold=1e-6); print(res_dm_sc)

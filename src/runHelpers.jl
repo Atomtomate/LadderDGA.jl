@@ -188,8 +188,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
 
-    usable_loc_m = find_usable_χ_interval(real(χLoc_m_ω), reduce_range_prct = sP.usable_prct_reduction)
-    usable_loc_d = find_usable_χ_interval(real(χLoc_d_ω), reduce_range_prct = sP.usable_prct_reduction)
+    usable_loc_m = sP.dbg_full_chi_omega ? collect(axes(χLoc_m_ω,1)) : find_usable_χ_interval(real(χLoc_m_ω), reduce_range_prct = sP.usable_prct_reduction)
+    usable_loc_d = sP.dbg_full_chi_omega ? collect(axes(χLoc_d_ω,1)) : find_usable_χ_interval(real(χLoc_d_ω), reduce_range_prct = sP.usable_prct_reduction)
+
     loc_range = intersect(usable_loc_m, usable_loc_d)
 
     iωn = 1im .* 2 .* (-sP.n_iω:sP.n_iω) .* π ./ mP.β

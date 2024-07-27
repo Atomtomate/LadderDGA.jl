@@ -246,8 +246,9 @@ mutable struct χT <: MatsubaraFunction{Float64,2}
                 1:size(data, 2)
             end
         else
-            full_range ? (1:size(data, 2)) : find_usable_χ_interval(kintegrate(kG, data,axis_types[:q]), reduce_range_prct = reduce_range_prct)
+            find_usable_χ_interval(kintegrate(kG, data,axis_types[:q]), reduce_range_prct = reduce_range_prct)
         end
+        range = full_range ? (1:size(data, 2)) : range
         new(data, axis_types, indices_ω, tail_c, 0.0, β, range, f!)
     end
 end

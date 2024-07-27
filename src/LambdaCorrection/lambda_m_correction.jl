@@ -33,13 +33,13 @@ function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelP
     χd_sum = sum_kω(kG, χd, λ = λd)
 
     verbose && @info "λsp correction infos:"
-    rhs = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
+    rhs, PP_p1 = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         verbose && @info "  ↳ using n * (1 - n/2) - Σ χd as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
-        mP.n * (1 - mP.n / 2) - χd_sum
+        mP.n * (1 - mP.n / 2) - χd_sum, mP.n/2 * (1 - mP.n / 2)
     else
         !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT rror compensation method"))
         verbose && @info "  ↳ using χupup_DMFT - Σ χd as rhs"
-        2 * imp_density - χd_sum
+        2 * imp_density - χd_sum, imp_density
     end
 
     if verbose
@@ -48,7 +48,7 @@ function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelP
                      ↳ ch: $(χd.usable_ω), length: $(length(χd.usable_ω))
                    ↳ χd sum = $(χd_sum), rhs = $(rhs)"""
     end
-    return rhs
+    return rhs, PP_p1
 end
 
 """
@@ -57,12 +57,12 @@ end
                        validation_threshold::Float64 = 1e-8, log_io = devnull
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
-                       νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, 
+                       νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, λ_rhs = :native, 
                        validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose=false
 )
-    rhs = λm_rhs(χm, χd, h; λ_rhs = :native, verbose=verbose)
+    rhs,PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
-    return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, 0.0, true, h; validation_threshold = validation_threshold, max_steps_m = max_steps)
+    return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, 0.0, true, h; PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps)
 end
 
 """

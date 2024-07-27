@@ -17,13 +17,13 @@
 Runs partial self-consistency loop (update of propagators in equation of motion) within [`λdm correction`](@ref λdm_correction)
 """
 function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           validation_threshold::Float64 = 1e-8,
+                           validation_threshold::Float64 = 1e-8, λ_rhs = :native,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 200,
                            log_io = devnull, tc = true)       
 
     λd_min = get_λ_min(χd)
     λd  = 0.0
-    rhs = λm_rhs(χm, χd, h; λd=λd)
+    rhs = λm_rhs(χm, χd, h; λd=λd, λ_rhs = :native)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     converged, μ_new, G_ladder_it, Σ_ladder_it = run_sc(χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
     return λ_result(m_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
@@ -46,7 +46,7 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
     ωn2_tail = ω2_tail(χm)
 
     function f_c2_sc(λd_i::Float64)
-        rhs_c1 = λm_rhs(χm, χd, h; λd=λd_i)
+        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         converged, μ_new, G_ladder_it, Σ_ladder_it = run_sc(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
         #TODO: use Epot_1
@@ -56,10 +56,10 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
     end    
 
     λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
-    rhs = λm_rhs(χm, χd, h; λd=λd)
+    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     converged, μ_new, G_ladder_it, Σ_ladder_it = run_sc(χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
-    return λ_result(dm_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    return λ_result(dm_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; PP_p1=PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
 
