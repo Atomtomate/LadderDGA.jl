@@ -223,20 +223,32 @@ mutable struct χT <: MatsubaraFunction{Float64,2}
     tail_c::Vector{Float64}
     λ::Float64
     β::Float64
-    usable_ω::AbstractArray{Int}
+    usable_ω::AbstractVector{Int}
     transform!::Function
 
     function χT(
         data::Array{Float64,2},
         β::Float64;
         indices_ω::AbstractVector{Int} = axes(data, 2) .- ceil(Int, size(data, 2) / 2),
+        kG::Union{KGrid,Nothing} = nothing,
+        usable_ω::Union{AbstractVector{Int},Nothing} = nothing,
         tail_c::Vector{Float64} = Float64[],
         full_range = true,
         reduce_range_prct = 0.0,
     )
         f!(χ, λ) = nothing
-        range = full_range ? (1:size(data, 2)) : find_usable_χ_interval(data, reduce_range_prct = reduce_range_prct)
-        new(data, Dict(:q => 1, :ω => 2), indices_ω, tail_c, 0.0, β, range, f!)
+        axis_types = Dict(:q => 1, :ω => 2)
+        range = if isnothing(kG)
+            if !isnothing(usable_ω)
+                usable_ω
+            else
+                @warn "could not determine usable ω during construction of χT. Provide either `kG` or `usable_ω` argument! Falling back to full range."
+                1:size(data, 2)
+            end
+        else
+            full_range ? (1:size(data, 2)) : find_usable_χ_interval(kintegrate(kG, data,axis_types[:q]), reduce_range_prct = reduce_range_prct)
+        end
+        new(data, axis_types, indices_ω, tail_c, 0.0, β, range, f!)
     end
 end
 

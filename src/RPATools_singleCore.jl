@@ -39,7 +39,7 @@ function calc_χγ(type::Symbol, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, 
     χ = real(χ₀_qω ./ (1 .+ s * mP.U .* χ₀_qω))
 
     @warn "Set kinetic energy to zero. You should implement the kinetic energy in the rpa case to enable asymptotic sums!"
-    return χT(χ, mP.β, full_range = true; tail_c = [0.0, 0.0, 0.0]), γT(γ)
+    return χT(χ, mP.β, full_range = true; tail_c = [0.0, 0.0, 0.0], kG = kG), γT(γ)
 end
 
 """

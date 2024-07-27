@@ -17,7 +17,7 @@ The susceptibility ``\\chi`` can be either given element wise, or as χT See als
 Base.@assume_effects :total χ_λ(χ::Float64, λ::Float64)::Float64 = χ / (λ * χ + 1)
 
 function χ_λ(χ::χT, λ::Float64)::χT
-    χ_new = χT(deepcopy(χ.data), χ.β, tail_c = χ.tail_c)
+    χ_new = χT(deepcopy(χ.data), χ.β, usable_ω = χ.usable_ω, tail_c = χ.tail_c)
     χ_λ!(χ_new, χ, λ)
     return χ_new
 end

@@ -238,7 +238,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     νi_range = 1:Nν
     qi_range = 1:Nq
 
-    χ_ω = Array{_eltype,1}(undef, Nω)
+    χ_ω = Vector{_eltype}(undef, Nω)
     χννpω = Matrix{_eltype}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω, ipiv)
@@ -253,16 +253,9 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             inv!(χννpω, ipiv, work)
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χ[qi, ωi] = real(
-                    calc_χλ_impr!(
-                        λ_cache,
-                        type,
-                        ωn,
-                        χννpω,
-                        view(χ₀.data, qi, :, ωi),
-                        mP.U,
-                        mP.β,
-                        χ₀.asym[qi, ωi],
-                        sP.χ_helper,
+                    calc_χλ_impr!(λ_cache, type, ωn, χννpω, 
+                                  view(χ₀.data, qi, :, ωi), mP.U, mP.β,
+                                  χ₀.asym[qi, ωi], sP.χ_helper,
                     ),
                 )
                 γ[qi, :, ωi] = (1 .- s * λ_cache) ./ (1 .+ s * mP.U .* χ[qi, ωi])
@@ -282,8 +275,9 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
         χ_ω[ωi] = kintegrate(kG, v)
     end
     log_q0_χ_check(kG, sP, χ, type; verbose=verbose)
+    usable_ω = find_usable_χ_interval(real.(χ_ω), reduce_range_prct=sP.usable_prct_reduction)
 
-    return χT(χ, mP.β, tail_c = [0, 0, mP.Ekin_1Pt]), γT(γ)
+    return χT(χ, mP.β, tail_c = [0, 0, mP.Ekin_1Pt], full_range=sP.dbg_full_chi_omega, usable_ω = usable_ω), γT(γ)
 end
 
 

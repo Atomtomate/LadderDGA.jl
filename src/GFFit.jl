@@ -25,7 +25,7 @@ Returns:
 Arguments:
 -------------
 - **`χ_ω`**                : ``\\chi^\\omega`` 
-- **`sum_type`**           : Optional, default `:common`. Can be set to `:full` to enforce full range, or a `::Tuple{Int,Int}` to enforce a specific interval size.
+- **`sum_type`**           : Optional, default `:common` computes sum range. For debug purposes: Can be set to `:full` to enforce full range, or a `::Tuple{Int,Int}` to enforce a specific interval size.
 - **`reduce_range_prct`**  : Optional, default `0.1`. After finding the usable interval it is reduced by an additional percentage given by this value.
 """
 function find_usable_χ_interval(
@@ -36,40 +36,25 @@ function find_usable_χ_interval(
     if length(χ_ω) % 2 == 0
         throw(ArgumentError("Finding a usable interval is only implemented for uneven size of χ_ω!"))
     end
-    mid_index = Int(ceil(length(χ_ω) / 2))
+    mid_index = ceil(Int, (length(χ_ω) / 2))
     if sum_type == :full
         return 1:length(χ_ω)
     elseif typeof(sum_type) == Tuple{Int,Int}
         return sum_type[1]:sum_type[2]
     end
+    χ_ω[mid_index] < 0.0 && return [mid_index]
 
-    res = 1:length(χ_ω)
     darr = diff(χ_ω; dims = 1)
-    if χ_ω[mid_index] < 0.0
-        res = [mid_index]
-        return res
-    end
-    # interval for condition 1 (positive values)
-    cond1_intervall_range = 0
     # find range for positive values
-    while (cond1_intervall_range < mid_index - 1) &&
-              (χ_ω[(mid_index-cond1_intervall_range-1)] > 0) &&
-              (χ_ω[(mid_index+cond1_intervall_range+1)] > 0)
-        cond1_intervall_range = cond1_intervall_range + 1
-    end
+    cond_1 = χ_ω .> 0
+    # find range for monotonic condition
+    cond_2 = vcat(darr[1:mid_index-1] .> 0, [1,1], darr[mid_index+1:end] .< 0)
+    usable_interval = cond_1 .&& cond_2
 
-    # interval for condition 2 (monotonicity)
-    cond2_intervall_range = 0
-    # find range for first turning point
-    while (cond2_intervall_range < mid_index - 1) &&
-              (darr[(mid_index-cond2_intervall_range-1)] > 0) &&
-              (darr[(mid_index+cond2_intervall_range)] < 0)
-        cond2_intervall_range = cond2_intervall_range + 1
-    end
-    intervall_range = minimum([cond1_intervall_range, cond2_intervall_range])
-    range = ceil(Int64, intervall_range * (1 - reduce_range_prct))
-    res = ((mid_index-range):(mid_index+range))
-    return res
+    red_range = ceil(Int,(count(usable_interval .== 1) / 2 ) * (reduce_range_prct))
+    first_ind = findfirst(x->x==1, usable_interval) + red_range
+    last_ind  = findlast(x->x==1, usable_interval)  - red_range 
+    return first_ind:last_ind
 end
 
 function find_usable_χ_interval(
@@ -78,7 +63,7 @@ function find_usable_χ_interval(
     reduce_range_prct::Float64 = 0.1,
 )::AbstractVector{Int}
     intersect(
-        [find_usable_χ_interval(x, sum_type = :common, reduce_range_prct = 0.1) for x in eachslice(χ_qω, dims = 1)]...,
+        [find_usable_χ_interval(x, sum_type = sum_type, reduce_range_prct = reduce_range_prct) for x in eachslice(χ_qω, dims = 1)]...,
     )
 end
 

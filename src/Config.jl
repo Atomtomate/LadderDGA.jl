@@ -71,7 +71,8 @@ struct SimulationParameters <: ConfigStruct
     sVk::Float64            # ∑_k Vₖ^2, TODO: this should be moved somewhere else
     fft_range::AbstractArray
     usable_prct_reduction::Float64      # safety cutoff for usable ranges
-    dbg_full_eom_omega::Bool
+    dbg_full_eom_omega::Bool            # forces usable omega range to extend over all bosonic frequencies 
+    dbg_full_chi_omega::Bool            # compatibility flag for fortran code
 end
 
 """

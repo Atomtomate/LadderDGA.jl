@@ -58,9 +58,9 @@ end
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
                        νmax::Int = eom_ν_cutoff(h), fit_μ::Bool = true, tc = true, 
-                       validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, log_io = devnull
+                       validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose=false
 )
-    rhs = λm_rhs(χm, χd, h; λ_rhs = :native)
+    rhs = λm_rhs(χm, χd, h; λ_rhs = :native, verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
     return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, 0.0, true, h; validation_threshold = validation_threshold, max_steps_m = max_steps)
 end

@@ -36,6 +36,7 @@ function readConfig(cfg_in::String)
         error("Unrecognized smoothing type \"$(smoothing)\"")
     end
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
+    dbg_full_chi_omega = (haskey(tml["Debug"], "full_chi_omega") && tml["Debug"]["full_chi_omega"]) ? true : false
 
     input_dir = if isabspath(tml["Environment"]["inputDir"])
         tml["Environment"]["inputDir"]
@@ -102,7 +103,8 @@ function readConfig(cfg_in::String)
         nothing
     end
 
-    sP = SimulationParameters(nBose, nFermi, Nν_shell, shift, χ_helper, sum(Vk .^ 2), fft_range, sim["usable_prct_reduction"], dbg_full_eom_omega)
+    sP = SimulationParameters(nBose, nFermi, Nν_shell, shift, χ_helper, sum(Vk .^ 2), fft_range, sim["usable_prct_reduction"], 
+                              dbg_full_eom_omega, dbg_full_chi_omega)
     kGrids = Array{Tuple{String,Int},1}(undef, length(sim["Nk"]))
     if typeof(sim["Nk"]) === String && strip(lowercase(sim["Nk"])) == "conv"
         kGrids = [(modelVars["kGrid"], 0)]
@@ -158,6 +160,7 @@ function Base.show(io::IO, m::SimulationParameters)
             "Bosonic/Fermionic range: $(m.n_iω)/$(m.n_iν), $(m.shift ? "with" : "without") shifted fermionic frequencies",
         )
         println(io, "   ($(m.dbg_full_eom_omega ? "with" : "without") full ω range in EoM).")
+        println(io, "   ($(m.dbg_full_chi_omega ? "with" : "without") full ω range in physical susc.).")
         println(io, "Asymptotic correction : $(typeof(m.χ_helper))")
         println(
             io,
