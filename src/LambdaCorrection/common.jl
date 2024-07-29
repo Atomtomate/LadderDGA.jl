@@ -86,9 +86,34 @@ Returns `μ_new`, `G_ladder`, `Σ_ladder` with λ correction according to functi
 """
 function calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
                   λm::Float64, λd::Float64, h::RunHelper; 
-                  gLoc_rfft = h.gLoc_rfft, tc::Bool = true, fix_n::Bool = true
+                  gLoc_rfft::GνqT = h.gLoc_rfft, tc::Bool = true, fix_n::Bool = true
 )
     Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, gLoc_rfft, h; λm = λm, λd = λd, tc = tc)
     μ_new, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n = fix_n)
     return μ_new, G_ladder, Σ_ladder
+end
+
+"""
+    calc_G_Σ!(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
+             λm::Float64, λd::Float64,
+             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
+             tc::Bool = true, fix_n::Bool = true
+)
+
+Returns `μ_new`; overrides `G_ladder`, `Σ_ladder` and `Kνωq_pre`.
+See [`calc_Σ!`](@ref calc_Σ!) and [`calc_G_Σ`](@ref calc_G_Σ).
+"""
+function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                  tc_factor::Vector{ComplexF64},
+                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
+                  λm::Float64, λd::Float64, h::lDΓAHelper; 
+                  gLoc_rfft::GνqT = h.gLoc_rfft, tc::Bool = true, fix_n::Bool = true
+)::Float64
+    (λm != 0) && χ_λ!(χm, λm)
+    (λd != 0) && χ_λ!(χd, λd)
+        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χloc_m_sum, λ₀, tc_factor, gLoc_rfft, h.kG, h.mP, h.sP)
+    (λm != 0) && reset!(χm)
+    (λd != 0) && reset!(χd)
+    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
+    return μ_new
 end

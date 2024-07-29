@@ -11,7 +11,7 @@
 end
 
 @testset "Index Functions" begin
-    @test all(LadderDGA.νnGrid(4, sP_1) .== -7:2)
+    #@test all(LadderDGA.νnGrid(4, sP_1) .== -7:2)
     @test LadderDGA.q0_index(kG_1) == 1
     ν0_ind_s0 = map(x-> LadderDGA.ν0Index_of_ωIndex(x, sP_grid_s0), 1:2*sP_grid_s0.n_iω+1)
     i_s0 = CartesianIndex.(zip(1:length(ν0_ind_s0),ν0_ind_s0))

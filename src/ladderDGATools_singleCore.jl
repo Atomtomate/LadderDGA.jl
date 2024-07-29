@@ -125,7 +125,7 @@ end
 
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                  χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
-                 tc_factor::Vector, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
+                 tc_factor::Vector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; tc::Bool = true,
 )::Nothing
     Σ_hartree = mP.n * mP.U / 2.0
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
@@ -178,7 +178,7 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float64,Com
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    Σ_ladder = OffsetArray(Array{Complex{Float64},2}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
+    Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
 
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
@@ -215,8 +215,8 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     Nq = size(χm, χm.axis_types[:q])
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
-    Σ_ladder_i = OffsetArray(Array{Complex{Float64},2}(undef, Nq, sP.n_iν), 1:Nq, 0:sP.n_iν-1)
-    Σ_ladder = OffsetArray(Array{Complex{Float64},3}(undef, Nq, sP.n_iν, 7), 1:Nq, 0:sP.n_iν-1, 1:7)
+    Σ_ladder_i = OffsetArray(Matrix{ComplexF64}(undef, Nq, sP.n_iν), 1:Nq, 0:sP.n_iν-1)
+    Σ_ladder = OffsetArray(Array{ComplexF64,3}(undef, Nq, sP.n_iν, 7), 1:Nq, 0:sP.n_iν-1, 1:7)
 
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)

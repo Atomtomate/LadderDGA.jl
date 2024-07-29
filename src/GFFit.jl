@@ -54,7 +54,7 @@ function find_usable_χ_interval(
     red_range = ceil(Int,(count(usable_interval .== 1) / 2 ) * (reduce_range_prct))
     first_ind = findfirst(x->x==1, usable_interval) + red_range
     last_ind  = findlast(x->x==1, usable_interval)  - red_range 
-    return first_ind:last_ind
+    return first_ind < last_ind ? (first_ind:last_ind) : [mid_index]
 end
 
 function find_usable_χ_interval(

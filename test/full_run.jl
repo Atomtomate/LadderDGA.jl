@@ -87,13 +87,16 @@ initialize_EoM(lDGAhelper, λ₀, 0:sP.n_iν-1, χ_m = χ_m, γ_m = γ_m, χ_d =
 end
 
 λm_res_λd01 = LadderDGA.λ_correction(:m, χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
-res_m      = LadderDGA.LambdaCorrection.λm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m)
-res_dm     = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm)
-res_m_sc   = LadderDGA.LambdaCorrection.λm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m_sc)
-res_dm_sc  = LadderDGA.LambdaCorrection.λdm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm_sc)
-res_dm_tsc = LadderDGA.LambdaCorrection.λdm_tsc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper; max_steps_sc = 200); print(res_dm_tsc)
+res_m         = LadderDGA.LambdaCorrection.λm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m)
+res_dm_clean  = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm_clean)
+res_dm        = LadderDGA.LambdaCorrection.λdm_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm)
+res_m_sc      = LadderDGA.LambdaCorrection.λm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_m_sc)
+res_dm_sc     = LadderDGA.LambdaCorrection.λdm_sc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper); print(res_dm_sc)
+res_dm_tsc    = LadderDGA.LambdaCorrection.λdm_tsc_correction(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper; max_steps_sc = 200); print(res_dm_tsc)
 λm = λm_res_λd01.λm
 @test λm_res_λd01.λm ≈ res_m.λm
+@test res_dm_clean.λm ≈ res_dm.λm
+@test res_dm_clean.λd ≈ res_dm.λd
 #@timeit LadderDGA.to "run_sc_new" run_res_new = LadderDGA.LambdaCorrection.run_sc(χ_m, γ_m, χ_d, γ_d, λ₀, mP.μ, lDGAhelper; type=:fix, maxit=100, mixing=0.2, conv_abs=1e-8, trace=true)
 
 # @testset "run_sc" begin
