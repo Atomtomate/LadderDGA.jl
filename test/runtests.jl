@@ -22,57 +22,57 @@ sP_grid_s0 = SimulationParameters(4,5,2,false,nothing,1.5,1:3,0.1,false,false)
 ωνgrid_test_s0 = [(i,j - trunc(Int,0*i/2)) for i in -4:4, j in -5:5-1]
 
 
-# @testset "Config" begin
-#     include("Config.jl")
-# end
+@testset "Config" begin
+    include("Config.jl")
+end
 
-# @testset "DataTypes" begin
-#     include("DataTypes.jl")
-# end
+@testset "DataTypes" begin
+    include("DataTypes.jl")
+end
 
-# @testset "Run Helpers" begin
-#     include("runHelpers.jl")
-# end
+@testset "Run Helpers" begin
+    include("runHelpers.jl")
+end
 
-# @testset "Helpers" begin
-#     include("helpers.jl")
-# end
+@testset "Helpers" begin
+    include("helpers.jl")
+end
 
-# @testset "GFTools" begin
-#     include("GFTools.jl")
-# end
+@testset "GFTools" begin
+    include("GFTools.jl")
+end
 
-# @testset "GFFit" begin
-#     include("GFFit.jl")
-# end
+@testset "GFFit" begin
+    include("GFFit.jl")
+end
 
-# @testset "LapackWrapper" begin
-#     include("LapackWrapper.jl")
-# end
+@testset "LapackWrapper" begin
+    include("LapackWrapper.jl")
+end
 
-# @testset "thermodynamics" begin
-#     include("thermodynamics.jl")
-# end
+@testset "thermodynamics" begin
+    include("thermodynamics.jl")
+end
 
-# @testset "BSE Tools" begin
-#     include("BSETools.jl")
-# end
+@testset "BSE Tools" begin
+    include("BSETools.jl")
+end
 
-# @testset "ladderDGATools" begin
-#     include("ladderDGATools.jl")
-# end
+@testset "ladderDGATools" begin
+    include("ladderDGATools.jl")
+end
 
-# @testset "RPA Tools" begin
-#     include("RPATools.jl")
-# end
+@testset "RPA Tools" begin
+    include("RPATools.jl")
+end
 
-# @testset "parallelization" begin
-#     include("parallelization_helpers.jl")
-#end
+@testset "parallelization" begin
+    include("parallelization_helpers.jl")
+end
 
-# @testset "LinearizedEliashberg.jl" begin
-#     include("LinearizedEliashberg.jl")
-# end
+@testset "LinearizedEliashberg.jl" begin
+    include("LinearizedEliashberg.jl")
+end
 
 @testset "full run" begin
     include("full_run.jl")

@@ -401,11 +401,17 @@ function sum_ω(ωn_arr::Vector{ComplexF64}, χ::AbstractVector{Float64}, tail_c
 end
 
 """
+    update_tail!(χ::χT, new_tail_c::Array{Float64})
     update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
 
 Updates the ``\\frac{c_i}{\\omega_n^i}`` tail for all coefficients given in `new_tail_c` (index 1 corresponds to ``i=0``).
 #TODO: ONLY UPDATES 1/w^2 AT THE MOMENT!!!
 """
+function update_tail!(χ::χT, new_tail_c::Array{Float64})
+    ωnGrid = ωn_grid(χ)
+    update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
+end
+
 function update_tail!(χ::χT, new_tail_c::Array{Float64}, ωnGrid::Array{ComplexF64})
     length(new_tail_c) != length(χ.tail_c) && throw(
         ArgumentError(
