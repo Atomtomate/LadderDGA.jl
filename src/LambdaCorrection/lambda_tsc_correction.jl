@@ -156,7 +156,7 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     return λ_result(dm_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
-function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor_term, 
+function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor, 
     χm_it::χT, γm::γT, χd_it::χT, γd::γT, λ₀::λ₀T, λd::Float64, h;
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, 
                 max_steps_m=1000, tc::Bool = true)
@@ -184,7 +184,8 @@ function run_tsc!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_factor_term,
         # TODO: this should be constructed via macro from _clean
         (λm != 0) && χ_λ!(χm_it, λm)
         (λd != 0) && χ_λ!(χd_it, λd)
-        calc_Σ!(Σ_ladder_it, Kνωq_pre, χm_it, γm, χd_it, γd, h.χloc_m_sum, λ₀, tc_factor_term, gLoc_rfft, h.kG, h.mP, h.sP, tc = tc)
+        tc_term  = tail_correction_term(sum_kω(h.kG, χm_it), h.χloc_m_sum, tc_factor)
+        calc_Σ!(Σ_ladder_it, Kνωq_pre, χm_it, γm, χd_it, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
         (λm != 0) && reset!(χm_it)
         (λd != 0) && reset!(χd_it)
         μ_it = G_from_Σladder!(G_ladder_it, Σ_ladder_it, h.Σ_loc, h.kG, h.mP; fix_n=true, μ=μ_it, improved_sum_filling = tc)

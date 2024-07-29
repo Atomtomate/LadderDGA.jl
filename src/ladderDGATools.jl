@@ -142,16 +142,21 @@ end
 
 # -------------------------------------------- EoM: Main ---------------------------------------------
 function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
+    norm::ComplexF64 = convert(ComplexF64, kG.Nk)
     if Nk(kG) == 1
         res[:] += arr1 .* GView
     else
         expandKArr!(kG, kG.cache1, arr1)
         mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
+        FFTW.unsafe_execute!(kG.fftw_plan, kG.cache1, kG.cache1) #mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
         for i in eachindex(kG.cache1)
-            kG.cache1[i] *= GView[i]
+            @inbounds kG.cache1[i] *= GView[i]
         end
         kG.fftw_plan \ kG.cache1
-        Dispersions.conv_post_add!(kG, res, kG.cache1)
+        # Dispersions.conv_post_add!(kG, res, kG.cache1)
+        @inbounds res .= res .+ @view kG.cache1[kG.kInd_crossc] 
+        @inbounds res .= res ./ norm
+        
     end
     return nothing
 end

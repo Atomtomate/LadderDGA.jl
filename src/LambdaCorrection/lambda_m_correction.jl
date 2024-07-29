@@ -28,14 +28,15 @@ function λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :n
     λm_rhs(imp_density, χm, χd, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, verbose=verbose)
 end
 
-function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64 = NaN, λ_rhs = :native, verbose = false)
+function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64 = NaN, λ_rhs::Symbol = :native, verbose::Bool = false)
     χd.λ != 0 && !isnan(λd) && error("Stopping λ rhs calculation: λd = $λd AND χd.λ = $(χd.λ). Reset χd.λ, or do not provide additional λ-correction for this function.")
     χd_sum = sum_kω(kG, χd, λ = λd)
 
     verbose && @info "λsp correction infos:"
     rhs, PP_p1 = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
         verbose && @info "  ↳ using n * (1 - n/2) - Σ χd as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
-        mP.n * (1 - mP.n / 2) - χd_sum, mP.n/2 * (1 - mP.n / 2)
+        rhs_i = mP.n/2 * (1 - mP.n / 2)
+        rhs_i*2 - χd_sum,  rhs_i
     else
         !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT rror compensation method"))
         verbose && @info "  ↳ using χupup_DMFT - Σ χd as rhs"
@@ -58,8 +59,8 @@ end
                   verbose=false, log_io= devnull
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
-                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = true, λ_rhs = :native, 
-                       validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose=false, log_io= devnull
+                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Bool = true, λ_rhs::Symbol = :native, 
+                       validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose::Bool=false, log_io= devnull
 )
     rhs,PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
