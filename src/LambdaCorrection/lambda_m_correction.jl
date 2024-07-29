@@ -52,9 +52,10 @@ function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelP
 end
 
 """
-    λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::Array{ComplexF64,3},h::lDΓAHelper;
-                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = true, 
-                       validation_threshold::Float64 = 1e-8
+    λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::λ₀T, h::lDΓAHelper;
+                  νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = true, 
+                  validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, 
+                  verbose=false, log_io= devnull
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
                        νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = true, λ_rhs = :native, 
