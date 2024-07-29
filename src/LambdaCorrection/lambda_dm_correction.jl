@@ -86,7 +86,6 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                              max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true, tc::Bool = true)::Tuple{Float64,Float64}
 
-    to = TimerOutput()
     λd_min::Float64   = get_λ_min(χd)
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
@@ -119,6 +118,5 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
     rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
-    println(to)
     return λm, λd
 end
