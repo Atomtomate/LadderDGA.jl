@@ -176,8 +176,8 @@ function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol:
     return xi
 end
 
-Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1 / x + p
-Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = - 1 / (x^2)
+Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1 / x^2 + p
+Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = - 2 / (x^3)
 
 """
     newton_secularEq(f::Function, [df::Function,], pole::Float64)
@@ -230,25 +230,25 @@ end
 This is the same as [`newton_secular`](@ref newton_secular), but also returns a trace of the intermediate values `(xi,xi_tf,fi,dfii)`.
 
 """
-function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)
     done  = false
     xi    = xp + 1.0
     xi_tf = NaN
-    trace = Array{Float64,2}(undef, 4, 0)
+    trace = Vector{Vector}(undef, 0)
     i     = 1
     while !done
         xi_tf = newton_secular_transform(xi,xp)
         fi = f(xi_tf)
         dfii = 1 / (df(xi_tf)*newton_secular_transform_df(xi, xp))
         xi = xi - dfii * fi
-        push!(trace[:,i], [xi, xi_tf, fi, dfii])
+        push!(trace, [xi, xi_tf, fi, dfii])
         (norm(fi) < atol || i >= nsteps) && (done = true)
         i += 1
     end
     return xi_tf, trace
 end
 
-function newton_secular_trace(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular_trace(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_secular_trace(f, df, xp; nsteps = nsteps, atol = atol)
 end
