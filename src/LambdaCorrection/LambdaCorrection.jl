@@ -29,12 +29,15 @@ export λm_correction, λdm_correction, λdm_correction_clean
 export λm_sc_correction, λdm_sc_correction, λdm_sc_correction_clean
 export λm_tsc_correction, λdm_tsc_correction, λdm_tsc_correction_clean
 
+export EPotCond_λdm_curve
+
 include("common.jl")
 include("helpers.jl")
 include("RootFinding.jl")
 include("Types.jl")
 include("conditions_singleCore.jl")
 include("conditionsRPA_singleCore.jl")
+include("ConditionCurves.jl")
 # include("conditions_new_mu_test.jl")
 # include("conditions_dbg.jl")
 

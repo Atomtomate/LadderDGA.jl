@@ -488,7 +488,7 @@ function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, 
     rc_res = 0.0
     for rc = 0.1:0.1:20.0
         ef = estimate_ef(Σ_ladder, kG, μ, β; ν0_estimator = ν0_estimator, relax_zero_condition = rc)
-        conn = fermi_surface_connected(ef, kG)
+        conn = fermi_surface_connected(ef.parent, kG)
         rc_res = rc
         conn >= 0 && break
     end

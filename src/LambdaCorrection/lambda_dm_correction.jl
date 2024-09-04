@@ -120,35 +120,3 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     return λm, λd
 end
-
-function EPotCond_λdm_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc::Bool=true)
-    λd_min::Float64   = get_λ_min(χd)
-    ωn2_tail = ω2_tail(χm)
-    Nq::Int = length(h.kG.kMult)
-    νmax::Int = eom_ν_cutoff(h.sP)
-
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
-    Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
-    G_ladder = similar(Σ_ladder)
-    iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor= (tc ? tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν) : 0.0 ./ iν)
-
-    function f_c2(λd_i::Float64)
-        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
-        λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
-        # @timeit to "dbg3" μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_factor, χm, γm, χd, γd, λ₀, λm_i, λd_i, h; fix_n = fix_n)
-        
-    (λm_i != 0) && χ_λ!(χm, λm_i)
-    (λd_i != 0) && χ_λ!(χd, λd_i)
-    tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, h.gLoc_rfft, h.kG, h.mP, h.sP)
-    (λm_i != 0) && reset!(χm)
-    (λd_i != 0) && reset!(χd)
-    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = true, μ = h.mP.μ, n = h.mP.n)
-        Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
-        Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
-        return Epot_1 - Epot_2
-    end
-    
-    sample_f(f_c2, λd_min - 1.0, 30.0; maxit=2000)
-end

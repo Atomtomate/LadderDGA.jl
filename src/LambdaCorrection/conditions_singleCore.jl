@@ -112,3 +112,7 @@ Returns .
 function validate_EPot(EPot_P1::Float64, χm::χT, χd::χT, λm::Float64, n::Float64)
     error("not implemented yet")
 end
+
+function validate_positivity()
+    error("not implemented yet")
+end
