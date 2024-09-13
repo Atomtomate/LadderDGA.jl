@@ -433,6 +433,28 @@ function ω_tail(ωindices::AbstractArray{Int}, coeffs::AbstractVector{Float64},
 end
 
 
+# =================================== Estimation of Charge Order =====================================
+"""
+    BubbleDiff(χ₀::χ₀T, χ₀Loc::χ₀T; qList::Vector{Int}=eachindex(χ₀.data,χ₀.axis_types[:q]))
+
+Computes ``\\chi^{-1,q,\\nu, \\omega_0}_0 - \\chi^{-1}_{0,\\nu,\\mathrm{loc}}`` for all 
+q-vectors in `qList` (default: all).
+Used to estimate charge order, see also `script_04`.
+"""
+function BubbleDiff(χ₀::χ₀T, χ₀Loc::χ₀T; qList::AbstractVector=axes(χ₀.data,χ₀.axis_types[:q]))
+    ω₀LocInd = ω0_index(χ₀Loc[1,:,:])
+    ω₀Ind    = ω0_index(χ₀[1,:,:])
+    Nν       = size(core(χ₀), χ₀.axis_types[:ν])
+
+    ev_list = Matrix{ComplexF64}(undef, length(qList), Nν)
+
+    for qi in qList
+        ev_list[qi, :] = 1 ./ core(χ₀)[qi,:,ω₀Ind] - 1 ./ core(χ₀Loc)[1,:,ω₀LocInd]
+    end
+    return ev_list
+end
+
+
 # ==================================== Fermi Surface Estimation ======================================
 function lin_fit(ν::Vector{Float64}, Σ::Vector{Float64})
     m = (Σ[2] - Σ[1]) / (ν[2] - ν[1])

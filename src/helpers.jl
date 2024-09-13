@@ -35,6 +35,7 @@ Index of ω₀ frequency.
 """
 ω0_index(sP::SimulationParameters) = sP.n_iω + 1
 ω0_index(χ::χT) = ω0_index(χ.data)
+ω0_index(χ::χ₀T) = ω0_index(view(χ.data,1,:,:))
 ω0_index(χ::AbstractMatrix) = ceil(Int64, size(χ, 2) / 2)
 
 """
