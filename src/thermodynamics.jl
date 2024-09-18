@@ -45,7 +45,7 @@ end
 Pauli-Principle on 2-particle level: ``U(\\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{m,k} - \\sum_{k,\\omega} \\chi^{\\lambda,\\omega}_{d,k})/2 + U n^2/4``.
 """
 function EPot_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64, kG::KGrid)::Float64
-    return (U/2)*real(sum_kω(kG, χd, λ = λd) - sum_kω(kG, χm, λ = λm))/2 + U * (n/2)^2
+    return (U/2)*real(sum_kω(kG, χd, λ = λd) - sum_kω(kG, χm, λ = λm)) + U * (n/2)^2
 end
 
 function EKin_p1()

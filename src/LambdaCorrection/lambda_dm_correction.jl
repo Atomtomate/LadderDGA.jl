@@ -65,11 +65,12 @@ Computes the `λm` and `λd` parameters for the consistency of Pauli principle a
 Returns a [`λ_result`](@ref λ_result) object.
 """
 function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; fix_n::Bool = true,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
+                        max_steps_dm::Int = 2000, log_io = devnull, tc::Bool = true
     )       
     λm, λd = λdm_correction_val(χm, γm, χd, γd,λ₀, h; fix_n = fix_n,
                 validation_threshold = validation_threshold, max_steps_m = max_steps_m,
-                max_steps_dm = max_steps_dm, log_io = log_io)     
+                max_steps_dm = max_steps_dm, log_io = log_io, tc=tc)     
     return λ_result(dmCorrection, χm, γm, χd, γd, λ₀, λm, λd, true, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
@@ -84,7 +85,7 @@ that stores additional consistency checks.
 """
 function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
-                             max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true, tc::Bool = true)::Tuple{Float64,Float64}
+                        max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true, tc::Bool = true)::Tuple{Float64,Float64}
 
     λd_min::Float64   = get_λ_min(χd)
     ωn2_tail = ω2_tail(χm)

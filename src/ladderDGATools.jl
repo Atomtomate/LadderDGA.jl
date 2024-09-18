@@ -152,10 +152,10 @@ function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{
         for i in eachindex(kG.cache1)
             @inbounds kG.cache1[i] *= GView[i]
         end
-        kG.fftw_plan \ kG.cache1
-        # Dispersions.conv_post_add!(kG, res, kG.cache1)
-        @inbounds res .= res .+ @view kG.cache1[kG.kInd_crossc] 
-        @inbounds res .= res ./ norm
+        #kG.fftw_plan \ kG.cache1
+        Dispersions.conv_post_add!(kG, res, kG.cache1)
+        #@inbounds res .= res .+ @view kG.cache1[kG.kInd_crossc] 
+        #@inbounds res .= res ./ norm
         
     end
     return nothing

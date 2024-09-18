@@ -210,7 +210,8 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_term = (tc ? tail_correction_term(mP.U, mP.β, mP.n, sum_kω(kG, χm), χ_m_sum, Σ_loc, iν) : 0.0 ./ iν)
+    tc_factor = (tc ? tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν) : 0.0 ./ iν)
+    tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
     calc_Σ_ω!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
     calc_Σ_ω!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
