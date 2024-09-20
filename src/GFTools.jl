@@ -256,9 +256,10 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     if !isnan(μ)
         G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
     end
+    # write complex conjugate in reverse order to negative indices. TODO: find clean way to do this
     ind_neg = first(axes(G_new, 2)):-1
     ind = -1 .* reverse(ind_neg) .- 1
-    G_new[:, ind_neg] = conj.(view(G_new, :, ind))
+    G_new[:, ind_neg] = conj.(reverse(view(G_new, :, ind), dims=2))
     return μ
 end
 

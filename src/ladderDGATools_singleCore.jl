@@ -127,9 +127,9 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T,
                  tc_term::Matrix{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
 )::Nothing
-    Σ_hartree = mP.n * mP.U / 2.0
+    ΣH = Σ_hartree(mP)
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
-    Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ Σ_hartree
+    Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ ΣH 
     return nothing
 end
 
@@ -157,7 +157,7 @@ end
 
 function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
                 Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0,λd::Float64 = 0.0,tc::Bool = true,
+                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true,
 )
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
@@ -241,10 +241,18 @@ end
 
 Calculates the tail factor for [`tail_correction_term`](@ref tail_correction_term).
 """
-function tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; δ::Real = min(0.001, 1 ./ length(iν)))::Vector{ComplexF64}
+function tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};
+                mode::Symbol=:full,  δ::Real = min(0.001, 1 ./ length(iν)))::Vector{ComplexF64}
     Σlim = U^2 * n / 2 * (1 - n / 2)
-    DMFT_dff = -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
-    return -2 * U .* exp.(-(DMFT_dff) .^ 2 ./ δ) ./ iν
+    tc_factor = if mode == :full
+        - U ./ iν
+    elseif mode == :exp_step
+        DMFT_dff = -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
+        - U .* exp.(-(DMFT_dff) .^ 2 ./ δ) ./ iν
+    else
+        @error "Tail factor " mode "not implemented!"
+    end
+    return tc_factor
 end
 
 """

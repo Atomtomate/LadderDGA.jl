@@ -116,7 +116,8 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
         return Epot_1 - Epot_2
     end
     
-    λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+    #λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+    λd  = newton_right(f_c2, λd_min+10.0, λd_min)
     rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     return λm, λd
