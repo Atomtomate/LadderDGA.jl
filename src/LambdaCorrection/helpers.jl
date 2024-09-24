@@ -33,7 +33,7 @@ Sample a function ``f: \\mathbb{R} \\to \\mathbb{R}`` over the interval ``[xmin,
 i.e. if ``|f(x_i) L_f(x_i)| | < `` `feps_abs` for a proposed bisection point, the interval is supposed to be converged.
 Algorithm will stop bisection after `maxit` samples
 """
-function sample_f(f::Function, xmin::T, xmax::T; feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=1000) where T
+function sample_f(f::Function, xmin::T, xmax::T; feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=1000, nan_backoff::Float64=1e-4) where T
     fxmin = f(xmin)
     fxmax = f(xmax)
     FT = typeof(fxmin)
@@ -66,7 +66,11 @@ function sample_f(f::Function, xmin::T, xmax::T; feps_abs::Float64=1e-8, xeps_ab
             # println("[[$x1, $x2] => xm = ", xm)
             # println(" ============================================= ")
 
-            if abs(fm_test - fm) <= feps_abs || abs(xm - x1) <= xeps_abs
+            if isnan(fm)
+                it += 1
+                # function cal lfailed, resubmit with slightly shifted edges
+                push!(todo, (x1+nan_backoff, f1, x2+nan_backoff, f2) => x2-x1)
+            elseif abs(fm_test - fm) <= feps_abs || abs(xm - x1) <= xeps_abs
                 push!(done, (xm, fm))
             else
                 it += 1

@@ -51,9 +51,9 @@ Arguments
 - **`χ_m_sum`**    : Union{Float64,ComplexF64}. RPA: `\\sum_{\\omega,\\mathbf{q}}\\chi_{0,\\mathbf{q}}^{\\omega}`, lDGA: 'χ_m_sum'.
 - **`grid`**       : AbstractArray{Int64,1}
 """
-function correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
-    return - (mP.U .^2) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
-end
+#function correction_term(mP::ModelParameters, kG::KGrid, χm::χT, χ_m_sum::Union{Float64,ComplexF64}, grid::AbstractArray{Int64,1})
+#    return - (mP.U) .* (sum_kω(kG, χm) - χ_m_sum) ./ iν_array(mP.β, collect(grid))
+#end
 
 """
     calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
@@ -155,7 +155,7 @@ function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rff
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
 end
 
-function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT,χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
+function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
                 Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
                 νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true,
 )
@@ -243,12 +243,12 @@ Calculates the tail factor for [`tail_correction_term`](@ref tail_correction_ter
 """
 function tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};
                 mode::Symbol=:full,  δ::Real = min(0.001, 1 ./ length(iν)))::Vector{ComplexF64}
-    Σlim = U^2 * n / 2 * (1 - n / 2)
     tc_factor = if mode == :full
-        - U ./ iν
+        - U^2 ./ iν
     elseif mode == :exp_step
+        Σlim = U^2 * (n/2) * (1 - n/2)
         DMFT_dff = -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
-        - U .* exp.(-(DMFT_dff) .^ 2 ./ δ) ./ iν
+        - U^2 .* exp.(-(DMFT_dff) .^ 2 ./ δ) ./ iν
     else
         @error "Tail factor " mode "not implemented!"
     end

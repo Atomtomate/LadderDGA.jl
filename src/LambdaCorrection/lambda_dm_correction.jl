@@ -35,6 +35,7 @@ Returns the bare λ-values, usually one should run [`λdm_correction`](@ref λdm
 that stores additional consistency checks.
 """
 function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
+                        tc::Bool = true,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true)
     λd_min   = get_λ_min(χd)
@@ -43,14 +44,15 @@ function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::�
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; tc = true, fix_n = fix_n)
+        μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; tc = tc, fix_n = fix_n)
         #TODO: use Epot_1
         Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
         Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
         return Epot_1 - Epot_2
     end
-    
-    λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+
+    #λd  = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+    λd  = newton_right(f_c2, λd_min+10.0, λd_min)
     rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     return λm, λd
@@ -71,7 +73,7 @@ function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
     λm, λd = λdm_correction_val(χm, γm, χd, γd,λ₀, h; fix_n = fix_n,
                 validation_threshold = validation_threshold, max_steps_m = max_steps_m,
                 max_steps_dm = max_steps_dm, log_io = log_io, tc=tc)     
-    return λ_result(dmCorrection, χm, γm, χd, γd, λ₀, λm, λd, true, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    return λ_result(dmCorrection, χm, γm, χd, γd, λ₀, λm, λd, true, h; tc=tc, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
 """
@@ -101,15 +103,9 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        # @timeit to "dbg3" μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_factor, χm, γm, χd, γd, λ₀, λm_i, λd_i, h; fix_n = fix_n)
-        
-    (λm_i != 0) && χ_λ!(χm, λm_i)
-    (λd_i != 0) && χ_λ!(χd, λd_i)
-    tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, h.gLoc_rfft, h.kG, h.mP, h.sP)
-    (λm_i != 0) && reset!(χm)
-    (λd_i != 0) && reset!(χd)
-    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
+        tc_term  = tail_correction_term(sum_kω(h.kG, χm, λ=λm_i), h.χloc_m_sum, tc_factor)
+        μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h)
+
         #TODO: use Epot_1
         Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
         Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)

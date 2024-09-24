@@ -64,7 +64,7 @@ function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h
 )
     rhs,PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
-    return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, 0.0, true, h; 
+    return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, χd.λ, true, h; 
             tc = tc, PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps)
 end
 
