@@ -113,7 +113,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term, 
                 χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
-                maxit=max_steps_sc, conv_abs=validation_threshold, tc=tc, verbose=verbose)
+                maxit=max_steps_sc, conv_abs=validation_threshold, verbose=verbose)
         #TODO: use Epot_1
         Ekin_1, Epot_1 = calc_E(G_ladder_it, Σ_ladder_it, μ_new, h.kG, h.mP)
         Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
@@ -124,7 +124,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term, 
-                χm, γm, χd, γd, λ₀, λm, λm, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
+                χm, γm, χd, γd, λ₀, λm, λm, h; maxit=max_steps_sc, conv_abs=validation_threshold)
     return λ_result(dm_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; PP_p1=PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
