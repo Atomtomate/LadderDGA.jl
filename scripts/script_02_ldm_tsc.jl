@@ -27,10 +27,19 @@ to = TimerOutput()
 @timeit to "clean tsc" r3 = LadderDGA.LambdaCorrection.λdm_tsc_correction_clean(χm, γm, χd, γd, λ₀, lDGAhelper; validation_threshold=1e-6);
 @timeit to "fast  tsc" r4 = LadderDGA.LambdaCorrection.λdm_tsc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; validation_threshold=1e-6);
 
+                    mP = ModelParameters(f["U"], f["μ_DMFT"], f["β"], f["n"], f["Epot_1Pt"], f["Ekin_1Pt"])
 =#
 if length(ARGS) > 1
     fname = ARGS[2]
     jldopen(fname, "w") do f
+        f["Nk"] = lDGAhelper.kG.Ns
+        f["KGrid"] =kGridsStr[1] 
+        f["U"] = lDGAhelper.mP.U
+        f["μ_DMFT"] = lDGAhelper.mP.μ
+        f["β"] = lDGAhelper.mP.β
+        f["n"] = lDGAhelper.mP.n
+        f["Epot_1Pt"] = lDGAhelper.mP.Epot_1Pt
+        f["Ekin_1Pt"] = lDGAhelper.mP.Ekin_1Pt
         f["chi_m"] = χm
         f["chi_d"] = χd
         f["res_m"] = res_m
