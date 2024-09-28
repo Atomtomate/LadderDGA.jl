@@ -92,7 +92,7 @@ Constructs λ_result object, runs all checks and stores them.
 """
 function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  tc::Bool = true, PP_p1 = NaN,
+                  tc::Symbol=default_Σ_tail_correction(), PP_p1 = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
     μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
     λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)

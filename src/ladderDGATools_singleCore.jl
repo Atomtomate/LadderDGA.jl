@@ -125,7 +125,7 @@ end
 
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T,
-                 tc_term::Matrix{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                 tc_term::Union{Float64,Matrix{ComplexF64}}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
 )::Nothing
     ΣH = Σ_hartree(mP)
     calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
@@ -136,42 +136,42 @@ end
 
 """
     calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::lDΓAHelper;
-           νmax=eom_ν_cutoff(h), λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
+           νmax=eom_ν_cutoff(h), λm::Float64=0.0, λd::Float64=0.0, tc::Symbol=default_Σ_tail_correction())
     calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; 
-           νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true)
+           νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Symbol = default_Σ_tail_correction())
     calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
            Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-           νmax=eom_ν_cutoff(sP), λm::Float64=0.0, λd::Float64=0.0, tc::Bool=true)
+           νmax=eom_ν_cutoff(sP), λm::Float64=0.0, λd::Float64=0.0, tc::Symbol=default_Σ_tail_correction())
                 
 Calculates the self-energy from ladder quantities.
 
 This is the single core variant, see [`calc_Σ_par`](@ref calc_Σ_par) for the parallel version.
 """
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true)
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Symbol = default_Σ_tail_correction())
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
 end
 
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true)
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Symbol = default_Σ_tail_correction())
     calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
 end
 
 function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
                 Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = true,
+                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Symbol = default_Σ_tail_correction(),
 )
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     Nq, Nω = size(χm)
     ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
 
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor = (tc ? tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν) : 0.0 ./ iν)
+    tc_factor = tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν; mode=tc)
     tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
     calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP)
 
@@ -192,13 +192,13 @@ but split into `7` contributions from: `χm`, `γm`, `χd`, `γd`, `U`, `Fm` + `
 
 """
 function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::lDΓAHelper; 
-                      tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
+                      tc::Symbol = default_Σ_tail_correction(), λm::Float64 = 0.0, λd::Float64 = 0.0)
     calc_Σ_parts(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP; tc = tc, λm = λm, λd = λd)
 end
 
 function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
                       Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-                      tc::Bool = true, λm::Float64 = 0.0, λd::Float64 = 0.0)
+                      tc::Symbol = default_Σ_tail_correction(), λm::Float64 = 0.0, λd::Float64 = 0.0)
     Σ_hartree = mP.n * mP.U / 2.0
     Nq = size(χm, χm.axis_types[:q])
 
@@ -210,7 +210,8 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor = (tc ? tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν) : 0.0 ./ iν)
+    tc_factor = tail_factor(mP.U, mP.β, mP.n, Σ_loc, iν; mode=tc)
+    
     tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
     calc_Σ_ω!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
@@ -242,13 +243,15 @@ end
 Calculates the tail factor for [`tail_correction_term`](@ref tail_correction_term).
 """
 function tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};
-                mode::Symbol=:full,  δ::Real = min(0.001, 1 ./ length(iν)))::Vector{ComplexF64}
+                mode::Symbol=default_Σ_tail_correction(),  δ::Real = 0.05)::Vector{ComplexF64}
     tc_factor = if mode == :full
         - U^2 ./ iν
     elseif mode == :exp_step
         Σlim = U^2 * (n/2) * (1 - n/2)
         DMFT_dff = -imag(Σ_loc[0:length(iν)-1]) .* imag(iν) .- Σlim
         - U^2 .* exp.(-(DMFT_dff) .^ 2 ./ δ) ./ iν
+    elseif mode == :plain
+        0.0 ./ iν
     else
         @error "Tail factor " mode "not implemented!"
     end

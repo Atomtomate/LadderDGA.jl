@@ -35,10 +35,19 @@ Returns the bare λ-values, usually one should run [`λdm_correction`](@ref λdm
 that stores additional consistency checks.
 """
 function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                        tc::Bool = true,
+                        use_trivial_λmin::Bool = false, λd_min::Float64 = NaN,
+                        tc::Symbol = default_Σ_tail_correction(),
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true)
-    λd_min   = get_λ_min(χd)
+    λd_min::Float64 = if !isnan(λd_min)
+        λd_min
+    else
+        if use_trivial_λmin 
+            get_λ_min(χd)
+        else
+            get_λd_min(χm, γm, χd, γd, λ₀, h)
+        end
+    end
     ωn2_tail = ω2_tail(χm)
 
     function f_c2(λd_i::Float64)
@@ -68,7 +77,7 @@ Returns a [`λ_result`](@ref λ_result) object.
 """
 function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; fix_n::Bool = true,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
-                        max_steps_dm::Int = 2000, log_io = devnull, tc::Bool = true
+                        max_steps_dm::Int = 2000, log_io = devnull, tc::Symbol = default_Σ_tail_correction()
     )       
     λm, λd = λdm_correction_val(χm, γm, χd, γd,λ₀, h; fix_n = fix_n,
                 validation_threshold = validation_threshold, max_steps_m = max_steps_m,
@@ -86,10 +95,9 @@ Returns the bare λ-values, usually one should run [`λdm_correction`](@ref λdm
 that stores additional consistency checks.
 """
 function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
+                        use_trivial_λmin::Bool=false, λd_min::Float64=NaN,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
-                        max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true, tc::Bool = true)::Tuple{Float64,Float64}
-
-    λd_min::Float64   = get_λ_min(χd)
+                        max_steps_dm::Int = 2000, log_io = devnull, fix_n::Bool = true, tc::Symbol = default_Σ_tail_correction())::Tuple{Float64,Float64}
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
     νmax::Int = eom_ν_cutoff(h.sP)
@@ -98,7 +106,18 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor= (tc ? tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν) : 0.0 ./ iν)
+    tc_factor= tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc) 
+
+    λd_min::Float64 = if !isnan(λd_min)
+        λd_min
+    else
+        if use_trivial_λmin 
+            get_λ_min(χd)
+        else
+            get_λd_min(χm, γm, χd, γd, λ₀, h)
+        end
+    end
+
 
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)

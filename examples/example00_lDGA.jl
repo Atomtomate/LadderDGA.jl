@@ -15,5 +15,5 @@ bubble     = calc_bubble(:DMFT, lDGAhelper);
 λ₀ = calc_λ0(bubble, lDGAhelper);
 res_m      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_m);
 res_dm     = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper); print(res_dm);
-se =  calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper; λm = 0.0, λd = 0.0, tc = true)
-se_ntc = calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper; λm = 0.0, λd = 0.0, tc = false);
+se =  calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper; λm = 0.0, λd = 0.0, tc = :full)
+se_ntc = calc_Σ(χm, γm, χd, γd, λ₀, lDGAhelper; λm = 0.0, λd = 0.0, tc = :plain);

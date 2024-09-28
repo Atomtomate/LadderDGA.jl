@@ -14,7 +14,7 @@ import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..Simulation
 import ..sum_ω, ..sum_ω!, ..sum_kω, ..sum_ωk, ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array, ..ω2_tail, ..ωn_grid
 import ..G_from_Σ, ..G_fft, ..G_rfft!, ..G_from_Σladder!, ..G_from_Σladder, ..calc_Σ, ..calc_Σ_ω!, ..calc_Σ!, ..eom, ..eom_rpa
 import ..calc_E, ..EPot1, ..PP_p1, ..PP_p2, ..EPot_p1, ..EPot_p2, ..EKin_p1, ..EKin_p2 
-import ..filling, ..filling_pos, ..tail_factor, ..tail_correction_term
+import ..filling, ..filling_pos, ..tail_factor, ..tail_correction_term, ..default_Σ_tail_correction
 import ..RPAHelper, ..lDΓAHelper, ..AlDΓAHelper, ..RunHelper
 
 export χ_λ, χ_λ!, dχ_λ, reset!

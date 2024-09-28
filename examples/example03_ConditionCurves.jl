@@ -16,16 +16,16 @@ bubble     = calc_bubble(:DMFT, lDGAhelper);
 λ₀ = calc_λ0(bubble, lDGAhelper);
 
 #xr_m, fr_m = LadderDGA.LambdaCorrection.PPCond_curve(χm,γm,χd,γd,λ₀, lDGAhelper)
-res_m_ntc      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper, tc=false)
-res_m      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper, tc=true)
-res_dm     = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; tc=true)
+#res_m_ntc      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper, tc=:plain)
+#res_m      = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper)
+#res_dm     = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper)
 #res_dm_ntc = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; tc=false)
 #res_dm_sc  = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; tc=true)
 
-xr_dmsc, fr_dmsc = LadderDGA.LambdaCorrection.EPotCond_sc_curve(χm,γm,χd,γd,λ₀, lDGAhelper, maxit=120, λmax=30.0,sc_conv_abs=1e-7, mixing=0.3, verbose=true)
-xr_m, fr_m = LadderDGA.LambdaCorrection.PPCond_curve(χm,γm,χd,γd,λ₀, lDGAhelper, λmax=30.0)
-xr_dm, fr_dm = LadderDGA.LambdaCorrection.EPotCond_curve(χm,γm,χd,γd,λ₀, lDGAhelper; maxit=120, λmax=30.0)
-xr_dmtsc, fr_dmtsc = LadderDGA.LambdaCorrection.EPotCond_sc_curve(χm,γm,χd,γd,λ₀, lDGAhelper; method=:tsc, maxit=20, λmax=30.0,sc_conv_abs=1e-7, mixing=0.3, verbose=true)
+#xr_dmsc, fr_dmsc = LadderDGA.LambdaCorrection.EPotCond_sc_curve(χm,γm,χd,γd,λ₀, lDGAhelper, maxit=60, λmax=30.0,sc_conv_abs=1e-7, mixing=0.3, verbose=true)
+#xr_m, fr_m = LadderDGA.LambdaCorrection.PPCond_curve(χm,γm,χd,γd,λ₀, lDGAhelper, λmax=30.0)
+#xr_dm, fr_dm = LadderDGA.LambdaCorrection.EPotCond_curve(χm,γm,χd,γd,λ₀, lDGAhelper; maxit=120, λmax=30.0)
+#xr_dmtsc, fr_dmtsc = LadderDGA.LambdaCorrection.EPotCond_sc_curve(χm,γm,χd,γd,λ₀, lDGAhelper; method=:tsc, maxit=20, λmax=30.0,sc_conv_abs=1e-7, mixing=0.3, verbose=true)
 
 χm_sum = sum_kω(lDGAhelper.kG, χm, λ = res_dm.λm)
 χd_sum = sum_kω(lDGAhelper.kG, χd, λ = res_dm.λd)

@@ -88,16 +88,7 @@ function sample_f(f::Function, xmin::T, xmax::T; feps_abs::Float64=1e-8, xeps_ab
 end
 
 # ============================================== misc. ===============================================
-"""
-    get_λ_min(χr::AbstractArray{Float64,2})::Float64
 
-Computes the smallest possible ``\\lambda``-correction parameter (i.e. first divergence of ``\\chi(q)``),
-given as ``\\lambda_\\text{min} = - \\min_{q}(1 / \\chi^{\\omega_0}_q)``.
-"""
-function get_λ_min(χr::AbstractArray{Float64,2})::Float64
-    nh = ω0_index(χr)
-    -minimum(1 ./ view(χr, :, nh))
-end
 
 """
     gen_νω_indices(χ_m::χT, χ_d::χT, sP::SimulationParameters)

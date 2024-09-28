@@ -54,12 +54,12 @@ end
 
 """
     λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::λ₀T, h::lDΓAHelper;
-                  νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = true, 
+                  νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = default_Σ_tail_correction(), 
                   validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, 
                   verbose=false, log_io= devnull
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
-                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Bool = true, λ_rhs::Symbol = :native, 
+                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Symbol = default_Σ_tail_correction(), λ_rhs::Symbol = :native, 
                        validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose::Bool=false, log_io= devnull
 )
     rhs,PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, verbose=verbose)
