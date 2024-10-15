@@ -18,7 +18,7 @@
 function λm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                            validation_threshold::Float64 = 1e-8, λ_rhs = :native,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Symbol = default_Σ_tail_correction())       
+                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
 
     λd = 0.0
     converged, μ_new, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
@@ -37,7 +37,7 @@ function λdm_tsc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::�
                            use_trivial_λmin::Bool = false,
                            validation_threshold::Float64 = 1e-8,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Symbol = default_Σ_tail_correction())       
+                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
 
     λd_min::Float64   = if use_trivial_λmin 
         get_λ_min(χd)
@@ -65,7 +65,7 @@ end
 
 function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, λd::Float64, h;
                 maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, 
-                max_steps_m=1000, tc::Symbol = default_Σ_tail_correction())
+                max_steps_m=1000, tc::Type{<: ΣTail} = default_Σ_tail_correction())
     it        = 1
     λm        = 0.0
     converged = false
@@ -126,7 +126,7 @@ end
 
 function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                             maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                            conv_abs::Float64=1e-8, tc::Symbol = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)       
+                            conv_abs::Float64=1e-8, tc::ΣTail=default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)       
 
     λd_min = get_λ_min(χd)
     Nq, Nω = size(χm)
@@ -138,7 +138,7 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     G_ladder_bak = similar(G_ladder_it)
     Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder_it, 2)))
-    tc_factor_term = tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc)
+    tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
     χm_it = deepcopy(χm)
     χd_it = deepcopy(χd)
     

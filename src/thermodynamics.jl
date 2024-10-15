@@ -92,8 +92,8 @@ function calc_E_ED(ϵₖ::Vector{Float64}, Vₖ::Vector{Float64}, GImp::Vector{C
     E_kin = 0.0
     E_pot = 0.0
     vk = sum(Vₖ .^ 2)
-    Σ_hartree = n * U / 2
-    E_pot_tail = (U^2) / 2 * n * (1 - n / 2) - Σ_hartree * (Σ_hartree - μ)
+    Σ_hartree = n * U/2
+    E_pot_tail = (U^2) * (n/2) * (1 - n/2) - Σ_hartree * (Σ_hartree - μ)
     E_kin_tail = vk
     iνₙ = iν_array(β, length(GImp))
 
@@ -185,7 +185,7 @@ function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::F
     Σ_hartree = mP.n * mP.U / 2
 
     E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
-    E_pot_tail_c = (mP.U^2 * 0.5 * mP.n * (1 - 0.5 * mP.n) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
+    E_pot_tail_c = (mP.U^2 *(mP.n/2) * (1 - (mP.n/2) ) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
     tail = 1 ./ (iν_n .^ 2)
     E_pot_tail = E_pot_tail_c .* transpose(tail)
     E_kin_tail = E_kin_tail_c .* transpose(tail)

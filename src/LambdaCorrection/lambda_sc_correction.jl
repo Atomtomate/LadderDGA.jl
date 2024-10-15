@@ -20,7 +20,7 @@ function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
                            use_trivial_λmin::Bool=false, λd_min::Float64=NaN,
                            validation_threshold::Float64 = 1e-8, λ_rhs = :native,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 200,
-                           log_io = devnull, tc::Symbol = default_Σ_tail_correction())       
+                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
 
     λd_min::Float64 = if !isnan(λd_min)
         λd_min
@@ -50,7 +50,7 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
                            use_trivial_λmin::Bool=false, λd_min::Float64=NaN,
                            validation_threshold::Float64 = 1e-8,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Symbol = default_Σ_tail_correction())       
+                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
 
     λd_min::Float64 = if !isnan(λd_min)
         λd_min
@@ -85,7 +85,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
                            use_trivial_λmin::Bool=false, λd_min::Float64=NaN,
                            validation_threshold::Float64 = 1e-8,
                            max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Symbol = default_Σ_tail_correction(), verbose::Bool=false)       
+                           log_io = devnull, tc::ΣTail=default_Σ_tail_correction(), verbose::Bool=false)       
 
     λd_min::Float64 = if !isnan(λd_min)
         λd_min
@@ -106,7 +106,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     G_ladder_bak = similar(G_ladder_it)
     Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder_it, 2)))
-    tc_factor_term = tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc)
+    tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2_sc(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
@@ -156,7 +156,7 @@ end
 
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Float64, λd::Float64, h;
                 maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                conv_abs::Float64=1e-8, tc::Symbol = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)
+                conv_abs::Float64=1e-8, tc::Type{<: ΣTail} = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)
     it      = 2
     converged = false
     tr = []

@@ -31,7 +31,8 @@ export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, c
 # TODO: parallel version needs refactor and tests
 export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
 export collect_χ₀, collect_χ, collect_γ, collect_Σ
-export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, Σ_from_Gladder, attach_Σloc
+export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, calc_G_Σ, Σ_from_Gladder, attach_Σloc
+export ΣTail,ΣTail_Plain,ΣTail_Full,ΣTail_ExpStep
 
 # Asymptotic lDGA
 export setup_ALDGA
@@ -49,6 +50,7 @@ export calc_E_ED, calc_E, calc_Epot2
 export χ_λ, χ_λ!, reset!
 export λm_correction, λdm_correction, λm_sc_correction, λdm_sc_correction, λm_tsc_correction, λdm_tsc_correction
 export λdm_sc_correction, λdm_correction, λm_correction, λ_correction, λ_correction!, λ_result, λm_correction_full_RPA
+export Cond_PauliPrinciple, Cond_EPot, Cond_EKin, Cond_Tail, Cond_Causal
 
 export sample_f, EPotCond_λdm_curve
 

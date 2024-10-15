@@ -196,6 +196,52 @@ function Σ_from_Gladder!(res::AbstractMatrix, Gladder::OffsetMatrix, kG::KGrid,
     end
 end
 
+# =============================================== G, Σ ===============================================
+"""
+    calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
+             λm::Float64, λd::Float64,
+             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
+             tc::Bool = :exp_step, fix_n::Bool = true
+)
+
+Returns `μ_new`, `G_ladder`, `Σ_ladder` with λ correction according to function parameters.
+See also [`tail_factor`](@ref tail_factor) for details about the tail correction.
+"""
+function calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
+                  λm::Float64, λd::Float64, h::RunHelper; 
+                  νmax::Int = eom_ν_cutoff(h),
+                  gLoc_rfft::GνqT = h.gLoc_rfft, tc = default_Σ_tail_correction(), fix_n::Bool = true
+)
+    Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, gLoc_rfft, h; λm = λm, λd = λd, νmax=νmax, tc = tc)
+    μ_new, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n = fix_n)
+    return μ_new, G_ladder, Σ_ladder
+end
+
+"""
+    calc_G_Σ!(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
+             λm::Float64, λd::Float64,
+             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
+             tc::Type{<: ΣTail} = default_Σ_tail_correction(), fix_n::Bool = true
+)
+
+Returns `μ_new`; overrides `G_ladder`, `Σ_ladder` and `Kνωq_pre`.
+See [`calc_Σ!`](@ref calc_Σ!) and [`calc_G_Σ`](@ref calc_G_Σ).
+"""
+function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                    tc_term::Matrix{ComplexF64},
+                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
+                    λm::Float64, λd::Float64, h::lDΓAHelper; 
+                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
+)::Float64
+    (λm != 0) && χ_λ!(χm, λm)
+    (λd != 0) && χ_λ!(χd, λd)
+        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
+    (λm != 0) && reset!(χm)
+    (λd != 0) && reset!(χd)
+    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
+    return μ_new
+end
+
 # =============================================== GLoc ===============================================
 """
     G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::Vector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
@@ -317,7 +363,7 @@ end
 function filling(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β::Float64)
     N = floor(Int, length(G) / 2)
     shell = 2 * real(shell_sum_fermionic(N, β, 2) / β)
-    filling(G, U, μ, β, shell)
+    filling(G[0:end], U, μ, β, shell)
 end
 
 function filling(G::AbstractMatrix{ComplexF64}, kG::KGrid, U::Float64, μ::Float64, β::Float64)
@@ -343,8 +389,8 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
         sG = sum(G)
         2 * real(sG + conj(sG)) / β + 1
     else
-        N = floor(Int, length(G) / 2)
-        shell = 2 * real(shell_sum_fermionic(N, β, 2) / β)
+        N = length(G) #floor(Int, length(G) / 2)
+        shell = 2 * real(shell_sum_fermionic(N+1, β, 2) / β)
         filling_pos(G, U, μ, β, shell)
     end
 end

@@ -69,15 +69,18 @@ mutable struct λ_result{T<:CorrectionMethod}
     μ::Float64
     n::Float64
     n_dmft::Float64
+    χm_sum::Float64
+    χm_loc_sum::Float64 
 
     # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
     function λ_result(λm::Float64,λd::Float64, type::Type{T},
                       sc_converged::Bool,eps_abs::Float64,sc_eps_abs::Float64,
                       EKin_p1::Float64,EKin_p2::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
                       trace::Union{DataFrame,Nothing},
-                      G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64
+                      G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64,
+                      χm_sum::Float64, χm_loc_sum::Float64 
     ) where {T<:CorrectionMethod}
-        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft
+        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft,χm_sum,χm_loc_sum
         )
     end
 end
@@ -92,7 +95,7 @@ Constructs λ_result object, runs all checks and stores them.
 """
 function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  tc::Symbol=default_Σ_tail_correction(), PP_p1 = NaN,
+                  νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1 = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
     μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
     λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
@@ -121,7 +124,8 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
         update_tail!(χm, tail_bak_m)
         update_tail!(χd, tail_bak_d)
     end
-    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1, PP_p2, nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n)
+    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1, PP_p2, 
+                    nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n, χm_sum, h.χloc_m_sum)
 end
 
 # ---------------------------------------- IO and Helpers --------------------------------------------
@@ -145,6 +149,14 @@ PP_diff(result::λ_result) = result.PP_p1 - result.PP_p2
 Difference between density before and after λ-correction (this should always be close to 0!) 
 """
 n_diff(result::λ_result) = result.n_dmft - result.n
+
+"""
+    tail_diff(result::λ_result)
+
+Difference ``\\sum_{\\omega,q}\\chi^{\\lambda,\\omega}_{m,q}`` and ``\\sum_{\\omega}\\chi^{\\lambda,\\omega}_{m, DMFT}``
+"""
+tail_diff(result::λ_result) = result.χm_sum - result.χm_loc_sum 
+
 
 """
     converged(r::λ_result, eps_abs::Float64=1e-6)
@@ -188,14 +200,18 @@ function Base.show(io::IO, m::λ_result{T}) where {T}
         rdiff_pp = 100 * abs(m.PP_p1 -  m.PP_p2)/abs(m.PP_p1 + m.PP_p2)
         rdiff_Ep = 100 * abs(m.EPot_p1 - m.EPot_p2)/abs(m.EPot_p1 + m.EPot_p2)
         rdiff_Ek = 100 * abs(m.EKin_p1 - m.EKin_p2)/abs(m.EKin_p1 + m.EKin_p2)
+        rdiff_tail = 100 * abs(m.χm_sum - m.χm_loc_sum)/abs(m.χm_sum + m.χm_loc_sum)
+
         rdiff_pp_s = rdiff_pp < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_pp)) : @red(@sprintf("Δ = %2.4f%%",rdiff_pp)) 
         rdiff_Ep_s = rdiff_Ep < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ep)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ep))
         rdiff_Ek_s = rdiff_Ek < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ek)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ek))
+        rdiff_tail_s = rdiff_Ek < 0.3 ? @green(@sprintf("Δ = %2.4f%%",rdiff_tail)) : @red(@sprintf("Δ = %2.4f%%",rdiff_tail))
         tprint(Panel(
             @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f, n = %3.8f\n", m.λm, m.λd, m.μ, m.n) * 
             @sprintf("PP_1   =  %3.8f,  PP_2   =  %3.8f,  %s\n", m.PP_p1, m.PP_p2, rdiff_pp_s) *
             @sprintf("Epot_1 =  %3.8f,  Epot_2 =  %3.8f,  %s\n", m.EPot_p1, m.EPot_p2, rdiff_Ep_s) *
-            @sprintf("Ekin_1 = %3.8f,  Ekin_2 = %3.8f,  %s\n", m.EKin_p1 , m.EKin_p2, rdiff_Ek_s),
+            @sprintf("Ekin_1 = %3.8f,  Ekin_2 = %3.8f,  %s\n", m.EKin_p1 , m.EKin_p2, rdiff_Ek_s) *
+            @sprintf("χ_m = %3.8f,  χ_m_loc = %3.8f,  %s\n", m.χm_sum , m.χm_loc_sum, rdiff_tail_s),
             title="λ-correction (type: $(T)), $cc"
         ))
         !isnothing(m.trace) && println(io, "trace: \n", m.trace)

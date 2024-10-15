@@ -36,7 +36,7 @@ TODO: Also returns \\lambda_\\mathrm{m}(\\lambda_\\mathrm{d})``.
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
 function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
-        tc::Symbol=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
+        tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
         λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
@@ -46,7 +46,7 @@ function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor= tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc)
+    tc_factor= tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
@@ -81,8 +81,9 @@ See also [`sample_f`](@ref sample_f) for a description of the numerical paramete
 """
 function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
      method=:sc,
-     tc::Symbol=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8,
-     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmax::Float64=30.0, sc_conv_abs::Float64=1e-7, verbose::Bool=false, verbose_sc::Bool=false)
+     tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8,
+     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmax::Float64=30.0, sc_conv_abs::Float64=1e-7,
+     verbose::Bool=false, verbose_sc::Bool=false)
     λd_min::Float64   = get_λd_min(χm, γm, χd, γd, λ₀, h)
     get_λ_min(χd)
     ωn2_tail = ω2_tail(χm)
@@ -95,7 +96,7 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     G_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor_term = tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc)
+    tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
@@ -132,7 +133,8 @@ end
 Samples ``\\lambda_\\mathrm{m}(\\lambda_\\mathrm{d})`` for λ-correcitons of type `mode`. 
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
-function λm_of_λd_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc::Symbol=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, λmax::Float64=30.0)
+function λm_of_λd_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc::Type{<: ΣTail}=default_Σ_tail_correction(), 
+    feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, λmax::Float64=30.0)
     λd_min::Float64   = get_λ_min(χd)
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
@@ -142,7 +144,7 @@ function λm_of_λd_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor = tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν; mode=tc)
+    tc_factor = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)

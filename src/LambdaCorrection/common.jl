@@ -35,15 +35,19 @@ Inplace version of [`χ_λ`](@ref χ_λ). If the second argument is omitted, res
 in the input `χ`.
 """
 function χ_λ!(χ_new::χT, χ::χT, λ::Float64)::Nothing
-    χ_λ!(χ_new.data, χ.data, λ)
-    χ_new.λ = χ.λ + λ
-    χ_new.transform! = χ_λ!
+    if isfinite(λ)
+        χ_λ!(χ_new.data, χ.data, λ)
+        χ_new.λ = χ.λ + λ
+        χ_new.transform! = χ_λ!
+    else 
+        @error "WARNING. SKIPPING λ correction because $λ is not finite!"
+    end
     return nothing
 end
 
 function χ_λ!(res::AbstractArray, χ::AbstractArray, λ::Float64)::Nothing
     λ == 0.0 && return nothing
-    !isfinite(λ) && println("WARNING. SKIPPING λ correction because $λ is not finite!") && return nothing
+    !isfinite(λ) && @error "WARNING. SKIPPING λ correction because $λ is not finite!" && return nothing
     for i in eachindex(res)
         res[i] = χ_λ(χ[i], λ)
     end
@@ -146,46 +150,3 @@ end
 
 
 # ========================================== lDGA Wrappers ===========================================
-"""
-    calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
-             λm::Float64, λd::Float64,
-             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
-             tc::Bool = :exp_step, fix_n::Bool = true
-)
-
-Returns `μ_new`, `G_ladder`, `Σ_ladder` with λ correction according to function parameters.
-See also [`tail_factor`](@ref tail_factor) for details about the tail correction.
-"""
-function calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
-                  λm::Float64, λd::Float64, h::RunHelper; 
-                  gLoc_rfft::GνqT = h.gLoc_rfft, tc::Symbol=default_Σ_tail_correction(), fix_n::Bool = true
-)
-    Σ_ladder = calc_Σ(χm, γm, χd, γd, λ₀, gLoc_rfft, h; λm = λm, λd = λd, tc = tc)
-    μ_new, G_ladder = G_from_Σladder(Σ_ladder, h.Σ_loc, h.kG, h.mP, h.sP; fix_n = fix_n)
-    return μ_new, G_ladder, Σ_ladder
-end
-
-"""
-    calc_G_Σ!(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
-             λm::Float64, λd::Float64,
-             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
-             tc::Symbol=default_Σ_tail_correction(), fix_n::Bool = true
-)
-
-Returns `μ_new`; overrides `G_ladder`, `Σ_ladder` and `Kνωq_pre`.
-See [`calc_Σ!`](@ref calc_Σ!) and [`calc_G_Σ`](@ref calc_G_Σ).
-"""
-function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-                    tc_term::Matrix{ComplexF64},
-                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
-                  λm::Float64, λd::Float64, h::lDΓAHelper; 
-                  gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
-)::Float64
-    (λm != 0) && χ_λ!(χm, λm)
-    (λd != 0) && χ_λ!(χd, λd)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
-    (λm != 0) && reset!(χm)
-    (λd != 0) && reset!(χd)
-    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
-    return μ_new
-end
