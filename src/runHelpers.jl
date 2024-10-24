@@ -162,6 +162,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims = 1)
     gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
     F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
+    F_d = F_from_χ(χDMFT_d, gImp[1, :], sP, mP.β)
+    ΣLoc_m, ΣLoc_d = calc_local_EoM(F_m, F_d, gImp[1, :], mP, sP)
+    local_EoM_check = abs.(0.5 .* (ΣLoc_m .+ ΣLoc_d) .- Σ_loc[axes(ΣLoc_m,1)])
     χ₀Loc = calc_bubble(:local, gImp, gImp, kGridLoc, mP, sP)
     χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP)
     χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP)
@@ -209,6 +212,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Local susceptibilities with ranges are:
         χLoc_m($(usable_loc_m)) = $(printr_s(χLoc_m)), χLoc_d($(usable_loc_d)) = $(printr_s(χLoc_d))
         sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLoc_m + χLoc_d)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
+    Local EoM check for the first 5 frequencies: $(printr_s(local_EoM_check[0])), $(printr_s(local_EoM_check[1])), $(printr_s(local_EoM_check[2])), $(printr_s(local_EoM_check[3])), $(printr_s(local_EoM_check[4]))  
         """
 
 

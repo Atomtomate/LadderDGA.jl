@@ -104,3 +104,19 @@ function λm_correction_val(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector
     λm = newton_secular(f_c1, df_c1, λm_min; nsteps=max_steps, atol=eps)
     return λm
 end
+
+function λm_correction_val2(χm::χT, rhs::Float64, h; 
+                           max_steps::Int=1000, eps::Float64=1e-8)
+    ωn2_tail = ω2_tail(χm)
+    λm_correction_val2(χm, rhs, h.kG, ωn2_tail; max_steps=max_steps, eps=eps)
+end
+function λm_correction_val2(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector{Float64}; 
+                           max_steps::Int=1000, eps::Float64=1e-8)
+    λm_min = get_λ_min(χm)
+    χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
+
+    f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = 1.5 * χ_λ(x, λint))) - rhs
+    df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = 1.5 * dχ_λ(x, λint)))
+    λm = newton_secular(f_c1, df_c1, λm_min; nsteps=max_steps, atol=eps)
+    return λm
+end

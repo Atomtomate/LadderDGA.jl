@@ -25,6 +25,9 @@ export find_usable_χ_interval, usable_ωindices, subtract_tail, subtract_tail!
 export Freq_to_OneToIndex, OneToIndex_to_Freq
 export addprocs
 
+# BSE helper functions
+export F_from_χ, calc_local_EoM 
+
 # LadderDGA main functions
 export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk, core
 export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
