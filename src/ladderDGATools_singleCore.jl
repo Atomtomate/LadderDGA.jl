@@ -62,16 +62,16 @@ Arguments
 
 Correction term, TODO: documentation
 """
-function calc_λ0(χ₀::χ₀T, h::lDΓAHelper)
+function calc_λ0(χ₀::χ₀T, h::lDΓAHelper; diag_zero::Bool=true)
     F_m = F_from_χ(:m, h)
-    calc_λ0(χ₀, F_m, h)
+    calc_λ0(χ₀, F_m, h; diag_zero=diag_zero)
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper)::λ₀T
-    calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP)
+function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper; diag_zero::Bool=true)::λ₀T
+    calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP; diag_zero=diag_zero)
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters; improved_sums::Bool = true)::λ₀T
+function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters; improved_sums::Bool = true, diag_zero::Bool=true)::λ₀T
     #TODO: store nu grid in sP?
     Niν = size(Fr, 1)
     Nq = size(χ₀.data, χ₀.axis_types[:q])
@@ -80,9 +80,7 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
 
     if improved_sums && typeof(sP.χ_helper) <: BSE_Asym_Helpers
         #TODO: decide what to do about the warning for ignoring the diagonal part
-        @suppress begin
-            λ0[:] = calc_λ0_impr(:m, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data, 1, :, :), view(χ.data, 1, :), mP.U, mP.β, sP.χ_helper)
-        end
+        λ0[:] = calc_λ0_impr(:m, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data, 1, :, :), view(χ.data, 1, :), mP.U, mP.β, sP.χ_helper; diag_zero=diag_zero)
     else
         #TODO: this is not well optimized, but also not often executed
         @warn "Using plain summation for λ₀, check Σ_ladder tails!"
