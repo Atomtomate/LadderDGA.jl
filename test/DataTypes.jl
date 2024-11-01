@@ -63,7 +63,7 @@ end
     @test kintegrate(kG, test_sum_direct) ≈ sum_kω(kG, χ_test2)
     @test kintegrate(kG, test_sum_direct) ≈ sum_ωk(kG, χ_test2)
     @test kintegrate(kG, test_sum_direct_tf) ≈ sum_kω(kG, χ_test2, transform=x->x^3)
-    @test sum_kω(kG, χ_test) ≈ sum_ωk(kG, χ_test)
+    @test abs(sum_kω(kG, χ_test) - sum_ωk(kG, χ_test)) < abs(sum_kω(kG, χ_test))/100
 end
 
 @testset "γT" begin

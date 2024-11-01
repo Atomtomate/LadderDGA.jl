@@ -341,6 +341,7 @@ Optional function `f` transforms `χ` before summation.
 WARNING: This function might be buggy!
 """
 function sum_ωk(kG::KGrid, χ::χT; force_full_range = false, λ::Float64 = NaN)::Float64
+    @warn "Use sum_kω, as the kinetic energy tail coefficient does not apply in this version."
     λ_check = !isnan(λ) && λ != 0
     χ.λ != 0 && λ_check && error("χ already λ-corrected, but external λ provided!")
     λ_check && χ_λ!(χ, λ)
@@ -361,13 +362,6 @@ end
     WARNING: This function might be buggy!
 """
 function sum_ω(χ::χT; force_full_range = false)
-    # TODO: FREDDI:
-    # If I understand the implementation correctly, then this type of calculation is wrong.
-    # If the summation over the bosonic frequencies is carried out first, then a function of
-    # the points in the reciprocal space results for the tail coefficient. However, in the
-    # function that performs the summation over the bosonic frequency, it uses the kinetic 
-    # energy as the tail coefficient. This seems strange to me. I suspect that this is the
-    # reason why the results of the functions sum_ωk and sum_kω do not match.
     res  = Vector{eltype(χ.data)}(undef, size(χ.data, χ.axis_types[:q]))
     ωn_arr = ωn_grid(χ)
     sum_ω!(res, ωn_arr, χ; force_full_range = force_full_range)
@@ -375,11 +369,12 @@ function sum_ω(χ::χT; force_full_range = false)
 end
 
 function sum_ω!(res::Vector{Float64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range = false)::Nothing
+    @warn "Performing ω sum without previous q-sum. Tail unkown!"
     length(res) != size(χ, χ.axis_types[:q]) && error("Result array for ω summation must be of :q axis length!")
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
     for qi in eachindex(res)
-        res[qi] = sum_ω(ωn_arr, view(χ, qi, ω_slice), χ.tail_c, χ.β)
+        res[qi] = sum(view(χ, qi, ω_slice)) / χ.β
     end
     return nothing
 end
@@ -390,7 +385,7 @@ function sum_ω(ωn_arr::Vector{ComplexF64}, χ::AbstractVector{Float64}, tail_c
 
     i = 3
     res::Float64 = 0.0
-    for n = 1:length(χ)
+    for n = eachindex(χ)
         if ωn_arr[n] != 0
             res += χ[n] - real(tail_c[i] / (ωn_arr[n]^(i - 1)))
         else

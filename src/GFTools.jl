@@ -19,6 +19,7 @@
 # =================================== Matsubara Frequency Helpers ====================================
 
 """
+    iν_array(h::lDΓAHelper)
     iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}
     iν_array(β::Real, size::Int)::Vector{ComplexF64}
 
@@ -30,11 +31,13 @@ Returns:
 -------------
 Vector of fermionic Matsubara frequencies, given either a list of indices or a length. 
 """
+iν_array(h::lDΓAHelper) = iν_array(h.mP.β, -h.sP.n_iν:(h.sP.n_iν-1))
 iν_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} =
     ComplexF64[1.0im * ((2.0 * el + 1) * π / β) for el in grid]
 iν_array(β::Real, size::Int)::Vector{ComplexF64} = iν_array(β, 0:(size-1))
 
 """
+    iω_array(h::lDΓAHelper)
     iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64}
     iω_array(β::Real, size::Int)::Vector{ComplexF64}
 
@@ -46,6 +49,7 @@ Returns:
 -------------
 Vector of bosonic Matsubara frequencies, given either a list of indices or a length. 
 """
+iω_array(h::lDΓAHelper) = iω_array(h.mP.β, -h.sP.n_iω:h.sP.n_iω)
 iω_array(β::Real, grid::AbstractArray{Int64,1})::Vector{ComplexF64} =
     ComplexF64[1.0im * ((2.0 * el) * π / β) for el in grid]
 iω_array(β::Real, size::Int)::Vector{ComplexF64} = iω_array(β, 0:(size-1))

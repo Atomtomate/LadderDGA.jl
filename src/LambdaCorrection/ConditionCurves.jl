@@ -139,33 +139,13 @@ Samples ``\\lambda_\\mathrm{m}(\\lambda_\\mathrm{d})`` for λ-correcitons of typ
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
 function λm_of_λd_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc::Type{<: ΣTail}=default_Σ_tail_correction(), 
-    feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, λmax::Float64=30.0)
-    λd_min::Float64   = get_λ_min(χd)
+    feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, λmin::Float64=get_λ_min(χd) + 1e-4, λmax::Float64=30.0)
     ωn2_tail = ω2_tail(χm)
-    Nq::Int = length(h.kG.kMult)
-    νmax::Int = eom_ν_cutoff(h.sP)
-
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
-    Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
-    G_ladder = similar(Σ_ladder)
-    iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
-        λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
-
-        (λm_i != 0) && χ_λ!(χm, λm_i)
-        (λd_i != 0) && χ_λ!(χd, λd_i)
-        tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
-            calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, h.gLoc_rfft, h.kG, h.mP, h.sP)
-        (λm_i != 0) && reset!(χm)
-        (λd_i != 0) && reset!(χd)
-        μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = true, μ = h.mP.μ, n = h.mP.n)
-        Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
-        Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
-        return Epot_1 - Epot_2
+        λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
     end
     
-    sample_f(f_c2, λd_min - 1.0, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
+    sample_f(f_c2, λmin, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
 end
