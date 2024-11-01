@@ -30,12 +30,12 @@ export F_from_χ, calc_local_EoM
 
 # LadderDGA main functions
 export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk, core
-export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc
+export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, calc_λ0, Σ_loc_correction, run_sc, G_from_Σladder
 # TODO: parallel version needs refactor and tests
 export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
 export collect_χ₀, collect_χ, collect_γ, collect_Σ
 export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, calc_G_Σ, Σ_from_Gladder, attach_Σloc
-export ΣTail,ΣTail_Plain,ΣTail_Full,ΣTail_ExpStep
+export ΣTail, ΣTail_Plain, ΣTail_Full, ΣTail_ExpStep, ΣTail_EoM
 
 # Asymptotic lDGA
 export setup_ALDGA

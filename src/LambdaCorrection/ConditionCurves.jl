@@ -45,9 +45,10 @@ function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
-    iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor= tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
-
+    if !(tc === ΣTail_EoM)
+        iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
+        tc_factor= tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
+    end
     function f_c2(λd_i::Float64)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
@@ -56,8 +57,12 @@ function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
         if isfinite(λm_i)
             (λm_i != 0) && χ_λ!(χm, λm_i)
             (λd_i != 0) && χ_λ!(χd, λd_i)
-            tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
+            if !(tc === ΣTail_EoM)
+                tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
                 calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, h.gLoc_rfft, h.kG, h.mP, h.sP)
+            else
+                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χ_m_loc, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP)
+            end
             (λm_i != 0) && reset!(χm)
             (λd_i != 0) && reset!(χd)
             μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = true, μ = h.mP.μ, n = h.mP.n)

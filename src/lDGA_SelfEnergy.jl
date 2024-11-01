@@ -6,7 +6,7 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   ladder DΓA related functions forthe calculation of the self energy                                 #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Documentation                                                                                      #
+#   There is a lot of code duplication due to new eom. Refactor!                                       #
 # ==================================================================================================== #
 
 
@@ -21,11 +21,11 @@ Value type for Σ-tail. `δ` is the fade-in parameter.
 """
 struct ΣTail_ExpStep{δ} <: ΣTail
 end
-
 abstract type ΣTail_Full <: ΣTail end
 
 abstract type ΣTail_Plain <: ΣTail end
 
+abstract type ΣTail_EoM <: ΣTail end
 
 """
     tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};
@@ -67,22 +67,74 @@ end
 
 function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float64, χm_loc::Float64, 
                               Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
-                              mode::ΣTail=default_Σ_tail_correction())
+                              mode::Type{<: ΣTail}=default_Σ_tail_correction())
 
     tf = tail_factor(mode, U, β, n, Σ_loc, iν)
     return tail_correction_term(χm_nl, χm_loc, tf)
 end
 
 
-# ======================================== Equation of Motion ========================================
-function calc_Σ_ω!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+# ==================================== Old Equation of Motion ========================================
+"""
+    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::lDΓAHelper;
+           νmax=eom_ν_cutoff(h), λm::Float64=0.0, λd::Float64=0.0, tc::ΣTail=default_Σ_tail_correction())
+    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; 
+           νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::ΣTail = default_Σ_tail_correction())
+    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
+           Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
+           νmax=eom_ν_cutoff(sP), λm::Float64=0.0, λd::Float64=0.0, tc::ΣTail=default_Σ_tail_correction())
+                
+Calculates the self-energy from ladder quantities.
+
+This is the single core variant, see [`calc_Σ_par`](@ref calc_Σ_par) for the parallel version.
+"""
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail}=default_Σ_tail_correction()) 
+    if tc === ΣTail_EoM
+        calc_Σ(χm, γm, χd, γd, h.χ_m_loc, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
+    else
+        calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+    end
+end
+
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail}=default_Σ_tail_correction())
+    if tc === ΣTail_EoM
+        calc_Σ(χm, γm, χd, γd, h.χ_m_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
+    else
+        calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+    end
+end
+
+function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
+                Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+) 
+    χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
+    χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
+    Nq, Nω = size(χm)
+
+    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
+
+    λm != 0.0 && χ_λ!(χm, λm)
+    λd != 0.0 && χ_λ!(χd, λd)
+
+    iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
+    tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
+    tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP)
+
+    λm != 0.0 && reset!(χm)
+    λd != 0.0 && reset!(χd)
+    return Σ_ladder
+end
+function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, 
                    Gνω::GνqT, U::Float64, kG::KGrid, sP::SimulationParameters,
 )
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gIm
     fill!(Σ_ω, zero(ComplexF64))
-    ω_axis = χm.indices_ω
-    for (ωi, ωn) in enumerate(ω_axis)
+
+    for (ωi, ωn) in enumerate(χm.indices_ω)
         νZero = ν0Index_of_ωIndex(ωi, sP)
         νlist = νZero:(sP.n_iν*2)
         length(νlist) > size(Σ_ω, 2) && (νlist = νlist[1:size(Σ_ω, 2)])
@@ -102,59 +154,66 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
                  tc_term::Union{Float64,Matrix{ComplexF64}}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
 )::Nothing
     ΣH = Σ_hartree(mP)
-    calc_Σ_ω!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ ΣH 
     return nothing
 end
 
+# ==================================== New Equation of Motion ========================================
+@inline eomf_new(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64, correction_factor::ComplexF64)::ComplexF64 = U * (γ_m * correction_factor * 1.0 * (1 + U * χ_m) + γ_m * 0.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+@inline eomf_new(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64, correction_factor::Float64)::ComplexF64    = U * (γ_m * correction_factor * 1.0 * (1 + U * χ_m) + γ_m * 0.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
 
-"""
-    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::lDΓAHelper;
-           νmax=eom_ν_cutoff(h), λm::Float64=0.0, λd::Float64=0.0, tc::ΣTail=default_Σ_tail_correction())
-    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; 
-           νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::ΣTail = default_Σ_tail_correction())
-    calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
-           Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; 
-           νmax=eom_ν_cutoff(sP), λm::Float64=0.0, λd::Float64=0.0, tc::ΣTail=default_Σ_tail_correction())
-                
-Calculates the self-energy from ladder quantities.
-
-This is the single core variant, see [`calc_Σ_par`](@ref calc_Σ_par) for the parallel version.
-"""
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail}=default_Σ_tail_correction()) 
-    calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+function calc_Σ(::ΣTail_EoM, χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0) 
+    calc_Σ(χm, γm, χd, γd, h.χ_m_loc, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
 end
 
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail}=default_Σ_tail_correction())
-    calc_Σ(χm, γm, χd, γd, h.χloc_m_sum, λ₀, h.Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+function calc_Σ(::ΣTail_EoM, χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0)
+    calc_Σ(χm, γm, χd, γd, h.χ_m_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
 end
 
-function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
-                Σ_loc::OffsetVector{ComplexF64}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χm_loc::AbstractArray, λ₀::λ₀T,
+                    Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                    νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0
 ) 
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     Nq, Nω = size(χm)
-    ωrange::UnitRange{Int} = -sP.n_iω:sP.n_iω
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
-
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
-
-    iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
-    tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
-    tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP)
-
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, Gνω, kG, mP, sP)
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
     return Σ_ladder
 end
 
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                     χm::χT, γm::γT, χd::χT, γd::γT, χm_loc, λ₀::λ₀T, 
+                     Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters,
+)
+    ΣH = Σ_hartree(mP)
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gIm
+    fill!(Σ_ladder, zero(ComplexF64))
+    ω_axis = χm.indices_ω
+    for (ωi, ωn) in enumerate(ω_axis)
+        νZero = ν0Index_of_ωIndex(ωi, sP)
+        νlist = νZero:(sP.n_iν*2)
+        length(νlist) > size(Σ_ladder, 2) && (νlist = νlist[1:size(Σ_ladder, 2)])
+        for (νii, νi) in enumerate(νlist)
+            for qi = axes(Σ_ladder,1)
+                correction_factor = (1 .+ mP.U .* χm_loc[1,ωi]) ./ (1 .+ mP.U .* χm[qi, ωi])
+                @inbounds Kνωq_pre[qi] = eomf_new(mP.U, γm[qi, νi, ωi], γd[qi, νi, ωi], χm[qi, ωi], χd[qi, ωi], λ₀[qi, νi, ωi], correction_factor)
+            end
+            #TODO: find a way to not unroll this!
+            LadderDGA.conv_tmp_add!(view(Σ_ladder, :, νii - 1), kG, Kνωq_pre, selectdim(Gνω, νdim, (νii - 1) + ωn))
+        end
+    end
+    Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ ΣH 
+end
 
+# ========================== Equation of Motion Fluctuation Diagnostics ==============================
 """
     calc_Σ_parts(χm::χT,γm::γT,χd::χT,γd::γT,h::lDΓAHelper,λ₀::AbstractArray{ComplexF64,3};λm::Float64=0.0, λd::Float64=0.0)
     calc_Σ_parts(χm::χT,γm::γT, χd::χT, γd::γT, χ_m_sum::Union{Float64,ComplexF64}, λ₀::λ₀T,
@@ -187,17 +246,17 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
     
     tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
-    calc_Σ_ω!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
-    calc_Σ_ω!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 2] = Σ_ladder_i ./ mP.β
-    calc_Σ_ω!(eom_χ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_χ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 3] = Σ_ladder_i ./ mP.β
-    calc_Σ_ω!(eom_γ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_γ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 4] = Σ_ladder_i ./ mP.β
-    calc_Σ_ω!(eom_rest_01, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_rest_01, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 5] = Σ_ladder_i ./ mP.β
-    calc_Σ_ω!(eom_rest, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_rest, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 6] = Σ_ladder_i ./ mP.β .+ Σ_hartree
     for qi in axes(Σ_ladder, 1)
         Σ_ladder.parent[qi, :, 7] .= tc_term[1,:]
@@ -207,4 +266,3 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
 
     return Σ_ladder
 end
-

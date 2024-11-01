@@ -187,6 +187,7 @@ function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::F
     E_kin_tail_c = (kG.ϵkGrid .+ Σ_hartree .- μ)
     E_pot_tail_c = (mP.U^2 *(mP.n/2) * (1 - (mP.n/2) ) .+ Σ_hartree .* (kG.ϵkGrid .+ Σ_hartree .- μ))
     tail = 1 ./ (iν_n .^ 2)
+    tail_1 = 1 ./ (iν_n .^ 1)
     E_pot_tail = E_pot_tail_c .* transpose(tail)
     E_kin_tail = E_kin_tail_c .* transpose(tail)
     E_pot_tail_inv = (mP.β / 2) .* Σ_hartree .+ (mP.β / 2) * (-mP.β / 2) .* E_pot_tail_c
@@ -195,7 +196,7 @@ function calc_E(G::OffsetMatrix{ComplexF64}, Σ::OffsetMatrix{ComplexF64}, μ::F
     E_pot_full = real.((G[:, νGrid] .* Σ[:, νGrid]) .- E_pot_tail)
     E_kin_full = kG.ϵkGrid .* real.(G[:, νGrid] .- E_kin_tail)
     E_kin, E_pot = if trace
-        [kintegrate(kG, 4 .* sum(view(E_kin_full, :, 1:i), dims = [2])[:, 1] .+ E_kin_tail_inv) for i = 1:last(νGrid)] ./ mP.β,
+        [kintegrate(kG, 4 .* sum(view(E_kin_full, :, 1:i), dims = [2])[:, 1] .- tail_1 .+ E_kin_tail_inv) for i = 1:last(νGrid)] ./ mP.β,
         [kintegrate(kG, 2 .* sum(view(E_pot_full, :, 1:i), dims = [2])[:, 1] .+ E_pot_tail_inv) for i = 1:last(νGrid)] ./ mP.β
     else
         kintegrate(kG, 4 .* sum(E_kin_full, dims = [2])[:, 1] .+ E_kin_tail_inv) ./ mP.β, kintegrate(kG, 2 .* sum(E_pot_full, dims = [2])[:, 1] .+ E_pot_tail_inv) ./ mP.β

@@ -55,14 +55,12 @@ LadderDGA.calc_Σ_par!(Σ_ladder_inplace, λm=0.123, λd=1.234)
 
 χ_λ!(χ_m, 10.123) 
 χ_λ!(χ_d, 20.223) 
-Σ_ladder_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, tc=false);
-Σ_ladder_3 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν, tc=true);
-Σ_ladder_par_2 = calc_Σ_par(λm=10.123, λd=20.234, tc=false);
+Σ_ladder_2 = calc_Σ(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper, νmax=sP.n_iν);
+Σ_ladder_par_2 = calc_Σ_par(λm=10.123, λd=20.234);
 Σ_ladder_parts = calc_Σ_parts(χ_m, γ_m, χ_d, γ_d, λ₀, lDGAhelper)
 reset!(χ_m)
 reset!(χ_d)
 @test all(sum(Σ_ladder_parts[:,:,1:6], dims=3)[:,:,1] .≈ Σ_ladder_2)
-@test all(sum(Σ_ladder_parts, dims=3)[:,:,1] .≈ Σ_ladder_3)
 #@test all(Σ_ladder_2.parent .≈ Σ_ladder_par_2.parent)
 
 
