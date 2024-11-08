@@ -143,7 +143,7 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     χd_it = deepcopy(χd)
     
     function f_c2_sc(λd_i::Float64)
-        converged, μ_new, λm = run_tsc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term,
+        converged, μ_new, λm = run_tsc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term, tc,
             χm_it, γm, χd_it, γd, λ₀, λd_i, h; maxit=maxit, mixing=mixing, mixing_start_it=mixing_start_it)
 
         #TODO: use Epot_1

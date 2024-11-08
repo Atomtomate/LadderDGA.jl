@@ -10,7 +10,7 @@ using TimerOutputs
 using FiniteDifferences
 using Printf, Term
 
-import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..ΣTail, ..ΣTail_EoM, ..eom_ν_cutoff, ..default_Σ_tail_correction
+import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..ΣTail, ..ΣTail_EoM, ..ΣTail_Full, ..ΣTail_ExpStep, ..ΣTail_Plain, ..eom_ν_cutoff, ..default_Σ_tail_correction
 import ..sum_ω, ..sum_ω!, ..sum_kω, ..sum_ωk, ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array, ..ω2_tail, ..ωn_grid
 import ..G_from_Σ, ..G_fft, ..G_rfft!, ..G_from_Σladder!, ..G_from_Σladder, ..calc_G_Σ, ..calc_G_Σ!, ..calc_Σ, ..calc_Σ!, ..eom, ..eom_rpa
 import ..calc_E, ..EPot1, ..PP_p1, ..PP_p2, ..EPot_p1, ..EPot_p2, ..EKin_p1, ..EKin_p2 
@@ -31,7 +31,6 @@ export λm_sc_correction, λdm_sc_correction, λdm_sc_correction_clean
 export λm_tsc_correction, λdm_tsc_correction, λdm_tsc_correction_clean
 
 export Cond_PauliPrinciple, Cond_EPot, Cond_EKin, Cond_Tail, Cond_Causal
-export EPotCond_λdm_curve
 
 include("common.jl")
 include("helpers.jl")

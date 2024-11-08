@@ -70,7 +70,7 @@ This algorithm also assumes, that `f` is stricly monotonically decreasing in eac
 
 This is a legacy method. For better convergence performance and reliability please consider using [`newton_secular`](@ref newton_secular).
 """
-function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int = 500, atol::Float64 = 1e-10, δ::Float64=1e-4)::Float64
+function newton_right(f::Function, df::Function, start::Float64, min::Float64; nsteps::Int = 500, atol::Float64=1e-8, δ::Float64=1e-4, verbose::Bool=false)::Float64
     done  = false
     xlast = start + δ
     xi    = xlast
@@ -81,34 +81,33 @@ function newton_right(f::Function, df::Function, start::Float64, min::Float64; n
         xi = xlast - dfii * fi
         # Found solution in the correct interval
         (norm(fi) < atol) && (xi > min) && break
-        # only ever search to the right!
+        # only ever search to the right! bisect instead
         if xi < min
-            done = true
-            xi = NaN
+            xi = norm(xlast - (min + δ))/2 +  (min + δ)
         else
             xlast = xi
         end
         (i >= nsteps) && (done = true)
-        # println("i = $i, xi = $xi, f(xi) = $fi")
+        verbose && println("i = $i, xi = $xi, f(xi) = $fi")
         i += 1
     end
     return xi
 end
 
-function newton_right(f::Function, start::Float64, min::Float64; nsteps::Int = 100, atol::Float64 = 1e-13, δ::Float64 = 1e-4)::Float64
+function newton_right(f::Function, start::Float64, min::Float64; nsteps::Int=100, atol::Float64=1e-8, δ::Float64=1e-4, verbose::Bool=false)::Float64
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
-    newton_right(f, df, start, min; nsteps = nsteps, atol = atol, δ = δ)
+    newton_right(f, df, start, min; nsteps = nsteps, atol = atol, δ = δ, verbose=verbose)
 end
 
 
 # ------------------------------------------------ 2D  -----------------------------------------------
 #
-function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps = 500, atol = 1e-8, δ::Float64=1e-4)::Vector{Float64}
+function newton_right(f::Function, start::Vector{Float64}, min::Vector{Float64}; nsteps = 500, atol::Float64=1e-8, δ::Float64=1e-4, verbose::Bool=false)::Vector{Float64}
     N = length(start)
-    newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps = nsteps, atol = atol, reset_backoff=δ)
+    newton_right(f, convert(MVector{N,Float64}, start), convert(MVector{N,Float64}, min), nsteps=nsteps, atol=atol, verbose=verbose, reset_backoff=δ)
 end
 
-Base.@assume_effects :total function newton_right(
+function newton_right(
     f::Function, start::MVector{N,Float64}, min::MVector{N,Float64};
     nsteps::Int = 500, atol::Float64 = 1e-8, verbose::Bool = false, max_reset::Int = 5, reset_backoff::Float64 = 1.0,
 )::Vector{Float64} where {N}
@@ -163,7 +162,7 @@ Normal Newton method, used for example by [`newton_transformed`](@ref newton_tra
 
 `xi` is the initial guess, for functions with multiple roots, the result will depend on this guess.
 """
-function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol::Float64=1e-8)::Float64
     done  = false
     i     = 1
     while !done
@@ -176,7 +175,7 @@ function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol:
     return xi
 end
 
-Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1 / x^2 + p
+Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1/x^2 + p
 Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = - 2 / (x^3)
 
 """
@@ -201,7 +200,7 @@ Arguments:
 - **`nsteps`** : maximum number of steps
 - **`atol`**   : convergence criterion, i.e. ``|f(x_0)| < `` `atol` will return root `x0`.
 """
-function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)::Float64
     done  = false
     xi    = xp + 1.0
     xi_tf = NaN
@@ -219,7 +218,7 @@ function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 50
     return xi_tf#inv_newton_secular_transform(xi,xp)
 end
 
-function newton_secular(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)::Float64
+function newton_secular(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)::Float64
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_secular(f, df, xp; nsteps = nsteps, atol = atol)
 end
@@ -230,7 +229,7 @@ end
 This is the same as [`newton_secular`](@ref newton_secular), but also returns a trace of the intermediate values `(xi,xi_tf,fi,dfii)`.
 
 """
-function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)
+function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)
     done  = false
     xi    = xp + 1.0
     xi_tf = NaN
@@ -239,16 +238,18 @@ function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::In
     while !done
         xi_tf = newton_secular_transform(xi,xp)
         fi = f(xi_tf)
-        dfii = 1 / (df(xi_tf)*newton_secular_transform_df(xi, xp))
+        dx_xi_tf = df(xi_tf)
+        dx_xi_tf_inner = newton_secular_transform_df(xi, xp)
+        dfii = 1 / (dx_xi_tf*dx_xi_tf_inner)
         xi = xi - dfii * fi
-        push!(trace, [xi, xi_tf, fi, dfii])
+        push!(trace, [xi, xi_tf, fi, dx_xi_tf, dx_xi_tf_inner, 1 / (dx_xi_tf*dx_xi_tf_inner)])
         (norm(fi) < atol || i >= nsteps) && (done = true)
         i += 1
     end
     return xi_tf, trace
 end
 
-function newton_secular_trace(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64 = 1e-10)
+function newton_secular_trace(f::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)
     df(x) = FiniteDiff.finite_difference_derivative(f, x)
     newton_secular_trace(f, df, xp; nsteps = nsteps, atol = atol)
 end

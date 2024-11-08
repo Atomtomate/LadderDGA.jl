@@ -15,8 +15,9 @@
 Samples a curve for the difference between the Pauli principle value on one- and two-particle level.
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
-function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc::Symbol=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, λmax::Float64=30.0)
-    λm_min = get_λ_min(χm)
+function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
+                    tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
+                    λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
     χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
     rhs,_ = λm_rhs(χm, χd, h; λd=0.0)
     ωn2_tail = ω2_tail(χm)
@@ -24,7 +25,7 @@ function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; tc:
     f_c1(λint::Float64)::Float64 = sum_kω(h.kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
     df_c1(λint::Float64)::Float64 = sum_kω(h.kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = dχ_λ(x, λint)))
 
-    sample_f(f_c1, λm_min - 1.0, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
+    sample_f(f_c1, λmin, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
 end
 
 
@@ -87,9 +88,9 @@ See also [`sample_f`](@ref sample_f) for a description of the numerical paramete
 function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
      method=:sc,
      tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8,
-     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmax::Float64=30.0, sc_conv_abs::Float64=1e-7,
+     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmin::Float64 = get_λ_min(χd),λmax::Float64=30.0, sc_conv_abs::Float64=1e-7,
      verbose::Bool=false, verbose_sc::Bool=false)
-    λd_min::Float64   = get_λd_min(χm, γm, χd, γd, λ₀, h)
+    
     get_λ_min(χd)
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
@@ -100,6 +101,7 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder)
+    G_rfft = deepcopy(h.gLoc_rfft)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder, 2)))
     tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
@@ -107,9 +109,12 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
         verbose && println("running λm=$λm_i, λd=$λd_i")
+        ΔEPot = NaN
+        converged = false
         if isfinite(λm_i)
+            G_rfft = deepcopy(h.gLoc_rfft)
             converged, μ_new = if method == :sc
-                run_sc!(G_ladder, Σ_ladder, G_ladder_bak, Kνωq_pre, tc_factor_term, 
+                run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
                                 χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
                                 maxit=maxit_sc, mixing=mixing, conv_abs=sc_conv_abs, verbose=verbose_sc)
                 elseif method == :tsc
@@ -123,13 +128,11 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
             Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
             ΔEPot = Epot_1 - Epot_2
             verbose && println(" -> converged = $converged, ΔEPot = $ΔEPot ($Epot_1 - $Epot_2). μ = $μ_new")
-        else
-            ΔEPot = NaN
         end
         return converged ? ΔEPot : NaN
     end
     
-    sample_f(f_c2, λd_min + 1e-4, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
+    sample_f(f_c2, λmin, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
 end
 
 """

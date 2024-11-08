@@ -370,6 +370,7 @@ end
 
 function sum_ω!(res::Vector{Float64}, ωn_arr::Vector{ComplexF64}, χ::χT; force_full_range = false)::Nothing
     @warn "Performing ω sum without previous q-sum. Tail unkown!"
+    error("dbg")
     length(res) != size(χ, χ.axis_types[:q]) && error("Result array for ω summation must be of :q axis length!")
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]

@@ -169,7 +169,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP)
     χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP)
     λ₀Loc = calc_λ0(χ₀Loc, F_m, χ_m_loc, γ_m_loc, mP, sP)
-    χloc_m_sum = real(sum_ω(χ_m_loc)[1])
+    χloc_m_sum = real(sum_ω(ωn_grid(χ_m_loc),χ_m_loc[1,:],χ_m_loc.tail_c, χ_m_loc.β)[1])
     Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χloc_m_sum, λ₀Loc, Σ_loc, gImp, kGridLoc, mP, sP, tc = ΣTail_Plain)
     any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
 
@@ -227,7 +227,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
 
-    return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, real(sum_ω(χ_m_loc)[1]), χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
+    return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, χloc_m_sum, χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
 end
 
 

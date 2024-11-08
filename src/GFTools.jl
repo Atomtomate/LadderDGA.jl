@@ -91,8 +91,7 @@ Arguments:
 - **`ϵₖ`**  : Dispersion relation at fixed `k`, see below for convenience wrappers.
 - **`Σ`**   : Self energy at fixed frequency (and potentially fixed `k`), see below for convenience wrappers.
 """
-G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 =
-    G_from_Σ(1im * (2 * ind + 1) * π / β, μ, ϵₖ, Σ)
+G_from_Σ(ind::Int64, β::Float64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = G_from_Σ(1im * (2 * ind + 1) * π / β, μ, ϵₖ, Σ)
 G_from_Σ(mf::ComplexF64, μ::Float64, ϵₖ::Float64, Σ::ComplexF64)::ComplexF64 = 1 / (mf + μ - ϵₖ - Σ)
 
 
@@ -163,7 +162,6 @@ function G_from_Σ(Σ::OffsetMatrix{ComplexF64}, ϵkGrid::Vector{Float64}, range
     return res
 end
 
-
 # ======================================= Self Energy helpers ========================================
 """
     attach_Σloc(Σ_ladder::OffsetMatrix, Σ_loc::OffsetVector; 
@@ -205,7 +203,7 @@ end
     calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
              λm::Float64, λd::Float64,
              h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
-             tc::Bool = :exp_step, fix_n::Bool = true
+             tc::Type{<: ΣTail} = default_Σ_tail_correction(), fix_n::Bool = true
 )
 
 Returns `μ_new`, `G_ladder`, `Σ_ladder` with λ correction according to function parameters.
@@ -222,10 +220,11 @@ function calc_G_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{
 end
 
 """
-    calc_G_Σ!(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::AbstractArray{ComplexF64,3}, 
-             λm::Float64, λd::Float64,
-             h::RunHelper, sP::SimulationParameters, mP::ModelParameters; 
-             tc::Type{<: ΣTail} = default_Σ_tail_correction(), fix_n::Bool = true
+    calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                    [tc_term::Matrix{ComplexF64},] or [χm_loc::χT]
+                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
+                    λm::Float64, λd::Float64, h::lDΓAHelper; 
+                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
 )
 
 Returns `μ_new`; overrides `G_ladder`, `Σ_ladder` and `Kνωq_pre`.
@@ -239,7 +238,22 @@ function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{
 )::Float64
     (λm != 0) && χ_λ!(χm, λm)
     (λd != 0) && χ_λ!(χd, λd)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
+    (λm != 0) && reset!(χm)
+    (λd != 0) && reset!(χd)
+    μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
+    return μ_new
+end
+
+function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+                    χm_loc::χT,
+                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
+                    λm::Float64, λd::Float64, h::lDΓAHelper; 
+                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
+)::Float64
+    (λm != 0) && χ_λ!(χm, λm)
+    (λd != 0) && χ_λ!(χd, λd)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
     (λm != 0) && reset!(χm)
     (λd != 0) && reset!(χd)
     μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
@@ -260,18 +274,18 @@ TODO: documentation for arguments
 TODO: fit function computes loads of unnecessary frequencies
 """
 function G_from_Σladder(Σ_ladder::AbstractMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2))
+                        fix_n::Bool = true, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νRange = sP.fft_range, νFitRange=0:last(axes(Σ_ladder, 2)), fit_fallback::Bool=false
     )
         
-        G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), νRange)
-        μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP,
-                fix_n = fix_n, μ = μ, improved_sum_filling = improved_sum_filling, n = n, νFitRange=νFitRange   
-            )
-        return μ, G_new
-    end
+    G_new = OffsetMatrix(Matrix{ComplexF64}(undef, size(Σ_ladder, 1), length(νRange)), 1:size(Σ_ladder, 1), νRange)
+    μ = G_from_Σladder!(G_new, Σ_ladder, OffsetVector(Σloc[0:last(νRange)], 0:last(νRange)), kG, mP,
+            fix_n = fix_n, μ = μ, improved_sum_filling = improved_sum_filling, n = n, νFitRange=νFitRange, fit_fallback=fit_fallback 
+        )
+    return μ, G_new
+end
 
 function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Σloc::OffsetVector{ComplexF64}, kG::KGrid, mP::ModelParameters;
-                        fix_n::Bool = false, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2))
+                        fix_n::Bool = true, μ = mP.μ, improved_sum_filling::Bool = true, n = mP.n, νFitRange=0:last(axes(Σ_ladder, 2)), fit_fallback::Bool=false
 )::Float64
     νRange = 0:last(axes(G_new, 2))
     length(νRange) < 10 && @warn "fixing ν range with only $(length(νRange)) frequencies!"
@@ -288,15 +302,20 @@ function G_from_Σladder!(G_new::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatr
     μ_bak = μ
     μ = if fix_n
         try
-            find_zero(fμ, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
+            find_zero(fμ, μ_bak, atol = 1e-8)
         catch e
-            @warn "improved ($improved_sum_filling) μ determination failed with $(typeof(e)). Falling back to naive summation!"
-            try
-                find_zero(fμ_fallback, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
-            catch e_int
-                G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
-                filling_pos(view(G_new, :, νFitRange), kG, mP.U, μ, mP.β; improved_sum = false) - n
-                @warn "μ determination failed with: $(typeof(e)), fallback failed with $(typeof(e_int))"
+            @warn "improved ($improved_sum_filling) μ determination failed with $(e)"
+            if fit_fallback
+                @warn "Falling back to naive summation!"
+                try
+                    find_zero(fμ_fallback, μ_bak, atol = 1e-8) #nlsolve(fμ, [last_μ])
+                catch e_int
+                    G_from_Σ!(G_new, Σ_ladder, kG.ϵkGrid, νRange, mP, μ = μ, Σloc = Σloc)
+                    filling_pos(view(G_new, :, νFitRange), kG, mP.U, μ, mP.β; improved_sum = false) - n
+                    @warn "μ determination failed with: $(typeof(e)), fallback failed with $(typeof(e_int))"
+                    return NaN
+                end
+            else
                 return NaN
             end
         end
@@ -393,7 +412,7 @@ function filling_pos(G::AbstractVector{ComplexF64}, U::Float64, μ::Float64, β:
         sG = sum(G)
         2 * real(sG + conj(sG)) / β + 1
     else
-        N = length(G) #floor(Int, length(G) / 2)
+        N = length(G)
         shell = 2 * real(shell_sum_fermionic(N+1, β, 2) / β)
         filling_pos(G, U, μ, β, shell)
     end

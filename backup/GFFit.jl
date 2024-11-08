@@ -8,11 +8,6 @@
 # ==================================================================================================== #
 
 
-#TODO: refactor, test and optimize functions
-#TODO: this should be a sub-module
-#TODO: update docstrings
-#TODO: refacort +corr versions as macro/if (potential performance issue!)
-
 """
     build_fνmax_fast(f::AbstractArray{T}, n::Int)::Array{T, 1} where T <: Number
 

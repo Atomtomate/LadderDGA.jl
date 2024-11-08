@@ -49,6 +49,8 @@ function tail_factor(::Type{ΣTail_ExpStep{δ}}, U::Float64, β::Float64, n::Flo
     return tc_factor
 end
 
+tail_factor(::Type{ΣTail_EoM}, U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64})::Vector{ComplexF64} = ComplexF64[]
+
 """
     tail_correction_term(χm_nl::Float64, χm_loc::Float64, tail_factor::Vector{ComplexF64})
 
@@ -120,7 +122,7 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,Co
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
     tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
-    tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
+    tc_term   = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
     calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP)
 
     λm != 0.0 && reset!(χm)
@@ -190,7 +192,7 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χm_loc::AbstractArray, λ
 end
 
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-                     χm::χT, γm::γT, χd::χT, γd::γT, χm_loc, λ₀::λ₀T, 
+                     χm::χT, γm::γT, χd::χT, γd::γT, χm_loc::χT, λ₀::λ₀T, 
                      Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters,
 )
     ΣH = Σ_hartree(mP)
