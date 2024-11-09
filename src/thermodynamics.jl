@@ -5,6 +5,7 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Thermodynamic quantities from impurity and lDΓA GFs.                                               #
 # -------------------------------------------- TODO -------------------------------------------------- #
+#   Enery calculation does a lot of copying, provide subroutines                                       #
 #   Some of these functions are performance cirtical, benchmark those                                  #
 # ==================================================================================================== #
 
@@ -114,7 +115,7 @@ function EPot_p1(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; λm::
     return EPot_p1(view(G_ladder,:, νGrid), view(Σ_ladder,:, νGrid), EPot_tail, EPot_tail_inv, h.mP.β, h.kG)
 end
 
-function EPot_p1(G_ladder::AbstractMatrix, Σ_ladder::AbstractMatrix, EPot_tail, EPot_tail_inv, β::Float64, kG::KGrid)::Float64
+function EPot_p1(G_ladder::AbstractMatrix, Σ_ladder::AbstractMatrix, EPot_tail::AbstractMatrix, EPot_tail_inv, β::Float64, kG::KGrid)::Float64
     EPot_k = 2 .* sum(real.((G_ladder .* Σ_ladder) .- EPot_tail), dims = [2])[:, 1] .+ EPot_tail_inv
     return kintegrate(kG, EPot_k) / β
 end
@@ -172,8 +173,8 @@ function EKin_p1(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; λm::
     return EKin_p1(view(G_ladder,:, νGrid), EKin_tail, EKin_tail_inv, h.mP.β, h.kG)
 end
 
-function EKin_p1(G_ladder::AbstractMatrix, EKin_tail, EKin_tail_inv, β::Float64, kG::KGrid)::Float64
-    EKin_k = 4 .* sum(kG.ϵkGrid .* real.(G_ladder .- EKin_tail), dims = [2])[:, 1] .+ EKin_tail_inv
+function EKin_p1(G_ladder::AbstractMatrix, EKin_tail::AbstractMatrix, EKin_tail_inv, β::Float64, kG::KGrid)::Float64
+    EKin_k = 4 .* sum(kG.ϵkGrid .* real.(G_ladder .- EKin_tail), dims=2)[:, 1] .+ EKin_tail_inv
     return kintegrate(kG, EKin_k) / β
 end
 

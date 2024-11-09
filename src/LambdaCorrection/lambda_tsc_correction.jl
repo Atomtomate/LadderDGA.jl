@@ -123,28 +123,40 @@ function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, 
     return converged, μ_it, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it
 end
 
-
 function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                            maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                            conv_abs::Float64=1e-8, tc::ΣTail=default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)       
+                            νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                            use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                            validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, 
+                            max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                            dbg_roots_reset::Int=5,
+                            log_io = devnull, RF_Method=Roots.FalsePosition(), verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)         
 
     λd_min = get_λ_min(χd)
     Nq, Nω = size(χm)
     νmax::Int = eom_ν_cutoff(h.sP)
     fft_νGrid= h.sP.fft_range
+    ωn2_tail = ω2_tail(χm)
 
     Kνωq_pre    = Vector{ComplexF64}(undef, length(h.kG.kMult))
     G_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder_it)
     Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
+    G_rfft = deepcopy(h.gLoc_rfft)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder_it, 2)))
     tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
     χm_it = deepcopy(χm)
     χd_it = deepcopy(χd)
+    μ_new = NaN
+    λm = NaN
+    converged = false 
     
     function f_c2_sc(λd_i::Float64)
-        converged, μ_new, λm = run_tsc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term, tc,
-            χm_it, γm, χd_it, γd, λ₀, λd_i, h; maxit=maxit, mixing=mixing, mixing_start_it=mixing_start_it)
+        copyto!(G_rfft, h.gLoc_rfft)
+        converged, μ_new, λm = run_tsc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+        χm, γm, χd, γd, λ₀, λd_i, h; 
+        maxit=max_steps_sc, conv_abs=validation_threshold, 
+        mixing=mixing, mixing_start_it=mixing_start_it,
+        verbose=verbose_sc, trace=trace)
 
         #TODO: use Epot_1
         Ekin_1, Epot_1 = calc_E(G_ladder_it, Σ_ladder_it, μ_new, h.kG, h.mP)
@@ -155,10 +167,17 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
         end
         return Epot_1 - Epot_2
     end    
-    λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
-    converged, μ_new, λm = run_tsc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, Kνωq_pre, tc_factor_term,
-            χm_it, γm, χd_it, γd, λ₀, λd, h; maxit=maxit, mixing=mixing, mixing_start_it=mixing_start_it)
-
+    #λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+    λd  = NaN
+    for i in 1:dbg_roots_reset
+        try
+            λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+            break
+        catch e
+            @warn "Caught error" e
+            @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
+        end
+    end
     return λ_result(dm_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h)
 end
 
@@ -215,33 +234,34 @@ function run_tsc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
     return converged, λm, λd, μ_it, G_ladder_it, Σ_ladder_it, tr
 end
 
-function run_tsc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, Kνωq_pre,  
-                χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λd, h;
-                maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                conv_abs::Float64=1e-8, trace=nothing, verbose::Bool=false)
+function run_tsc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, gLoc_rfft, 
+                    Kνωq_pre, tc_factor, tc::Type{<: ΣTail}, 
+                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λd::Float64, h;
+                    maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
+                    conv_abs::Float64=1e-8, trace=nothing, verbose::Bool=false)
     it      = 1
     converged = false
     @assert mixing_start_it > 1
 
-    gLoc_rfft = deepcopy(h.gLoc_rfft)
     μ_it = h.mP.μ
     
     iωn_grid = ωn_grid(χm)
     tail_bak_m = deepcopy(χm.tail_c)
     tail_bak_d = deepcopy(χd.tail_c)
     iν = iν_array(h.mP.β, collect(axes(Σ_ladder_it, 2)))
+    
     λm   = NaN
 
     while it <= maxit && !converged
+
+        it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
+        tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd)
         ωn2_tail = ω2_tail(χm)
         λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
-        verbose && println("It = $it[λm=$λm/λd=$λd]")
-        #λm, λd = λdm_correction_val(χm ,γm ,χd, γd ,λ₀, h; validation_threshold = 1e-8, max_steps_m = 2000)
-        tc_factor = tail_factor(h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
-        tc_term  = tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
-        it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
+       
         μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
+
         !isnothing(trace) && push!(trace, deepcopy(Σ_ladder_it))
 
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf

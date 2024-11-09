@@ -26,4 +26,4 @@ eom_ν_cutoff(h::lDΓAHelper)::Int = eom_ν_cutoff(h.sP)
 eom_ν_cutoff(h::AlDΓAHelper)::Int = eom_ν_cutoff(h.sP)
 
 const default_ΣTail_ExpStep_δ::Float64 = 0.8
-default_Σ_tail_correction()::Type{<: ΣTail} = ΣTail_ExpStep{default_ΣTail_ExpStep_δ}
+default_Σ_tail_correction()::Type{<: ΣTail} = ΣTail_EoM #ΣTail_ExpStep{default_ΣTail_ExpStep_δ}
