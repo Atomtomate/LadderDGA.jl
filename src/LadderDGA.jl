@@ -16,7 +16,7 @@ export gen_kGrid, kintegrate
 
 # Types
 export ModelParameters, SimulationParameters, EnvironmentVars, lDΓAHelper
-export ΓT, FT, χ₀T, χT, γT, GνqT
+export ΓT, FT, χ₀T, χT, γT, GνqT, λ₀T
 export RPAHelper
 
 # Setup and auxilliary functions
@@ -48,7 +48,7 @@ export update_ΓAsym!, run_AlDGA_convergence
 export setup_RPA!, χ₀RPA_T, read_χ₀_RPA, readConfig_RPA, setupConfig_RPA
 
 # Thermodynamics
-export EPot_p1, EPot_p2, PP_p1, PP_p1, EKin_p2, EKin_p1
+export EPot_p1, EPot_p2, PP_p1, PP_p1, EKin_p1, EKin_p2
 # TODO: remove old interface in favor of EPot_p1,... etc
 export calc_E_ED, calc_E, calc_Epot2
 

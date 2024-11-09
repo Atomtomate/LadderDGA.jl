@@ -80,7 +80,7 @@ function newton_right(f::Function, df::Function, start::Float64, min::Float64; n
         dfii = 1 / df(xi)
         xi = xlast - dfii * fi
         # Found solution in the correct interval
-        (norm(fi) < atol) && (xi > min) && break
+        (norm(fi) < atol) && (xi > min) && (done = true)
         # only ever search to the right! bisect instead
         if xi < min
             xi = norm(xlast - (min + δ))/2 +  (min + δ)
@@ -91,6 +91,7 @@ function newton_right(f::Function, df::Function, start::Float64, min::Float64; n
         verbose && println("i = $i, xi = $xi, f(xi) = $fi")
         i += 1
     end
+    println("nsteps = ", i-1)
     return xi
 end
 
