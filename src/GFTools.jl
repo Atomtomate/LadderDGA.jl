@@ -5,11 +5,10 @@
 # ----------------------------------------- Description ---------------------------------------------- #
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
-#   Documentation                                                                                      #
-#   unify G_from_Σ APU                                                                                 #
-#   come up with a type for MatsubraraFreuqncies                                                       #
+#   unify G_from_Σ API                                                                                 #
+#   Add derivative fμ for filling fit and switch to Halley's method from Roots.jl                      #
+#   come up with a type for MatsubraraFreuqncies, Greens Functions and Self-Energies                   #
 #   This file could be a separate module                                                               #
-#   Most functions in this files are not used in this project.                                         #
 #   Test and optimize functions                                                                        #
 #   Rename subtrac_tail and make it more general for arbitrary tails (GF should know its tail)         #
 # ==================================================================================================== #

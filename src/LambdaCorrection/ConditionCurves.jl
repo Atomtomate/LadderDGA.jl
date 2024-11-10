@@ -15,11 +15,11 @@
 Samples a curve for the difference between the Pauli principle value on one- and two-particle level.
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
-function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
+function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; λd::Float64=0.0,
                     tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
                     λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
     χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
-    rhs,_ = λm_rhs(χm, χd, h; λd=0.0)
+    rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     ωn2_tail = ω2_tail(χm)
 
     f_c1(λint::Float64)::Float64 = sum_kω(h.kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs

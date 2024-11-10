@@ -113,7 +113,7 @@ end
 
 function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{ComplexF64},
                      χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper; 
-                    λd_max::Float64=0.0, Δλ::Float64 = 1e-1, dΣ0_threshold::Float64=4.0)::Float64
+                     λd_max::Float64=0.0, Δλ::Float64 = 1e-1, dΣ0_threshold::Float64=4.0)::Float64
     nh = ω0_index(χd)
     λd_min0 = -minimum(1 ./ view(χd, :, nh)) + Δλ
     ωn2_tail = ω2_tail(χm)

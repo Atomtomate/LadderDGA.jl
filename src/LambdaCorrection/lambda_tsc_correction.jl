@@ -8,23 +8,6 @@
 #   Do the debug/verbose prints with printf or logging (as in main module)
 # ==================================================================================================== #
 
-"""
-    λm_tsc_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h, sP, mP;
-                        validation_threshold::Float64 = 1e-8, log_io = devnull
-    )
-
-
-"""
-function λm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           validation_threshold::Float64 = 1e-8, λ_rhs = :native,
-                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
-
-    λd = 0.0
-    converged, μ_new, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
-    return λ_result(m_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
-end
-
 
 """
     λdm_tsc_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h, sP, mP;
@@ -34,79 +17,108 @@ end
 
 """
 function λdm_tsc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           use_trivial_λmin::Bool = false,
-                           validation_threshold::Float64 = 1e-8,
-                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction())       
+                        νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
+                        max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                        dbg_roots_reset::Int=5,
+                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition(), 
+                        verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)
 
-    λd_min::Float64   = if use_trivial_λmin 
-        get_λ_min(χd)
+    λd_min::Float64 = if !isnan(λd_min)
+        λd_min
     else
-        get_λd_min(χm, γm, χd, γd, λ₀, h)
-    end
-    
-    function f_c2_sc(λd_i::Float64)
-        converged, μ_new, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd_i, h; maxit=max_steps_sc, max_steps_m = max_steps_m, conv_abs=validation_threshold, tc = tc)
-        #TODO: use Epot_1
-        Ekin_1, Epot_1 = calc_E(G_ladder_it, Σ_ladder_it, μ_new, h.kG, h.mP)
-        Epot_2 = EPot_p2(χm_it, χd_it, λm, λd_i, h.mP.n, h.mP.U, h.kG)
-        if !converged
-            @warn "internal tsc did not converge"
-            return (Epot_1 - Epot_2)*10
+        if use_trivial_λmin 
+            get_λ_min(χd)
+        else
+            get_λd_min(χm, γm, χd, γd, λ₀, h)
         end
+    end
+    ωn2_tail = ω2_tail(χm)
+    νGrid = 0:(νmax-1)
+    iν = iν_array(h.mP.β, 0:(νmax-1))
+    #=
+    function f_c2_tsc(λd_i::Float64)
+        converged, μ_it, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd_i, h; 
+                            mixing=mixing, mixing_start_it=mixing_start_it,
+                            maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc, verbose=verbose_sc)
+        EPot_tail, EPot_tail_inv = EPot_p1_tail(iν, μ_it, h)
+        Epot_1 = EPot_p1(view(G_ladder_it,:,νGrid), view(Σ_ladder_it,:,νGrid), EPot_tail, EPot_tail_inv, h.mP.β, h.kG)
+        Epot_2 = EPot_p2(χm, χd, λm, λd_i, h.mP.n, h.mP.U, h.kG)
+        verbose && println("λm=$λm, λd=$λd_i, ΔEPot = $Epot_1 - $Epot_2 = $(Epot_1 - Epot_2)")
         return Epot_1 - Epot_2
     end    
-    λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
-    converged, μ_new, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
 
-    return λ_result(dm_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    λd  = NaN
+    for i in 1:dbg_roots_reset
+        try
+            λd = find_zero(f_c2_tsc, (λd_min + λd_δ, λd_max), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+            break
+        catch e
+            @warn "Caught error" e
+            @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
+        end
+    end
+    #λd  = newton_mode_secular ? newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold) :  newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-7)
+    =#
+    converged, μ_it, λm,λd, G_ladder_it, Σ_ladder_it, χm_it, χd_it = run_tsc(χm, γm, χd, γd, λ₀, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
+    return λ_result(dm_scCorrection, χm_it, χd_it, μ_it, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; PP_p1=PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
 
-function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, λd::Float64, h;
-                maxit::Int=100, mixing::Float64=0.2, conv_abs::Float64=1e-8, 
-                max_steps_m=1000, tc::Type{<: ΣTail} = default_Σ_tail_correction())
-    it        = 1
-    λm        = 0.0
+function run_tsc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
+            max_steps_m::Int = 2000, 
+            maxit::Int=100, mixing::Float64=0.3, mixing_start_it::Int=10,
+            conv_abs::Float64=1e-8, tc::Type{<: ΣTail} = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)
+    λm        = NaN
+    λd        = NaN
+    it        = 2
     converged = false
+    tr = []
+    
+    iωn_grid = ωn_grid(χm)
+    ωn2_tail = ω2_tail(χm)
+    tail_bak_m = deepcopy(χm.tail_c)
+    tail_bak_d = deepcopy(χd.tail_c)
 
-    μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm_bak, γm, χd_bak, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
+    μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
+    G_ladder_bak = similar(G_ladder_it)
     _, gLoc_rfft = G_fft(G_ladder_it, h.kG, h.sP)
-    Σ_ladder_last = deepcopy(Σ_ladder_it)
-    iωn_grid = ωn_grid(χm_bak)
+    trace && push!(tr, Σ_ladder_it)
 
     # internal λm-correction stuff
     PP_p1  = h.mP.n / 2 * (1 - h.mP.n / 2)
     
     # in case we encounter NaN/Inf in tail
-    χm_it = deepcopy(χm_bak)
-    χd_it = deepcopy(χd_bak)
+    χm_it = deepcopy(χm)
+    χd_it = deepcopy(χd)
+    
 
-    tail_bak_m = deepcopy(χm_it.tail_c)
-    tail_bak_d = deepcopy(χd_it.tail_c)
     while it <= maxit && !converged
+        λm, λd = λdm_correction_val(χm_it, γm, χd_it, γd,λ₀, h
+         )
+        it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
+
         χd_sum   = sum_kω(h.kG, χd_it, λ = λd)
         rhs_c1   = h.mP.n * (1 - h.mP.n / 2) - χd_sum
         ωn2_tail = ω2_tail(χm_it)
-        λm       = λm_correction_val(χm_it, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=conv_abs)
-
+        #λm       = λdm_correction_val(χm_it, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=conv_abs)
+        
         μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm_it, γm, χd_it, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = tc, fix_n = true)
 
-        if !all(isfinite.(Σ_ladder_it)) 
-            @error "EoM self-consistency encountered NaN/Inf in self-energy."
-            break
-        end
+        trace && push!(tr, Σ_ladder_it)
 
-        # Check for sc and λm convergence
-        χm_sum = sum_kω(h.kG, χm_it, λ = λm)
-        PP_p2  = real(χd_sum + χm_sum) / 2
-        if sum(abs.(Σ_ladder_it .- Σ_ladder_last)) < conv_abs && (abs(PP_p1 - PP_p2) < conv_abs)
-            converged = true
-        end
+        Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
+        Δit < conv_abs && (converged = true)
 
-        G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
-        copyto!(Σ_ladder_last, Σ_ladder_it)
+        it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
+        !all(isfinite.(Σ_ladder_it)) && break
+        
         Ekin_1, Epot_1 = calc_E(G_ladder_it, Σ_ladder_it, μ_it, h.kG, h.mP)
+
+        verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit// Ekin_1 = $Ekin_1, Epot_1 = $Epot_1")
+        G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
+
 
         if !isfinite(Ekin_1)
             @error "Kinetic energy not finite! Aborting λ-tsc"
@@ -120,7 +132,7 @@ function run_tsc(χm_bak::χT, γm::γT, χd_bak::χT, γd::γT, λ₀::λ₀T, 
     update_tail!(χm_it, tail_bak_m, iωn_grid)
     update_tail!(χd_it, tail_bak_d, iωn_grid)
 
-    return converged, μ_it, λm, G_ladder_it, Σ_ladder_it, χm_it, χd_it
+    return converged, μ_it, λm, λd, G_ladder_it, Σ_ladder_it, χm_it, χd_it, tr
 end
 
 function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
@@ -135,6 +147,8 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     Nq, Nω = size(χm)
     νmax::Int = eom_ν_cutoff(h.sP)
     fft_νGrid= h.sP.fft_range
+    
+    iωn_grid = ωn_grid(χm)
     ωn2_tail = ω2_tail(χm)
 
     Kνωq_pre    = Vector{ComplexF64}(undef, length(h.kG.kMult))
@@ -181,58 +195,6 @@ function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     return λ_result(dm_tscCorrection, χm_it, χd_it, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h)
 end
 
-function run_tsc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
-                maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                conv_abs::Float64=1e-8, tc::Bool = true, trace::Bool=false, verbose::Bool=false)
-    it      = 2
-    converged = false
-    tr = []    
-    iωn_grid = ωn_grid(χm)
-    tail_bak_m = deepcopy(χm.tail_c)
-    tail_bak_d = deepcopy(χd.tail_c)
-    ωn2_tail = ω2_tail(χm)
-    χm_bak = deepcopy(χm)
-    χd_bak = deepcopy(χd)
-    λm, λd = λdm_correction_val(χm ,γm ,χd, γd ,λ₀, h; validation_threshold = 1e-8, max_steps_m = 2000)
-
-    μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
-    G_ladder_bak = similar(G_ladder_it)
-    _, gLoc_rfft = G_fft(G_ladder_it, h.kG, h.sP)
- 
-    trace && push!(tr, Σ_ladder_it)
-    
-    while it <= maxit && !converged
-        λm, λd = λdm_correction_val(χm ,γm ,χd, γd ,λ₀, h; validation_threshold = 1e-8, max_steps_m = 2000)
-        it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
-
-        μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = :full, fix_n = true)
-        trace && push!(tr, Σ_ladder_it)
-
-        Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
-        Δit < conv_abs && (converged = true)
-
-        it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
-        !all(isfinite.(Σ_ladder_it)) && break
-        
-        verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit")
-        G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
-        #TODO: use Ekin_1
-        Ekin_1, Epot_1 = calc_E(G_ladder_it, Σ_ladder_it, μ_it, h.kG, h.mP)
-
-        if !isfinite(Ekin_1)
-            @error "Kinetic energy not finite! Aborting λ-tsc"
-            break
-        else
-            update_tail!(χm, [0, 0, Ekin_1], iωn_grid)
-            update_tail!(χd, [0, 0, Ekin_1], iωn_grid)
-        end
-        it += 1
-    end
-
-    χm = deepcopy(χm_bak)
-    χd_bak = deepcopy(χd_bak)
-    return converged, λm, λd, μ_it, G_ladder_it, Σ_ladder_it, tr
-end
 
 function run_tsc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, gLoc_rfft, 
                     Kνωq_pre, tc_factor, tc::Type{<: ΣTail}, 

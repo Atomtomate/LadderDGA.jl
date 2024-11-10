@@ -9,50 +9,24 @@
 # ==================================================================================================== #
 
 """
-    λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           validation_threshold::Float64 = 1e-8,
-                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc = default_Σ_tail_correction())
-
-Runs partial self-consistency loop (update of propagators in equation of motion) within [`λdm correction`](@ref λdm_correction)
-"""
-function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           use_trivial_λmin::Bool=false, λd_min::Float64=NaN,
-                           validation_threshold::Float64 = 1e-8, λ_rhs = :native,
-                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 200,
-                           log_io = devnull, tc::Type{<: ΣTail} = default_Σ_tail_correction(), verbose::Bool = false)       
-
-    λd_min::Float64 = if !isnan(λd_min)
-        λd_min
-    else
-        if use_trivial_λmin 
-            get_λ_min(χd)
-        else
-            get_λd_min(χm, γm, χd, γd, λ₀, h)
-        end
-    end
-    λd = 0.0
-    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd, λ_rhs = :native)
-    λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
-    converged, μ_new, G_ladder_it, Σ_ladder_it, trace = run_sc(χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc, verbose=verbose)
-    return λ_result(m_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; PP_p1=PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
-end
-
-"""
-    λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                           validation_threshold::Float64 = 1e-8,
-                           max_steps_m::Int = 2000, max_steps_dm::Int = 2000, max_steps_sc::Int = 2000,
-                           log_io = devnull, tc = default_Σ_tail_correction())
-
-Runs partial self-consistency loop (update of propagators in equation of motion) within [`λdm correction`](@ref λdm_correction)
-"""
-function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
+    λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
                         dbg_roots_reset::Int=5,
                         max_steps_dm::Int = 2000,log_io = devnull, RF_Method=Roots.FalsePosition(), 
+                        verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)
+
+Runs partial self-consistency loop (update of propagators in equation of motion) within [`λdm correction`](@ref λdm_correction)
+"""
+function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
+                        νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
+                        max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                        dbg_roots_reset::Int=5,
+                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition(), 
                         verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)
 
     λd_min::Float64 = if !isnan(λd_min)
@@ -100,8 +74,8 @@ end
 
 
 function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
-                        νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                        νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                        use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
                         dbg_roots_reset::Int=5,
@@ -118,7 +92,6 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     end
     ωn2_tail = ω2_tail(χm)
     Nq, Nω = size(χm)
-    νmax::Int = eom_ν_cutoff(h.sP)
     νGrid = 0:(νmax-1)
     fft_νGrid= h.sP.fft_range
 
