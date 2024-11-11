@@ -102,21 +102,27 @@ derivative exeeds `dΣ0_threshold`.
 Derivative and minimum backoff distance from the `get_λ_min` value are given by `Δλ`.
 """
 function get_λd_min(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper; 
+                    tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                     λd_max::Float64=0.0, Δλ::Float64 = 1e-1, dΣ0_threshold::Float64=4.0)::Float64
 
     Nq = length(h.kG.kMult)
 
     Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, 1), 1:Nq, 0:0)
-    return get_λd_min!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, h; λd_max=λd_max, Δλ=Δλ, dΣ0_threshold=dΣ0_threshold)
+    return get_λd_min!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, h; tc=tc, λd_max=λd_max, Δλ=Δλ, dΣ0_threshold=dΣ0_threshold)
 end
 
 function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{ComplexF64},
-                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper; 
+                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
+                     tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                      λd_max::Float64=0.0, Δλ::Float64 = 1e-1, dΣ0_threshold::Float64=4.0)::Float64
     nh = ω0_index(χd)
     λd_min0 = -minimum(1 ./ view(χd, :, nh)) + Δλ
     ωn2_tail = ω2_tail(χm)
+    
+    νGrid = collect(axes(Σ_ladder,2))
+    iν = iν_array(h.mP.β, νGrid)
+    tc_factor = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν) 
     
     λd_max = (λd_max - λd_min0) < 5 ? λd_max + 5 : λd_max
     λd_max_result = λd_max
@@ -131,7 +137,9 @@ function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{ComplexF64},
         λm_i =  λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
         (λm_i != 0) && χ_λ!(χm, λm_i)
         (λd_i != 0) && χ_λ!(χd, λd_i)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, 0.0, h.gLoc_rfft, h.kG, h.mP, h.sP)
+        
+        tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm_i), h.χloc_m_sum, tc_factor)
+        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, tc_term, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP)
         (λm_i != 0) && reset!(χm)
         (λd_i != 0) && reset!(χd)
         Σ0_λ_i = maximum(imag(Σ_ladder[:,0]))

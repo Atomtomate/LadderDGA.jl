@@ -176,11 +176,11 @@ function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol:
     return xi
 end
 
-Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1/x^2 + p
-Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = - 2 / (x^3)
+Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = sqrt(x) + p
+Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = 1 /(2*sqrt(x))
 
 """
-    newton_secularEq(f::Function, [df::Function,], pole::Float64)
+    newton_secular(f::Function, [df::Function,], pole::Float64)
 
 Computes largest root of function `f`, assuming it corresponds to a secular equaiton ``f(x) = 1 + \\sum_j \\frac{b_j}{d_j - x}``.
 Adapted from Example 2,  https://doi.org/10.48550/arXiv.2204.02326
@@ -202,10 +202,10 @@ Arguments:
 - **`atol`**   : convergence criterion, i.e. ``|f(x_0)| < `` `atol` will return root `x0`.
 """
 function newton_secular(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)::Float64
-    done  = false
-    xi    = xp + 1.0
-    xi_tf = NaN
-    i     = 1
+    done::Bool  = false
+    xi::Float64 = 1.0
+    xi_tf::Float64 = NaN
+    i::Int         = 1
     while !done
         xi_tf = newton_secular_transform(xi,xp)
         fi = f(xi_tf)
@@ -232,7 +232,7 @@ This is the same as [`newton_secular`](@ref newton_secular), but also returns a 
 """
 function newton_secular_trace(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)
     done  = false
-    xi    = xp + 1.0
+    xi    = 1.0
     xi_tf = NaN
     trace = Vector{Vector}(undef, 0)
     i     = 1

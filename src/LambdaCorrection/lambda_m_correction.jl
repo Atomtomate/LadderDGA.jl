@@ -105,11 +105,17 @@ function λm_correction_val(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector
     return λm
 end
 
+"""
+    λm_correction_val2
+
+This is just for testing purposes
+"""
 function λm_correction_val2(χm::χT, rhs::Float64, h; 
                            max_steps::Int=1000, eps::Float64=1e-8)
     ωn2_tail = ω2_tail(χm)
     λm_correction_val2(χm, rhs, h.kG, ωn2_tail; max_steps=max_steps, eps=eps)
 end
+
 function λm_correction_val2(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector{Float64}; 
                            max_steps::Int=1000, eps::Float64=1e-8)
     λm_min = get_λ_min(χm)
