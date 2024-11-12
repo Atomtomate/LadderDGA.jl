@@ -75,12 +75,12 @@ mutable struct λ_result{T<:CorrectionMethod}
     # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
     function λ_result(λm::Float64,λd::Float64, type::Type{T},
                       sc_converged::Bool,eps_abs::Float64,sc_eps_abs::Float64,
-                      EKin_p1::Float64,EKin_p2::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1::Float64,PP_p2::Float64,
+                      EKin_p1::Float64,EKin_p2::Float64,EPot_p1::Float64,EPot_p2::Float64,PP_p1_val::Float64,PP_p2_val::Float64,
                       trace::Union{DataFrame,Nothing},
                       G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64,
                       χm_sum::Float64, χm_loc_sum::Float64 
     ) where {T<:CorrectionMethod}
-        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1,PP_p2,trace,G_ladder,Σ_ladder,μ,n,n_dmft,χm_sum,χm_loc_sum
+        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1_val,PP_p2_val,trace,G_ladder,Σ_ladder,μ,n,n_dmft,χm_sum,χm_loc_sum
         )
     end
 end
@@ -95,15 +95,15 @@ Constructs λ_result object, runs all checks and stores them.
 """
 function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1 = NaN,
+                  νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1_val = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, fix_n::Bool=true)
     μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = fix_n)
-    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1 = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1_val = PP_p1_val, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
 function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladder, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  PP_p1 = NaN, νFitRange=0:last(axes(Σ_ladder, 2)),
+                  PP_p1_val = NaN, νFitRange=0:last(axes(Σ_ladder, 2)),
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
 
     Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
@@ -115,8 +115,8 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
     end
     χm_sum = sum_kω(h.kG, χm, λ = λm)
     χd_sum = sum_kω(h.kG, χd, λ = λd)
-    PP_p1  = isnan(PP_p1) ? h.mP.n / 2 * (1 - h.mP.n / 2) : PP_p1
-    PP_p2  = real(χd_sum + χm_sum) / 2
+    PP_p1_val  = isnan(PP_p1_val) ? h.mP.n / 2 * (1 - h.mP.n / 2) : PP_p1_val
+    PP_p2_val  = real(χd_sum + χm_sum) / 2
     Ekin_p2 = χm.tail_c[3]
     Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
     ndens = filling_pos(G_ladder[:,νFitRange], h.kG, h.mP.U, μ_new, h.mP.β, improved_sum=true)
@@ -124,7 +124,7 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
         update_tail!(χm, tail_bak_m)
         update_tail!(χd, tail_bak_d)
     end
-    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1, PP_p2, 
+    return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1_val, PP_p2_val, 
                     nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n, χm_sum, h.χloc_m_sum)
 end
 

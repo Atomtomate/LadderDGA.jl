@@ -25,11 +25,11 @@ function regula_falsi(f::Function, min::Float64, max::Float64; nsteps::Int = 500
     b::Float64 = max
     c::Float64 = NaN
     i     = 1
-    println("tt")
+    #println("tt")
     f_a::Float64 = f(a)
     f_b::Float64 = f(b)
     sign(f_a) == sign(f_b) && error("[$min,$max] is not a bracketing interval")
-    println("$f_a // $f_b")
+    #println("$f_a // $f_b")
     while !done
         lambda = f_b / (f_b - f_a)
 
@@ -54,7 +54,7 @@ function regula_falsi(f::Function, min::Float64, max::Float64; nsteps::Int = 500
 
         i += 1
     end
-    println("nsteps = ", i-1)
+    #println("nsteps = ", i-1)
     return c
 end
 
