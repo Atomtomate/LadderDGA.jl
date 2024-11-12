@@ -175,9 +175,10 @@ function newton(f::Function, df::Function, xi::Float64; nsteps::Int = 500, atol:
     end
     return xi
 end
-
-Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = sqrt(x) + p
-Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = 1 /(2*sqrt(x))
+Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1/x^2 + p
+Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = -2 / (x^3)
+#Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = sqrt(x) + p
+#Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = 1 /(2*sqrt(x))
 
 """
     newton_secular(f::Function, [df::Function,], pole::Float64)

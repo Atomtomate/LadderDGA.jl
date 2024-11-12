@@ -89,8 +89,8 @@ function newton_right_test(f::Function, df::Function, start::Float64, min::Float
     #println("nsteps = ", i-1)
     return xi
 end
-Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = sqrt(x)#-1/x^2 + p
-Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = 1 /(2*sqrt(x))#2 / (x^3)
+Base.@assume_effects :total newton_secular_transform(x::Float64,p::Float64)::Float64 = 1/x^2 + p
+Base.@assume_effects :total newton_secular_transform_df(x::Float64,p::Float64)::Float64 = -2 / (x^3)
 function newton_secular_test(f::Function, df::Function, xp::Float64; nsteps::Int = 500, atol::Float64=1e-8)::Float64
     done::Bool  = false
     xi::Float64 = xp + 1.0
