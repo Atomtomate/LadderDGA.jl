@@ -1,3 +1,5 @@
+using Pkg
+Pkg.activate(joinpath(@__DIR__,".."))
 using LadderDGA
 using JLD2
 
@@ -75,12 +77,12 @@ function run(ARGS, tc)
         f["err_m_tsc"] = nothing
         f["err_dm_tsc"] = nothing
     end
-    if !check_done(fname, "res_dm")
-    res_dm, err_dm = try 
-        λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λd_δ=1e-2, tc=tc), nothing
-    catch e 
-        nothing, e
-    end;
+    res_dm, err_dm = if !check_done(fname, "res_dm")
+        try 
+            λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λd_δ=1e-2, tc=tc), nothing
+        catch e 
+            nothing, e
+        end;
     else
         jldopen(fname, "r") do f
             f["res_dm"], f["err_dm"]
@@ -114,12 +116,12 @@ function run(ARGS, tc)
         f["err_m_tsc"] = nothing
         f["err_dm_tsc"] = nothing
     end
-    if !check_done(fname, "res_dm_sc")
-    res_dm_sc, err_dm_sc = try
-        λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-2, tc=tc), nothing
-    catch e 
-        nothing, e
-    end;
+    res_dm_sc, err_dm_sc = if !check_done(fname, "res_dm_sc")
+        try
+            λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-2, tc=tc), nothing
+        catch e 
+            nothing, e
+        end;
     else
         jldopen(fname, "r") do f
             f["res_dm_sc"], f["err_dm_sc"]
@@ -153,8 +155,8 @@ function run(ARGS, tc)
         f["err_m_tsc"] = nothing
         f["err_dm_tsc"] = nothing
     end
-    if !check_done(fname, "res_m_sc")
-    res_m_sc, err_m_sc = try
+    res_m_sc, err_m_sc = if !check_done(fname, "res_m_sc")
+    try
         λm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λd_δ=1e-2, tc=tc), nothing
     catch e 
         nothing, e

@@ -153,6 +153,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
     tr = []
 
     μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
+    !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
     G_ladder_bak = similar(G_ladder_it)
     _, gLoc_rfft = G_fft(G_ladder_it, h.kG, h.sP)
  
@@ -162,6 +163,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
 
         μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = tc, fix_n = true)
+        !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
         trace && push!(tr, Σ_ladder_it)
 
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
@@ -195,6 +197,7 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
 
         μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
+        !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
         
 
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
