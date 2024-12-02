@@ -69,7 +69,7 @@ function OneToIndex_to_Freq(ωi::Int, νpi::Int, νi::Int, sP::SimulationParamet
 end
 
 function Freq_to_OneToIndex(ωn::Int, νn::Int, νpn::Int, shift::Union{Bool,Int}, nBose::Int, nFermi::Int)
-    (ωn + nBose + 1, νn + nFermi + 1 + trunc(Int, shift * ωn / 2), νpn + nFermi + 1 + trunc(Int, shift * ωn / 2))
+    ωn + nBose + 1, νn + nFermi + 1 + trunc(Int, shift * ωn / 2), νpn + nFermi + 1 + trunc(Int, shift * ωn / 2)
 end
 
 """

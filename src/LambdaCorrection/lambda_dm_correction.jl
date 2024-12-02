@@ -59,6 +59,7 @@ function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::�
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; νmax=νmax, tc = tc, fix_n = fix_n)
+        !isfinite(μ_new) && error("encountered μ=$μ_new @ λd = $λd_i // λm = $λm_i")
 
         EPot_tail, EPot_tail_inv = EPot_p1_tail(iν, μ_new, h)
         Epot_1 = EPot_p1(view(G_ladder,:,νGrid), view(Σ_ladder,:,νGrid), EPot_tail, EPot_tail_inv, h.mP.β, h.kG)
@@ -145,6 +146,7 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm_i), h.χloc_m_sum, tc_factor)
         μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h, fix_n=fix_n)
+        !isfinite(μ_new) && error("encountered μ=$μ_new @ λd = $λd_i // λm = $λm_i")
 
         EPot_tail, EPot_tail_inv = EPot_p1_tail(iν, μ_new, h)
         Epot_1 = EPot_p1(view(G_ladder,:,νGrid), view(Σ_ladder,:,νGrid), EPot_tail, EPot_tail_inv, h.mP.β, h.kG)
