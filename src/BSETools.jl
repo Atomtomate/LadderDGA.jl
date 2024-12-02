@@ -314,6 +314,7 @@ function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
 end
 
 """
+    calc_local_EoM(lDGAhelper)
     calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::SimulationParameters)
 
 Calculates local equation of motion from the full DMFT vertices in the magnetic and density channel `Fm` and `Fd`
@@ -321,6 +322,13 @@ as well as the impurity Green's function `gImp`.
 The result should be equal to the impuirty self-energy and can also be used to determine a usable ν-range 
 for the non-local equation of motion.
 """
+function calc_local_EoM(lDGAhelper)
+    F_m = F_from_χ(lDGAhelper.χDMFT_m, lDGAhelper.gImp[1, :], lDGAhelper.sP, lDGAhelper.mP.β)
+    F_d = F_from_χ(lDGAhelper.χDMFT_d, lDGAhelper.gImp[1, :], lDGAhelper.sP, lDGAhelper.mP.β)
+    ΣLoc_m, ΣLoc_d = calc_local_EoM(F_m, F_d, lDGAhelper.gImp[1, :], lDGAhelper.mP, lDGAhelper.sP)
+    return 0.5 .* (ΣLoc_m .+ ΣLoc_d)
+end
+
 function calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::SimulationParameters)
     νmax = floor(Int, size(Fm,1)/2)
     ωGrid = -sP.n_iω:sP.n_iω
@@ -337,5 +345,5 @@ function calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::Sim
             end
         end
     end
-    return mP.U .* ΣLoc_m/mP.β^2 .+ mP.U*mP.n/2, mP.U .* ΣLoc_d/mP.β^2 .+ mP.U*mP.n/2
+    return 0.5 .* ( mP.U .* ΣLoc_m/mP.β^2 .+ mP.U*mP.n/2, mP.U .* ΣLoc_d/mP.β^2 .+ mP.U*mP.n/2)
 end
