@@ -82,7 +82,7 @@ function run(ARGS, tc)
         nothing, e
     end;
     else
-        jldopen(fname, "w") do f
+        jldopen(fname, "r") do f
             f["res_dm"], f["err_dm"]
         end
     end
@@ -121,7 +121,7 @@ function run(ARGS, tc)
         nothing, e
     end;
     else
-        jldopen(fname, "w") do f
+        jldopen(fname, "r") do f
             f["res_dm_sc"], f["err_dm_sc"]
         end
     end
@@ -160,7 +160,7 @@ function run(ARGS, tc)
         nothing, e
     end;
     else
-        jldopen(fname, "w") do f
+        jldopen(fname, "r") do f
             f["res_m_sc"], f["err_m_sc"]
         end
     end
