@@ -313,6 +313,13 @@ function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
     return χννpω
 end
 
+function calc_local_EoM(lDGAhelper)
+    F_m = F_from_χ(lDGAhelper.χDMFT_m, lDGAhelper.gImp[1, :], lDGAhelper.sP, lDGAhelper.mP.β)
+    F_d = F_from_χ(lDGAhelper.χDMFT_d, lDGAhelper.gImp[1, :], lDGAhelper.sP, lDGAhelper.mP.β)
+    ΣLoc_m, ΣLoc_d = calc_local_EoM(F_m, F_d, lDGAhelper.gImp[1, :], lDGAhelper.mP, lDGAhelper.sP) 
+    return 0.5 .* (ΣLoc_m .+ ΣLoc_d) 
+end
+
 """
     calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::SimulationParameters)
 

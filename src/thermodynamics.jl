@@ -127,7 +127,7 @@ Potential energy on the two-particle level.
 """
 function EPot_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::Float64, kG::KGrid)::Float64
     return (U/2)*real(sum_kω(kG, χd, λ = λd) - sum_kω(kG, χm, λ = λm)) + U * (n/2)^2
-    lhs_c2 = 0.0
+    #=lhs_c2 = 0.0
     for ωi = 1:size(χm, 2)
         tmp2 = 0.0
         for (qi, km) in enumerate(kG.kMult)
@@ -138,7 +138,7 @@ function EPot_p2(χm::χT, χd::χT, λm::Float64, λd::Float64, n::Float64, U::
         lhs_c2 += 0.5 * tmp2 / Nk(kG)
     end
     lhs_c2 = lhs_c2 / χm.β
-    return lhs_c2
+    return lhs_c2=#
 end
 
 # ----------------------------------------------- EKin -----------------------------------------------

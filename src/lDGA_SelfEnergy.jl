@@ -192,7 +192,7 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χm_loc::AbstractArray, λ
 end
 
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-                     χm::χT, γm::γT, χd::χT, γd::γT, χm_loc::χT, λ₀::λ₀T, 
+                     χm::χT, γm::γT, χd::χT, γd::γT, χm_loc::Union{Matrix,χT}, λ₀::λ₀T, 
                      Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters,
 )
     ΣH = Σ_hartree(mP)

@@ -141,6 +141,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     end
 
     rm = min(length(gImp_in), max(2048,maximum(abs.(sP.fft_range))))
+    sl = gImp_in isa OffsetArray ? (0:rm) : (1:rm)
     gs = gridshape(kG)
     kGdims = grid_dimension(kG)
     νdim = kGdims + 1
@@ -159,8 +160,9 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
 
     #TODO: unify checks
     kGridLoc = gen_kGrid(kGridStr[1], 1)
-    t = cat(conj(reverse(gImp_in[1:rm])), gImp_in[1:rm], dims = 1)
-    gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(gImp_in[1:rm]):length(gImp_in[1:rm])-1)
+    
+    t = cat(conj(reverse(gImp_in[sl])), gImp_in[sl], dims = 1)
+    gImp = OffsetArray(reshape(t, 1, length(t)), 1:1, -length(sl):(length(sl)-1))
     F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
     F_d = F_from_χ(χDMFT_d, gImp[1, :], sP, mP.β)
     ΣLoc_m, ΣLoc_d = calc_local_EoM(F_m, F_d, gImp[1, :], mP, sP)
@@ -238,7 +240,7 @@ end
 Setup helper used by  [`setup_ALDGA`](@ref setup_ALDGA)
 """
 function setup_AlDGA_fromDFMT(kG::KGrid, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars; silent::Bool = false)
-    @info "Found input file for asymptotic calculation, cosntructing input"
+    @info "Found input file for asymptotic calculation, constructing input"
     Γ_m, Γ_d, gImp_in, Σ_loc = jldopen(env.inputVars, "r") do f
         #TODO: permute dims creates inconsistency between user input and LadderDGA.jl data!!
         Ns = typeof(sP.χ_helper) === BSE_SC_Helper ? sP.χ_helper.Nν_shell : 0
@@ -322,7 +324,9 @@ function setup_AlDGA_fromRPA(kG::KGrid, mP::ModelParameters, sP::SimulationParam
     Σ0 = similar(gLoc); 
     Σ0 = OffsetArrays.Origin(1,0)(Σ0[:,0:end]);
     fill!(Σ0, 0.0);
-    Ekin, Epot = calc_E(Σ0, kG, mP)
+    #Σloc = OffsetVector{}
+    #μ_new, G_ladder = G_from_Σladder(Σ0, , kG, mP, h.sP; fix_n = fix_n)
+    Ekin, Epot = NaN, NaN#calc_E(Σ0, kG, mP)
     mP.Ekin_1Pt = Ekin
     mP.Epot_1Pt = Epot
 
@@ -399,11 +403,10 @@ function setup_RPA!(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Σ0 = similar(gLoc); 
         Σ0 = OffsetArrays.Origin(1,0)(Σ0[:,0:end]);
         fill!(Σ0, 0.0);
-        Ekin, Epot = calc_E(Σ0, kG, mP)
+        Ekin, Epot = NaN, NaN#calc_E(Σ0, kG, mP)
         isnan(mP.Ekin_1Pt) && (mP.Ekin_1Pt = Ekin)
         isnan(mP.Epot_1Pt) && (mP.Epot_1Pt = Epot)
     end
-
     #if mP.μ ≈ mP.U * mP.n / 2
     #    χloc_m_sum = 0.25
     #else

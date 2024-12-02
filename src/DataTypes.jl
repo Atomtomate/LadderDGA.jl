@@ -304,7 +304,7 @@ function sum_kω(kG::KGrid, χ::Union{χT, χ₀RPA_T}; ωn_arr=ωn_grid(χ), fo
     ω_slice = 1:size(χ, χ.axis_types[:ω])
     ω_slice = force_full_range ? ω_slice : ω_slice[χ.usable_ω]
 
-    ωn2_tail = ω2_tail(χ)
+    ωn2_tail = ω2_tail(χ; force_full=force_full_range)
     res =  sum_kω(kG, view(χ.data,:, ω_slice), χ.β, tail_c, ωn2_tail, transform=transform) 
     return res
 end

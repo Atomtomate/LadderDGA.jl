@@ -64,13 +64,21 @@ function calc_λ0_asym(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParamet
     λ0[:] = calc_λ0_impr(:m, -sP.n_iω:sP.n_iω, Fr, χ₀.data, χ₀.asym, view(γ.data, 1, :, :), view(χ.data, 1, :), mP.U, mP.β, sP.χ_helper)
 end
 
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::AlDΓAHelper; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = false)
-    calc_Σ(χm, γm, χd, γd, 0.25, λ₀, Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::AlDΓAHelper; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail} = default_Σ_tail_correction())
+    if tc === ΣTail_EoM
+        calc_Σ(χm, γm, χd, γd, kintegrate(h.kG, χm.data,1), λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
+    else
+        calc_Σ(χm, γm, χd, γd, kintegrate(h.kG, χm.data,1), λ₀, h.Σ_loc, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+    end
 end
 
-function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h::AlDΓAHelper; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Bool = false)
+function calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, gLoc_rfft, h::AlDΓAHelper; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0, tc::Type{<: ΣTail} = default_Σ_tail_correction())
     Σ_loc = OffsetArray(zeros(ComplexF64, νmax), 0:νmax-1)
-    calc_Σ(χm, γm, χd, γd, 0.25, λ₀, Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+    if tc === ΣTail_EoM
+        calc_Σ(χm, γm, χd, γd, kintegrate(h.kG, χm.data,1), λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd)
+    else
+        calc_Σ(χm, γm, χd, γd, kintegrate(h.kG, χm.data,1), λ₀, Σ_loc, gLoc_rfft, h.kG, h.mP, h.sP, νmax=νmax, λm = λm, λd = λd, tc = tc)
+    end
 end
 
 """
@@ -123,8 +131,8 @@ function run_AlDGA_convergence(cfg_file; eps=1e-12, maxit=100)
             χd, γd = calc_χγ(:d, AlDGAhelper_i, bubble; verbose=false);
             # λ₀ = calc_λ0(bubble_01, AlDGAhelper_01)
             λ₀ = -AlDGAhelper_i.mP.U .* deepcopy(core(bubble));
-            converged_internal, μ_it, G_ladder_it, Σ_ladder_it = LadderDGA.LambdaCorrection.run_sc(χm, γm, χd, γd, λ₀, 0.0, 0.0, AlDGAhelper;
-                            maxit=100, mixing=0.2, conv_abs=1e-8, tc=true)
+            converged_internal, μ_it, G_ladder_it, Σ_ladder_it, tr = LadderDGA.LambdaCorrection.run_sc(χm, γm, χd, γd, λ₀, 0.0, 0.0, AlDGAhelper;
+                            maxit=100, mixing=0.2, conv_abs=1e-8)
             sum(abs.(χm.data .- χm_bak)) < eps && (converged = true)
             i += 1
         @info "Δ [it=$i]: " sum(abs.(χm.data .- χm_bak))
