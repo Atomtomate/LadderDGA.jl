@@ -86,28 +86,32 @@ end
 
 Updates `Γm` and `Γd` with the lowest two asymptotic controbutions, given [`here`](https://doi.org/10.1103/PhysRevB.97.235140)
 """
-function update_ΓAsym!(χm::χT, χd::χT, χpp::χT, sP::SimulationParameters, mP::ModelParameters, h::AlDΓAHelper)
+function update_ΓAsym!(χm_loc, χd_loc, χpp_loc, sP::SimulationParameters, mP::ModelParameters, h::AlDΓAHelper; inner_cut=0)
     U = mP.U
-    h.Γ_d .=  U
-    h.Γ_m .= -U 
-    χd_loc = kintegrate(h.kG, χd, 1)[1,:] 
-    χm_loc = kintegrate(h.kG, χm, 1)[1,:] 
-    χpp_loc = kintegrate(h.kG, χpp, 1)[1,:] 
     skip = 0
     tot = 0
     for (ωi, ωn) in enumerate(-sP.n_iω:sP.n_iω)
         nGrid = νnGrid_noShell(ωn, sP)
         for (νi, νn) in enumerate(nGrid)
             for (νpi, νpn) in enumerate(nGrid)
-                i1_pre = νpn - νn
-                i2_pre = νn + νn - 1 + ωn
-                i1 = (sP.n_iω + 1) + (i1_pre)  
-                i2 = (sP.n_iω + 1) + (i2_pre)  
-                h.Γ_d[νi, νpi, ωi] += (U^2/2) * get_val_or_zero(χd_loc,i1) + (3*U^2/2) * get_val_or_zero(χm_loc,i1) - (U^2) * get_val_or_zero(χpp_loc,i2) 
-                h.Γ_m[νi, νpi, ωi] += (U^2/2) * get_val_or_zero(χd_loc,i1) -   (U^2/2) * get_val_or_zero(χm_loc,i1) + (U^2) * get_val_or_zero(χpp_loc,i2) 
+                if abs(νn) > inner_cut && abs(νpn) > inner_cut 
+                    h.Γ_d[νi, νpi, ωi] =  U
+                    h.Γ_m[νi, νpi, ωi] = -U 
+                    νpn_m = MatsubaraIndex(νpn, Fermi)
+                    νn_m  = MatsubaraIndex(νn, Fermi)
+                    ωn_m  = MatsubaraIndex(ωn, Bose)
+                    i1_pre = νpn_m - νn_m
+                    i2_pre = νn_m + νpn_m + ωn_m
+                    i1 = (3*sP.n_iω + 0) + Integer(i1_pre)  
+                    i2 = (3*sP.n_iω + 0) + Integer(i2_pre)   
+                    h.Γ_d[νi, νpi, ωi] += (U^2) * get_val_or_zero(χd_loc,i1) + (3*U^2/2) * get_val_or_zero(χm_loc,i1) - (U^2) * get_val_or_zero(χpp_loc,i2) 
+                    h.Γ_m[νi, νpi, ωi] += (U^2) * get_val_or_zero(χd_loc,i1) -   (U^2/2) * get_val_or_zero(χm_loc,i1) + (U^2) * get_val_or_zero(χpp_loc,i2) 
+                end
             end
         end
     end
+    h.Γ_d = h.Γ_d/mP.β^2
+    h.Γ_m = h.Γ_m/mP.β^2
 end
 
 function run_AlDGA_convergence(cfg_file; eps=1e-12, maxit=100)
@@ -123,12 +127,17 @@ function run_AlDGA_convergence(cfg_file; eps=1e-12, maxit=100)
     Σ_ladder_it = nothing
     converged = false
     i = 0
+    @warn "χpp == χd forced!!!"
     while i < maxit && !converged
         χm_bak = deepcopy(χm.data) 
-            update_ΓAsym!(χm, χd, χd, sP, mP, AlDGAhelper_i)
-            bubble     = calc_bubble(:DMFT, AlDGAhelper_i);
-            χm, γm = calc_χγ(:m, AlDGAhelper_i, bubble; verbose=false);
-            χd, γd = calc_χγ(:d, AlDGAhelper_i, bubble; verbose=false);
+        bubble     = calc_bubble(:DMFT, AlDGAhelper_i);
+        χm, γm = calc_χγ(:m, AlDGAhelper_i, bubble; verbose=false);
+        χd, γd = calc_χγ(:d, AlDGAhelper_i, bubble; verbose=false);
+        χm_loc = kintegrate(AlDGAhelper_i.kG, χm, 1)[1,:] 
+        χd_loc = kintegrate(AlDGAhelper_i.kG, χd, 1)[1,:];
+            update_ΓAsym!(χm_loc, χd_loc, χd_loc, sP, mP, AlDGAhelper_i)
+            
+
             # λ₀ = calc_λ0(bubble_01, AlDGAhelper_01)
             λ₀ = -AlDGAhelper_i.mP.U .* deepcopy(core(bubble));
             converged_internal, μ_it, G_ladder_it, Σ_ladder_it, tr = LadderDGA.LambdaCorrection.run_sc(χm, γm, χd, γd, λ₀, 0.0, 0.0, AlDGAhelper;
