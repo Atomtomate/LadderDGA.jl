@@ -10,14 +10,16 @@
 
 
 """
-    λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
+    λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :native, PP_mode::Bool=true, verbose=false)
     λm_rhs(imp_density::Float64, χm::χT, χd::χT, λd::Float64, kG::KGrid, mP::ModelParameters, sP::SimulationParameters, λ_rhs = :native)
 
 Helper function for the right hand side of the Pauli principle conditions (λm correction).
 `imp_density` can be set to `NaN`, if the rhs (``\\frac{n}{2}(1-\\frac{n}{2})``) should not be error-corrected (not ncessary or usefull when asymptotic improvement are active).
-TODO: write down formula, explain imp_density as compensation to DMFT.
+`PP_mode=true` sets the correction mode to Pauli principle, i.e. the rhs is ``\\frac{n}{2}(1-\\frac{n}{2}) - \\sum_{\\omega\\} - \\chi^{\\lambda_\\mathrm{d},\\omega}_{d,q}``.
+`PP_mode=true` sets the correction mode to the correct ``\\Sigma``-Tail, i.e.~ the rhs picks up a factor ``\\frac{1}{3}``.
 """
-function λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :native, verbose=false)
+function λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs::Symbol = :native, PP_mode::Bool=true, 
+                    χloc_m_sum::Float64=h.χloc_m_sum, χloc_d_sum::Float64=h.χloc_d_sum, verbose::Bool=false)
     imp_density::Float64 = if typeof(h) === RPAHelper
         imp_density = NaN64
     elseif typeof(h) === lDΓAHelper
@@ -25,22 +27,31 @@ function λm_rhs(χm::χT, χd::χT, h::RunHelper; λd::Float64=NaN, λ_rhs = :n
     else
         error("RunHelper type not implemented!")
     end
-    λm_rhs(imp_density, χm, χd, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, verbose=verbose)
+    
+    return λm_rhs(imp_density, χm, χd, h.kG, h.mP, h.sP; λd=λd, λ_rhs=λ_rhs, PP_mode=PP_mode, χloc_m_sum=χloc_m_sum, χloc_d_sum=χloc_d_sum, verbose=verbose)
 end
 
-function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64 = NaN, λ_rhs::Symbol = :native, verbose::Bool = false)
+function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; λd::Float64 = NaN, λ_rhs::Symbol = :native, 
+            PP_mode::Bool=true, χloc_m_sum::Float64=NaN, χloc_d_sum::Float64=NaN, verbose::Bool = false)
     χd.λ != 0 && !isnan(λd) && error("Stopping λ rhs calculation: λd = $λd AND χd.λ = $(χd.λ). Reset χd.λ, or do not provide additional λ-correction for this function.")
+    !PP_mode && isnan(χloc_m_sum) && error("Tail Mode needs χloc_m_sum specified!")
     χd_sum = sum_kω(kG, χd, λ = λd)
-
     verbose && @info "λsp correction infos:"
-    rhs, PP_p1 = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
-        verbose && @info "  ↳ using n * (1 - n/2) - Σ χd as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
-        rhs_i = mP.n/2 * (1 - mP.n / 2)
-        rhs_i*2 - χd_sum,  rhs_i
+
+
+    rhs, PP_p1 = if !PP_mode 
+        verbose && @info "  ↳ using Σ χm_loc - (Σ χd - Σ χd_loc)/3 as rhs" 
+        χloc_m_sum - (χd_sum - χloc_d_sum)/3, NaN
     else
-        !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT rror compensation method"))
-        verbose && @info "  ↳ using χupup_DMFT - Σ χd as rhs"
-        2 * imp_density - χd_sum, imp_density
+        rhs, PP_p1 = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
+            verbose && @info "  ↳ using n * (1 - n/2) - Σ χd as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
+            rhs_i = mP.n/2 * (1 - mP.n / 2)
+            rhs_i*2 - χd_sum,  rhs_i
+        else
+            !isfinite(imp_density) && throw(ArgumentError("imp_density argument is not finite! Cannot use DMFT error compensation method"))
+            verbose && @info "  ↳ using χupup_DMFT - Σ χd as rhs"
+            2 * imp_density - χd_sum, imp_density
+        end
     end
 
     if verbose
@@ -53,16 +64,20 @@ function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelP
 end
 
 """
-    λm_correction(χm::χT,γm::γT,χd::χT,γd::γT,λ₀::λ₀T, h::lDΓAHelper;
-                  νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc = default_Σ_tail_correction(), 
-                  validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, 
-                  verbose=false, log_io= devnull
-"""
-function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
-                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(), λ_rhs::Symbol = :native, 
+    λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
+                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                       λ_rhs::Symbol = :native, 
                        validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose::Bool=false, log_io= devnull
 )
-    rhs,PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, verbose=verbose)
+
+TODO: documentation
+"""
+function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
+                       νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                       λ_rhs::Symbol = :native, 
+                       validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose::Bool=false, log_io= devnull
+)
+    rhs, PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, PP_mode=(tc != ΣTail_λm), verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
     return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, χd.λ, true, h; 
             tc = tc, PP_p1_val = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps)

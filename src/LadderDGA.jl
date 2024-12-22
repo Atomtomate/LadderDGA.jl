@@ -38,7 +38,7 @@ export readConfig, setup_LDGA, calc_bubble, calc_χγ, calc_Σ, calc_Σ_parts, c
 export calc_bubble_par, calc_χγ_par, initialize_EoM, calc_Σ_par, clear_wcache!
 export collect_χ₀, collect_χ, collect_γ, collect_Σ
 export λ_from_γ, F_from_χ, F_from_χ_gen, G_from_Σ, G_from_Σladder, calc_G_Σ, Σ_from_Gladder, attach_Σloc
-export ΣTail, ΣTail_Plain, ΣTail_Full, ΣTail_ExpStep, ΣTail_EoM
+export ΣTail, ΣTail_Plain, ΣTail_Full, ΣTail_ExpStep, ΣTail_EoM, ΣTail_λm
 
 # Asymptotic lDGA
 export setup_ALDGA

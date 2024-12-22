@@ -2,7 +2,7 @@
 
 julia_version = "1.11.1"
 manifest_format = "2.0"
-project_hash = "c6f167ee070e2a8ffe75ee1eabbc090ec87f04fc"
+project_hash = "31e591463be3031e470822c8d3a7ca2c312cef9d"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -621,6 +621,11 @@ deps = ["AbstractTrees", "Markdown"]
 git-tree-sha1 = "465a70f0fc7d443a00dcdc3267a497397b8a3899"
 uuid = "d0879d2d-cac2-40c8-9cee-1863dc0c7391"
 version = "0.1.2"
+
+[[deps.MatsubaraFrequencies]]
+git-tree-sha1 = "ab61a71368f067ef8cec92592c3d1875493e698b"
+uuid = "2a17635c-7d5f-4894-89fa-426d3bb0ba45"
+version = "1.1.0"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "NetworkOptions", "Random", "Sockets"]

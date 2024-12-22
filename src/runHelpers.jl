@@ -38,6 +38,7 @@ mutable struct lDΓAHelper <: RunHelper
     Γ_m::ΓT
     Γ_d::ΓT
     χloc_m_sum::Float64
+    χloc_d_sum::Float64
     χDMFT_m::Array{ComplexF64,3}
     χDMFT_d::Array{ComplexF64,3}
     χ_m_loc::χT
@@ -104,7 +105,7 @@ end
 
 
 # =========================================== Constructors ===========================================
-# -0-------------------------------------------- lDΓA ------------------------------------------------
+# ---------------------------------------------- lDΓA ------------------------------------------------
 """
     setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::SimulationParameters, env::EnvironmentVars [;silent=false])
 
@@ -166,11 +167,14 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
     F_m = F_from_χ(χDMFT_m, gImp[1, :], sP, mP.β)
     F_d = F_from_χ(χDMFT_d, gImp[1, :], sP, mP.β)
     ΣLoc_m, ΣLoc_d = calc_local_EoM(F_m, F_d, gImp[1, :], mP, sP)
-    local_EoM_check = abs.(0.5 .* (ΣLoc_m .+ ΣLoc_d) .- Σ_loc[axes(ΣLoc_m,1)])
+    ΣLoc_P2 = 0.5 .* (ΣLoc_m .+ ΣLoc_d)
+    local_EoM_check = abs.(ΣLoc_P2 .- Σ_loc[axes(ΣLoc_P2,1)])
+    local_EoM_check_rel = 100 .* abs.(ΣLoc_P2 .- Σ_loc[axes(ΣLoc_m,1)]) ./ (abs.(ΣLoc_P2) .+ abs.(Σ_loc[axes(ΣLoc_m,1)]))
     χ₀Loc = calc_bubble(:local, gImp, gImp, kGridLoc, mP, sP)
     χ_m_loc, γ_m_loc = calc_χγ(:m, Γ_m, χ₀Loc, kGridLoc, mP, sP)
     χ_d_loc, γ_d_loc = calc_χγ(:d, Γ_d, χ₀Loc, kGridLoc, mP, sP)
     λ₀Loc = calc_λ0(χ₀Loc, F_m, χ_m_loc, γ_m_loc, mP, sP)
+    χloc_d_sum = real(sum_ω(ωn_grid(χ_d_loc),χ_d_loc[1,:],χ_d_loc.tail_c, χ_d_loc.β)[1])
     χloc_m_sum = real(sum_ω(ωn_grid(χ_m_loc),χ_m_loc[1,:],χ_m_loc.tail_c, χ_m_loc.β)[1])
     Σ_ladderLoc = calc_Σ(χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χloc_m_sum, λ₀Loc, Σ_loc, gImp, kGridLoc, mP, sP, tc = ΣTail_Plain)
     any(isnan.(Σ_ladderLoc)) && @error "Σ_ladderLoc contains NaN"
@@ -214,7 +218,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Local susceptibilities with ranges are:
         χLoc_m($(usable_loc_m)) = $(printr_s(χLoc_m)), χLoc_d($(usable_loc_d)) = $(printr_s(χLoc_d))
         sum χupup check (plain ?≈? tail sub ?≈? imp_dens ?≈? n/2 (1-n/2)): $(imp_density_ntc) ?=? $(0.5 .* real(χLoc_m + χLoc_d)) ?≈? $(imp_density) ≟ $(mP.n/2 * ( 1 - mP.n/2))"
-    Local EoM check for the first 5 frequencies: $(printr_s(local_EoM_check[0])), $(printr_s(local_EoM_check[1])), $(printr_s(local_EoM_check[2])), $(printr_s(local_EoM_check[3])), $(printr_s(local_EoM_check[4]))  
+        Local EoM check for the first 5 frequencies: $(printr_s(local_EoM_check[0])) [$(printr_s(local_EoM_check_rel[0]))%], $(printr_s(local_EoM_check[1])) [$(printr_s(local_EoM_check_rel[1]))%], $(printr_s(local_EoM_check[2])) [$(printr_s(local_EoM_check_rel[2]))%], $(printr_s(local_EoM_check[3])) [$(printr_s(local_EoM_check_rel[3]))%], $(printr_s(local_EoM_check[4])) [$(printr_s(local_EoM_check_rel[4]))%]  
         """
 
 
@@ -229,7 +233,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         end
     end
 
-    return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, χloc_m_sum, χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
+    return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, χloc_m_sum, χloc_d_sum, χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
 end
 
 

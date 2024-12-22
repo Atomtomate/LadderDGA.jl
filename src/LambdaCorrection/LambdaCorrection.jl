@@ -10,7 +10,8 @@ using TimerOutputs
 using FiniteDifferences
 using Printf, Term
 
-import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..ΣTail, ..ΣTail_EoM, ..ΣTail_Full, ..ΣTail_ExpStep, ..ΣTail_Plain, ..eom_ν_cutoff, ..default_Σ_tail_correction
+import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..eom_ν_cutoff, ..default_Σ_tail_correction
+import ..ΣTail, ..ΣTail_EoM, ..ΣTail_Full, ..ΣTail_ExpStep, ..ΣTail_Plain, ..ΣTail_λm
 import ..sum_ω, ..sum_ω!, ..sum_kω, ..sum_ωk, ..subtract_tail, ..update_tail!, ..ω0_index, ..usable_ωindices, ..iν_array, ..ω2_tail, ..ωn_grid
 import ..G_from_Σ, ..G_fft, ..G_rfft!, ..G_from_Σladder!, ..G_from_Σladder, ..calc_G_Σ, ..calc_G_Σ!, ..calc_Σ, ..calc_Σ!, ..eom, ..eom_rpa
 import ..calc_E, ..PP_p1, ..PP_p2, ..EPot_p1, ..EPot_p2, ..EKin_p1, ..EKin_p2, ..EPot_p1_tail, ..EKin_p1_tail

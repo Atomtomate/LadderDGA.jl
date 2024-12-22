@@ -359,5 +359,5 @@ function calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::Sim
             end
         end
     end
-    return 0.5 .* ( mP.U .* ΣLoc_m/mP.β^2 .+ mP.U*mP.n/2, mP.U .* ΣLoc_d/mP.β^2 .+ mP.U*mP.n/2)
+    return  mP.U .* ΣLoc_m/mP.β^2 .+ mP.U*mP.n/2,  mP.U .* ΣLoc_d/mP.β^2 .+ mP.U*mP.n/2
 end

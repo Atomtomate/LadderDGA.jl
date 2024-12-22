@@ -43,7 +43,7 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
     iν = iν_array(h.mP.β, 0:(νmax-1))
 
     function f_c2_sc(λd_i::Float64)
-        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
+        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         converged, μ_new, G_ladder_it, Σ_ladder_it, _ = run_sc(χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
                             mixing=mixing, mixing_start_it=mixing_start_it,
@@ -66,7 +66,7 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
         end
     end
     #λd  = newton_mode_secular ? newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold) :  newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-7)
-    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd)
+    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     converged, μ_new, G_ladder_it, Σ_ladder_it, _ = run_sc(χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold, tc = tc)
     return λ_result(dm_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; PP_p1=PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
@@ -108,7 +108,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
 
     function f_c2_sc(λd_i::Float64)
         copyto!(G_rfft, h.gLoc_rfft)
-        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
+        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
         λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
                 χm, γm, χd, γd, λ₀, λm, λd_i, h; 
@@ -133,7 +133,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
         end
     end
     #λd  = newton_mode_secular ? newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold) :  newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-7)
-    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd)
+    rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
                     χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold,

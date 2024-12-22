@@ -71,6 +71,7 @@ mutable struct λ_result{T<:CorrectionMethod}
     n_dmft::Float64
     χm_sum::Float64
     χm_loc_sum::Float64 
+    #ΣTail_mode
 
     # TODO: this constructor is a placeholder in case I decide to move additional checks here (e.g. validate_X and include verbose flag)
     function λ_result(λm::Float64,λd::Float64, type::Type{T},
@@ -80,7 +81,8 @@ mutable struct λ_result{T<:CorrectionMethod}
                       G_ladder::Union{Nothing,OffsetMatrix},Σ_ladder::Union{Nothing,OffsetMatrix},μ::Float64,n::Float64,n_dmft::Float64,
                       χm_sum::Float64, χm_loc_sum::Float64 
     ) where {T<:CorrectionMethod}
-        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1_val,PP_p2_val,trace,G_ladder,Σ_ladder,μ,n,n_dmft,χm_sum,χm_loc_sum
+        new{T}(λm,λd,sc_converged,eps_abs,sc_eps_abs,EKin_p1,EKin_p2,EPot_p1,EPot_p2,PP_p1_val,PP_p2_val,trace,
+                G_ladder,Σ_ladder,μ,n,n_dmft,χm_sum,χm_loc_sum
         )
     end
 end
@@ -203,11 +205,11 @@ function Base.show(io::IO, m::λ_result{T}) where {T}
         rdiff_Ek = 100 * abs(m.EKin_p1 - m.EKin_p2)/abs(m.EKin_p1 + m.EKin_p2)
         rdiff_tail = 100 * abs(m.χm_sum - m.χm_loc_sum)/abs(m.χm_sum + m.χm_loc_sum)
 
-        rdiff_n_s = rdiff_n < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_n)) : @red(@sprintf("Δ = %2.4f%%",rdiff_n)) 
-        rdiff_pp_s = rdiff_pp < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_pp)) : @red(@sprintf("Δ = %2.4f%%",rdiff_pp)) 
-        rdiff_Ep_s = rdiff_Ep < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ep)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ep))
-        rdiff_Ek_s = rdiff_Ek < 1e-5 ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ek)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ek))
-        rdiff_tail_s = rdiff_Ek < 0.3 ? @green(@sprintf("Δ = %2.4f%%",rdiff_tail)) : @red(@sprintf("Δ = %2.4f%%",rdiff_tail))
+        rdiff_n_s = abs(m.n -  m.n_dmft) < m.eps_abs ? @green(@sprintf("Δ = %2.4f%%",rdiff_n)) : @red(@sprintf("Δ = %2.4f%%",rdiff_n)) 
+        rdiff_pp_s = abs(m.PP_p1 -  m.PP_p2) < m.eps_abs ? @green(@sprintf("Δ = %2.4f%%",rdiff_pp)) : @red(@sprintf("Δ = %2.4f%%",rdiff_pp)) 
+        rdiff_Ep_s = abs(m.EPot_p1 - m.EPot_p2) < m.eps_abs ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ep)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ep))
+        rdiff_Ek_s = abs(m.EKin_p1 - m.EKin_p2) < m.eps_abs ? @green(@sprintf("Δ = %2.4f%%",rdiff_Ek)) : @red(@sprintf("Δ = %2.4f%%",rdiff_Ek))
+        rdiff_tail_s = abs(m.χm_sum - m.χm_loc_sum) < m.eps_abs ? @green(@sprintf("Δ = %2.4f%%",rdiff_tail)) : @red(@sprintf("Δ = %2.4f%%",rdiff_tail))
         tprint(Panel(
             @sprintf("λm = %3.8f, λd = %3.8f, μ = %3.8f\n", m.λm, m.λd, m.μ) * 
             @sprintf("n      =  %3.8f,  n DMFT  =  %3.8f,  %s\n", m.n,  m.n_dmft, rdiff_n_s) * 

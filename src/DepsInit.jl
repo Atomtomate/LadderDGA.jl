@@ -34,7 +34,7 @@ using Printf, DelimitedFiles
 using Roots # Roots.jl for μ determination for now, may be replaced by NLsolve
 
 # lDGA related
-using MatsubaraFrequencies
+#using MatsubaraFrequencies
 using Dispersions
 using BSE_Asymptotics
 

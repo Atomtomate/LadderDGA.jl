@@ -7,6 +7,7 @@
 #   ladder DΓA related functions forthe calculation of the self energy                                 #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   There is a lot of code duplication due to new eom. Refactor!                                       #
+#   Plain and λm tail corrections to unnecessary operations by constructing a zero array!!             #
 # ==================================================================================================== #
 
 
@@ -27,6 +28,8 @@ abstract type ΣTail_Plain <: ΣTail end
 
 abstract type ΣTail_EoM <: ΣTail end
 
+abstract type ΣTail_λm <: ΣTail end
+
 """
     tail_factor(U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};
                 mode::ΣTail=default_Σ_tail_correction())::Vector{ComplexF64}
@@ -36,6 +39,11 @@ Calculates the tail factor for [`tail_correction_term`](@ref tail_correction_ter
 function tail_factor(::Type{ΣTail_Plain}, U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};)::Vector{ComplexF64}
     return 0.0 ./ iν
 end
+
+function tail_factor(::Type{ΣTail_λm}, U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};)::Vector{ComplexF64}
+    return 0.0 ./ iν
+end
+
 function tail_factor(::Type{ΣTail_Full}, U::Float64, β::Float64, n::Float64, Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64};)::Vector{ComplexF64}
     return - U^2 ./ iν
 end
@@ -74,7 +82,18 @@ function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float
     tf = tail_factor(mode, U, β, n, Σ_loc, iν)
     return tail_correction_term(χm_nl, χm_loc, tf)
 end
+function tail_correction_term(χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, tf::Vector{ComplexF64})::Matrix{ComplexF64}
+    return reshape((χm_nl - χm_loc + (χd_nl - χd_loc)/3) .* tf, 1, length(tf))
+end
 
+function tail_correction_term(U::Float64, β::Float64, n::Float64,
+                              χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, 
+                              Σ_loc::OffsetVector{ComplexF64}, iν::Vector{ComplexF64}; 
+                              mode::Type{<: ΣTail}=default_Σ_tail_correction())
+
+    tf = tail_factor(mode, U, β, n, Σ_loc, iν)
+    return tail_correction_term(χm_nl, χm_loc, χd_nl, χd_loc, tf)
+end
 
 # ==================================== Old Equation of Motion ========================================
 """
