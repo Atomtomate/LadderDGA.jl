@@ -7,7 +7,6 @@ using Dispersions
 using Roots
 using DataFrames
 using TimerOutputs
-using FiniteDifferences
 using Printf, Term
 
 import ..χT, ..γT, ..λ₀T, ..GνqT, ..KGrid, ..ModelParameters, ..SimulationParameters, ..eom_ν_cutoff, ..default_Σ_tail_correction

@@ -24,7 +24,7 @@ using LinearAlgebra
 using LinearMaps, Arpack            # for lin. Eliashberg eq. (largest/smallest EV)
 
 # UI 
-using Logging, LoggingExtras, Suppressor
+using Logging, LoggingExtras
 using Term
 import Term: install_term_logger
 
