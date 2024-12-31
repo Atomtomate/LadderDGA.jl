@@ -11,7 +11,7 @@
 """
     λdm_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(), PP_mode::Bool=true,
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM) , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
     )
 
@@ -22,7 +22,7 @@ TODO: document this.
 """
 function λdm_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(), 
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM) , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
     )       
     λm, λd = λdm_correction_val_clean(χm, γm, χd, γd,λ₀, h; νmax=νmax, fix_n = fix_n, tc = tc,
@@ -43,7 +43,7 @@ that stores additional consistency checks.
 """
 function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition())
     λd_min::Float64 = if !isnan(λd_min)
@@ -90,7 +90,7 @@ Returns a [`λ_result`](@ref λ_result) object.
 """
 function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
                         max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
     )       
@@ -121,7 +121,7 @@ that stores additional consistency checks.
 """
 function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true,tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition())::Tuple{Float64,Float64}
     ωn2_tail = ω2_tail(χm)

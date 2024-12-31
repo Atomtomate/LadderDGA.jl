@@ -17,8 +17,8 @@ end
 function check_done(fname, key)
     check= if isfile(fname) 
         jldopen(fname, "r") do f
-            if !isnothing(f["res_dm"])
-                abs(f["res_dm"].EPot_p1 .- f["res_dm"].EPot_p2) < f["res_dm"].eps_abs
+            if !isnothing(f[key])
+                abs(f[key].EPot_p1 .- f[key].EPot_p2) < f[key].eps_abs
             else
                 false
             end
@@ -117,13 +117,17 @@ function run(ARGS, tc)
         f["err_dm_tsc"] = nothing
     end
     res_dm_sc, err_dm_sc = if !check_done(fname, "res_dm_sc")
+        println("In sc !done")
         try
-            λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-2, tc=tc), nothing
+            a,b = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-2, tc=tc), nothing
+            println("done, $a \n $b")
+            a,b
         catch e 
             nothing, e
         end;
     else
         jldopen(fname, "r") do f
+            println("In sc done")
             f["res_dm_sc"], f["err_dm_sc"]
         end
     end

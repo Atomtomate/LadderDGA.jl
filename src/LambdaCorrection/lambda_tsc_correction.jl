@@ -16,7 +16,7 @@
 """
 function λdm_tsc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
                         dbg_roots_reset::Int=5,
@@ -36,7 +36,7 @@ end
 
 function λdm_tsc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                             νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                            use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
+                            use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-4,
                             validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, 
                             max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
                             dbg_roots_reset::Int=5,
