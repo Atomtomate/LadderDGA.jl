@@ -36,7 +36,13 @@ function readConfig(cfg_in::String)
         error("Unrecognized smoothing type \"$(smoothing)\"")
     end
     dbg_full_eom_omega = (haskey(tml["Debug"], "full_EoM_omega") && tml["Debug"]["full_EoM_omega"]) ? true : false
-    dbg_full_chi_omega = (haskey(tml["Debug"], "full_chi_omega") && tml["Debug"]["full_chi_omega"]) ? true : false
+    dbg_full_chi_omega = if haskey(tml["Debug"], "full_chi_omega") 
+            tml["Debug"]["full_chi_omega"]
+            else
+                val = lowercase(sim["chi_asympt_method"]) != "nothing" ? true : false
+                @warn "[Debug] full_chi_omega setting not found. Assuming $val"
+                val
+            end
 
     input_dir = if isabspath(tml["Environment"]["inputDir"])
         tml["Environment"]["inputDir"]
@@ -75,7 +81,7 @@ function readConfig(cfg_in::String)
             Vk
         end
     else
-        @warn "No DMFT input file found. Proceeding from I/O without further input and hardocded 10 frequencies."
+        @warn "No DMFT input file found $(env.inputVars). Proceeding from I/O without further input and hardocded 10 frequencies."
         U = modelVars["U"]
         β = modelVars["beta"]
         nden = modelVars["density"]

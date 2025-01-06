@@ -109,11 +109,8 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
 
     Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
-    tail_bak_m = χm.tail_c;
-    tail_bak_d = χd.tail_c;
     if type === m_tscCorrection || type === dm_tscCorrection
-        update_tail!(χm, [0, 0, Ekin_p1])
-        update_tail!(χd, [0, 0, Ekin_p1])
+        error("$type not implemented")
     end
     χm_sum = sum_kω(h.kG, χm, λ = λm)
     χd_sum = sum_kω(h.kG, χd, λ = λd)
@@ -123,8 +120,7 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
     Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
     ndens = filling_pos(G_ladder[:,νFitRange], h.kG, h.mP.U, μ_new, h.mP.β, improved_sum=true)
     if type === m_tscCorrection || type === dm_tscCorrection
-        update_tail!(χm, tail_bak_m)
-        update_tail!(χd, tail_bak_d)
+        error("$type not implemented")
     end
     return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1_val, PP_p2_val, 
                     nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n, χm_sum, h.χloc_m_sum)

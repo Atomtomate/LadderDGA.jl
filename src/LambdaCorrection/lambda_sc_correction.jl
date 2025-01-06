@@ -11,22 +11,22 @@
 """
     λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
+                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 100.0, λd_δ::Float64 = 1e-2,
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 500, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
                         dbg_roots_reset::Int=5,
-                        max_steps_dm::Int = 2000,log_io = devnull, RF_Method=Roots.FalsePosition(), 
+                        max_steps_dm::Int = 500,log_io = devnull, RF_Method=Roots.FalsePosition(), 
                         verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)
 
 Runs partial self-consistency loop (update of propagators in equation of motion) within [`λdm correction`](@ref λdm_correction)
 """
 function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
+                        use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 100.0, λd_δ::Float64 = 1e-2,
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 1000, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
-                        dbg_roots_reset::Int=5,
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition(), 
+                        dbg_roots_reset::Int=4,
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition(), 
                         verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)
 
     λd_min::Float64 = if !isnan(λd_min)
@@ -56,12 +56,30 @@ function λdm_sc_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ
     end    
 
     λd  = NaN
-    for i in 1:dbg_roots_reset
+    i = 1
+    done = false 
+    λd_max_list = union([λd_max],
+                        [λd_max + i * λd_max   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        [λd_max - i * λd_max/(dbg_roots_reset)   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        )
+
+    while !done && i <= dbg_roots_reset+2 
         try
-            λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
-            break
+            i += 1
+            if i <= dbg_roots_reset
+                λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+                done = true
+            elseif i == dbg_roots_reset+1
+                @warn "Ran out of root resets, trying Newton_Secular"
+                λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+                done = true
+            else
+                @warn "Ran out of root resets, trying Newton_Right"
+                λd = newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                done = true
+            end
         catch e
-            @warn "Caught error" e
+            @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
             @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
         end
     end
@@ -75,10 +93,10 @@ end
 
 function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, 
+                        use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 100.0, λd_δ::Float64 = 1e-2,
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 1000, max_steps_dm::Int = 500, 
                         max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
-                        dbg_roots_reset::Int=5,
+                        dbg_roots_reset::Int=4,
                         log_io = devnull, RF_Method=Roots.FalsePosition(), verbose::Bool=false, verbose_sc::Bool=false, trace=nothing)       
 
     λd_min::Float64 = if !isnan(λd_min)
@@ -123,12 +141,30 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     end    
 
     λd  = NaN
-    for i in 1:dbg_roots_reset
+    i = 1
+    done = false 
+    λd_max_list = union([λd_max],
+                        [λd_max + i * λd_max   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        [λd_max - i * λd_max/(dbg_roots_reset)   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        )
+
+    while !done && i <= dbg_roots_reset+2 
         try
-            λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
-            break
+            i += 1
+            if i <= dbg_roots_reset
+                λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+                done = true
+            elseif i == dbg_roots_reset+1
+                @warn "Ran out of root resets, trying Newton_Secular"
+                λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+                done = true
+            else
+                @warn "Ran out of root resets, trying Newton_Right"
+                λd = newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                done = true
+            end
         catch e
-            @warn "Caught error" e
+            @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
             @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
         end
     end

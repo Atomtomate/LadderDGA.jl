@@ -12,7 +12,7 @@
     λdm_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(), PP_mode::Bool=true,
                         use_trivial_λmin::Bool = true , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition()
     )
 
 
@@ -23,7 +23,7 @@ TODO: document this.
 function λdm_correction_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(), 
                         use_trivial_λmin::Bool = true , λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition()
     )       
     λm, λd = λdm_correction_val_clean(χm, γm, χd, γd,λ₀, h; νmax=νmax, fix_n = fix_n, tc = tc,
                 use_trivial_λmin=use_trivial_λmin, λd_min=λd_min, λd_max=λd_max, λd_δ=λd_δ,
@@ -34,7 +34,7 @@ end
 
 """
     λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::Array{ComplexF64,3}, h;
-                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 2000, log_io = devnull
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, max_steps_dm::Int = 500, log_io = devnull
     )
 
 Computes the `λm` and `λd` parameters for the consistency of Pauli principle and potential energie on one- and two-particle level.
@@ -45,7 +45,7 @@ function λdm_correction_val_clean(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::�
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition())
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition())
     λd_min::Float64 = if !isnan(λd_min)
         λd_min
     else
@@ -82,7 +82,7 @@ end
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition()
     )  
 
 Computes the `λm` and `λd` parameters for the consistency of Pauli principle and potential energie on one- and two-particle level.
@@ -92,11 +92,12 @@ function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
+                        dbg_roots_reset::Int=4,
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition()
     )       
     λm, λd = λdm_correction_val(χm, γm, χd, γd, λ₀, h; fix_n = fix_n, tc=tc,
                 use_trivial_λmin=use_trivial_λmin, λd_min=λd_min, λd_max=λd_max, λd_δ=λd_δ,
-                validation_threshold = validation_threshold, max_steps_m = max_steps_m,
+                validation_threshold = validation_threshold, max_steps_m = max_steps_m, dbg_roots_reset=dbg_roots_reset,
                 max_steps_dm = max_steps_dm, log_io = log_io, RF_Method=RF_Method)     
     return λ_result(dmCorrection, χm, γm, χd, γd, λ₀, λm, λd, true, h; νmax=νmax, tc=tc, validation_threshold = validation_threshold, max_steps_m = max_steps_m, fix_n = fix_n)
 end
@@ -106,14 +107,14 @@ end
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = (tc === ΣTail_EoM), λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition()
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition()
     )::Tuple{Float64,Float64}
 
     λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true,tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = (tc === ΣTail_EoM),  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition())::Tuple{Float64,Float64}
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition())::Tuple{Float64,Float64}
 
 Computes the `λm` and `λd` parameters for the consistency of Pauli principle and potential energie on one- and two-particle level.
 Returns the bare λ-values, usually one should run [`λdm_correction`](@ref λdm_correction), which returns a [`λ_result`](@ref λ_result) object 
@@ -121,9 +122,10 @@ that stores additional consistency checks.
 """
 function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true,tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                        use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
+                        use_trivial_λmin::Bool = true,  λd_min::Float64 = NaN, λd_max::Float64 = 100.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, 
-                        max_steps_dm::Int = 2000, log_io = devnull, RF_Method=Roots.FalsePosition())::Tuple{Float64,Float64}
+                        dbg_roots_reset::Int=4,
+                        max_steps_dm::Int = 500, log_io = devnull, RF_Method=Roots.FalsePosition())::Tuple{Float64,Float64}
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
     
@@ -159,7 +161,33 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     end
         
     #λd  = newton_right(f_c2, λd_min+10.0, λd_min+1e-3)
-    λd  = find_zero(f_c2, (λd_min + λd_δ, λd_max), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+    λd  = NaN
+    i = 1
+    done = false 
+    λd_max_list = union([λd_max],
+                        [λd_max + i * λd_max   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        [λd_max - i * λd_max/(dbg_roots_reset)   for i in 1:trunc(Int,dbg_roots_reset/2)],
+                        )
+    while !done && i <= dbg_roots_reset+2 
+        try
+            i += 1
+            if i <= dbg_roots_reset
+                λd = find_zero(f_c2, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
+                done = true
+            elseif i == dbg_roots_reset+1
+                @warn "Ran out of root resets, Newton_Right failed, trying Newton_Secular"
+                λd = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+                done = true
+            else
+                @warn "Ran out of root resets, trying Newton_Right"
+                λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                done = true
+            end
+        catch e
+            @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
+            @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
+        end
+    end
     rhs,_ = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
     return λm, λd

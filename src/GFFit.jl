@@ -42,6 +42,7 @@ function find_usable_χ_interval(
     elseif typeof(sum_type) == Tuple{Int,Int}
         return sum_type[1]:sum_type[2]
     end
+    @warn "The find_usable_range function should not be used below the DMFT phase transition. PLEASE FIX THIS!"
     χ_ω[mid_index] < 0.0 && return [mid_index]
 
     darr = diff(χ_ω; dims = 1)
