@@ -86,7 +86,7 @@ given as ``\\lambda_\\text{min} = - \\min_{q}(1 / \\chi^{\\omega_0}_q)``.
 """
 function get_λ_min(χr::AbstractArray{Float64,2})::Float64
     nh = ω0_index(χr)
-    -1 / maximum(view(χr, :, nh))
+    - minimum(1 ./ view(χr, :, nh))
 end
 
 

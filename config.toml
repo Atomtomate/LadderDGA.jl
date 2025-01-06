@@ -12,8 +12,8 @@ omega_smoothing = "nothing"             # nothing, range, full. Smoothes data af
 
 
 [Environment]
-inputDir = "D:/Downloads"              # absolute path to input dir
-inputVars = "b20.0_mu0.4.jld2"
+inputDir = "D:/"              # absolute path to input dir
+inputVars = "b20_mu1.0.jld2"
 logfile = "stderr"                      # STDOUT, STDERR, filename
 
 # WARNING: DO NOT TOUCH ANY ENVIRONMENT PARAMETERS BELOW UNLESS YOU KNOW WHAT YOU ARE DOING!!!!

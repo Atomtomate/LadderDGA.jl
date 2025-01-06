@@ -39,11 +39,11 @@ function readConfig(cfg_in::String)
     dbg_full_chi_omega = if haskey(tml["Debug"], "full_chi_omega") 
             tml["Debug"]["full_chi_omega"]
             else
-                val = lowercase(sim["chi_asympt_method"]) != "nothing" ? true : false
+                val = lowercase(sim["chi_asympt_method"]) != "nothing" ? false : true
                 @warn "[Debug] full_chi_omega setting not found. Assuming $val"
                 val
-            end
-
+    end
+    dbg_full_chi_omega && @warn "Setting dbg_full_chi_omega = true can cause the magnetic correction to yield wrong results!!"
     input_dir = if isabspath(tml["Environment"]["inputDir"])
         tml["Environment"]["inputDir"]
     else

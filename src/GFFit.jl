@@ -42,12 +42,14 @@ function find_usable_χ_interval(
     elseif typeof(sum_type) == Tuple{Int,Int}
         return sum_type[1]:sum_type[2]
     end
-    @warn "The find_usable_range function should not be used below the DMFT phase transition. PLEASE FIX THIS!"
-    χ_ω[mid_index] < 0.0 && return [mid_index]
+    @warn "The find_usable_range function should not be used carefully the DMFT phase transition. PLEASE FIX THIS!"
+    #χ_ω[mid_index] < 0.0 && return [mid_index]
 
+    innermost_can_be_negative = zeros(length(χ_ω))
+    innermost_can_be_negative[mid_index-1:mid_index+1] .= true
     darr = diff(χ_ω; dims = 1)
     # find range for positive values
-    cond_1 = χ_ω .> 0
+    cond_1 = χ_ω .> 0 .|| innermost_can_be_negative
     # find range for monotonic condition
     cond_2 = vcat(darr[1:mid_index-1] .> 0, [1,1], darr[mid_index+1:end] .< 0)
     usable_interval = cond_1 .&& cond_2

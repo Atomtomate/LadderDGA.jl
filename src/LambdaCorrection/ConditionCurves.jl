@@ -17,7 +17,7 @@ See also [`sample_f`](@ref sample_f) for a description of the numerical paramete
 """
 function PPCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; λd::Float64=0.0,
                     tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
-                    λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
+                    λmin::Float64=get_λ_min(χm), λmax::Float64=30.0, verbose::Bool = false)
     χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
     rhs,_ = λm_rhs(χm, χd, h; λd=λd)
     ωn2_tail = ω2_tail(χm)
