@@ -41,7 +41,9 @@ function λm_rhs(imp_density::Float64, χm::χT, χd::χT, kG::KGrid, mP::ModelP
 
     rhs, PP_p1 = if !PP_mode 
         verbose && @info "  ↳ using Σ χm_loc - (Σ χd - Σ χd_loc)/3 as rhs" 
-        χloc_m_sum - (χd_sum - χloc_d_sum)/3, NaN
+        #χloc_m_sum - (χd_sum - χloc_d_sum)/3, NaN
+        rhs_i = mP.n/2 * (1 - mP.n / 2)
+        (2 * rhs_i - χd_sum) / 3,  rhs_i
     else
         rhs, PP_p1 = if (((typeof(sP.χ_helper) != Nothing) && λ_rhs == :native) || λ_rhs == :fixed)
             verbose && @info "  ↳ using n * (1 - n/2) - Σ χd as rhs" # As far as I can see, the factor 1/2 has been canceled on both sides of the equation for the Pauli principle => update output
@@ -74,10 +76,10 @@ TODO: documentation
 """
 function λm_correction(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
                        νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
-                       λ_rhs::Symbol = :native, 
+                       λ_rhs::Symbol = :native, PP_mode=(tc != ΣTail_λm),
                        validation_threshold::Float64 = 1e-8, max_steps::Int = 2000, verbose::Bool=false, log_io= devnull
 )
-    rhs, PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, PP_mode=(tc != ΣTail_λm), verbose=verbose)
+    rhs, PP_p1 = λm_rhs(χm, χd, h; λ_rhs = λ_rhs, PP_mode=PP_mode, verbose=verbose)
     λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps, eps=validation_threshold)
     return λ_result(mCorrection, χm, γm, χd, γd, λ₀, λm, χd.λ, true, h; 
             tc = tc, PP_p1_val = PP_p1, validation_threshold = validation_threshold, max_steps_m = max_steps)
@@ -116,28 +118,6 @@ function λm_correction_val(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector
 
     f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = χ_λ(x, λint))) - rhs
     df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = dχ_λ(x, λint)))
-    λm = newton_secular(f_c1, df_c1, λm_min; nsteps=max_steps, atol=eps)
-    return λm
-end
-
-"""
-    λm_correction_val2
-
-This is just for testing purposes
-"""
-function λm_correction_val2(χm::χT, rhs::Float64, h; 
-                           max_steps::Int=1000, eps::Float64=1e-8)
-    ωn2_tail = ω2_tail(χm)
-    λm_correction_val2(χm, rhs, h.kG, ωn2_tail; max_steps=max_steps, eps=eps)
-end
-
-function λm_correction_val2(χm::χT, rhs::Float64, kG::KGrid, ωn2_tail::Vector{Float64}; 
-                           max_steps::Int=1000, eps::Float64=1e-8)
-    λm_min = get_λ_min(χm)
-    χr::SubArray{Float64,2} = view(χm, :, χm.usable_ω)
-
-    f_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = 1.5 * χ_λ(x, λint))) - rhs
-    df_c1(λint::Float64)::Float64 = sum_kω(kG, χr, χm.β, χm.tail_c[3], ωn2_tail; transform = (f(x::Float64)::Float64 = 1.5 * dχ_λ(x, λint)))
     λm = newton_secular(f_c1, df_c1, λm_min; nsteps=max_steps, atol=eps)
     return λm
 end

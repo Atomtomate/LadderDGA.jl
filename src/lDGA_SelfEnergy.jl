@@ -96,6 +96,36 @@ function tail_correction_term(U::Float64, β::Float64, n::Float64,
 end
 
 # ==================================== Old Equation of Motion ========================================
+# -------------------------------------------- EoM: Defs ---------------------------------------------
+@inline eom_rpa(U::Float64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = 0.5 * (U^2.0) * ( χ_d + 3.0 * χ_m) + U * λ₀
+@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
+@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
+@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
+@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
+@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
+
+
+@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
+
+@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
+@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
+@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
+@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
+@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
+
+@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
+
+
 """
     calc_Σ(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h::lDΓAHelper;
            νmax=eom_ν_cutoff(h), λm::Float64=0.0, λd::Float64=0.0, tc::ΣTail=default_Σ_tail_correction())
@@ -265,8 +295,9 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
     tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
-    
     tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
+    #tc_factor_test = tail_correction_term(χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, tc_factor)
+    println(size(tc_term))
     calc_Σ!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
     calc_Σ!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
@@ -280,7 +311,7 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     calc_Σ!(eom_rest, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 6] = Σ_ladder_i ./ mP.β .+ Σ_hartree
     for qi in axes(Σ_ladder, 1)
-        Σ_ladder.parent[qi, :, 7] .= tc_term[1,:]
+        Σ_ladder.parent[qi, :, 7] .= size(tc_term,2) > 0 ? tc_term[1,:] : 0.0
     end
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
