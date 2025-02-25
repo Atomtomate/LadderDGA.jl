@@ -39,6 +39,7 @@ BSE_Asymptotics = "2.4.0"
 DataFrames = "1.7.0"
 Dispersions = "1.0.1"
 EquivalenceClassesConstructor = "0.5.5"
+JLD2 = "0.5.11"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
