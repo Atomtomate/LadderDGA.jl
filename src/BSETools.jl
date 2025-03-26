@@ -248,7 +248,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     
     for qi in qi_range
         for ωm in ωm_range
-            ωi = ωm + sP.n_iω + 1
+            ωi =  ωm + sP.n_iω + 1
             χννpω[:, :] = deepcopy(Γr[:, :, ωi])
             for l in νi_range
                 χννpω[l, l] += 1.0 / χ₀.data[qi, χ₀.ν_shell_size+l, ωi]
@@ -274,7 +274,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             if ω_symmetric && ωm > 0
                 ωi_mirror =  sP.n_iω + 1 - ωm
                 χ[qi, ωi_mirror] = χ[qi, ωi]
-                γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi_mirror]))
+                γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi]))
             end
         end
         #TODO: write macro/function for ths "real view" beware of performance hits
