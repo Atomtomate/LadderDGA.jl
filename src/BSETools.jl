@@ -53,12 +53,12 @@ function F_from_χ(
     F = similar(χ)
     for ωi = 1:size(F, 3)
         for νpi = 1:size(F, 2)
-            ωn, νpn = OneToIndex_to_Freq(ωi, νpi, sP)
+            ωm, νpn = OneToIndex_to_Freq(ωi, νpi, sP)
             for νi = 1:size(F, 1)
                 _, νn = OneToIndex_to_Freq(ωi, νi, sP)
                 F[νi, νpi, ωi] =
-                    -(χ[νi, νpi, ωi] + (νn == νpn && diag_term) * β * G[νn] * G[ωn+νn]) /
-                    (G[νn] * G[ωn+νn] * G[νpn] * G[ωn+νpn])
+                    -(χ[νi, νpi, ωi] + (νn == νpn && diag_term) * β * G[νn] * G[ωm+νn]) /
+                    (G[νn] * G[ωm+νn] * G[νpn] * G[ωm+νpn])
             end
         end
     end
@@ -165,31 +165,31 @@ function calc_bubble(
     #TODO: fix the size (BSE_SC inconsistency)
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2 * (sP.n_iν + sP.n_iν_shell), 2 * sP.n_iω + 1)
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gImp
-    function conv_function!(νi::Int, νn::Int, ωi::Int, ωn::Int)
+    function conv_function!(νi::Int, νn::Int, ωi::Int, ωm::Int)
         if mode == :ph
-            conv_fft!(kG, view(data, :, νi, ωi), selectdim(Gνω, νdim, νn), selectdim(Gνω_r, νdim, ωn + νn))
+            conv_fft!(kG, view(data, :, νi, ωi), selectdim(Gνω, νdim, νn), selectdim(Gνω_r, νdim, ωm + νn))
         elseif mode == :pp
             conv_fft!(
                 kG,
                 view(data, :, νi, ωi),
                 selectdim(Gνω, νdim, νn),
-                selectdim(Gνω, νdim, ωn - νn);
+                selectdim(Gνω, νdim, ωm - νn);
                 crosscorrelation = false,
             )
         else
             error("Unkown mode $mode for bubble calculation. Options are :ph and :pp.")
         end
     end
-    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim, ωn+νn))
+    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim, ωm+νn))
     # elseif mode == :pp
-    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω  ,νdim, ωn-νn); crosscorrelation=false)
+    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω  ,νdim, ωm-νn); crosscorrelation=false)
 
 
-    for (ωi, ωn) in enumerate(-sP.n_iω:sP.n_iω)
-        νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωn / 2)
+    for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
+        νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωm / 2)
         #TODO: fix the offset (BSE_SC inconsistency)
         for (νi, νn) in enumerate(νrange)
-            conv_function!(νi, νn, ωi, ωn)
+            conv_function!(νi, νn, ωi, ωm)
             data[:, νi, ωi] .*= -mP.β
         end
     end
@@ -217,7 +217,7 @@ function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ�
     calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose)
 end
 
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true)
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true, ω_symmetric::Bool=false)
     #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
     #TODO: χ₀ should know about its tail c2, c3
     s = if type == :d
@@ -231,6 +231,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     Nν = 2 * sP.n_iν
     Nq = length(kG.kMult)
     Nω = size(χ₀.data, χ₀.axis_types[:ω])
+    ωm_range = ω_symmetric ? (0:(sP.n_iω)) : ((-sP.n_iω):(sP.n_iω))
     #TODO: use predifened ranks for Nq,... cleanup definitions
     γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
     χ = Array{Float64,2}(undef, Nq, Nω)
@@ -244,8 +245,10 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     work = _gen_inv_work_arr(χννpω, ipiv)
     λ_cache = Array{eltype(χννpω),1}(undef, Nν)
 
-    for (ωi, ωn) in enumerate(-sP.n_iω:sP.n_iω)
-        for qi in qi_range
+    
+    for qi in qi_range
+        for ωm in ωm_range
+            ωi = ωm + sP.n_iω + 1
             χννpω[:, :] = deepcopy(Γr[:, :, ωi])
             for l in νi_range
                 χννpω[l, l] += 1.0 / χ₀.data[qi, χ₀.ν_shell_size+l, ωi]
@@ -253,7 +256,7 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
             inv!(χννpω, ipiv, work)
             if typeof(sP.χ_helper) <: BSE_Asym_Helpers
                 χ[qi, ωi] = real(
-                    calc_χλ_impr!(λ_cache, type, ωn, χννpω, 
+                    calc_χλ_impr!(λ_cache, type, ωm, χννpω, 
                                   view(χ₀.data, qi, :, ωi), mP.U, mP.β,
                                   χ₀.asym[qi, ωi], sP.χ_helper,
                     ),
@@ -268,11 +271,20 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
                     γ[qi, νk, ωi] = sum(view(χννpω, :, νk)) / (χ₀.data[qi, νk, ωi] * (1.0 + s * mP.U * χ[qi, ωi]))
                 end
             end
+            if ω_symmetric && ωm > 0
+                ωi_mirror =  sP.n_iω + 1 - ωm
+                χ[qi, ωi_mirror] = χ[qi, ωi]
+                γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi_mirror]))
+            end
         end
         #TODO: write macro/function for ths "real view" beware of performance hits
         #v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
+    end
+
+    for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
         v = view(χ, :, ωi)
         χ_ω[ωi] = kintegrate(kG, v)
+
     end
     log_q0_χ_check(kG, sP, χ, type; verbose=verbose)
     usable_ω = find_usable_χ_interval(real.(χ_ω), reduce_range_prct=sP.usable_prct_reduction)
