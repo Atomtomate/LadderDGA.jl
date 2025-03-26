@@ -45,7 +45,7 @@ function find_usable_χ_interval(
     @warn "The find_usable_range function should not be used carefully the DMFT phase transition. PLEASE FIX THIS!"
     #χ_ω[mid_index] < 0.0 && return [mid_index]
 
-    innermost_can_be_negative = zeros(length(χ_ω))
+    innermost_can_be_negative = falses(length(χ_ω))
     innermost_can_be_negative[mid_index-1:mid_index+1] .= true
     darr = diff(χ_ω; dims = 1)
     # find range for positive values

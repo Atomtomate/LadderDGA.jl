@@ -213,8 +213,8 @@ This method solves the following equation:
 \\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
 ``
 """
-function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true)
-    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose)
+function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false)
+    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose, ω_symmetric=ω_symmetric)
 end
 
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true, ω_symmetric::Bool=false)
@@ -284,7 +284,6 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
         v = view(χ, :, ωi)
         χ_ω[ωi] = kintegrate(kG, v)
-
     end
     log_q0_χ_check(kG, sP, χ, type; verbose=verbose)
     usable_ω = find_usable_χ_interval(real.(χ_ω), reduce_range_prct=sP.usable_prct_reduction)
