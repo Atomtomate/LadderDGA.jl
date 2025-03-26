@@ -271,11 +271,11 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
                     γ[qi, νk, ωi] = sum(view(χννpω, :, νk)) / (χ₀.data[qi, νk, ωi] * (1.0 + s * mP.U * χ[qi, ωi]))
                 end
             end
-        end
-        if ω_symmetric && ωm > 0
-            ωi_mirror =  sP.n_iω + 1 - ωm
-            χ[qi, ωi_mirror] = χ[qi, ωi]
-            γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi_mirror]))
+            if ω_symmetric && ωm > 0
+                ωi_mirror =  sP.n_iω + 1 - ωm
+                χ[qi, ωi_mirror] = χ[qi, ωi]
+                γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi_mirror]))
+            end
         end
         #TODO: write macro/function for ths "real view" beware of performance hits
         #v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
