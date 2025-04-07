@@ -172,6 +172,7 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
         try
             i += 1
             if i <= dbg_roots_reset
+                i > 1 && @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
                 λd = find_zero(f_c2, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
                 done = true
             elseif i == dbg_roots_reset+1
@@ -179,16 +180,24 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
                 λd = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
                 done = true
             else
-                @warn "Ran out of root resets, trying Newton_Right"
-                λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
-                done = true
+                done = true         
+                @error "Ran Out of root finding methods!"
+                #@warn "Ran out of root resets, trying Newton_Right"
+                #λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                #done = true
             end
         catch e
-            @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
-            @warn "Roots.find_zero sometimes failes due to numerical instability. Reseting $(dbg_roots_reset-i) more times"
+            @error "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
+            @error "Setting λd = 0!"
+            λd = 0.0
         end
     end
-    rhs,_ = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
-    λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
+    λm = if isfinite(λd) && λd > λd_min
+        rhs,_ = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
+        λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
+    else
+        NaN
+    end
+    
     return λm, λd
 end

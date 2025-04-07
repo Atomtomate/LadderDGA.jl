@@ -99,8 +99,14 @@ function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{Comp
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
                   νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1_val = NaN,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, fix_n::Bool=true)
-    μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = fix_n)
-    λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1_val = PP_p1_val, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    if isfinite(λm) && isfinite(λd)
+        μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = fix_n)
+        λ_result(type, χm, χd, μ_new, G_ladder, Σ_ladder, λm, λd, sc_converged, h; PP_p1_val = PP_p1_val, validation_threshold = validation_threshold, max_steps_m = max_steps_m)
+    else
+        NaN, nothing, nothing
+        λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, NaN, NaN, NaN, NaN, NaN, NaN, 
+                    nothing, nothing, nothing, NaN, NaN, h.mP.n, NaN, h.χloc_m_sum)
+    end
 end
 
 function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladder, 
@@ -114,7 +120,7 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
     end
     χm_sum = sum_kω(h.kG, χm, λ = λm)
     χd_sum = sum_kω(h.kG, χd, λ = λd)
-    PP_p1_val  = isnan(PP_p1_val) ? h.mP.n / 2 * (1 - h.mP.n / 2) : PP_p1_val
+    PP_p1_val  = PP_p1_val
     PP_p2_val  = real(χd_sum + χm_sum) / 2
     Ekin_p2 = χm.tail_c[3]
     Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
