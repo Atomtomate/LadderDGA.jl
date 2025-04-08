@@ -29,13 +29,12 @@ function check_and_load(fname, key, err_key, dm_method)
                 res = f[key]
                 ep = abs(res.EPot_p1 .- res.EPot_p2) < res.eps_abs
                 pp = abs(res.PP_p1 .- res.PP_p2) < res.eps_abs
+                χd = f["chi_m"]
+                χm = f["chi_d"]
                 nh = ω0_index(χm)
-                χd = fname["chi_m"]
-                χm = fname["chi_d"]
                 positive_m = all(χ_λ(χm, res.λm)[:, nh] .> 0)  
                 positive_d = all(χ_λ(χd, res.λd)[:, nh] .> 0)
                 check = dm_method ? (ep && pp && positive_m && positive_d) : (pp && positive_m, res)
-                println("DBG: ", keys(f))
                 check, f[key], f[err_key]
             else
                 false, nothing, nothing
@@ -69,6 +68,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     err_m_sc = nothing
     dm_done, res_dm, err_dm = check_and_load(fname, "res_dm", "err_dm", true)
     dmsc_done, res_dm_sc, err_dm_sc = check_and_load(fname, "res_dm_sc", "err_dm_sc", true)
+    msc_done, res_m_sc, err_m_sc = check_and_load(fname, "res_m_sc", "err_m_sc", false)
     
 
     bubble = calc_bubble(:DMFT, lDGAhelper);
@@ -165,7 +165,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     end
     if !dm_done
         try 
-            res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λd_δ=1e-1, tc=tc, λd_max=40.0)
+            res_dm = λdm_correction(χm, γm, χd, γd, λ₀, lDGAhelper; λd_δ=1e-1, tc=tc, λd_max=200.0)
             err_dm = nothing
         catch e 
             res_dm = nothing
@@ -201,7 +201,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     end
     if !dmsc_done
         try
-            res_dm_sc = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-1, tc=tc, λd_max=30.0)
+            res_dm_sc = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=250, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-1, tc=tc, λd_max=200.0)
             err_dm_sc = nothing
         catch e 
             res_dm_sc = nothing
