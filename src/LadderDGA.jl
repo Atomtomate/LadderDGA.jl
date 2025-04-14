@@ -26,7 +26,7 @@ export Freq_to_OneToIndex, OneToIndex_to_Freq
 export addprocs
 
 # BSE helper functions
-export F_from_χ, calc_local_EoM 
+export F_from_χ, calc_local_EoM, check_χ_health, fix_χr, fix_χr!
 
 # GF Helper Functions
 ω2_tail, G_from_Σ, G_from_Σladder, Σ_loc_correction, calc_G_Σ, iν_array, iω_array

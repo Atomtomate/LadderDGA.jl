@@ -88,7 +88,7 @@ end
 Computes the `λm` and `λd` parameters for the consistency of Pauli principle and potential energie on one- and two-particle level.
 Returns a [`λ_result`](@ref λ_result) object.
 """
-function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
+function λdm_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
                         νmax::Int = eom_ν_cutoff(h), fix_n::Bool = true, tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                         use_trivial_λmin::Bool = true, λd_min::Float64 = NaN, λd_max::Float64 = 200.0, λd_δ::Float64 = 1e-2,
                         validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000,

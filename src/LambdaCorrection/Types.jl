@@ -97,7 +97,7 @@ Constructs λ_result object, runs all checks and stores them.
 """
 function λ_result(type, χm::χT,γm::γT,χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1_val = NaN,
+                  νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail}=default_Σ_tail_correction(), PP_p1_val = h.mP.n * (1 - h.mP.n / 2) / 2,
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000, fix_n::Bool=true)
     if isfinite(λm) && isfinite(λd)
         μ_new, G_ladder, Σ_ladder = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = fix_n)
@@ -125,9 +125,6 @@ function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladde
     Ekin_p2 = χm.tail_c[3]
     Epot_p2 = EPot_p2(χm, χd, λm, λd, h.mP.n, h.mP.U, h.kG)
     ndens = filling_pos(G_ladder[:,νFitRange], h.kG, h.mP.U, μ_new, h.mP.β, improved_sum=true)
-    if type === m_tscCorrection || type === dm_tscCorrection
-        error("$type not implemented")
-    end
     return λ_result(λm, λd, type, sc_converged, validation_threshold, NaN, Ekin_p1, Ekin_p2, Epot_p1, Epot_p2, PP_p1_val, PP_p2_val, 
                     nothing, G_ladder, Σ_ladder, μ_new, ndens, h.mP.n, χm_sum, h.χloc_m_sum)
 end

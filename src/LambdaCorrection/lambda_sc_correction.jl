@@ -128,9 +128,9 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
 
     function f_c2_sc(λd_i::Float64)
         copyto!(G_rfft, h.gLoc_rfft)
-        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
-        λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+        #rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
+        #λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
+        converged, λm, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
                 χm, γm, χd, γd, λ₀, λm, λd_i, h; 
                 maxit=max_steps_sc, conv_abs=validation_threshold, 
                 mixing=mixing, mixing_start_it=mixing_start_it,
@@ -160,12 +160,13 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
                 @warn "Ran out of root resets, trying Newton_Secular"
                 λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
                 done = true
+            elseif i == dbg_roots_reset+2
+                @warn "Ran out of root resets, trying Newton_Right"
+                λd = newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                done = true
             else
                 done = true
                 @error "Ran Out of root finding methods!"
-                #@warn "Ran out of root resets, trying Newton_Right"
-                #λd = newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
-                #done = true
             end
         catch e
             @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
@@ -190,6 +191,54 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     return λ_result(dm_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, λd, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end
 
+"""
+    run_dm_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
+                maxit::Int=100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                conv_abs::Float64=1e-8, tc::Type{<: ΣTail} = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)
+
+Debugging function for now. This runs the sc cycle and includes a lambda correction in each iteration.
+"""
+function run_dm_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h;
+                maxit::Int=100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                conv_abs::Float64=1e-8, tc::Type{<: ΣTail} = default_Σ_tail_correction(), trace::Bool=false, verbose::Bool=false)
+    it      = 2
+    converged = false
+    tr = []
+
+    λm = NaN
+    λd = NaN
+    λm, λd = λdm_correction_val(χm,γm,χd, γd,λ₀, h; tc = tc)
+    @assert isfinite(λm) error("encountered λm = $λm")
+    @assert isfinite(λd) error("encountered λd = $λd")
+    μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
+    @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
+    G_ladder_bak = similar(G_ladder_it)
+    _, gLoc_rfft = G_fft(G_ladder_it, h.kG, h.sP)
+ 
+    trace && push!(tr, Σ_ladder_it)
+
+    while it <= maxit && !converged
+        it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
+        λm, λd = λdm_correction_val(χm,γm,χd, γd,λ₀, h; tc = tc)
+        @assert isfinite(λm) error("encountered λm = $λm")
+        @assert isfinite(λd) error("encountered λd = $λd")
+        μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = tc, fix_n = true)
+        @assert isfinite(μ_it) error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
+        trace && push!(tr, Σ_ladder_it)
+
+        Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
+        Δit < conv_abs && (converged = true)
+
+        it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
+        @assert all(isfinite.(Σ_ladder_it))  "encountered divergend self-energy @ μ=$μ_it // λd = $λd // λm = $λm"
+        
+        verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit")
+        G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
+        it += 1
+    end
+
+    return converged, λm, λd, μ_it, G_ladder_it, Σ_ladder_it, tr
+end
 
 
 function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Float64, λd::Float64, h;
@@ -200,7 +249,7 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
     tr = []
 
     μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; tc = tc, fix_n = true)
-    !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
+    @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
     G_ladder_bak = similar(G_ladder_it)
     _, gLoc_rfft = G_fft(G_ladder_it, h.kG, h.sP)
  
@@ -210,14 +259,14 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
 
         μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = tc, fix_n = true)
-        !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
+        @assert isfinite(μ_it) error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
         trace && push!(tr, Σ_ladder_it)
 
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
         Δit < conv_abs && (converged = true)
 
         it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
-        !all(isfinite.(Σ_ladder_it)) && break
+        @assert all(isfinite.(Σ_ladder_it))  "encountered divergend self-energy @ μ=$μ_it // λd = $λd // λm = $λm"
         
         verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit")
         G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
@@ -236,28 +285,28 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
     it      = 1
     converged = false
 
-    
+    λm_it = NaN
     μ_it = h.mP.μ
-    tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
+    
 
     while it <= maxit && !converged
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
 
+        tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
         μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
-        !isfinite(μ_it) && error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
+        @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
         
 
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
         Δit < conv_abs && (converged = true)
 
         it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
-        !all(isfinite.(Σ_ladder_it)) && break
+        @assert all(isfinite.(Σ_ladder_it))  "encountered divergend self-energy @ μ=$μ_it // λd = $λd // λm = $λm"
 
         !isnothing(trace) && push!(trace, [λm, λd, Σ_ladder_it])
         verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit")
         G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)
         it += 1
     end
-
     return converged, μ_it
 end

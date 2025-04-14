@@ -39,18 +39,24 @@ function χ_λ!(χ_new::χT, χ::χT, λ::Float64)::Nothing
         χ_λ!(χ_new.data, χ.data, λ)
         χ_new.λ = χ.λ + λ
         χ_new.transform! = χ_λ!
-    else 
+    else
         @error "WARNING. SKIPPING λ correction because $λ is not finite!"
+        throw("WARNING. SKIPPING λ correction because $λ is not finite!")
     end
     return nothing
 end
 
 function χ_λ!(res::AbstractArray, χ::AbstractArray, λ::Float64)::Nothing
     λ == 0.0 && return nothing
-    !isfinite(λ) && @error "WARNING. SKIPPING λ correction because $λ is not finite!" && return nothing
-    for i in eachindex(res)
-        res[i] = χ_λ(χ[i], λ)
+    if isfinite(λ)
+        for i in eachindex(res)
+            res[i] = χ_λ(χ[i], λ)
+        end
+    else
+        @error "WARNING. SKIPPING λ correction because $λ is not finite!"
+        throw("WARNING. SKIPPING λ correction because $λ is not finite!")
     end
+    return nothing
 end
 
 χ_λ!(χ::χT, λ::Float64)::Nothing = χ_λ!(χ, χ, λ)

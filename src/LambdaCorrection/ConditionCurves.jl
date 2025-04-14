@@ -36,9 +36,14 @@ Samples a curve for the difference between the potential energy on one- and two-
 TODO: Also returns \\lambda_\\mathrm{m}(\\lambda_\\mathrm{d})``. 
 See also [`sample_f`](@ref sample_f) for a description of the numerical parameters.
 """
-function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
+function EPotCond_curve(χm_in::χT,γm_in::γT,χd_in::χT, γd_in::γT,λ₀::λ₀T, h; tmp_swapped = false,
         tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
         λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
+    χm = tmp_swapped ? deepcopy(χd_in) : deepcopy(χm_in)
+    γm = tmp_swapped ? deepcopy(γd_in) : deepcopy(γm_in)
+    χd = tmp_swapped ? deepcopy(χm_in) : deepcopy(χd_in)
+    γd = tmp_swapped ? deepcopy(γm_in) : deepcopy(γd_in)
+
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
     νmax::Int = eom_ν_cutoff(h.sP)
@@ -56,19 +61,10 @@ function EPotCond_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
         verbose && println("$λm_i / $λd_i")
         # @timeit to "dbg3" μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_factor, χm, γm, χd, γd, λ₀, λm_i, λd_i, h; fix_n = fix_n)
         if isfinite(λm_i)
-            (λm_i != 0) && χ_λ!(χm, λm_i)
-            (λd_i != 0) && χ_λ!(χd, λd_i)
-            if !(tc === ΣTail_EoM)
-                tc_term  = tail_correction_term(sum_kω(h.kG, χm), h.χloc_m_sum, tc_factor)
-                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, h.gLoc_rfft, h.kG, h.mP, h.sP)
-            else
-                calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, h.χ_m_loc, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP)
-            end
-            (λm_i != 0) && reset!(χm)
-            (λd_i != 0) && reset!(χd)
-            μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = true, μ = h.mP.μ, n = h.mP.n)
+            tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χd, λ=λd_i), h.χloc_m_sum, tc_factor)
+            μ_new = tmp_swapped ? calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χd, γd, χm, γm, λ₀, λd_i, λm_i, h) : calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h)
             Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
-            Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
+            Epot_2 = tmp_swapped ? EPot_p2(χd, χm, λd_i, λm_i, h.mP.n, h.mP.U, h.kG) : EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
             return Epot_1 - Epot_2
         else
             return NaN
@@ -106,28 +102,27 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
 
     function f_c2(λd_i::Float64)
-        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i)
-        λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail)
-        verbose && println("running λm=$λm_i, λd=$λd_i")
+        rhs,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
+        λm_i  = λm_correction_val(χm, rhs, h;)
+        
         ΔEPot = NaN
         converged = false
-        if isfinite(λm_i)
-            G_rfft = deepcopy(h.gLoc_rfft)
-            converged, μ_new = if method == :sc
-                run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
-                                χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
-                                maxit=maxit_sc, mixing=mixing, conv_abs=sc_conv_abs, verbose=verbose_sc)
-                elseif method == :tsc
-                    run_tsc!(G_ladder, Σ_ladder, G_ladder_bak, Kνωq_pre, 
-                                χm, γm, χd, γd, λ₀, λd_i, h; 
-                                maxit=maxit_sc, mixing=mixing, conv_abs=sc_conv_abs, verbose=verbose_sc)
-                else 
-                    @error "method " method " not recognized. Use :sc or :tsc"
-                end
-            Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
-            Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
-            ΔEPot = Epot_1 - Epot_2
-            verbose && println(" -> converged = $converged, ΔEPot = $ΔEPot ($Epot_1 - $Epot_2). μ = $μ_new")
+        try
+                G_rfft = deepcopy(h.gLoc_rfft)
+                
+
+                converged, μ_new = run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
+                                    χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
+                                    maxit=maxit_sc, mixing=mixing, conv_abs=sc_conv_abs, verbose=verbose_sc)
+                verbose && println("running λm=$λm_i, λd=$λd_i, μ=$μ_new")
+                Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
+                Epot_2 = EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
+                ΔEPot = Epot_1 - Epot_2
+                verbose && println(" -> converged = $converged, ΔEPot = $ΔEPot ($Epot_1 - $Epot_2). μ = $μ_new")
+            return converged ? ΔEPot : NaN
+        catch e 
+            @warn "Exception in f_c2: $e"
+            return NaN
         end
         return converged ? ΔEPot : NaN
     end

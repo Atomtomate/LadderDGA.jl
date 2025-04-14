@@ -140,22 +140,6 @@ end
 
 # ======================================== Consistency Checks ========================================
 """
-    log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
-
-TODO: documentation
-"""
-function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol; verbose=true)
-    q0_ind = q0_index(kG)
-    if !isnothing(q0_ind)
-        #TODO: adapt for arbitrary ω indices
-        ω_ind = setdiff(1:size(χ, 2), sP.n_iω + 1)
-        if verbose
-            @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(sum(abs.(view(χ,q0_ind,ω_ind))),digits=12)) ≟ 0"
-        end
-    end
-end
-
-"""
     νi_health(νGrid::AbstractArray{Int}, sP::SimulationParameters)
 
 Returns a list of available bosonic frequencies for each fermionic frequency, given in `νGrid`.

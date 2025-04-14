@@ -359,3 +359,88 @@ function calc_local_EoM(Fm, Fd, gImp::OffsetVector, mP::ModelParameters, sP::Sim
     end
     return  mP.U .* ΣLoc_m/mP.β^2 .+ mP.U*mP.n/2,  mP.U .* ΣLoc_d/mP.β^2 .+ mP.U*mP.n/2
 end
+
+
+# ======================================== Consistency Checks ========================================
+"""
+    log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{_eltype,2}, type::Symbol)
+
+TODO: documentation
+"""
+function log_q0_χ_check(kG::KGrid, sP::SimulationParameters, χ::AbstractArray{Float64,2}, type::Symbol; verbose=true)::Float64
+    q0_ind = q0_index(kG)
+    res = NaN
+    if !isnothing(q0_ind)
+        #TODO: adapt for arbitrary ω indices
+        ω_ind = setdiff(1:size(χ, 2), sP.n_iω + 1)
+        res = sum(abs.(view(χ,q0_ind,ω_ind)))
+        if verbose
+            @info "$type channel: |∑χ(q=0,ω≠0)| = $(round(res,digits=12)) ≟ 0"
+        end
+    end
+    return res
+end
+
+
+
+
+
+# ============================================= Fixes ================================================
+"""
+    check_χ_health(χr, channel::Symbol, h::lDΓAHelper; q0_check_eps = 0.1, λmmin_check_eps = 1000)
+
+Checks properties of the physical susceptibility `χr` in the given `channel`.
+Returns a list of two boolean values indicating the health of the susceptibility.
+(1) `q0_check_res`: `true` if the sum of the susceptibility at q=0 is close to a delta distribution.
+(2) `λmmin_check_res`: `true` if the minimal λ-value is small.
+"""
+function check_χ_health(χr, channel::Symbol, h::lDΓAHelper; q0_check_eps = 0.1, λmmin_check_eps = 1000)
+    q0_r = log_q0_χ_check(h.kG, h.sP, χr, channel)
+    λmmin = get_λ_min(χr)
+    magnitute = sum_kω(h.kG, χr)
+    @info "Channel $channel: λm_min = $(λmmin)"
+    @info "∑_kω = $(magnitute)"
+    #@info "Channel $#channel: q0_m = $(q0_r)"
+
+    q0_check_res = q0_r < q0_check_eps
+    λmmin_check_res = λmmin < λmmin_check_eps
+
+    if !q0_check_res
+        @warn "Channel $channel:  |∑χ(q=0,ω≠0)| is not close to a delta distribution!"
+    end
+
+    
+    if !λmmin_check_res
+        @warn "Channel $channel: λm_min very large an positive! This often indicates a channel with small weight."
+        @warn "Consider calling fix_small_channel()"
+    end
+    return q0_check_res, λmmin_check_res
+end
+
+"""
+    fix_χr(χr, negative_eps = 1e-2)
+
+(1) For ω ≠ 0: Sets negative values from the susceptibility `χr` to zero.
+(2) For ω = 0: Inverts the sign of all negative values in `χr` WHICH ARE TOO CLOSE TO ZERO (Otherwise this would artificially prevent phase transitions).
+"""
+function fix_χr(χr; negative_eps = 1e-2)
+    χr_copy = deepcopy(χr)
+    fix_χr!(χr_copy; negative_eps = negative_eps)
+    return χr_copy
+end
+
+function fix_χr!(χr; negative_eps = 1e-2)
+    @warn "This will artificially invert the sign of all χ[q, ω₀] which are negative and close to zero AND set all χ[q, ω ≠ 0] to zero"
+    @warn "Alternatively, you may consider setting λmin explicitly to a small value."
+
+    ω0ind = ω0_index(χr)
+    ii_inv = findall(x-> x < 0 && abs(x) < negative_eps, χr[:,ω0ind])
+    χr[ii_inv,ω0ind] .= -χr[ii_inv,ω0ind]
+
+    non_zero_ind = union(first(axes(χr,2)):(ω0_index(χr)-1),(ω0ind+1):last(axes(χr,2)))
+    ii_zero = findall(x-> x < 0, χr)
+    filter!(x-> x in non_zero_ind,ii_zero)
+    χr[ii_zero] .= 0.0
+
+    return χr
+end
