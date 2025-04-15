@@ -111,7 +111,7 @@ end
 
 function λ_result(type, χm::χT, χd::χT, μ_new::Float64, G_ladder, Σ_ladder, 
                   λm::Float64, λd::Float64, sc_converged::Bool, h::RunHelper; 
-                  PP_p1_val = NaN, νFitRange=0:last(axes(Σ_ladder, 2)),
+                  PP_p1_val = h.mP.n * (1 - h.mP.n / 2) / 2, νFitRange=0:last(axes(Σ_ladder, 2)),
                   validation_threshold::Float64 = 1e-8, max_steps_m::Int = 2000)
 
     Ekin_p1, Epot_p1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)

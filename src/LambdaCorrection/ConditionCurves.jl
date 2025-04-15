@@ -109,8 +109,6 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
         converged = false
         try
                 G_rfft = deepcopy(h.gLoc_rfft)
-                
-
                 converged, μ_new = run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
                                     χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
                                     maxit=maxit_sc, mixing=mixing, conv_abs=sc_conv_abs, verbose=verbose_sc)

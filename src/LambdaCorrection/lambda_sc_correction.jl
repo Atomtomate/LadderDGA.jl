@@ -285,9 +285,7 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
     it      = 1
     converged = false
 
-    λm_it = NaN
     μ_it = h.mP.μ
-    
     tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
 
     while it <= maxit && !converged
@@ -310,4 +308,42 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
         it += 1
     end
     return converged, μ_it
+end
+
+
+
+function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;
+                        νmax::Int = eom_ν_cutoff(h), tc::Type{<: ΣTail} = default_Σ_tail_correction(),
+                        validation_threshold::Float64 = 1e-8, max_steps_m::Int = 1000, 
+                        max_steps_sc::Int = 100, mixing::Float64=0.3, mixing_start_it::Int=10,
+                        verbose_sc::Bool=false, trace=nothing)       
+
+   
+    ωn2_tail = ω2_tail(χm)
+    Nq, Nω = size(χm)
+    νGrid = 0:(νmax-1)
+    fft_νGrid= h.sP.fft_range
+
+    Kνωq_pre    = Vector{ComplexF64}(undef, length(h.kG.kMult))
+    G_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
+    G_ladder_bak = similar(G_ladder_it)
+    Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, νGrid)
+    G_rfft = deepcopy(h.gLoc_rfft)
+    iν = iν_array(h.mP.β, collect(axes(Σ_ladder_it, 2)))
+    tc_factor_term = tail_factor(tc, h.mP.U, h.mP.β, h.mP.n, h.Σ_loc, iν)
+    μ_new = NaN
+    λm = NaN
+    converged = false
+
+    rhs_c1,_ = λm_rhs(χm, χd, h; λd=0.0, PP_mode=tc != ΣTail_λm)
+    λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
+        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+                χm, γm, χd, γd, λ₀, λm, 0.0, h; 
+                maxit=max_steps_sc, conv_abs=validation_threshold, 
+                mixing=mixing, mixing_start_it=mixing_start_it,
+                verbose=verbose_sc, trace=trace)
+
+
+    
+    return λ_result(m_scCorrection, χm, χd, μ_new, G_ladder_it, Σ_ladder_it, λm, 0.0, converged, h; validation_threshold = validation_threshold, max_steps_m = max_steps_m)
 end

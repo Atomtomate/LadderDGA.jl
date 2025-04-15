@@ -34,3 +34,8 @@ Roots NLSolve_files
 
 test/test_data/*
 !test/test_data/2Dsc_U2B8.jld2
+notebooks/tmp-Copy1.ipynb
+notebooks/tmp-Copy2.ipynb
+notebooks/tmp-Copy4.ipynb
+notebooks/tmp.ipynb
+notebooks/tmp-Copy3.ipynb
