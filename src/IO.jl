@@ -39,7 +39,7 @@ function readConfig(cfg_in::String)
     dbg_full_chi_omega = if haskey(tml["Debug"], "full_chi_omega") 
             tml["Debug"]["full_chi_omega"]
             else
-                val = lowercase(sim["chi_asympt_method"]) != "nothing" ? false : true
+                val = lowercase(sim["chi_asympt_method"]) != "nothing" ? true : false
                 @warn "[Debug] full_chi_omega setting not found. Assuming $val"
                 val
     end

@@ -128,9 +128,9 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
 
     function f_c2_sc(λd_i::Float64)
         copyto!(G_rfft, h.gLoc_rfft)
-        #rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
-        #λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        converged, λm, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+        rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
+        λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
+        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
                 χm, γm, χd, γd, λ₀, λm, λd_i, h; 
                 maxit=max_steps_sc, conv_abs=validation_threshold, 
                 mixing=mixing, mixing_start_it=mixing_start_it,
@@ -151,8 +151,8 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
                         )
 
     while !done && i <= dbg_roots_reset+2 
-        try
-            i += 1
+        i += 1
+        try 
             if i <= dbg_roots_reset
                 λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
                 done = true
@@ -288,11 +288,12 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
     λm_it = NaN
     μ_it = h.mP.μ
     
+    tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
 
     while it <= maxit && !converged
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
 
-        tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
+        
         μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
         @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
         

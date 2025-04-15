@@ -84,7 +84,7 @@ See also [`sample_f`](@ref sample_f) for a description of the numerical paramete
 function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h; 
      method=:sc,
      tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8,
-     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmin::Float64 = get_λ_min(χd),λmax::Float64=30.0, sc_conv_abs::Float64=1e-7,
+     maxit::Int=2000, maxit_sc::Int=500, mixing::Float64=0.3, λmin::Float64 = get_λ_min(χd), λd_δ::Float64 = 1e-2, λmax::Float64=30.0, sc_conv_abs::Float64=1e-7,
      verbose::Bool=false, verbose_sc::Bool=false)
     
     get_λ_min(χd)
@@ -104,7 +104,7 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     function f_c2(λd_i::Float64)
         rhs,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
         λm_i  = λm_correction_val(χm, rhs, h;)
-        
+        verbose && println("$λm_i / $λd_i")
         ΔEPot = NaN
         converged = false
         try
@@ -127,7 +127,7 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
         return converged ? ΔEPot : NaN
     end
     
-    sample_f(f_c2, λmin, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
+    sample_f(f_c2, λmin + λd_δ, λmax; feps_abs=feps_abs, xeps_abs=xeps_abs, maxit=maxit)
 end
 
 """
