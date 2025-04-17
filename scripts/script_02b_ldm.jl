@@ -70,8 +70,12 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     err_m_sc = nothing
     m_done, res_m, err_m = check_and_load(fname, "res_m", "err_m", false)
     dm_done, res_dm, err_dm = check_and_load(fname, "res_dm", "err_dm", true)
-    dmsc_done, res_dm_sc, err_dm_sc = check_and_load(fname, "res_dm_sc", "err_dm_sc", true)
-    msc_done, res_m_sc, err_m_sc = check_and_load(fname, "res_m_sc", "err_m_sc", false)
+    dmsc_done = true 
+    res_dm_sc = nothing
+    err_dm_sc = nothing
+    msc_done = true
+    res_m_sc = nothing
+    err_m_sc = nothing
 
     run_id = hash(string(readlines(cfg_file)...))
     if m_done && dm_done && dmsc_done 
