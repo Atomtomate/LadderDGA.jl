@@ -2,6 +2,7 @@ using Pkg
 Pkg.activate(joinpath(@__DIR__,".."))
 using LadderDGA
 using JLD2
+using Logging
 
 
 tc_choice_i = parse(Int, ARGS[3])
@@ -53,6 +54,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     cfg_file = ARGS[1]
     fname = ARGS[2]
     cfg_dir,_ = splitdir(cfg_file)
+    cfg_content = readlines(cfg_file)
 
     wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 
@@ -61,7 +63,6 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     γm = nothing
     γd = nothing
     restored_run = false
-    cfg_content = readlines(cfg_file)
 
 
     res_m = nothing 
@@ -70,25 +71,19 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     err_m_sc = nothing
     m_done, res_m, err_m = check_and_load(fname, "res_m", "err_m", false)
     dm_done, res_dm, err_dm = check_and_load(fname, "res_dm", "err_dm", true)
-    dmsc_done = true 
-    res_dm_sc = nothing
-    err_dm_sc = nothing
-    msc_done = true
-    res_m_sc = nothing
-    err_m_sc = nothing
+    dmsc_done, res_dm_sc, err_dm_sc = check_and_load(fname, "res_dm_sc", "err_dm_sc", true)
+    msc_done, res_m_sc, err_m_sc = check_and_load(fname, "res_m_sc", "err_m_sc", false)
 
-    run_id = hash(string(readlines(cfg_file)...))
-    if m_done && dm_done && dmsc_done 
+    run_id = hash(string(cfg_content...))
+    println("[$run_id]: ======================================"); 
+    println("[$run_id]: = beta = $(round(mP.β,digits=4)), U = $(round(mP.U,digits=4)), n = $(round(mP.n,digits=4)), Nk = $(kGridsStr[1][2])  ");
+    println("[$run_id]: ======================================"); 
+    if m_done && dm_done
         println("[$run_id]: Found completed runs for m/dm/dmsc. Aborting!"); flush(stdout)
         return true
     end
 
     lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=false);
-    println("[$run_id]: ======================================"); 
-    println("[$run_id]: = beta = $(round(mP.β,digits=4)), U = $(round(mP.U,digits=4)), n = $(round(mP.n,digits=4)), Nk = $(lDGAhelper.kG.Ns)  ");
-    println("[$run_id]: ======================================"); 
-    
-
     if use_cache
         cache_file = joinpath(cfg_dir, cache_name)
         println("[$run_id]: Trying to open cache file $cache_file."); flush(stdout)
@@ -117,19 +112,50 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     λ₀ = calc_λ0(bubble, lDGAhelper)
 
     if isnothing(χm)
-        println("[$run_id]: Inverting BSE, no cache used."); flush(stdout)
-        @time χm, γm = calc_χγ(:m, lDGAhelper, bubble);
-        @time χd, γd = calc_χγ(:d, lDGAhelper, bubble);
+        println("[$run_id]: Inverting BSE, no cached values found."); flush(stdout)
+        χm, γm = calc_χγ(:m, lDGAhelper, bubble; ω_symmetric=true);
+        χd, γd = calc_χγ(:d, lDGAhelper, bubble; ω_symmetric=true);
     end
     if use_cache && !restored_run
         cache_file = joinpath(cfg_dir, cache_name)
-        run_id = hash(string(readlines(cfg_file)...))
         run_nk = lDGAhelper.kG.Ns
-        println("[$run_id]: Trying to store χ_r and γ_r in $cache_file."); flush(stdout)
-        jldopen(cache_file, "a+") do cache_f
-            if !haskey(cache_f, "$run_id")
-                println("[$run_id]: WARNING! run_id found in $cache_file but restored run = $restored_run. This indicates a faulty previous run.!"); flush(stdout)
+        println("[$run_id]: Trying to store χ_r and γ_r in $cache_file.");
+        faulty_cache = false
+        if isfile(cache_file) 
+            jldopen(cache_file, "r") do cache_f
+                if !haskey(cache_f, "$run_id")
+                    println("[$run_id]: WARNING! run_id found in $cache_file but restored run = $restored_run. This indicates a faulty previous run.!"); flush(stdout)
+                    faulty_cache = true
+                end
+                if haskey(cache_f, "$run_id") && cache_f["$run_id/Nk"] != lDGAhelper.kG.Ns
+                    println("[$run_id]: WARNING! run_id found in $cache_file but number of k-points do not match $(cache_f["$run_id/Nk"]) != $(lDGAhelper.kG.Ns)!"); flush(stdout)
+                    faulty_cache = true
+                end
             end
+            # Removing groupds is not supported by JLD2, creating new fiile
+            if faulty_cache
+                bak_file = joinpath(cfg_dir, "bak_$run_id"*cache_name)
+                mv(cache_file, bak_file, force=true)
+                if isfile(bak_file)
+                    jldopen(cache_file, "w") do cache_f
+                        jldopen(bak_file, "r") do bak_cache_f
+                            for ki in keys(bak_cache_f)
+                                if ki != run_id
+                                    for kj in keys(bak_cache_f["$ki"])
+                                        cache_f["$ki/$kj"] = bak_cache_f["$ki/$kj"]
+                                    end
+                                end
+                            end
+                        end
+                    end
+                else
+                    error("[$run_id]: ERROR! Could not create backup file for cache rebuild!")
+                end
+                rm(bak_file)
+            end
+        end
+
+        jldopen(cache_file, "a+") do cache_f
             cache_f["$run_id/Nk"] = run_nk
             cache_f["$run_id/config"] = cfg_content
             cache_f["$run_id/chi_m"] = χm
@@ -140,7 +166,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
         end
     end
 
-    println("[$run_id]: Fixing χ"); flush(stdout)
+    println("[$run_id]: Fixing χ");
     LadderDGA.log_q0_χ_check(lDGAhelper.kG, lDGAhelper.sP, χm, :m; verbose=true)
     LadderDGA.log_q0_χ_check(lDGAhelper.kG, lDGAhelper.sP, χd, :d; verbose=true)
     fix_χr!(χm; negative_eps = 1e-2)
@@ -227,9 +253,9 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
         f["err_m_tsc"] = nothing
         f["err_dm_tsc"] = nothing
     end
-    if !dmsc_done
+    if false && !dmsc_done
         try
-            res_dm_sc = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=150, max_steps_dm=200, validation_threshold=1e-7, λd_δ=1e-1, tc=tc, λd_max=200.0)
+            res_dm_sc = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=150, max_steps_dm=200, λd_δ=1e-1, tc=tc, λd_max=200.0)
             err_dm_sc = nothing
         catch e 
             res_dm_sc = nothing
@@ -307,4 +333,8 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     end
 end
 
-run(ARGS, tc)
+# Set to Logging.Warn or Info for more verbose output
+logger = ConsoleLogger(stdout, Logging.Error)
+with_logger(logger) do
+    run(ARGS, tc)
+end
