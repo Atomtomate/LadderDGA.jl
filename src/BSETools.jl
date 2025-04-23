@@ -213,72 +213,52 @@ This method solves the following equation:
 \\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
 ``
 """
-function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false)
-    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose, ω_symmetric=ω_symmetric)
+function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false, use_threads=false)
+    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose, ω_symmetric=ω_symmetric, use_threads=use_threads)
 end
 
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true, ω_symmetric::Bool=false)
-    #TODO: find a way to reduce initialization clutter: move lo,up to sum_helper
-    #TODO: χ₀ should know about its tail c2, c3
-    s = if type == :d
-        -1
-    elseif type == :m
-        1
-    else
-        error("Unkown type")
-    end
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true, ω_symmetric::Bool=false, use_threads=false)
+    s = type == :d ? -1 : 1
+    !(type in (:d, :m)) && error("Unkown type $type")
 
+    NT = Threads.nthreads()
     Nν = 2 * sP.n_iν
     Nq = length(kG.kMult)
     Nω = size(χ₀.data, χ₀.axis_types[:ω])
     ωm_range = ω_symmetric ? (0:(sP.n_iω)) : ((-sP.n_iω):(sP.n_iω))
-    #TODO: use predifened ranks for Nq,... cleanup definitions
     γ = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
     χ = Array{Float64,2}(undef, Nq, Nω)
 
-    νi_range = 1:Nν
     qi_range = 1:Nq
+    χ_ω = Vector{Float64}(undef, Nω)
 
-    χ_ω = Vector{_eltype}(undef, Nω)
-    χννpω = Matrix{_eltype}(undef, Nν, Nν)
-    ipiv = Vector{Int}(undef, Nν)
-    work = _gen_inv_work_arr(χννpω, ipiv)
-    λ_cache = Array{eltype(χννpω),1}(undef, Nν)
 
-    
-    for qi in qi_range
-        for ωm in ωm_range
-            ωi =  ωm + sP.n_iω + 1
-            χννpω[:, :] = deepcopy(Γr[:, :, ωi])
-            for l in νi_range
-                χννpω[l, l] += 1.0 / χ₀.data[qi, χ₀.ν_shell_size+l, ωi]
-            end
-            inv!(χννpω, ipiv, work)
-            if typeof(sP.χ_helper) <: BSE_Asym_Helpers
-                χ[qi, ωi] = real(
-                    calc_χλ_impr!(λ_cache, type, ωm, χννpω, 
-                                  view(χ₀.data, qi, :, ωi), mP.U, mP.β,
-                                  χ₀.asym[qi, ωi], sP.χ_helper,
-                    ),
-                )
-                γ[qi, :, ωi] = (1 .- s * λ_cache) ./ (1 .+ s * mP.U .* χ[qi, ωi])
-            else
-                if typeof(sP.χ_helper) === BSE_SC_Helper
-                    improve_χ!(type, ωi, view(χννpω, :, :, ωi), view(χ₀, qi, :, ωi), mP.U, mP.β, sP.χ_helper)
-                end
-                χ[qi, ωi] = real(sum(χννpω)) / mP.β^2
-                for νk in νi_range
-                    γ[qi, νk, ωi] = sum(view(χννpω, :, νk)) / (χ₀.data[qi, νk, ωi] * (1.0 + s * mP.U * χ[qi, ωi]))
-                end
-            end
-            if ω_symmetric && ωm > 0
-                ωi_mirror =  sP.n_iω + 1 - ωm
-                χ[qi, ωi_mirror] = χ[qi, ωi]
-                γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi]))
+    if use_threads
+        χννpω = [Matrix{ComplexF64}(undef, Nν, Nν) for ti in 1:NT]
+        ipiv = [Vector{Int}(undef, Nν) for ti in 1:NT]
+        work = [_gen_inv_work_arr(χννpω[1], ipiv[1]) for ti in 1:NT]
+        λ_cache = [Vector{ComplexF64}(undef, Nν) for ti in 1:NT]
+        Threads.@threads for qi in qi_range
+            for ωm in ωm_range
+                ωi =  ωm + sP.n_iω + 1
+                invert_BSE!(χ, γ, χννpω[Threads.threadid()], ipiv[Threads.threadid()], work[Threads.threadid()], 
+                        sP.χ_helper, λ_cache[Threads.threadid()], type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym, 
+                        χ₀.ν_shell_size, qi, sP.n_iω, ωm, ωi, mP.U, mP.β)
             end
         end
-        #TODO: write macro/function for ths "real view" beware of performance hits
-        #v = _eltype === Float64 ? view(χ,:,ωi) : @view reinterpret(Float64,view(χ,:,ωi))[1:2:end]
+    else
+        χννpω = Matrix{ComplexF64}(undef, Nν, Nν)
+        ipiv = Vector{Int}(undef, Nν)
+        work = _gen_inv_work_arr(χννpω, ipiv)
+        λ_cache = Vector{ComplexF64}(undef, Nν)
+
+        for qi in qi_range
+            for ωm in ωm_range
+                ωi =  ωm + sP.n_iω + 1
+                invert_BSE!(χ, γ, χννpω, ipiv, work, sP.χ_helper, λ_cache, type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym,
+                            χ₀.ν_shell_size, qi, sP.n_iω, ωm, ωi, mP.U, mP.β)
+            end
+        end
     end
 
     for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
@@ -290,6 +270,41 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
 
     return χT(χ, mP.β, tail_c = [0, 0, mP.Ekin_1Pt], full_range=sP.dbg_full_chi_omega, usable_ω = usable_ω), γT(γ)
 end
+
+function invert_BSE!(χ::AbstractArray{Float64,2}, γ::AbstractArray{ComplexF64,3}, χννpω::AbstractArray{ComplexF64,2}, 
+                    ipiv::Vector{Int}, work::Vector{ComplexF64}, χ_helper, λ_cache, type::Symbol, ω_symmetric::Bool, s::Int, 
+                    Γr::AbstractArray{ComplexF64,3}, χ₀_data::AbstractArray{ComplexF64,3}, χ₀_asym::AbstractArray{ComplexF64,2},
+                    ν_shell_size::Int, qi::Int, ωm_max::Int, ωm::Int, ωi::Int, U::Float64, β::Float64)
+    χννpω[:, :] = deepcopy(Γr[:, :, ωi])
+    for l in axes(χννpω, 1)
+        χννpω[l, l] += 1.0 / χ₀_data[qi, ν_shell_size+l, ωi]
+    end
+    
+    inv!(χννpω, ipiv, work)
+    if typeof(χ_helper) <: BSE_Asym_Helpers
+        χ[qi, ωi] = real(
+            calc_χλ_impr!(λ_cache, type, ωm, χννpω, 
+                          view(χ₀_data, qi, :, ωi), U, β,
+                          χ₀_asym[qi, ωi],  χ_helper,
+            ),
+        )
+        γ[qi, :, ωi] = (1 .- s * λ_cache) ./ (1 .+ s * U .* χ[qi, ωi])
+    else
+        if typeof(χ_helper) === BSE_SC_Helper
+            improve_χ!(type, ωi, view(χννpω, :, :, ωi), view(χ₀, qi, :, ωi), U, β, χ_helper)
+        end
+        χ[qi, ωi] = real(sum(χννpω)) / β^2
+        for νk in axes(γ, 2)
+            γ[qi, νk, ωi] = sum(view(χννpω, :, νk)) / (χ₀_data[qi, ν_shell_size+νk, ωi] * (1.0 + s * U * χ[qi, ωi]))
+        end
+    end
+    if ω_symmetric && ωm > 0
+        ωi_mirror =  ωm_max + 1 - ωm
+        χ[qi, ωi_mirror] = χ[qi, ωi]
+        γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi]))
+    end
+end
+
 
 
 """
@@ -307,9 +322,8 @@ function calc_gen_χ(Γr::ΓT, χ₀::χ₀T, kG::KGrid)
     χννpω_work = Matrix{ComplexF64}(undef, Nν, Nν)
     ipiv = Vector{Int}(undef, Nν)
     work = _gen_inv_work_arr(χννpω_work, ipiv)
-    νi_range = 1:Nν
 
-    for ωi = 1:size(Γr, 3)
+    for ωi = axes(Γr, 3)
         for qi = 1:length(kG.kMult)
 
             χννpω_work[:, :] = deepcopy(Γr[:, :, ωi])
@@ -394,27 +408,27 @@ Returns a list of two boolean values indicating the health of the susceptibility
 (1) `q0_check_res`: `true` if the sum of the susceptibility at q=0 is close to a delta distribution.
 (2) `λmmin_check_res`: `true` if the minimal λ-value is small.
 """
-function check_χ_health(χr, channel::Symbol, h::lDΓAHelper; q0_check_eps = 0.1, λmmin_check_eps = 1000)
+function check_χ_health(χr, channel::Symbol, h::lDΓAHelper; q0_check_eps = 0.1, λmin_check_eps = 1000)
     q0_r = log_q0_χ_check(h.kG, h.sP, χr, channel)
-    λmmin = get_λ_min(χr)
+    λmin = get_λ_min(χr)
     magnitute = sum_kω(h.kG, χr)
-    @info "Channel $channel: λm_min = $(λmmin)"
+    @info "Channel $channel: λm_min = $(λmin)"
     @info "∑_kω = $(magnitute)"
     #@info "Channel $#channel: q0_m = $(q0_r)"
 
     q0_check_res = q0_r < q0_check_eps
-    λmmin_check_res = λmmin < λmmin_check_eps
+    λmin_check_res = λmin < λmin_check_eps
 
     if !q0_check_res
         @warn "Channel $channel:  |∑χ(q=0,ω≠0)| is not close to a delta distribution!"
     end
 
     
-    if !λmmin_check_res
-        @warn "Channel $channel: λm_min very large an positive! This often indicates a channel with small weight."
+    if !λmin_check_res
+        @warn "Channel $channel: λ_min very large an positive! This often indicates a channel with small weight."
         @warn "Consider calling fix_small_channel()"
     end
-    return q0_check_res, λmmin_check_res
+    return q0_check_res, λmin_check_res
 end
 
 """
@@ -439,7 +453,7 @@ function fix_χr!(χr; negative_eps = 1e-2)
 
     non_zero_ind = union(first(axes(χr,2)):(ω0_index(χr)-1),(ω0ind+1):last(axes(χr,2)))
     ii_zero = findall(x-> x < 0, χr)
-    filter!(x-> x in non_zero_ind,ii_zero)
+    filter!(x-> x[2] in non_zero_ind,ii_zero)
     χr[ii_zero] .= 0.0
 
     return χr

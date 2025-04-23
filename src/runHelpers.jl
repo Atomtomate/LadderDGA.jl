@@ -221,7 +221,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
         Local EoM check for the first 5 frequencies: $(printr_s(local_EoM_check[0])) [$(printr_s(local_EoM_check_rel[0]))%], $(printr_s(local_EoM_check[1])) [$(printr_s(local_EoM_check_rel[1]))%], $(printr_s(local_EoM_check[2])) [$(printr_s(local_EoM_check_rel[2]))%], $(printr_s(local_EoM_check[3])) [$(printr_s(local_EoM_check_rel[3]))%], $(printr_s(local_EoM_check[4])) [$(printr_s(local_EoM_check_rel[4]))%]  
         """
 
-
+    #= old parallelization helpers. TODO: update this to new code layout
     workerpool = get_workerpool()
     @sync begin
         for w in workers()
@@ -232,6 +232,7 @@ function setup_LDGA(kGridStr::Tuple{String,Int}, mP::ModelParameters, sP::Simula
             @async remotecall_fetch(LadderDGA.update_wcache!, w, :sP, sP; override = true)
         end
     end
+    =#
 
     return lDΓAHelper(sP, mP, kG, Σ_ladderLoc, Σ_loc, imp_density, gLoc, gLoc_fft, gLoc_rfft, Γ_m, Γ_d, χloc_m_sum, χloc_d_sum, χDMFT_m, χDMFT_d, χ_m_loc, γ_m_loc, χ_d_loc, γ_d_loc, χ₀Loc, gImp)
 end

@@ -318,3 +318,38 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
 
     return Σ_ladder
 end
+
+
+
+# -------------------------------------------- EoM: Main ---------------------------------------------
+function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
+    norm::ComplexF64 = convert(ComplexF64, kG.Nk)
+    if Nk(kG) == 1
+        res[:] += arr1 .* GView
+    else
+        expandKArr!(kG, kG.cache1, arr1)
+        #mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
+        FFTW.unsafe_execute!(kG.fftw_plan, kG.cache1, kG.cache1) #mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
+        for i in eachindex(kG.cache1)
+            @inbounds kG.cache1[i] *= GView[i]
+        end
+        kG.fftw_plan \ kG.cache1
+        #Dispersions.conv_post_add!(kG, res, kG.cache1)
+        @inbounds res[:] = res[:] .+ kG.cache1[kG.kInd_crossc] ./ norm
+    end
+    return nothing
+end
+
+
+
+# ---------------------------------------------- Misc. -----------------------------------------------
+function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::AbstractMatrix{ComplexF64}, Σ_loc::AbstractVector{ComplexF64})
+    res = similar(Σ_ladder)
+    for qi in axes(Σ_ladder, 1)
+        for (νi, νn) in enumerate(axes(Σ_ladder, 2))
+            res[qi, νn] = Σ_ladder[qi, νn] .- Σ_ladderLoc[1, νn] .+ Σ_loc[νi]
+        end
+    end
+    return res
+end
+
