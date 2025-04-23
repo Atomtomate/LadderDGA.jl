@@ -81,11 +81,15 @@ function readConfig(cfg_in::String)
             Vk
         end
     else
-        @warn "No DMFT input file found $(env.inputVars). Proceeding from I/O without further input and hardocded 10 frequencies."
-        U = modelVars["U"]
-        β = modelVars["beta"]
-        nden = modelVars["density"]
-        50, 50, true, ModelParameters(U, NaN, β, nden, NaN, NaN), [NaN], [NaN], [NaN], 0.5
+        if haskey(modelVars, "U") && haskey(modelVars, "beta") && haskey(modelVars, "density")
+            @warn "No DMFT input file found $(env.inputVars). Proceeding from I/O without further input and hardocded 10 frequencies."
+            U = modelVars["U"]
+            β = modelVars["beta"]
+            nden = modelVars["density"]
+            50, 50, true, ModelParameters(U, NaN, β, nden, NaN, NaN), [NaN], [NaN], [NaN], 0.5
+        else 
+            error("Input data $(env.inputVars) not found! Aborting")
+        end
     end
     #TODO: BSE inconsistency between direct and SC
     asympt_sc = lowercase(sim["chi_asympt_method"]) == "asympt" ? 1 : 0

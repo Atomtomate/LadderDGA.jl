@@ -78,7 +78,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
     println("[$run_id]: ======================================"); 
     println("[$run_id]: = beta = $(round(mP.β,digits=4)), U = $(round(mP.U,digits=4)), n = $(round(mP.n,digits=4)), Nk = $(kGridsStr[1][2])  ");
     println("[$run_id]: ======================================"); 
-    if m_done && dm_done && dmsc_done 
+    if m_done && dm_done
         println("[$run_id]: Found completed runs for m/dm/dmsc. Aborting!"); flush(stdout)
         return true
     end
@@ -166,7 +166,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
         end
     end
 
-    println("[$run_id]: Fixing χ"); 
+    println("[$run_id]: Fixing χ");
     LadderDGA.log_q0_χ_check(lDGAhelper.kG, lDGAhelper.sP, χm, :m; verbose=true)
     LadderDGA.log_q0_χ_check(lDGAhelper.kG, lDGAhelper.sP, χd, :d; verbose=true)
     fix_χr!(χm; negative_eps = 1e-2)
@@ -253,7 +253,7 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
         f["err_m_tsc"] = nothing
         f["err_dm_tsc"] = nothing
     end
-    if !dmsc_done
+    if false && !dmsc_done
         try
             res_dm_sc = λdm_sc_correction(χm, γm, χd, γd, λ₀, lDGAhelper; max_steps_sc=150, max_steps_dm=200, λd_δ=1e-1, tc=tc, λd_max=200.0)
             err_dm_sc = nothing
