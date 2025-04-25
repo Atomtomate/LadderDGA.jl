@@ -214,14 +214,15 @@ This method solves the following equation:
 ``
 """
 function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false, use_threads=false)
-    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP, verbose=verbose, ω_symmetric=ω_symmetric, use_threads=use_threads)
+    calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP; verbose=verbose, ω_symmetric=ω_symmetric, use_threads=use_threads)
 end
 
-function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters; verbose=true, ω_symmetric::Bool=false, use_threads=false)
+function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+         verbose=true, ω_symmetric::Bool=false, use_threads=false)
     s = type == :d ? -1 : 1
     !(type in (:d, :m)) && error("Unkown type $type")
 
-    NT = Threads.nthreads()
+    
     Nν = 2 * sP.n_iν
     Nq = length(kG.kMult)
     Nω = size(χ₀.data, χ₀.axis_types[:ω])
@@ -232,31 +233,36 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
     qi_range = 1:Nq
     χ_ω = Vector{Float64}(undef, Nω)
 
-
     if use_threads
+        bthreads = BLAS.get_num_threads()
+        BLAS.set_num_threads(1)
+        NT = Threads.nthreads()
         χννpω = [Matrix{ComplexF64}(undef, Nν, Nν) for ti in 1:NT]
         ipiv = [Vector{Int}(undef, Nν) for ti in 1:NT]
-        work = [_gen_inv_work_arr(χννpω[1], ipiv[1]) for ti in 1:NT]
+        work = [_gen_inv_work_arr(χννpω[Threads.threadid()], ipiv[Threads.threadid()]) for ti in 1:NT]
         λ_cache = [Vector{ComplexF64}(undef, Nν) for ti in 1:NT]
+        diag_cache = [similar(sP.χ_helper.diag_asym_buffer) for ti in 1:NT]
         Threads.@threads for qi in qi_range
             for ωm in ωm_range
                 ωi =  ωm + sP.n_iω + 1
                 invert_BSE!(χ, γ, χννpω[Threads.threadid()], ipiv[Threads.threadid()], work[Threads.threadid()], 
-                        sP.χ_helper, λ_cache[Threads.threadid()], type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym, 
+                        sP.χ_helper, λ_cache[Threads.threadid()], diag_cache[Threads.threadid()], type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym, 
                         χ₀.ν_shell_size, qi, sP.n_iω, ωm, ωi, mP.U, mP.β)
             end
         end
+        BLAS.set_num_threads(bthreads)
     else
         χννpω = Matrix{ComplexF64}(undef, Nν, Nν)
         ipiv = Vector{Int}(undef, Nν)
         work = _gen_inv_work_arr(χννpω, ipiv)
         λ_cache = Vector{ComplexF64}(undef, Nν)
 
-        for qi in qi_range
-            for ωm in ωm_range
-                ωi =  ωm + sP.n_iω + 1
-                invert_BSE!(χ, γ, χννpω, ipiv, work, sP.χ_helper, λ_cache, type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym,
-                            χ₀.ν_shell_size, qi, sP.n_iω, ωm, ωi, mP.U, mP.β)
+        for ωm in ωm_range
+            ωi =  ωm + sP.n_iω + 1
+            for qi in qi_range
+                invert_BSE!(χ, γ, χννpω, ipiv, work, 
+                    sP.χ_helper, λ_cache, sP.χ_helper.diag_asym_buffer, type, ω_symmetric, s, Γr, χ₀.data, χ₀.asym, 
+                    χ₀.ν_shell_size, qi, sP.n_iω, ωm, ωi, mP.U, mP.β)
             end
         end
     end
@@ -272,23 +278,25 @@ function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelPa
 end
 
 function invert_BSE!(χ::AbstractArray{Float64,2}, γ::AbstractArray{ComplexF64,3}, χννpω::AbstractArray{ComplexF64,2}, 
-                    ipiv::Vector{Int}, work::Vector{ComplexF64}, χ_helper, λ_cache, type::Symbol, ω_symmetric::Bool, s::Int, 
+                    ipiv::Vector{Int}, work::Vector{ComplexF64}, χ_helper::BSE_Asym_Helper, λ_cache::Vector{ComplexF64}, diag_cache::Vector{ComplexF64}, 
+                    type::Symbol, ω_symmetric::Bool, s::Int, 
                     Γr::AbstractArray{ComplexF64,3}, χ₀_data::AbstractArray{ComplexF64,3}, χ₀_asym::AbstractArray{ComplexF64,2},
                     ν_shell_size::Int, qi::Int, ωm_max::Int, ωm::Int, ωi::Int, U::Float64, β::Float64)
-    χννpω[:, :] = deepcopy(Γr[:, :, ωi])
-    for l in axes(χννpω, 1)
-        χννpω[l, l] += 1.0 / χ₀_data[qi, ν_shell_size+l, ωi]
-    end
     
+    copy!(χννpω, view(Γr,:,:, ωi))
+    for l in axes(χννpω, 1)
+        @inbounds χννpω[l, l] += 1.0 / χ₀_data[qi, ν_shell_size+l, ωi]
+    end
     inv!(χννpω, ipiv, work)
     if typeof(χ_helper) <: BSE_Asym_Helpers
         χ[qi, ωi] = real(
-            calc_χλ_impr!(λ_cache, type, ωm, χννpω, 
-                          view(χ₀_data, qi, :, ωi), U, β,
-                          χ₀_asym[qi, ωi],  χ_helper,
-            ),
-        )
-        γ[qi, :, ωi] = (1 .- s * λ_cache) ./ (1 .+ s * U .* χ[qi, ωi])
+            calc_χλ_impr!(λ_cache, diag_cache, type, qi, ωi, ωm, χννpω, 
+                          χ₀_data, U, β,
+                          χ₀_asym[qi, ωi], χ_helper,
+            ))
+        for νi in axes(γ,2)
+            @inbounds γ[qi, νi, ωi] = (1 - s * λ_cache[νi]) / (1 + s * U * χ[qi, ωi])
+        end
     else
         if typeof(χ_helper) === BSE_SC_Helper
             improve_χ!(type, ωi, view(χννpω, :, :, ωi), view(χ₀, qi, :, ωi), U, β, χ_helper)
@@ -304,7 +312,6 @@ function invert_BSE!(χ::AbstractArray{Float64,2}, γ::AbstractArray{ComplexF64,
         γ[qi, :, ωi_mirror] = conj(reverse(γ[qi, :, ωi]))
     end
 end
-
 
 
 """

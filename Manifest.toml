@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "9ea45be61937a755ee6757eec725af4882f38692"
+project_hash = "17cb083765589e55555c6f9f8a12f6c841814a84"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -126,11 +126,11 @@ version = "1.11.0"
 
 [[deps.BSE_Asymptotics]]
 deps = ["ColorSchemes", "Documenter", "JLD2", "LinearAlgebra", "OffsetArrays", "Test", "TimerOutputs"]
-git-tree-sha1 = "7bda0c84f387e2ef73e0523b25cb144346389396"
+git-tree-sha1 = "df23f5ec4ec8bc5456e1734ca539954237ffffa0"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/BSE_Asymptotics.jl"
 uuid = "646ec391-26e4-4808-a965-02314d3a2269"
-version = "3.0.2"
+version = "3.3.0"
 
 [[deps.Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
@@ -309,9 +309,9 @@ version = "0.9.4"
 
 [[deps.Documenter]]
 deps = ["ANSIColoredPrinters", "AbstractTrees", "Base64", "CodecZlib", "Dates", "DocStringExtensions", "Downloads", "Git", "IOCapture", "InteractiveUtils", "JSON", "LibGit2", "Logging", "Markdown", "MarkdownAST", "Pkg", "PrecompileTools", "REPL", "RegistryInstances", "SHA", "TOML", "Test", "Unicode"]
-git-tree-sha1 = "9d733459cea04dcf1c41522ec25c31576387be8a"
+git-tree-sha1 = "b7af952d4701252dc45d3b0025693e9cb4dedcd8"
 uuid = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
-version = "1.10.1"
+version = "1.10.2"
 
 [[deps.DocumenterTools]]
 deps = ["AbstractTrees", "Base64", "DocStringExtensions", "Documenter", "FileWatching", "Git", "Gumbo", "LibGit2", "OpenSSH_jll", "Sass"]
@@ -749,9 +749,9 @@ version = "0.12.3"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "44f6c1f38f77cafef9450ff93946c53bd9ca16ff"
+git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.2"
+version = "2.8.3"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
