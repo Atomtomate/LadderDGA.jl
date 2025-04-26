@@ -156,3 +156,22 @@ function calc_Σ_ω_rpa!(eomf::Function, Σ_ladder::OffsetMatrix{ComplexF64}, K�
         end
     end
 end
+
+
+"""
+    conv_tmp_add_rpa!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where N
+
+Expect both input arrays already in fouriertransformed.
+"""
+function conv_tmp_add_rpa!(res::AbstractVector{ComplexF64}, kG::KGrid, GView::AbstractArray{ComplexF64,N})::Nothing where N
+    if Nk(kG) == 1 
+        error("Nk(kG) == 1. That was unexpected!")
+    else
+        for i in eachindex(kG.cache1)
+            kG.cache1[i] *= GView[i]
+        end
+        kG.fftw_plan \ kG.cache1
+        Dispersions.conv_post_add!(kG, res, kG.cache1)
+    end
+    return nothing
+end

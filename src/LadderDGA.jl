@@ -29,7 +29,7 @@ export addprocs
 export F_from_χ, calc_local_EoM, check_χ_health, fix_χr, fix_χr!
 
 # GF Helper Functions
-ω2_tail, G_from_Σ, G_from_Σladder, Σ_loc_correction, calc_G_Σ, iν_array, iω_array
+export ω2_tail, G_from_Σ, G_from_Σladder, Σ_loc_correction, calc_G_Σ, iν_array, iω_array
 
 # LadderDGA main functions
 export ωn_grid, sum_ω, sum_ω!, sum_kω, sum_ωk, core, ω0_index, q0_index

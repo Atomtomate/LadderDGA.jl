@@ -55,7 +55,7 @@ include("IO.jl")
 include("GFTools.jl")
 include("GFFit.jl")
 include("BSETools.jl")
-include("ladderDGATools_parallel.jl")
+#include("ladderDGATools_parallel.jl")
 include("ladderDGATools.jl")
 include("lDGA_SelfEnergy.jl")
 include("RPATools_singleCore.jl")
@@ -73,7 +73,7 @@ using .LambdaCorrection
 
 # =================================== Parallelization Bookkeeping ====================================
 global_vars = String[]
-wcache = Ref(WorkerCache())
+#wcache = Ref(WorkerCache())
 
 # ==================== Precompilation ====================
 # TODO: precompile calc_... for CompleX{Float64}

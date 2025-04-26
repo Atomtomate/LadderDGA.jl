@@ -265,7 +265,7 @@ Computes bosonic frequencies for `χ`: ``2 i \\pi n / \\beta``.
     ω2_tail(χ, h)
 
 
-Computes bosonic frequency tail for `χ`: ``\\mathrm{tail}(n) = \\frac{1}{(2 i \\pi n / \\beta)^2}``.
+Computes bosonic frequency tail for `χ`: ``\\mathrm{tail}(n) = \\frac{\\mathrm{tail}_c[3]}{(2 i \\pi n / \\beta)^2}``.
 Sets ``\\mathrm{tail}(n) = 0``.
 """
 function ω2_tail(χ::χT; force_full::Bool = false)

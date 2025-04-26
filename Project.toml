@@ -1,7 +1,8 @@
 name = "LadderDGA"
 uuid = "78e40beb-bf89-4c0e-9d2b-bee278912f2b"
 authors = ["Julian Stobbe <Atomtomate@gmx.de> and contributors"]
-version = "1.5.4"
+
+version = "1.7.0"
 
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
@@ -35,7 +36,7 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TimerOutputs = "a759f4b9-e2f1-59dc-863e-4aeb61b1ea8f"
 
 [compat]
-BSE_Asymptotics = "2.4.0"
+BSE_Asymptotics = "3.3.0"
 DataFrames = "1.7.0"
 Dispersions = "1.0.1"
 EquivalenceClassesConstructor = "0.5.5"
