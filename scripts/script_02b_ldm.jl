@@ -102,8 +102,8 @@ function run(ARGS, tc; use_cache::Bool = true, cache_name::String = "lDGA_cache.
                 end
             catch e
                 println("[$run_id]: WARNING! opening $cache_file resulted in $e"); 
-                println("[$run_id]: WARNING! deleting $cache_file"); flush(stdout)
-                rm(cache_file)
+                # println("[$run_id]: WARNING! deleting $cache_file"); flush(stdout)
+                # rm(cache_file)
             end
         end
     end
