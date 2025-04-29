@@ -2,7 +2,7 @@
 
 julia_version = "1.11.5"
 manifest_format = "2.0"
-project_hash = "17cb083765589e55555c6f9f8a12f6c841814a84"
+project_hash = "a848adcddd89e4f3be51638a10ab78235f5eef26"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -291,11 +291,11 @@ version = "1.9.1"
 
 [[deps.Dispersions]]
 deps = ["AbstractFFTs", "Combinatorics", "Coverage", "Documenter", "EquivalenceClassesConstructor", "FFTW", "FastGaussQuadrature", "LinearAlgebra", "Pkg", "Random", "ShiftedArrays", "Test"]
-git-tree-sha1 = "29b04ecb239764736fbf39ede292ccbb70dfecc7"
+git-tree-sha1 = "1c1230d55814b7a15fe9270ff0b109dbd95f7667"
 repo-rev = "master"
 repo-url = "https://github.com/Atomtomate/Dispersions.jl"
 uuid = "9451dd48-6b2a-4bde-a443-9ec270a37806"
-version = "1.0.2"
+version = "1.1.1"
 
 [[deps.Distributed]]
 deps = ["Random", "Serialization", "Sockets"]
@@ -412,9 +412,9 @@ version = "1.11.0"
 
 [[deps.GenericLinearAlgebra]]
 deps = ["LinearAlgebra", "Printf", "Random", "libblastrampoline_jll"]
-git-tree-sha1 = "54ee4866eb8c982ee23cf79230ca0aaf916c382b"
+git-tree-sha1 = "ad599869948d79efd63a030c970e2c6e21fecf4a"
 uuid = "14197337-ba66-59df-a3e3-ca00e7dcff7a"
-version = "0.3.15"
+version = "0.3.17"
 
 [[deps.Git]]
 deps = ["Git_jll"]

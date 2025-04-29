@@ -97,33 +97,38 @@ end
 
 # ==================================== Old Equation of Motion ========================================
 # -------------------------------------------- EoM: Defs ---------------------------------------------
-@inline eom_rpa(U::Float64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = 0.5 * (U^2.0) * ( χ_d + 3.0 * χ_m) + U * λ₀
-@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
-@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
-@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
-@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
-@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
-@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
+Base.@assume_effects :total eom_rpa(U::Float64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = 0.5 * (U^2.0) * ( χ_d + 3.0 * χ_m) + U * λ₀
+Base.@assume_effects :total eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+Base.@assume_effects :total eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
+Base.@assume_effects :total eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
+Base.@assume_effects :total eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
+Base.@assume_effects :total eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
+Base.@assume_effects :total eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
 
 
-@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
-@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
-@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
-@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
-@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
+Base.@assume_effects :total eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+Base.@assume_effects :total eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+Base.@assume_effects :total eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+Base.@assume_effects :total eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+Base.@assume_effects :total eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
 
-@inline eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
-@inline eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
-@inline eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
-@inline eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
-@inline eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
-@inline eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
+Base.@assume_effects :total eom(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+Base.@assume_effects :total eom_χ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (U * χ_m))
+Base.@assume_effects :total eom_χ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (-U * χ_d))
+Base.@assume_effects :total eom_γ_m(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5)
+Base.@assume_effects :total eom_γ_d(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5)
+Base.@assume_effects :total eom_rest_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * 1.0 + 0.0im
 
-@inline eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
-@inline eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
-@inline eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
-@inline eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
-@inline eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
+Base.@assume_effects :total eom_sp_01(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 0.5 * (1 + U * χ_m) - 0.5)
+Base.@assume_effects :total eom_sp_02(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.0 * (1 + U * χ_m) - 1.0)
+Base.@assume_effects :total eom_sp(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * (γ_m * 1.5 * (1 + U * χ_m) - 1.5)
+Base.@assume_effects :total eom_ch(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = -U * (γ_d * 0.5 * (1 - U * χ_d) - 0.5)
+Base.@assume_effects :total eom_rest(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::ComplexF64, χ_d::ComplexF64, λ₀::ComplexF64)::ComplexF64 = U * λ₀
+
+function fill_buffer!(buffer::Vector{ComplexF64}, eom_f::Function, qi::Int, νi::Int, ωi::Int, U::Float64, γm::Array{ComplexF64,3}, γd::Array{ComplexF64,3}, χm::Array{Float64,2}, χd::Array{Float64,2}, λ₀::Array{ComplexF64,3})::Nothing
+    @inbounds buffer[qi] = eom_f(U, γm[qi, νi, ωi], γd[qi, νi, ωi], χm[qi, ωi], χd[qi, ωi], λ₀[qi, νi, ωi]) 
+    return nothing
+end
 
 
 """
@@ -178,23 +183,31 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,Co
     λd != 0.0 && reset!(χd)
     return Σ_ladder
 end
+
 function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, 
                    Gνω::GνqT, U::Float64, kG::KGrid, sP::SimulationParameters,
 )
-    νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gIm
-    fill!(Σ_ω, zero(ComplexF64))
+    γmt::Array{ComplexF64,3} = γm.data
+    γdt::Array{ComplexF64,3} = γd.data
+    χmt::Array{Float64,2} = χm.data
+    χdt::Array{Float64,2} = χd.data
+    Ut::ComplexF64 = U
 
+    ql = axes(Σ_ω,1)
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: This should be refactored to avoid selectdim
+    fill!(Σ_ω, zero(ComplexF64))
     for (ωi, ωn) in enumerate(χm.indices_ω)
         νZero = ν0Index_of_ωIndex(ωi, sP)
         νlist = νZero:(sP.n_iν*2)
         length(νlist) > size(Σ_ω, 2) && (νlist = νlist[1:size(Σ_ω, 2)])
         for (νii, νi) in enumerate(νlist)
-            for qi = axes(Σ_ω,1)
-                @inbounds Kνωq_pre[qi] = eomf(U, γm[qi, νi, ωi], γd[qi, νi, ωi], χm[qi, ωi], χd[qi, ωi], λ₀[qi, νi, ωi])
+            for qi = ql
+                fill_buffer!(Kνωq_pre, eomf, qi, νi, ωi, U, γmt, γdt, χmt, χdt, λ₀)            
             end
-            #TODO: find a way to not unroll this!
-            conv_tmp_add!(view(Σ_ω, :, νii - 1), kG, Kνωq_pre, selectdim(Gνω, νdim, (νii - 1) + ωn))
+            G_sel = selectdim(Gνω, νdim, (νii - 1) + ωn)
+            SE_sel = view(Σ_ω, :, νii - 1)
+            conv_add_inlined!(SE_sel, kG, Kνωq_pre, G_sel)
         end
     end
 end
@@ -203,9 +216,17 @@ end
 function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
                  χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T,
                  tc_term::Union{Float64,Matrix{ComplexF64}}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+                 λm::Float64 = 0.0, λd::Float64 = 0.0
 )::Nothing
+    χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
+    χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     ΣH = Σ_hartree(mP)
+    λm != 0.0 && χ_λ!(χm, λm)
+    λd != 0.0 && χ_λ!(χd, λd)
     calc_Σ!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    λm != 0.0 && reset!(χm)
+    λd != 0.0 && reset!(χd)
+
     Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ ΣH 
     return nothing
 end
@@ -258,7 +279,7 @@ function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{Comple
                 @inbounds Kνωq_pre[qi] = eomf_new(mP.U, γm[qi, νi, ωi], γd[qi, νi, ωi], χm[qi, ωi], χd[qi, ωi], λ₀[qi, νi, ωi], correction_factor)
             end
             #TODO: find a way to not unroll this!
-            LadderDGA.conv_tmp_add!(view(Σ_ladder, :, νii - 1), kG, Kνωq_pre, selectdim(Gνω, νdim, (νii - 1) + ωn))
+            LadderDGA.conv_add_inlined!(view(Σ_ladder, :, νii - 1), kG, Kνωq_pre, selectdim(Gνω, νdim, (νii - 1) + ωn))
         end
     end
     Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ ΣH 
@@ -322,20 +343,25 @@ end
 
 
 # -------------------------------------------- EoM: Main ---------------------------------------------
-function conv_tmp_add!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
+"""
+    conv_add_inlined!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
+
+Inlined version of convolution used for `calc_Σ!`.
+"""
+function conv_add_inlined!(res::AbstractVector{ComplexF64}, kG::KGrid, arr1::Vector{ComplexF64}, GView::AbstractArray{ComplexF64,N})::Nothing where {N}
     norm::ComplexF64 = convert(ComplexF64, kG.Nk)
     if Nk(kG) == 1
         res[:] += arr1 .* GView
     else
-        expandKArr!(kG, kG.cache1, arr1)
-        #mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
-        FFTW.unsafe_execute!(kG.fftw_plan, kG.cache1, kG.cache1) #mul!(kG.cache1, kG.fftw_plan, kG.cache1) # documentation of mul! warns to not use mul!(A, B, A).
-        for i in eachindex(kG.cache1)
+        expandKArr_inlined!(kG, kG.cache1, arr1)
+        kG.fftw_plan * kG.cache1
+        @simd for i in eachindex(kG.cache1)
             @inbounds kG.cache1[i] *= GView[i]
         end
         kG.fftw_plan \ kG.cache1
-        #Dispersions.conv_post_add!(kG, res, kG.cache1)
-        @inbounds res[:] = res[:] .+ kG.cache1[kG.kInd_crossc] ./ norm
+        @simd for i in eachindex(res)
+            @inbounds res[i] += kG.cache1[kG.kInd_crossc[i]] / norm
+        end
     end
     return nothing
 end

@@ -257,7 +257,6 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
 
     while it <= maxit && !converged
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
-
         μ_it, G_ladder_it, Σ_ladder_it = calc_G_Σ(χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft = gLoc_rfft, tc = tc, fix_n = true)
         @assert isfinite(μ_it) error("encountered μ=$μ_it @ λd = $λd // λm = $λm")
         trace && push!(tr, Σ_ladder_it)
@@ -294,14 +293,10 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
         
         μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
         @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
-        
-
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
         Δit < conv_abs && (converged = true)
-
         it > mixing_start_it && (@inbounds G_ladder_it[:,:] = (1-mixing) .* G_ladder_it[:,:] .+ mixing .* G_ladder_bak[:,:])
         @assert all(isfinite.(Σ_ladder_it))  "encountered divergend self-energy @ μ=$μ_it // λd = $λd // λm = $λm"
-
         !isnothing(trace) && push!(trace, [λm, λd, Σ_ladder_it])
         verbose && println("It = $it[λm=$λm/λd=$λd]: Δit=$Δit")
         G_rfft!(gLoc_rfft, G_ladder_it, h.kG, h.sP.fft_range)

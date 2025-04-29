@@ -6,11 +6,9 @@
 #   Green's function and Matsubara frequency related functions                                         #
 # -------------------------------------------- TODO -------------------------------------------------- #
 #   unify G_from_Σ API                                                                                 #
-#   Add derivative fμ for filling fit and switch to Halley's method from Roots.jl                      #
 #   come up with a type for MatsubraraFreuqncies, Greens Functions and Self-Energies                   #
 #   This file could be a separate module                                                               #
-#   Test and optimize functions                                                                        #
-#   Rename subtrac_tail and make it more general for arbitrary tails (GF should know its tail)         #
+#   The structure of G (Nk x Nk x ... x Nν) introduces an overhead because of selectdim. Refactor!     #
 # ==================================================================================================== #
 
 
@@ -584,4 +582,70 @@ function estimate_connected_ef(Σ_ladder::OffsetMatrix, kG::KGrid, μ::Float64, 
         conn >= 0 && break
     end
     return ef, rc_res
+end
+
+
+# ======================================= Fourier Transforms =========================================
+"""
+    expandKArr_tmp!(kG::KGrid, res::Array{T,D}, arr::AbstractArray{T,1}) where {gT <: KGridType,T,D}
+
+Inlined version of `expandKArr` from `KGrid.jl`. 
+This seems to avoid alloction overheads.
+TODO: figure out why and port back to Dispersions.jl.
+"""
+function expandKArr_inlined!(
+    kG::KGrid{gT,D},
+    res::Array{T,D},
+    arr::AbstractArray{T,1},
+) where {gT <: Dispersions.KGridType,T,D}
+    for (ri, perms) in enumerate(kG.expand_perms)
+        @simd for p in perms
+            @inbounds res[p] = arr[ri]
+        end
+    end
+end
+
+"""
+    G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
+
+Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
+"""
+function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
+    gs = gridshape(kG)
+    kGdims = length(gs)
+    G_fft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
+    G_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
+    G_fft!(G_fft, G, kG, sP.fft_range)
+    G_rfft!(G_rfft, G, kG, sP.fft_range)
+    return G_fft, G_rfft
+end
+
+"""
+    G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
+
+Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
+Inplace version of [`G_fft`](@ref G_fft).
+"""
+
+function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
+    νdim = length(gridshape(kG)) + 1
+    for νn in fft_range
+        expandKArr_inlined!(kG, kG.cache1, view(G,:, νn))
+        reverse!(kG.cache1)
+        kG.fftw_plan * kG.cache1
+        Gview = selectdim(G_rfft, νdim, νn)
+        copyto!(Gview, kG.cache1)
+    end
+    return nothing
+end
+
+function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
+    νdim = length(gridshape(kG)) + 1
+    for νn in fft_range
+        expandKArr_inlined!(kG, kG.cache1, view(G,:, νn))
+        kG.fftw_plan * kG.cache1
+        Gview = selectdim(G_rfft, νdim, νn)
+        copyto!(Gview, kG.cache1)
+    end
+    return nothing
 end

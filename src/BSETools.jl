@@ -149,8 +149,8 @@ Arguments
 - **`sP`**        : `SimulationParameters`, (to construct a frequency range)
 - **`mode`**      : selects particle-hole (`:ph`, default) or particle-particle (`:pp`) notation 
 """
-function calc_bubble(type::Symbol, h::RunHelper; mode = :ph)
-    calc_bubble(type, h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP; mode = mode)
+function calc_bubble(type::Symbol, h::RunHelper; mode::Symbol = :ph, use_threads::Bool=true)
+    calc_bubble(type, h.gLoc_fft, h.gLoc_rfft, h.kG, h.mP, h.sP; mode = mode, use_threads=use_threads)
 end
 
 function calc_bubble(
@@ -160,40 +160,67 @@ function calc_bubble(
     kG::KGrid,
     mP::ModelParameters,
     sP::SimulationParameters;
-    mode = :ph,
+    ωrange::AbstractVector = -sP.n_iω:sP.n_iω,
+    mode::Symbol = :ph,
+    use_threads::Bool=false
 )
-    #TODO: fix the size (BSE_SC inconsistency)
+    mode in (:ph, :pp) || error("Unknown mode `$mode`!")
+
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2 * (sP.n_iν + sP.n_iν_shell), 2 * sP.n_iω + 1)
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gImp
-    function conv_function!(νi::Int, νn::Int, ωi::Int, ωm::Int)
-        if mode == :ph
-            conv_fft!(kG, view(data, :, νi, ωi), selectdim(Gνω, νdim, νn), selectdim(Gνω_r, νdim, ωm + νn))
-        elseif mode == :pp
+    
+
+    function conv_function!(data::Array{ComplexF64,3}, νi::Int, νn::Int, ωi::Int, ωm::Int, cache::Array)
             conv_fft!(
-                kG,
-                view(data, :, νi, ωi),
-                selectdim(Gνω, νdim, νn),
-                selectdim(Gνω, νdim, ωm - νn);
-                crosscorrelation = false,
+                kG, 
+                view(data, :, νi, ωi), 
+                selectdim(Gνω, νdim, νn), 
+                selectdim(Gνω_r, νdim, ωm + νn), 
+                crosscorrelation = mode == :ph,
+                cache=cache
             )
-        else
-            error("Unkown mode $mode for bubble calculation. Options are :ph and :pp.")
+    end
+    
+    if use_threads
+        @warn "Threaded version of bubble calculation is not optimized and may only yield minor or no performance advantages."
+        #TODO: find and remove memory allocations in the threaded version
+        bthreads = BLAS.get_num_threads()
+        BLAS.set_num_threads(1)
+        NT = Threads.nthreads()
+        caches = [similar(kG.cache1) for ti in 1:NT]
+        Threads.@threads for ωi in eachindex(ωrange)
+            ωm = ωrange[ωi]
+            νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωm / 2)
+            for (νi, νn) in enumerate(νrange)
+                conv_fft!(
+                    kG, 
+                    view(data, :, νi, ωi), 
+                    selectdim(Gνω, νdim, νn), 
+                    selectdim(Gνω_r, νdim, ωm + νn), 
+                    crosscorrelation = mode == :ph,
+                    cache=caches[Threads.threadid()]
+                )
+                data[:, νi, ωi] .*= -mP.β
+            end
+        end
+        BLAS.set_num_threads(bthreads)
+    else
+        for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
+            νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωm / 2)
+            for (νi, νn) in enumerate(νrange)
+                conv_fft!(
+                    kG, 
+                    view(data, :, νi, ωi), 
+                    selectdim(Gνω, νdim, νn), 
+                    selectdim(Gνω_r, νdim, ωm + νn), 
+                    crosscorrelation = mode == :ph,
+                    cache=kG.cache1
+                )
+                data[:, νi, ωi] .*= -mP.β
+            end
         end
     end
-    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω_r,νdim, ωm+νn))
-    # elseif mode == :pp
-    #     conv_fft!(kG, view(data,:,νi,ωi), selectdim(Gνω,νdim,νn), selectdim(Gνω  ,νdim, ωm-νn); crosscorrelation=false)
 
-
-    for (ωi, ωm) in enumerate(-sP.n_iω:sP.n_iω)
-        νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωm / 2)
-        #TODO: fix the offset (BSE_SC inconsistency)
-        for (νi, νn) in enumerate(νrange)
-            conv_function!(νi, νn, ωi, ωm)
-            data[:, νi, ωi] .*= -mP.β
-        end
-    end
-    #TODO: not necessary after real fft
     data = _eltype === Float64 ? real.(data) : data
     return χ₀T(type, data, kG, -sP.n_iω:sP.n_iω, sP.n_iν, sP.shift, sP, mP, ν_shell_size = sP.n_iν_shell)
 end
@@ -213,15 +240,14 @@ This method solves the following equation:
 \\Leftrightarrow (\\chi^{-1}_r - \\chi^{-1}_0) = \\frac{1}{\\beta^2} \\Gamma_r
 ``
 """
-function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false, use_threads=false)
+function calc_χγ(type::Symbol, h::Union{lDΓAHelper,AlDΓAHelper}, χ₀::χ₀T; verbose=true, ω_symmetric::Bool=false, use_threads=true)
     calc_χγ(type, getfield(h, Symbol("Γ_$(type)")), χ₀, h.kG, h.mP, h.sP; verbose=verbose, ω_symmetric=ω_symmetric, use_threads=use_threads)
 end
 
 function calc_χγ(type::Symbol, Γr::ΓT, χ₀::χ₀T, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-         verbose=true, ω_symmetric::Bool=false, use_threads=false)
+         verbose=true, ω_symmetric::Bool=false, use_threads=true)
     s = type == :d ? -1 : 1
     !(type in (:d, :m)) && error("Unkown type $type")
-
     
     Nν = 2 * sP.n_iν
     Nq = length(kG.kMult)
@@ -299,7 +325,7 @@ function invert_BSE!(χ::AbstractArray{Float64,2}, γ::AbstractArray{ComplexF64,
         end
     else
         if typeof(χ_helper) === BSE_SC_Helper
-            improve_χ!(type, ωi, view(χννpω, :, :, ωi), view(χ₀, qi, :, ωi), U, β, χ_helper)
+            improve_χ!(type, ωi, view(χννpω, :, :, ωi), view(χ₀_data, qi, :, ωi), U, β, χ_helper)
         end
         χ[qi, ωi] = real(sum(χννpω)) / β^2
         for νk in axes(γ, 2)

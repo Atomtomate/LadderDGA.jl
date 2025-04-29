@@ -62,16 +62,17 @@ Arguments
 
 Correction term, TODO: documentation
 """
-function calc_λ0(χ₀::χ₀T, h::lDΓAHelper; diag_zero::Bool=true)
+function calc_λ0(χ₀::χ₀T, h::lDΓAHelper; diag_zero::Bool=true, dbg=true)
     F_m = F_from_χ(:m, h)
-    calc_λ0(χ₀, F_m, h; diag_zero=diag_zero)
+    calc_λ0(χ₀, F_m, h; diag_zero=diag_zero, dbg=dbg)
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper; diag_zero::Bool=true)::λ₀T
+function calc_λ0(χ₀::χ₀T, Fr::FT, h::lDΓAHelper; diag_zero::Bool=true, dbg=true)::λ₀T
     calc_λ0(χ₀, Fr, h.χ_m_loc, h.γ_m_loc, h.mP, h.sP; diag_zero=diag_zero)
 end
 
-function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters; improved_sums::Bool = true, diag_zero::Bool=true)::λ₀T
+function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, sP::SimulationParameters;
+        improved_sums::Bool = true, diag_zero::Bool=true, use_threads::Bool=true)::λ₀T
     #TODO: store nu grid in sP?
     Niν = size(Fr, 1)
     Nq = size(χ₀.data, χ₀.axis_types[:q])
@@ -98,3 +99,39 @@ function calc_λ0(χ₀::χ₀T, Fr::FT, χ::χT, γ::γT, mP::ModelParameters, 
     end
     return λ0
 end
+
+
+#=
+function calc_λ0_impr(type::Symbol, ωgrid::AbstractVector{Int},
+                 F::AbstractArray{ComplexF64,3}, χ₀::AbstractArray{ComplexF64,3}, 
+                 χ₀_asym::Array{ComplexF64,2}, γ::AbstractArray{ComplexF64,2}, 
+                 χ::AbstractArray{T,1},
+                 U::Float64, β::Float64, h; diag_zero::Bool=true) where T <: Union{ComplexF64,Float64}
+    s = (type == :d) ? -1 : +1
+    ind_core = (h.Nν_shell+1):(size(χ₀,2)-h.Nν_shell)
+    Nq = size(χ₀,1)
+    Nν = length(ind_core)
+    Nω = size(χ₀,3)
+    λasym = Array{ComplexF64,1}(undef, Nν)
+    λcore = Array{ComplexF64,1}(undef, Nν)
+    res = Array{ComplexF64,3}(undef, Nq, Nν, Nω)
+
+    F_diag!(diag_asym_buffer::Vector{ComplexF64}, qi::Int, ωi::Int,  ωn::Int, χ₀::Array{ComplexF64,3},
+                        buffer::OffsetMatrix{ComplexF64}, h::BSE_Asym_Helper)
+
+    for (ωi,ωn) in enumerate(ωgrid)
+        λasym = -(view(γ,:,ωi) .* (1 .+ s*U .* χ[ωi]) ) .+ 1
+        for qi in 1:Nq
+            λcore[:] = [s*dot(view(χ₀,qi,ind_core,ωi), view(F,νi,:,ωi))/(β^2) for νi in 1:size(F,1)]
+            diag_term = if !diag_zero && hasfield(typeof(h), :diag_asym_buffer)
+                F_diag!(diag_asym_buffer, qi, ωi, ωn, χ₀, h.buffer_m, h)
+                view(diag_asym_buffer, ind_core)
+            else
+                0.0
+            end
+            res[qi,:,ωi] = λcore + χ₀_asym[qi,ωi].*U.*(λasym .- 1) .+ diag_term
+        end
+    end
+    return res
+end
+=#
