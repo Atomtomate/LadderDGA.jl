@@ -644,7 +644,7 @@ function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothin
     for νn in fft_range
         expandKArr_inlined!(kG, kG.cache1, view(G,:, νn))
         kG.fftw_plan * kG.cache1
-        Gview = selectdim(G_rfft, νdim, νn)
+        Gview = selectdim(G_fft, νdim, νn)
         copyto!(Gview, kG.cache1)
     end
     return nothing
