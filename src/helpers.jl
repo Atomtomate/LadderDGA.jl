@@ -150,7 +150,6 @@ function νi_health(νGrid::AbstractArray{Int}, sP::SimulationParameters)
     return [length(filter(x -> x[4] == i, t)) for i in unique(getindex.(t, 4))]
 end
 # ============================================== Misc. ===============================================
-
 """
     reduce_range(range::AbstractArray, red_prct::Float64)
 
@@ -164,44 +163,3 @@ function reduce_range(range::AbstractArray, red_prct::Float64)
     return fst:lst
 end
 
-"""
-    G_fft(G::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters)
-
-Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
-"""
-function G_fft(G::GνqT, kG::KGrid, sP::SimulationParameters)
-    gs = gridshape(kG)
-    kGdims = length(gs)
-    G_fft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
-    G_rfft = OffsetArrays.Origin(repeat([1], kGdims)..., first(sP.fft_range))(Array{ComplexF64,kGdims + 1}(undef, gs..., length(sP.fft_range)))
-    G_fft!(G_fft, G, kG, sP.fft_range)
-    G_rfft!(G_rfft, G, kG, sP.fft_range)
-    return G_fft, G_rfft
-end
-
-"""
-    G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
-
-Calculates fast Fourier transformed lattice Green's functions used for [`calc_bubble`](@ref calc_bubble).
-Inplace version of [`G_fft`](@ref G_fft).
-"""
-function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
-    νdim = length(gridshape(kG)) + 1
-    for νn in fft_range
-        expandKArr!(kG, G[:, νn].parent)
-        reverse!(kG.cache1)
-        fft!(kG.cache1)
-        selectdim(G_rfft, νdim, νn) .= kG.cache1
-    end
-    return nothing
-end
-
-function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
-    νdim = length(gridshape(kG)) + 1
-    for νn in fft_range
-        expandKArr!(kG, G[:, νn].parent)
-        fft!(kG.cache1)
-        selectdim(G_fft, νdim, νn) .= kG.cache1
-    end
-    return nothing
-end
