@@ -277,21 +277,22 @@ end
 
 
 function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, gLoc_rfft, 
-                Kνωq_pre, tc_factor, tc::Type{<: ΣTail}, 
-                χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Float64, λd::Float64, h;
-                maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
-                conv_abs::Float64=1e-8, trace=nothing, verbose::Bool=false)
+            Kνωq_pre, tc_factor, tc::Type{<: ΣTail}, 
+            χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Float64, λd::Float64, h;
+            maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
+            conv_abs::Float64=1e-8, use_γ_symmetry::Bool=false,
+        trace=nothing, verbose::Bool=false)
     it      = 1
     converged = false
-
     μ_it = h.mP.μ
     tc_term  = tc === ΣTail_EoM ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm), h.χloc_m_sum, tc_factor)
-
+    gs = gridshape(h.kG)
+    FFTW.set_num_threads(1);
+    fftw_plan = plan_fft!(h.kG.cache1, flags=FFTW.PATIENT, timelimit=Inf, num_threads=1)
+    ifftw_plan = plan_ifft!(h.kG.cache1, flags=FFTW.PATIENT, timelimit=Inf, num_threads=1)
     while it <= maxit && !converged
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
-
-        
-        μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft)
+        μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft, use_γ_symmetry=use_γ_symmetry)
         @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
         Δit < conv_abs && (converged = true)
@@ -304,7 +305,6 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
     end
     return converged, μ_it
 end
-
 
 
 function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h;

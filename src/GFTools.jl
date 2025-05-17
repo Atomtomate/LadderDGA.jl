@@ -231,13 +231,9 @@ function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{
                     tc_term::Matrix{ComplexF64},
                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                     λm::Float64, λd::Float64, h::lDΓAHelper; 
-                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
+                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true, use_γ_symmetry::Bool = false
 )::Float64
-    (λm != 0) && χ_λ!(χm, λm)
-    (λd != 0) && χ_λ!(χd, λd)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP)
-    (λm != 0) && reset!(χm)
-    (λd != 0) && reset!(χd)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP; λm=λm, λd=λd, use_γ_symmetry=use_γ_symmetry)
     μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
     return μ_new
 end
@@ -246,11 +242,11 @@ function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{
                     χm_loc::χT,
                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                     λm::Float64, λd::Float64, h::lDΓAHelper; 
-                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true
+                    gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true, use_γ_symmetry::Bool = false
 )::Float64
     (λm != 0) && χ_λ!(χm, λm)
     (λd != 0) && χ_λ!(χd, λd)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP)
+    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, use_γ_symmetry=use_γ_symmetry)
     (λm != 0) && reset!(χm)
     (λd != 0) && reset!(χd)
     μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
@@ -630,7 +626,7 @@ Inplace version of [`G_fft`](@ref G_fft).
 function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
     νdim = length(gridshape(kG)) + 1
     for νn in fft_range
-        expandKArr_inlined!(kG, kG.cache1, view(G,:, νn))
+        expandKArr_inlined!(kG.cache1, view(G,:, νn), kG.expand_perms)
         reverse!(kG.cache1)
         kG.fftw_plan * kG.cache1
         Gview = selectdim(G_rfft, νdim, νn)
@@ -639,12 +635,14 @@ function G_rfft!(G_rfft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Noth
     return nothing
 end
 
+
+
 function G_fft!(G_fft::GνqT, G::GνqT, kG::KGrid, fft_range::UnitRange)::Nothing
     νdim = length(gridshape(kG)) + 1
     for νn in fft_range
-        expandKArr_inlined!(kG, kG.cache1, view(G,:, νn))
+        expandKArr_inlined!(kG.cache1, view(G,:, νn), kG.expand_perms)
         kG.fftw_plan * kG.cache1
-        Gview = selectdim(G_rfft, νdim, νn)
+        Gview = selectdim(G_fft, νdim, νn)
         copyto!(Gview, kG.cache1)
     end
     return nothing

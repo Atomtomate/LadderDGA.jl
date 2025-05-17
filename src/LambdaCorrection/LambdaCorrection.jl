@@ -3,7 +3,7 @@ module LambdaCorrection
 using LinearAlgebra, GenericLinearAlgebra
 using OffsetArrays, StaticArrays, DataStructures
 using FiniteDiff
-using Dispersions
+using Dispersions, FFTW
 using Roots
 using DataFrames
 using TimerOutputs
@@ -18,7 +18,6 @@ import ..filling, ..filling_pos, ..tail_factor, ..tail_correction_term, ..defaul
 import ..RPAHelper, ..lDΓAHelper, ..AlDΓAHelper, ..RunHelper
 import ..estimate_ef, ..estimate_connected_ef
 
-import ..LadderDGA: to 
 
 export χ_λ, χ_λ!, dχ_λ, reset!
 export get_λ_min
