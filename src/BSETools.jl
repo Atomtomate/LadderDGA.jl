@@ -162,28 +162,14 @@ function calc_bubble(
     sP::SimulationParameters;
     ωrange::AbstractVector = -sP.n_iω:sP.n_iω,
     mode::Symbol = :ph,
-    use_threads::Bool=false
+    use_threads::Bool=true
 )
     mode in (:ph, :pp) || error("Unknown mode `$mode`!")
 
     data = Array{ComplexF64,3}(undef, length(kG.kMult), 2 * (sP.n_iν + sP.n_iν_shell), 2 * sP.n_iω + 1)
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gImp
-    
 
-    function conv_function!(data::Array{ComplexF64,3}, νi::Int, νn::Int, ωi::Int, ωm::Int, cache::Array)
-            conv_fft!(
-                kG, 
-                view(data, :, νi, ωi), 
-                selectdim(Gνω, νdim, νn), 
-                selectdim(Gνω_r, νdim, ωm + νn), 
-                crosscorrelation = mode == :ph,
-                cache=cache
-            )
-    end
-    
     if use_threads
-        @warn "Threaded version of bubble calculation is not optimized and may only yield minor or no performance advantages."
-        #TODO: find and remove memory allocations in the threaded version
         bthreads = BLAS.get_num_threads()
         BLAS.set_num_threads(1)
         NT = Threads.nthreads()
@@ -192,7 +178,7 @@ function calc_bubble(
             ωm = ωrange[ωi]
             νrange = ((-(sP.n_iν + sP.n_iν_shell)):(sP.n_iν+sP.n_iν_shell-1)) .- trunc(Int, sP.shift * ωm / 2)
             for (νi, νn) in enumerate(νrange)
-                conv_fft!(
+                conv_fft_inlined!(
                     kG, 
                     view(data, :, νi, ωi), 
                     selectdim(Gνω, νdim, νn), 

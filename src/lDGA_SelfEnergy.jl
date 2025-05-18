@@ -430,6 +430,32 @@ function conv_add_inlined!(res::AbstractVector{ComplexF64}, cache::Array{Complex
     return nothing
 end
 
+function conv_fft_inlined!(
+    kG::KGrid,
+    res::AbstractArray{ComplexF64,1},
+    arr1::AbstractArray{ComplexF64},
+    arr2::AbstractArray{ComplexF64};
+    crosscorrelation::Bool=true,
+    cache::Array{ComplexF64, D} = kG.cache1
+) where D
+    Nk(kG) == 1 && return (res[:] = arr1 .* arr2)
+
+    for i in eachindex(cache)
+        @inbounds cache[i] = arr1[i] * arr2[i]
+    end
+    kG.ifftw_plan * cache
+    norm = Nk(kG)
+    if crosscorrelation 
+        @simd for i in eachindex(res)
+            @inbounds res[i] = cache[kG.kInd_crossc[i]] / norm
+        end
+    else
+        @simd for i in eachindex(res)
+            @inbounds res[i] = cache[kG.kInd_conv[i]] / norm
+        end
+    end
+end
+
 # ---------------------------------------------- Misc. -----------------------------------------------
 function Σ_loc_correction(Σ_ladder::AbstractMatrix{ComplexF64}, Σ_ladderLoc::AbstractMatrix{ComplexF64}, Σ_loc::AbstractVector{ComplexF64})
     res = similar(Σ_ladder)
