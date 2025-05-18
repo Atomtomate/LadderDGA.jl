@@ -38,7 +38,7 @@ See also [`sample_f`](@ref sample_f) for a description of the numerical paramete
 """
 function EPotCond_curve(χm_in::χT,γm_in::γT,χd_in::χT, γd_in::γT,λ₀::λ₀T, h; tmp_swapped = false,
         tc::Type{<: ΣTail}=default_Σ_tail_correction(), feps_abs::Float64=1e-8, xeps_abs::Float64=1e-8, maxit::Int=2000, 
-        λmin::Float64=get_λ_min(χd), λmax::Float64=30.0, verbose::Bool = false)
+        λmin::Float64=get_λ_min(χd_in), λmax::Float64=30.0, verbose::Bool = false)
     χm = tmp_swapped ? deepcopy(χd_in) : deepcopy(χm_in)
     γm = tmp_swapped ? deepcopy(γd_in) : deepcopy(γm_in)
     χd = tmp_swapped ? deepcopy(χm_in) : deepcopy(χd_in)
@@ -48,7 +48,9 @@ function EPotCond_curve(χm_in::χT,γm_in::γT,χd_in::χT, γd_in::γT,λ₀::
     Nq::Int = length(h.kG.kMult)
     νmax::Int = eom_ν_cutoff(h.sP)
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(h.kG.cache1)} = [similar(h.kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
     if !(tc === ΣTail_EoM)
@@ -61,7 +63,7 @@ function EPotCond_curve(χm_in::χT,γm_in::γT,χd_in::χT, γd_in::γT,λ₀::
         verbose && println("$λm_i / $λd_i")
         if isfinite(λm_i)
             tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χd, λ=λd_i), h.χloc_m_sum, tc_factor)
-            μ_new = tmp_swapped ? calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χd, γd, χm, γm, λ₀, λd_i, λm_i, h) : calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h)
+            μ_new = tmp_swapped ? calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, fft_caches, tc_term, χd, γd, χm, γm, λ₀, λd_i, λm_i, h) : calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, fft_caches, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h)
             Ekin_1, Epot_1 = calc_E(G_ladder, Σ_ladder, μ_new, h.kG, h.mP)
             Epot_2 = tmp_swapped ? EPot_p2(χd, χm, λd_i, λm_i, h.mP.n, h.mP.U, h.kG) : EPot_p2(χm, χd, λm_i, λd_i, h.mP.n, h.mP.U, h.kG)
             return Epot_1 - Epot_2
@@ -93,7 +95,9 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     νmax::Int = eom_ν_cutoff(h.sP)
     fft_νGrid= h.sP.fft_range
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(h.kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder)
@@ -108,7 +112,7 @@ function EPotCond_sc_curve(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
         ΔEPot = NaN
         converged = false
         G_rfft = deepcopy(h.gLoc_rfft)
-        converged, μ_new = run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
+        converged, μ_new = run_sc!(G_ladder, Σ_ladder, G_ladder_bak, G_rfft, Kνωq_pre, fft_caches, tc_factor_term, tc,
                             χm, γm, χd, γd, λ₀, λm_i, λd_i, h; 
                             maxit=maxit_sc, mixing=mixing, use_γ_symmetry=use_γ_symmetry, conv_abs=sc_conv_abs, verbose=verbose_sc)
         verbose && println("running λm=$λm_i, λd=$λd_i, μ=$μ_new")

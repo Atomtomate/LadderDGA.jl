@@ -129,7 +129,9 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
     ωn2_tail = ω2_tail(χm)
     Nq::Int = length(h.kG.kMult)
     
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(h.kG.cache1)} = [similar(h.kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     G_ladder = similar(Σ_ladder)
     
@@ -151,7 +153,7 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
         λm_i   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
         tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm_i), h.χloc_m_sum, tc_factor)
-        μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h, fix_n=fix_n)
+        μ_new = calc_G_Σ!(G_ladder, Σ_ladder, Kνωq_pre, fft_caches, tc_term, χm, γm, χd, γd, λ₀, λm_i, λd_i, h, fix_n=fix_n)
         !isfinite(μ_new) && error("encountered μ=$μ_new @ λd = $λd_i // λm = $λm_i")
 
         EPot_tail, EPot_tail_inv = EPot_p1_tail(iν, μ_new, h)
@@ -176,18 +178,19 @@ function λdm_correction_val(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T,
                 λd = find_zero(f_c2, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
                 done = true
             elseif i == dbg_roots_reset+1
-                @warn "Ran out of root resets, Newton_Right failed, trying Newton_Secular"
-                λd = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+                @warn "Ran out of root resets, trying Newton_Right"
+                λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
                 done = true
+            #elseif i == dbg_roots_reset+2
+            #    @warn "Ran out of root resets, Newton_Right failed, trying Newton_Secular"
+            #    λd = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+            #    done = true
             else
-                done = true         
-                @error "Ran Out of root finding methods!"
-                #@warn "Ran out of root resets, trying Newton_Right"
-                #λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
-                #done = true
+                @error "Ran out of root resets!"
+                done = true
             end
         catch e
-            @error "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
+            @error "Caught error: $e : ModelParameters for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
             @error "Setting λd = 0!"
             λd = 0.0
         end

@@ -227,26 +227,28 @@ end
 Returns `μ_new`; overrides `G_ladder`, `Σ_ladder` and `Kνωq_pre`.
 See [`calc_Σ!`](@ref calc_Σ!) and [`calc_G_Σ`](@ref calc_G_Σ).
 """
-function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64},
+                    Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
                     tc_term::Matrix{ComplexF64},
                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                     λm::Float64, λd::Float64, h::lDΓAHelper; 
                     gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true, use_γ_symmetry::Bool = false
-)::Float64
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP; λm=λm, λd=λd, use_γ_symmetry=use_γ_symmetry)
+)::Float64 where D
+    calc_Σ!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, tc_term, gLoc_rfft, h.kG, h.mP, h.sP; λm=λm, λd=λd, use_γ_symmetry=use_γ_symmetry)
     μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)
     return μ_new
 end
 
-function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
+function calc_G_Σ!(G_ladder::OffsetMatrix{ComplexF64}, Σ_ladder::OffsetMatrix{ComplexF64}, 
+                    Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
                     χm_loc::χT,
                     χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, 
                     λm::Float64, λd::Float64, h::lDΓAHelper; 
                     gLoc_rfft::GνqT = h.gLoc_rfft, fix_n::Bool = true, use_γ_symmetry::Bool = false
-)::Float64
+)::Float64 where D
     (λm != 0) && χ_λ!(χm, λm)
     (λd != 0) && χ_λ!(χd, λd)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, gLoc_rfft, h.kG, h.mP, h.sP, use_γ_symmetry=use_γ_symmetry)
+    calc_Σ!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, χm_loc, λ₀, gLoc_rfft, h.mP.U, h.kG, h.sP, use_γ_symmetry=use_γ_symmetry)
     (λm != 0) && reset!(χm)
     (λd != 0) && reset!(χd)
     μ_new = G_from_Σladder!(G_ladder, Σ_ladder, h.Σ_loc, h.kG, h.mP; fix_n = fix_n, μ = h.mP.μ, n = h.mP.n)

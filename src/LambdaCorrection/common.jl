@@ -113,12 +113,14 @@ function get_λd_min(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{Comple
 
     Nq = length(h.kG.kMult)
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, 1), 1:Nq, 0:0)
-    return get_λd_min!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, h; tc=tc, λd_max=λd_max, Δλ=Δλ, dΣ0_threshold=dΣ0_threshold)
+    return get_λd_min!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, h; tc=tc, λd_max=λd_max, Δλ=Δλ, dΣ0_threshold=dΣ0_threshold)
 end
 
-function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{ComplexF64},
+function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches,
                      χm::χT, γm::γT, χd::χT, γd::γT, λ₀::Array{ComplexF64,3}, h::lDΓAHelper;
                      tc::Type{<: ΣTail} = default_Σ_tail_correction(),
                      λd_max::Float64=0.0, Δλ::Float64 = 1e-1, dΣ0_threshold::Float64=4.0)::Float64
@@ -145,7 +147,7 @@ function get_λd_min!(Σ_ladder, Kνωq_pre::Vector{ComplexF64},
         (λd_i != 0) && χ_λ!(χd, λd_i)
         
         tc_term  = (tc === ΣTail_EoM) ? h.χ_m_loc : tail_correction_term(sum_kω(h.kG, χm, λ=λm_i), h.χloc_m_sum, tc_factor)
-        calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, tc_term, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP)
+        calc_Σ!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, tc_term, λ₀, h.gLoc_rfft, h.kG, h.mP, h.sP)
         (λm_i != 0) && reset!(χm)
         (λd_i != 0) && reset!(χd)
         Σ0_λ_i = maximum(imag(Σ_ladder[:,0]))
