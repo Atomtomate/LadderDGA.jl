@@ -177,28 +177,45 @@ function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χ_m_sum::Union{Float64,Co
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     Nq, Nω = size(χm)
+    NT =Threads.nthreads()
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
-
-    λm != 0.0 && χ_λ!(χm, λm)
-    λd != 0.0 && χ_λ!(χd, λd)
 
     iν = iν_array(mP.β, collect(axes(Σ_ladder, 2)))
     tc_factor = tail_factor(tc, mP.U, mP.β, mP.n, Σ_loc, iν)
-    tc_term   = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP; use_γ_symmetry=use_γ_symmetry)
+    tc_term   = tail_correction_term(sum_kω(kG, χm, λ=λm), χ_m_sum, tc_factor)
+    calc_Σ!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, tc_term, Gνω, kG, mP, sP; λm=λm, λd=λd, use_γ_symmetry=use_γ_symmetry)
 
-    λm != 0.0 && reset!(χm)
-    λd != 0.0 && reset!(χd)
     return Σ_ladder
 end
 
-function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-                   χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, 
-                   Gνω::GνqT, U::Float64, kG::KGrid, sP::SimulationParameters;
+function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64},
+        Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
+        χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T,
+        tc_term::Union{Float64,Matrix{ComplexF64}}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
+        λm::Float64 = 0.0, λd::Float64 = 0.0, use_γ_symmetry::Bool = true
+)::Nothing where D
+    χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
+    χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
+
+    ΣH = Σ_hartree(mP)
+    λm != 0.0 && χ_λ!(χm, λm)
+    λd != 0.0 && χ_λ!(χd, λd)
+    calc_Σ!(eom, Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP, use_γ_symmetry=use_γ_symmetry)
+    λm != 0.0 && reset!(χm)
+    λd != 0.0 && reset!(χd)
+    Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ ΣH 
+    return nothing
+end
+
+function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, 
+                Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
+                χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, 
+                Gνω::GνqT, U::Float64, kG::KGrid, sP::SimulationParameters;
         use_γ_symmetry::Bool = false
-)
+) where D
 
     γmt::Array{ComplexF64,3} = γm.data
     γdt::Array{ComplexF64,3} = γd.data
@@ -207,45 +224,40 @@ function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::V
 
     νh_ind = sP.n_iν + 1
     qlist = axes(Σ_ω,1)
-    νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gImp
+    νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2
     fill!(Σ_ω, zero(ComplexF64))
     νnlist = 0:last(axes(Σ_ω,2))
-    for (ωi, ωn) in enumerate(χm.indices_ω)
-        for νn in νnlist
+    Threads.@threads for νn in νnlist
+        for ωi in eachindex(χm.indices_ω)
+            ωn = χm.indices_ω[ωi]
             νi_shifted = νn + 1 + sP.n_iν + trunc(Int,ωn/2) 
             if use_γ_symmetry ||  νi_shifted <= size(γmt,2) #
                 for qi in qlist
-                    fill_buffer!(Kνωq_pre, eomf, qi, νn, νi_shifted, νh_ind, ωn, ωi, U, γmt, γdt, χmt, χdt, λ₀)            
+                    fill_buffer!(Kνωq_pre[Threads.threadid()], eomf, qi, νn, νi_shifted, νh_ind, ωn, ωi, U, γmt, γdt, χmt, χdt, λ₀)            
                 end
                 G_sel = selectdim(Gνω, νdim, νn + ωn)
                 SE_sel = view(Σ_ω, :, νn)
-                conv_add_inlined!(SE_sel, kG.cache1, kG.fftw_plan, kG.ifftw_plan, Kνωq_pre, G_sel, kG.kInd_crossc, kG.expand_perms, kG.Nk)
+                conv_add_inlined!(SE_sel, fft_caches[Threads.threadid()], kG.fftw_plan, kG.ifftw_plan, Kνωq_pre[Threads.threadid()], G_sel, kG.kInd_crossc, kG.expand_perms, kG.Nk)
             end
         end
     end
 end
 
-function calc_Σ!(Σ_ladder::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-        χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T,
-        tc_term::Union{Float64,Matrix{ComplexF64}}, Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-        λm::Float64 = 0.0, λd::Float64 = 0.0, use_γ_symmetry::Bool = true
-)::Nothing
-    χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
-    χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
-
-    ΣH = Σ_hartree(mP)
-    λm != 0.0 && χ_λ!(χm, λm)
-    λd != 0.0 && χ_λ!(χd, λd)
-    calc_Σ!(eom, Σ_ladder, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP, use_γ_symmetry=use_γ_symmetry)
-    λm != 0.0 && reset!(χm)
-    λd != 0.0 && reset!(χd)
-    Σ_ladder.parent[:, :] = Σ_ladder.parent[:, :] ./ mP.β .+ tc_term .+ ΣH 
-    return nothing
-end
 
 # ==================================== New Equation of Motion ========================================
 Base.@assume_effects :total  eomf_new(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64, correction_factor::ComplexF64)::ComplexF64 = U * (γ_m * correction_factor * 1.0 * (1 + U * χ_m) + γ_m * 0.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
 Base.@assume_effects :total  eomf_new(U::Float64, γ_m::ComplexF64, γ_d::ComplexF64, χ_m::Float64, χ_d::Float64, λ₀::ComplexF64, correction_factor::Float64)::ComplexF64    = U * (γ_m * correction_factor * 1.0 * (1 + U * χ_m) + γ_m * 0.5 * (1 + U * χ_m) - γ_d * 0.5 * (1 - U * χ_d) - 1.5 + 0.5 + λ₀)
+
+
+function fill_buffer!(buffer::Vector{ComplexF64}, qi::Int, νn::Int, νi::Int, νmid_ind::Int, ωm::Int, ωi::Int, U::Float64, γm::Array{ComplexF64,3}, γd::Array{ComplexF64,3}, χm::Array{Float64,2}, χd::Array{Float64,2}, λ₀::Array{ComplexF64,3}, correction_factor::Float64)::Nothing
+    if νi > size(γm,2)
+        νi_m = νmid_ind - νn - 1 - isodd(ωm)
+        @inbounds buffer[qi] = eomf_new(U, conj(γm[qi, νi_m, ωi]), conj(γd[qi, νi_m, ωi]), χm[qi, ωi], χd[qi, ωi], conj(λ₀[qi, νi_m, ωi]), correction_factor) 
+    else
+        @inbounds buffer[qi] = eomf_new(U, γm[qi, νi, ωi], γd[qi, νi, ωi], χm[qi, ωi], χd[qi, ωi], λ₀[qi, νi, ωi], correction_factor) 
+    end
+    return nothing
+end
 
 
 function calc_Σ(::ΣTail_EoM, χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, h; νmax::Int=eom_ν_cutoff(h), λm::Float64 = 0.0, λd::Float64 = 0.0) 
@@ -258,27 +270,31 @@ end
 
 function calc_Σ(χm::χT,γm::γT,χd::χT,γd::γT, χm_loc::AbstractArray, λ₀::λ₀T,
                     Gνω::GνqT, kG::KGrid, mP::ModelParameters, sP::SimulationParameters;
-                    νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0
+                    νmax::Int = eom_ν_cutoff(sP), λm::Float64 = 0.0, λd::Float64 = 0.0,
+                    use_γ_symmetry::Bool = false
 ) 
     χm.λ != 0 && λm != 0 && error("Stopping self energy calculation: λm = $λm AND χm.λ = $(χm.λ)")
     χd.λ != 0 && λd != 0 && error("Stopping self energy calculation: λd = $λd AND χd.λ = $(χd.λ)")
     Nq, Nω = size(χm)
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, Nq)
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     Σ_ladder = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, 0:νmax-1)
     λm != 0.0 && χ_λ!(χm, λm)
     λd != 0.0 && χ_λ!(χd, λd)
-    calc_Σ!(Σ_ladder, Kνωq_pre, χm, γm, χd, γd, χm_loc, λ₀, Gνω, kG, mP, sP)
+    calc_Σ!(Σ_ladder, Kνωq_pre, fft_caches, χm, γm, χd, γd, χm_loc, λ₀, Gνω, mP.U, kG, sP, use_γ_symmetry=use_γ_symmetry)
     λm != 0.0 && reset!(χm)
     λd != 0.0 && reset!(χd)
     return Σ_ladder
 end
 
-function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::Vector{ComplexF64},
-    χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, 
-    Gνω::GνqT, U::Float64, kG::KGrid, plan, iplan, sP::SimulationParameters;
+function calc_Σ!(Σ_ω::OffsetMatrix{ComplexF64}, 
+    Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
+    χm::χT, γm::γT, χd::χT, γd::γT, χm_loc::Union{Matrix,χT}, λ₀::λ₀T, 
+    Gνω::GνqT, U::Float64, kG::KGrid, sP::SimulationParameters;
     use_γ_symmetry::Bool = false
-)
+) where D
     γmt::Array{ComplexF64,3} = γm.data
     γdt::Array{ComplexF64,3} = γd.data
     χmt::Array{Float64,2} = χm.data
@@ -289,16 +305,18 @@ function calc_Σ!(eomf::Function, Σ_ω::OffsetMatrix{ComplexF64}, Kνωq_pre::V
     νdim = ndims(Gνω) > 2 ? length(gridshape(kG)) + 1 : 2 # TODO: this is a fallback for gImp
     fill!(Σ_ω, zero(ComplexF64))
     νnlist = 0:last(axes(Σ_ω,2))
-    for (ωi, ωn) in enumerate(χm.indices_ω)
-        for νn in νnlist
+    Threads.@threads for νn in νnlist
+        for ωi in eachindex(χm.indices_ω)
+            ωn = χm.indices_ω[ωi]
             νi_shifted = νn + 1 + sP.n_iν + trunc(Int,ωn/2) 
             if use_γ_symmetry || νi_shifted <= size(γmt,2) 
                 for qi in qlist
-                    fill_buffer!(Kνωq_pre, eomf, qi, νn, νi_shifted, νh_ind, ωn, ωi, U, γmt, γdt, χmt, χdt, λ₀)            
+                    correction_factor = (1 .+ U .* χm_loc[1,ωi]) ./ (1 .+ U .* χm[qi, ωi])
+                    fill_buffer!(Kνωq_pre[Threads.threadid()], qi, νn, νi_shifted, νh_ind, ωn, ωi, U, γmt, γdt, χmt, χdt, λ₀, correction_factor)            
                 end
                 G_sel = selectdim(Gνω, νdim, νn + ωn)
                 SE_sel = view(Σ_ω, :, νn)
-                conv_add_inlined!(SE_sel, kG.cache1, plan, iplan, Kνωq_pre, G_sel, kG.kInd_crossc, kG.expand_perms, kG.Nk)
+                conv_add_inlined!(SE_sel, fft_caches[Threads.threadid()], kG.fftw_plan, kG.ifftw_plan, Kνωq_pre[Threads.threadid()], G_sel, kG.kInd_crossc, kG.expand_perms, kG.Nk)
             end
         end
     end
@@ -326,7 +344,9 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     Σ_hartree = mP.n * mP.U / 2.0
     Nq = size(χm, χm.axis_types[:q])
 
-    Kνωq_pre::Vector{ComplexF64} = Vector{ComplexF64}(undef, length(kG.kMult))
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     Σ_ladder_i = OffsetArray(Matrix{ComplexF64}(undef, Nq, sP.n_iν), 1:Nq, 0:sP.n_iν-1)
     Σ_ladder = OffsetArray(Array{ComplexF64,3}(undef, Nq, sP.n_iν, 7), 1:Nq, 0:sP.n_iν-1, 1:7)
 
@@ -338,17 +358,17 @@ function calc_Σ_parts(χm::χT, γm::γT, χd::χT, γd::γT, χ_m_sum::Union{F
     tc_term  = tail_correction_term(sum_kω(kG, χm), χ_m_sum, tc_factor)
     #tc_factor_test = tail_correction_term(χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, tc_factor)
     println(size(tc_term))
-    calc_Σ!(eom_χ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_χ_m, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 1] = Σ_ladder_i ./ mP.β
-    calc_Σ!(eom_γ_m, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_γ_m, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 2] = Σ_ladder_i ./ mP.β
-    calc_Σ!(eom_χ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_χ_d, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 3] = Σ_ladder_i ./ mP.β
-    calc_Σ!(eom_γ_d, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_γ_d, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 4] = Σ_ladder_i ./ mP.β
-    calc_Σ!(eom_rest_01, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_rest_01, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 5] = Σ_ladder_i ./ mP.β
-    calc_Σ!(eom_rest, Σ_ladder_i, Kνωq_pre, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
+    calc_Σ!(eom_rest, Σ_ladder_i, Kνωq_pre, fft_caches, χm, γm, χd, γd, λ₀, Gνω, mP.U, kG, sP)
     Σ_ladder.parent[:, :, 6] = Σ_ladder_i ./ mP.β .+ Σ_hartree
     for qi in axes(Σ_ladder, 1)
         Σ_ladder.parent[qi, :, 7] .= size(tc_term,2) > 0 ? tc_term[1,:] : 0.0

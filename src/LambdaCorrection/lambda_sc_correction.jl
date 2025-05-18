@@ -115,7 +115,9 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     νGrid = 0:(νmax-1)
     fft_νGrid= h.sP.fft_range
 
-    Kνωq_pre    = Vector{ComplexF64}(undef, length(h.kG.kMult))
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(h.kG.cache1)} = [similar(h.kG.cache1) for ti in 1:NT]
     G_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder_it)
     Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, νGrid)
@@ -130,7 +132,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
         copyto!(G_rfft, h.gLoc_rfft)
         rhs_c1,_ = λm_rhs(χm, χd, h; λd=λd_i, PP_mode=tc != ΣTail_λm)
         λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, fft_caches, tc_factor_term, tc, 
                 χm, γm, χd, γd, λ₀, λm, λd_i, h; 
                 maxit=max_steps_sc, conv_abs=validation_threshold, 
                 mixing=mixing, mixing_start_it=mixing_start_it,
@@ -157,16 +159,16 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
                 λd = find_zero(f_c2_sc, (λd_min + λd_δ, λd_max_list[i]), RF_Method; atol=validation_threshold, maxiters=max_steps_dm)
                 done = true
             elseif i == dbg_roots_reset+1
-                @warn "Ran out of root resets, trying Newton_Secular"
-                λd = newton_secular(f_c2_sc, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
-                done = true
-            elseif i == dbg_roots_reset+2
                 @warn "Ran out of root resets, trying Newton_Right"
-                λd = newton_right(f_c2_sc, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
+                λd = newton_right(f_c2, λd_min+10.0, λd_min; nsteps=max_steps_dm, atol=validation_threshold, δ=1e-5)
                 done = true
+            #elseif i == dbg_roots_reset+2
+            #    @warn "Ran out of root resets, Newton_Right failed, trying Newton_Secular"
+            #    λd = newton_secular(f_c2, λd_min; nsteps=max_steps_dm, atol=validation_threshold)
+            #    done = true
             else
+                @error "Ran out of root resets!"
                 done = true
-                @error "Ran Out of root finding methods!"
             end
         catch e
             @warn "Caught error: $e : ModelParameters $(h.mP) for range $λd_min + $λd_δ, $(i <= length(λd_max_list) ?  λd_max_list[i] : NaN)"
@@ -178,7 +180,7 @@ function λdm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, 
     λm, converged = if isfinite(λd) && λd > λd_min
         rhs,PP_p1 = λm_rhs(χm, χd, h; λd=λd, PP_mode=tc != ΣTail_λm)
         λm  = λm_correction_val(χm, rhs, h; max_steps=max_steps_m, eps=validation_threshold)
-        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc,
+        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, fft_caches, tc_factor_term, tc,
                     χm, γm, χd, γd, λ₀, λm, λd, h; maxit=max_steps_sc, conv_abs=validation_threshold,
                     mixing=mixing, mixing_start_it=mixing_start_it,
                     verbose=verbose_sc, trace=trace)
@@ -276,12 +278,13 @@ function run_sc(χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Floa
 end
 
 
-function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, gLoc_rfft, 
-            Kνωq_pre, tc_factor, tc::Type{<: ΣTail}, 
+function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_bak::OffsetArray, gLoc_rfft,     
+            Kνωq_pre::Vector{Vector{ComplexF64}}, fft_caches::Vector{Array{ComplexF64,D}},
+            tc_factor, tc::Type{<: ΣTail}, 
             χm::χT, γm::γT, χd::χT, γd::γT, λ₀::λ₀T, λm::Float64, λd::Float64, h;
             maxit::Int=500, mixing::Float64=0.3, mixing_start_it::Int=10,
             conv_abs::Float64=1e-8, use_γ_symmetry::Bool=false,
-        trace=nothing, verbose::Bool=false)
+        trace=nothing, verbose::Bool=false) where D
     it      = 1
     converged = false
     μ_it = h.mP.μ
@@ -292,7 +295,7 @@ function run_sc!(G_ladder_it::OffsetArray, Σ_ladder_it::OffsetArray, G_ladder_b
     ifftw_plan = plan_ifft!(h.kG.cache1, flags=FFTW.PATIENT, timelimit=Inf, num_threads=1)
     while it <= maxit && !converged
         it > mixing_start_it && copy!(G_ladder_bak, G_ladder_it)
-        μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft, use_γ_symmetry=use_γ_symmetry)
+        μ_it = calc_G_Σ!(G_ladder_it, Σ_ladder_it, Kνωq_pre, fft_caches, tc_term, χm, γm, χd, γd, λ₀, λm, λd, h; gLoc_rfft=gLoc_rfft, use_γ_symmetry=use_γ_symmetry)
         @assert isfinite(μ_it) "encountered μ=$μ_it @ λd = $λd // λm = $λm"
         Δit = it > 1 ? sum(abs.(G_ladder_it .- G_ladder_bak))/prod(size(G_ladder_it)) : Inf
         Δit < conv_abs && (converged = true)
@@ -319,7 +322,9 @@ function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
     νGrid = 0:(νmax-1)
     fft_νGrid= h.sP.fft_range
 
-    Kνωq_pre    = Vector{ComplexF64}(undef, length(h.kG.kMult))
+    NT =Threads.nthreads()
+    Kνωq_pre::Vector{Vector{ComplexF64}} = [Vector{ComplexF64}(undef, Nq) for ti in 1:NT]
+    fft_caches::Vector{typeof(kG.cache1)} = [similar(kG.cache1) for ti in 1:NT]
     G_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, length(fft_νGrid)), 1:Nq, fft_νGrid) 
     G_ladder_bak = similar(G_ladder_it)
     Σ_ladder_it = OffsetArray(Matrix{ComplexF64}(undef, Nq, νmax), 1:Nq, νGrid)
@@ -332,7 +337,7 @@ function λm_sc_correction(χm::χT,γm::γT,χd::χT, γd::γT,λ₀::λ₀T, h
 
     rhs_c1,_ = λm_rhs(χm, χd, h; λd=0.0, PP_mode=tc != ΣTail_λm)
     λm   = λm_correction_val(χm, rhs_c1, h.kG, ωn2_tail; max_steps=max_steps_m, eps=validation_threshold)
-        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, tc_factor_term, tc, 
+        converged, μ_new = run_sc!(G_ladder_it, Σ_ladder_it, G_ladder_bak, G_rfft, Kνωq_pre, fft_caches, tc_factor_term, tc, 
                 χm, γm, χd, γd, λ₀, λm, 0.0, h; 
                 maxit=max_steps_sc, conv_abs=validation_threshold, 
                 mixing=mixing, mixing_start_it=mixing_start_it,
