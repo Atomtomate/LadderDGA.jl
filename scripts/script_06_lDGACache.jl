@@ -5,6 +5,14 @@ using JLD2
 using Logging
 
 
+function gen_run_id(mP, sP, kgrid_str)
+    run_id_str = "$(round(mP.U,digits=8))_$(round(mP.n,digits=8))_$(round(mP.β,digits=8))_$(round(mP.μ,digits=8))"
+    run_id_str = run_id_str*"$(sP.n_iν)_$(sP.n_iω)_$(sP.n_iν_shell)_$(sP.shift)_$(round(sP.usable_prct_reduction,digits=8))_$(sP.dbg_full_eom_omega)_$(sP.dbg_full_chi_omega)"
+    run_id_str = run_id_str*"$(kgrid_str)"
+    return hash(run_id_str)
+end
+
+
 function run(ARGS; use_cache::Bool = true, cache_name::String = "lDGA_cache.jld2")
     cfg_file = ARGS[1]
     fname = ARGS[2]
@@ -20,7 +28,8 @@ function run(ARGS; use_cache::Bool = true, cache_name::String = "lDGA_cache.jld2
     restored_run = false
 
 
-    run_id = hash(string(cfg_content...))
+    run_id = gen_run_id(mP, sP, kGridsStr)
+
     println("[$run_id]: ======================================"); 
     println("[$run_id]: = beta = $(round(mP.β,digits=4)), U = $(round(mP.U,digits=4)), n = $(round(mP.n,digits=4)), Nk = $(kGridsStr[1][2])  ");
     println("[$run_id]: ======================================"); 
@@ -54,8 +63,8 @@ function run(ARGS; use_cache::Bool = true, cache_name::String = "lDGA_cache.jld2
 
     if isnothing(χm)
         println("[$run_id]: Inverting BSE, no cached values found."); flush(stdout)
-        χm, γm = calc_χγ(:m, lDGAhelper, bubble; ω_symmetric=true);
-        χd, γd = calc_χγ(:d, lDGAhelper, bubble; ω_symmetric=true);
+        χm, γm = calc_χγ(:m, lDGAhelper, bubble; ω_symmetric=true, use_threads=true);
+        χd, γd = calc_χγ(:d, lDGAhelper, bubble; ω_symmetric=true, use_threads=true);
     end
     if use_cache && !restored_run
         cache_file = joinpath(cfg_dir, cache_name)

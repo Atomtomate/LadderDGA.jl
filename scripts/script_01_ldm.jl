@@ -7,8 +7,8 @@ fOutName = ARGS[2]
 wp, mP, sP, env, kGridsStr = readConfig(cfg_file);
 lDGAhelper = setup_LDGA(kGridsStr[1], mP, sP, env, silent=true);
 bubble     = calc_bubble(:DMFT, lDGAhelper);
-χm, γm = calc_χγ(:m, lDGAhelper, bubble);
-χd, γd = calc_χγ(:d, lDGAhelper, bubble);
+χm, γm = calc_χγ(:m, lDGAhelper, bubble; ω_symmetric=true, use_threads=true);
+χd, γd = calc_χγ(:d, lDGAhelper, bubble; ω_symmetric=true, use_threads=true);
 λ₀ = calc_λ0(bubble, lDGAhelper);
 
 res_m_nat  = λm_correction(χm, γm, χd, γd, λ₀, lDGAhelper, λ_rhs=:native, verbose=true)
