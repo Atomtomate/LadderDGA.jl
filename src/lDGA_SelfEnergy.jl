@@ -82,8 +82,8 @@ function tail_correction_term(U::Float64, β::Float64, n::Float64, χm_nl::Float
     tf = tail_factor(mode, U, β, n, Σ_loc, iν)
     return tail_correction_term(χm_nl, χm_loc, tf)
 end
-function tail_correction_term(χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, tf::Vector{ComplexF64})::Matrix{ComplexF64}
-    return reshape((χm_nl - χm_loc + (χd_nl - χd_loc)/3) .* tf, 1, length(tf))
+function tail_correction_term(χm_nl::Float64, χm_loc::Float64, χd_nl::Float64, χd_loc::Float64, tf::Vector{ComplexF64}; dbg_version::Bool=false)::Matrix{ComplexF64}
+    return reshape((χm_nl - χm_loc + dbg_version*(χd_nl - χd_loc)/3) .* tf, 1, length(tf))
 end
 
 function tail_correction_term(U::Float64, β::Float64, n::Float64,
